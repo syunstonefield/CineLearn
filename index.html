@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CineLearn — ドラマで英語を学ぶ</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header>
+  <div class="logo">Cine<span>Learn</span></div>
+  <div class="header-right">
+    <button class="btn-profile-switch" id="btnProfileSwitch" style="display:none" title="プロフィールを切り替える">
+      <span class="mini-avatar" id="headerAvatar"></span>
+      <span id="headerProfileName"></span>
+    </button>
+    <button class="btn-header-icon" id="btnWordbook" title="単語帳">
+      📖<span class="header-badge" id="wordbookBadge"></span>
+    </button>
+    <button class="btn-header-icon" id="btnOpenSettings" title="設定">⚙️</button>
+    <button class="btn-header-icon" id="btnSignOut" title="ログアウト" style="display:none">🚪</button>
+    <!-- JS用の非表示要素 -->
+    <div id="levelBadge" style="display:none">レベル：<span id="levelDisplay">-</span></div>
+    <span class="status-msg" id="apiStatus"></span>
+  </div>
+</header>
+
+<main id="mainContent">
+
+  <!-- ── Screen 0: プロフィール選択 ── -->
+  <div class="screen active" id="screen-0">
+    <div class="screen-inner center">
+      <h1 class="welcome-title">だれが観ますか？</h1>
+      <div class="profile-grid" id="profileGrid"></div>
+    </div>
+  </div>
+
+  <!-- ── Screen main: ダッシュボード ── -->
+  <div class="screen" id="screen-main">
+    <div class="main-toolbar">
+      <div class="toolbar-search">
+        <input type="text" id="mainSearchInput" placeholder="ドラマのタイトルで検索...">
+        <button class="btn-icon-search" id="btnMainSearch">🔍</button>
+      </div>
+      <button class="btn-primary btn-add-drama" id="btnAddDrama">＋ ドラマを追加</button>
+    </div>
+    <div id="dramaLibrary" class="drama-library"></div>
+  </div>
+
+  <!-- ── Screen 4: エピソード選択 + 単語リスト ── -->
+  <div class="screen" id="screen-4">
+    <div class="screen-inner">
+      <div class="screen-header">
+        <button class="btn-back" id="btnBackToMain">← マイドラマ</button>
+        <div>
+          <div class="screen-title">視聴前の準備</div>
+          <div class="screen-desc" id="vocabDramaTitle">エピソードを選んで単語を予習する</div>
+        </div>
+      </div>
+
+      <div class="episode-selector">
+        <div class="episode-label">視聴するエピソードを選択</div>
+        <div class="episode-row">
+          <div class="episode-field">
+            <label class="episode-field-label">シーズン</label>
+            <select class="episode-select" id="seasonSelect">
+              <option value="1">Season 1</option>
+            </select>
+          </div>
+          <div class="episode-field">
+            <label class="episode-field-label">エピソード</label>
+            <select class="episode-select" id="episodeSelect">
+              <option value="1">Episode 1</option>
+              <option value="2">Episode 2</option>
+              <option value="3">Episode 3</option>
+              <option value="4">Episode 4</option>
+              <option value="5">Episode 5</option>
+              <option value="6">Episode 6</option>
+              <option value="7">Episode 7</option>
+              <option value="8">Episode 8</option>
+              <option value="9">Episode 9</option>
+              <option value="10">Episode 10</option>
+            </select>
+          </div>
+          <button class="btn-episode" id="vocabGenBtn" disabled>単語を生成</button>
+        </div>
+        <div class="episode-selected" id="episodeSelected"></div>
+      </div>
+
+      <div id="vocabSection">
+        <div class="empty-state">エピソードを選んでください</div>
+      </div>
+      <button class="btn-primary" id="vocabNextBtn" style="display:none">テストを受ける →</button>
+    </div>
+  </div>
+
+  <!-- ── Screen 5: テスト ── -->
+  <div class="screen" id="screen-5">
+    <div class="screen-inner">
+      <div class="screen-header">
+        <button class="btn-back" id="btnBackToVocab">← 単語リストに戻る</button>
+        <div>
+          <div class="screen-title">視聴後テスト</div>
+          <div class="screen-desc">理解度と語彙を確認するクイズ</div>
+        </div>
+      </div>
+      <div id="quizSection">
+        <div class="empty-state">クイズを準備中...</div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- ════════════════════════════════
+     設定モーダル
+════════════════════════════════ -->
+<div class="modal-overlay" id="settingsModal" style="display:none">
+  <div class="modal-panel modal-panel-wide">
+    <div class="modal-header">
+      <span class="modal-title">⚙️ 設定</span>
+      <button class="modal-close" id="btnCloseSettings">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- API Keys -->
+      <div class="settings-section">
+        <div class="settings-section-title">🔑 APIキー</div>
+        <div class="api-row">
+          <input type="password" class="api-input api-input-wide" id="apiKeyInput" placeholder="Claude API Key (sk-ant-...)">
+          <button class="btn-save" id="btnSaveApiKey">保存</button>
+        </div>
+        <div class="api-row" style="margin-top:8px">
+          <input type="password" class="api-input api-input-wide" id="osApiKeyInput" placeholder="Open Subtitles Key（字幕取得・任意）">
+          <button class="btn-save" id="btnSaveOsApiKey">保存</button>
+        </div>
+      </div>
+
+      <!-- TOEIC Score -->
+      <div class="settings-section">
+        <div class="settings-section-title">📊 英語レベル</div>
+        <div class="toeic-wrap">
+          <div class="toeic-input-row">
+            <input type="number" class="toeic-input" id="toeicScore" placeholder="例：650" min="10" max="990">
+            <span class="toeic-unit">点</span>
+          </div>
+          <div class="toeic-hint">TOEICを受けたことがない場合は目安で入力してください</div>
+          <div class="toeic-levels">
+            <div class="toeic-level-row" data-score="300">
+              <div class="toeic-range">〜 400点</div>
+              <div class="toeic-level-info">
+                <span class="level-pill level-A2">A2 初級</span>
+                <span class="toeic-level-desc">基本的な表現は理解できる</span>
+              </div>
+            </div>
+            <div class="toeic-level-row" data-score="550">
+              <div class="toeic-range">400〜 600点</div>
+              <div class="toeic-level-info">
+                <span class="level-pill level-B1">B1 中級</span>
+                <span class="toeic-level-desc">日常会話は概ね理解できる</span>
+              </div>
+            </div>
+            <div class="toeic-level-row" data-score="750">
+              <div class="toeic-range">600〜 800点</div>
+              <div class="toeic-level-info">
+                <span class="level-pill level-B2">B2 中上級</span>
+                <span class="toeic-level-desc">複雑な内容も理解できる</span>
+              </div>
+            </div>
+            <div class="toeic-level-row" data-score="900">
+              <div class="toeic-range">800点〜</div>
+              <div class="toeic-level-info">
+                <span class="level-pill level-C1">C1 上級</span>
+                <span class="toeic-level-desc">幅広いトピックを理解できる</span>
+              </div>
+            </div>
+          </div>
+          <div class="level-result" id="levelResult" style="display:none">
+            <span class="level-result-label">判定レベル：</span>
+            <span class="level-result-value" id="levelResultValue"></span>
+          </div>
+          <div class="target-wrap" id="targetWrap" style="display:none">
+            <div class="target-label">目標TOEICスコア <span class="target-optional">（任意）</span></div>
+            <div class="toeic-input-row">
+              <input type="number" class="toeic-input" id="targetScore" placeholder="例：730" min="10" max="990">
+              <span class="toeic-unit">点（目標）</span>
+            </div>
+            <div class="vocab-count-hint" id="vocabCountHint">未入力の場合：単語30個を生成します</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Services -->
+      <div class="settings-section">
+        <div class="settings-section-title">📺 利用サービス <span class="settings-required">（必須）</span></div>
+        <div class="service-grid">
+          <div class="service-card" data-service="Netflix"><div class="service-name">Netflix</div><div class="service-check">✓</div></div>
+          <div class="service-card" data-service="Amazon Prime"><div class="service-name">Amazon Prime</div><div class="service-check">✓</div></div>
+          <div class="service-card" data-service="Disney+"><div class="service-name">Disney+</div><div class="service-check">✓</div></div>
+          <div class="service-card" data-service="Apple TV+"><div class="service-name">Apple TV+</div><div class="service-check">✓</div></div>
+          <div class="service-card" data-service="Hulu"><div class="service-name">Hulu</div><div class="service-check">✓</div></div>
+          <div class="service-card" data-service="U-NEXT"><div class="service-name">U-NEXT</div><div class="service-check">✓</div></div>
+        </div>
+      </div>
+
+      <!-- 単語階層設定 -->
+      <div class="settings-section">
+        <div class="settings-section-title">📚 テストに含める単語階層</div>
+        <div class="tier-toggle-list">
+
+          <label class="tier-toggle-row" for="tierCore">
+            <div class="tier-toggle-left">
+              <span class="tier-pill tier-core">Core</span>
+              <div>
+                <div class="tier-toggle-name">必須単語</div>
+                <div class="tier-toggle-desc">目標レベルで頻出・必ず覚えるべき語</div>
+              </div>
+            </div>
+            <input type="checkbox" id="tierCore" class="tier-checkbox" value="core" checked>
+          </label>
+
+          <label class="tier-toggle-row" for="tierAdvanced">
+            <div class="tier-toggle-left">
+              <span class="tier-pill tier-advanced">Advanced</span>
+              <div>
+                <div class="tier-toggle-name">発展単語</div>
+                <div class="tier-toggle-desc">やや高度・専門的だが理解を深める語</div>
+              </div>
+            </div>
+            <input type="checkbox" id="tierAdvanced" class="tier-checkbox" value="advanced" checked>
+          </label>
+
+          <label class="tier-toggle-row" for="tierContext">
+            <div class="tier-toggle-left">
+              <span class="tier-pill tier-context">Context</span>
+              <div>
+                <div class="tier-toggle-name">文脈専門語</div>
+                <div class="tier-toggle-desc">ドラマ特有の専門語・低頻度語（除外推奨）</div>
+              </div>
+            </div>
+            <input type="checkbox" id="tierContext" class="tier-checkbox" value="context">
+          </label>
+
+        </div>
+      </div>
+
+      <button class="btn-primary" id="btnSaveSettings" style="margin-top:8px;width:100%">設定を保存して始める</button>
+      <!-- JS互換用の非表示要素 -->
+      <button id="toeicNextBtn" style="display:none"></button>
+      <button id="serviceNextBtn" style="display:none"></button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════
+     ドラマ追加モーダル
+════════════════════════════════ -->
+<div class="modal-overlay" id="addDramaModal" style="display:none">
+  <div class="modal-panel">
+    <div class="modal-header">
+      <span class="modal-title">🎬 ドラマを探す</span>
+      <button class="modal-close" id="btnCloseAddDrama">✕</button>
+    </div>
+    <div class="modal-body">
+      <!-- タブ -->
+      <div class="modal-tabs">
+        <button class="modal-tab active" data-tab="recommend">AI推薦</button>
+        <button class="modal-tab" data-tab="search">タイトルで検索</button>
+      </div>
+
+      <!-- AI推薦タブ -->
+      <div class="tab-pane" id="tabRecommend">
+        <div class="genre-tags" id="genreTags">
+          <span class="tag active" data-genre="Crime Thriller">クライム</span>
+          <span class="tag" data-genre="Comedy">コメディ</span>
+          <span class="tag" data-genre="Romance">ロマンス</span>
+          <span class="tag" data-genre="Sci-Fi">SF</span>
+          <span class="tag" data-genre="Horror">ホラー</span>
+          <span class="tag" data-genre="Historical Drama">歴史劇</span>
+          <span class="tag" data-genre="Medical">医療</span>
+          <span class="tag" data-genre="Legal">法廷</span>
+        </div>
+        <button class="btn-primary" id="recommendBtn" style="margin:12px 0 8px">AIにおすすめを聞く</button>
+        <div id="dramaList" class="drama-list">
+          <div class="empty-state">ジャンルを選んでおすすめを取得してください</div>
+        </div>
+      </div>
+
+      <!-- 検索タブ -->
+      <div class="tab-pane" id="tabSearch" style="display:none">
+        <div class="search-row" style="margin-top:12px">
+          <input type="text" class="toeic-input" id="manualSearchInput"
+            placeholder="例：SUITS、Breaking Bad" style="flex:1;margin-right:8px">
+          <button class="btn-primary" id="btnManualSearch">検索</button>
+        </div>
+        <div id="manualSearchResults" class="drama-list" style="margin-top:12px">
+          <div class="empty-state">タイトルを入力して検索してください</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════
+     単語帳モーダル
+════════════════════════════════ -->
+<div class="modal-overlay" id="wordbookModal" style="display:none">
+  <div class="modal-panel">
+    <div class="modal-header">
+      <span class="modal-title">📖 マイ単語帳</span>
+      <button class="modal-close" id="btnCloseWordbook">✕</button>
+    </div>
+    <div class="wordbook-info">Netflixなどの字幕で単語をクリックすると、ここに保存されます</div>
+    <div class="modal-body" id="wordbookContent"></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════
+     学習履歴モーダル（ドラマ詳細）
+════════════════════════════════ -->
+<div class="modal-overlay" id="historyModal" style="display:none">
+  <div class="modal-panel">
+    <div class="modal-header">
+      <span class="modal-title" id="modalTitle">学習履歴</span>
+      <button class="modal-close" id="btnCloseHistory">✕</button>
+    </div>
+    <div class="modal-body" id="historyContent"></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════
+     復習モーダル（SRS フラッシュカード）
+════════════════════════════════ -->
+<div class="modal-overlay" id="reviewModal" style="display:none">
+  <div class="modal-panel review-modal-panel">
+    <div class="modal-header">
+      <span class="modal-title">🃏 復習</span>
+      <button class="modal-close" id="btnCloseReview">✕</button>
+    </div>
+    <div id="reviewContent" class="review-content"></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════
+     認証モーダル（Supabase ログイン）
+════════════════════════════════ -->
+<div class="modal-overlay" id="authModal" style="display:none">
+  <div class="modal-panel auth-modal-panel">
+    <div class="modal-header" style="border-bottom:none;padding-bottom:8px">
+      <span class="modal-title" style="font-size:22px">🎬 CineLearn</span>
+    </div>
+    <div class="auth-body">
+      <p class="auth-lead">学習データをデバイス間で同期するにはログインしてください。</p>
+      <div class="auth-tabs">
+        <button class="auth-tab active" id="tabLogin">ログイン</button>
+        <button class="auth-tab" id="tabSignup">新規登録</button>
+      </div>
+      <input type="email"    class="auth-input" id="authEmail"    placeholder="メールアドレス" autocomplete="email">
+      <input type="password" class="auth-input" id="authPassword" placeholder="パスワード（6文字以上）" autocomplete="current-password">
+      <div class="auth-error" id="authError" style="display:none"></div>
+      <button class="btn-primary" id="btnAuthSubmit">ログイン</button>
+      <div class="auth-divider">または</div>
+      <button class="btn-secondary" id="btnAuthSkip">このデバイスのみで使う</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/supabase.js"></script>
+<script src="js/wordlist.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

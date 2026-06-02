@@ -1,0 +1,22 @@
+/*
+  CineLearn Word Saver - Content CSS
+
+  :hover は Netflix のオーバーレイに阻まれるため使わない。
+  ハイライトは JS が .cl-word-active を付け外しすることで実現する。
+*/
+
+.cl-word {
+  cursor: pointer !important;
+  border-bottom: 2px dotted #c17f3b !important;
+  border-radius: 2px !important;
+  padding: 0 1px !important;
+  display: inline !important;
+}
+
+/* JS から requestAnimationFrame 経由で付け外しするハイライトクラス */
+.cl-word-active {
+  background: rgba(193, 127, 59, 0.65) !important;
+  border-bottom: 2px solid #c17f3b !important;
+  color: #fff !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6) !important;
+}
