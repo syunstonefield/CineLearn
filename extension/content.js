@@ -4,7 +4,7 @@
 // document_start で実行されるため Netflix の JS より先にリスナーが登録される。
 // クリック・長押しの検出は最上部で即時登録し、DOM 操作は DOMContentLoaded まで待つ。
 
-const CL_WORDS_KEY  = 'cl_my_words';
+const CL_WORDS_KEY_BASE = 'cl_my_words';
 const ACCENT        = '#c17f3b';
 const LONG_PRESS_MS = 600; // 長押し判定ミリ秒
 
@@ -297,15 +297,19 @@ function getEpisodeContext() {
 // 単語保存（chrome.storage.local）
 // ─────────────────────────────────────────────────────────────────
 function saveWord(entry) {
-  chrome.storage.local.get([CL_WORDS_KEY], (result) => {
-    const words = result[CL_WORDS_KEY] || [];
-    const idx = words.findIndex(w => w.word.toLowerCase() === entry.word.toLowerCase());
-    if (idx >= 0) {
-      words[idx] = { ...words[idx], ...entry };
-    } else {
-      words.unshift(entry);
-    }
-    chrome.storage.local.set({ [CL_WORDS_KEY]: words.slice(0, 500) });
+  chrome.storage.local.get(['cl_active_profile'], (profileResult) => {
+    const profileId = profileResult['cl_active_profile'];
+    const key = profileId ? `${CL_WORDS_KEY_BASE}_${profileId}` : CL_WORDS_KEY_BASE;
+    chrome.storage.local.get([key], (result) => {
+      const words = result[key] || [];
+      const idx = words.findIndex(w => w.word.toLowerCase() === entry.word.toLowerCase());
+      if (idx >= 0) {
+        words[idx] = { ...words[idx], ...entry };
+      } else {
+        words.unshift(entry);
+      }
+      chrome.storage.local.set({ [key]: words.slice(0, 500) });
+    });
   });
 }
 

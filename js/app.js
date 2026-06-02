@@ -257,6 +257,10 @@ async function applyProfileSettings(s) {
 // プロフィールを選択してアプリに入る
 function selectProfile(id) {
   currentProfileId = id;
+  // 拡張機能がプロフィール別キーに保存できるよう共有する
+  if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+    chrome.storage.local.set({ cl_active_profile: id });
+  }
   const profile = loadProfiles().find(p => p.id === id);
   if (!profile) return;
 
@@ -830,7 +834,7 @@ async function triggerEpisodeLoad() {
 // season/episode が null の単語（DOM取得不可の場合）はタイトル一致のみで表示する
 async function getMyWordsForEpisode(dramaTitle, season, episode) {
   if (!dramaTitle) return [];
-  const words = await store.get(MY_WORDS_KEY) || [];
+  const words = await store.get(myWordsKey()) || [];
   const tl = dramaTitle.toLowerCase();
   return words.filter(w => {
     if (!w.dramaTitle) return false;
@@ -1845,7 +1849,7 @@ const store = {
   },
   set(key, value) {
     // マイ単語帳は Supabase にも同期
-    if (key === 'cl_my_words' && typeof cloudSync !== 'undefined' && isLoggedIn()) {
+    if (key.startsWith('cl_my_words') && typeof cloudSync !== 'undefined' && isLoggedIn()) {
       cloudSync.myWords(value);
     }
     if (typeof chrome !== 'undefined' && chrome?.storage?.local) {
@@ -1858,7 +1862,9 @@ const store = {
   }
 };
 
-const MY_WORDS_KEY = 'cl_my_words';
+function myWordsKey() {
+  return currentProfileId ? `cl_my_words_${currentProfileId}` : 'cl_my_words';
+}
 
 // ─────────────────────────────────────────
 // 単語帳（マイ単語帳）
@@ -1882,7 +1888,7 @@ function closeWordbookOnOverlay(e) {
 
 // 単語帳の内容を描画する
 async function renderWordbook() {
-  const words = await store.get(MY_WORDS_KEY) || [];
+  const words = await store.get(myWordsKey()) || [];
   const container = document.getElementById('wordbookContent');
 
   if (words.length === 0) {
@@ -1942,8 +1948,8 @@ async function renderWordbook() {
 
 // 単語を1件削除する
 async function deleteMyWord(wordText) {
-  const words = await store.get(MY_WORDS_KEY) || [];
-  await store.set(MY_WORDS_KEY, words.filter(w => w.word !== wordText));
+  const words = await store.get(myWordsKey()) || [];
+  await store.set(myWordsKey(), words.filter(w => w.word !== wordText));
   await renderWordbook();
   updateWordbookBadge();
 }
@@ -1951,14 +1957,14 @@ async function deleteMyWord(wordText) {
 // 単語をすべて削除する
 async function clearAllWords() {
   if (!confirm('保存した単語をすべて削除しますか？')) return;
-  await store.set(MY_WORDS_KEY, []);
+  await store.set(myWordsKey(), []);
   await renderWordbook();
   updateWordbookBadge();
 }
 
 // ヘッダーの件数バッジを更新する
 async function updateWordbookBadge() {
-  const words = await store.get(MY_WORDS_KEY) || [];
+  const words = await store.get(myWordsKey()) || [];
   const badge = document.getElementById('wordbookBadge');
   if (badge) badge.textContent = words.length > 0 ? words.length : '';
 }
@@ -1969,7 +1975,7 @@ updateWordbookBadge();
 // 拡張機能が単語を追加したとき、リアルタイムでバッジ・一覧を更新する
 if (typeof chrome !== 'undefined' && chrome?.storage?.onChanged) {
   chrome.storage.onChanged.addListener((changes) => {
-    if (!changes[MY_WORDS_KEY]) return;
+    if (!Object.keys(changes).some(k => k.startsWith('cl_my_words'))) return;
 
     updateWordbookBadge();
 
