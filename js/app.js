@@ -564,7 +564,12 @@ JSON形式のみで返答: { "seasons": [{ "season": 1, "episodes": 10 }] }`;
       }
       selectedSeason = 1; selectedEpisode = 1;
       saveSettings();
-      if (!(await checkAndShowSavedVocab())) await preloadSubtitle();
+      try {
+        if (!(await checkAndShowSavedVocab())) await preloadSubtitle();
+      } catch {
+        const b = document.getElementById('vocabGenBtn');
+        if (b) { b.style.display = ''; b.disabled = false; b.textContent = '単語を生成'; }
+      }
     })();
   }
 }
@@ -893,10 +898,14 @@ async function preloadSubtitle() {
       `Season ${selectedSeason} Episode ${selectedEpisode} ⚠ 字幕エラー`;
   }
 
+  const btn = document.getElementById('vocabGenBtn');
+  if (btn) {
+    btn.style.display = '';
+    btn.disabled = false;
+    btn.textContent = '単語を生成';
+  }
   document.getElementById('vocabSection').innerHTML =
     '<div class="empty-state">「単語を生成」を押してください</div>';
-  document.getElementById('vocabGenBtn').disabled = false;
-  document.getElementById('vocabGenBtn').textContent = '単語を生成';
 }
 
 // 単語を生成する（字幕はキャッシュ済み）
