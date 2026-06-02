@@ -1,3 +1,11 @@
+[functions]
+  directory = "netlify/functions"
+
+[[redirects]]
+  from   = "/api/claude"
+  to     = "/.netlify/functions/claude"
+  status = 200
+
 [[headers]]
   for = "/sw.js"
   [headers.values]

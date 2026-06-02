@@ -1,5 +1,4 @@
 // 状態管理
-let apiKey = localStorage.getItem('cl_api_key') || '';
 let selectedServices = [];
 let selectedGenres = ['Crime Thriller'];
 let selectedDrama = null;
@@ -326,11 +325,7 @@ function renderProfileScreen() {
   grid.appendChild(addCard);
 }
 
-// 起動時にAPIキーを読み込む
-if (apiKey) {
-  document.getElementById('apiKeyInput').value = apiKey;
-  showStatus('apiStatus', '読み込み済み', 'success');
-}
+// APIキーはサーバー側で管理するため入力不要
 const osApiKey = localStorage.getItem('os_api_key') || '';
 if (osApiKey) {
   document.getElementById('osApiKeyInput').value = osApiKey;
@@ -420,18 +415,6 @@ function onTargetInput() {
   vocabCount = getVocabCount(val);
   hint.textContent = `目標 ${labels[targetLevel]}（${val}点）→ 単語${vocabCount}個を生成します`;
   saveSettings();
-}
-
-// APIキーを保存する
-function saveApiKey() {
-  const key = document.getElementById('apiKeyInput').value.trim();
-  if (!key.startsWith('sk-ant')) {
-    showStatus('apiStatus', '無効なキー', 'error');
-    return;
-  }
-  apiKey = key;
-  localStorage.setItem('cl_api_key', key);
-  showStatus('apiStatus', '保存しました', 'success');
 }
 
 // Open SubtitlesのAPIキーを保存する
@@ -683,32 +666,20 @@ function toggleService(card) {
 
 // ジャンルタグは initEventListeners() で登録
 
-// Claude APIを呼び出す（過負荷時は最大3回リトライ）
-// onRetry: (attempt, waitSec) => void  リトライ時のUI更新コールバック
+// Claude APIを呼び出す（Netlify Function プロキシ経由・過負荷時は最大3回リトライ）
 async function callClaude(prompt, maxTokens = 2000, onRetry = null) {
-  if (!apiKey) throw new Error('Claude APIキーを入力してください');
   const delays = [3000, 6000, 12000];
   for (let attempt = 0; attempt <= delays.length; attempt++) {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch('/api/claude', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: maxTokens,
-        messages: [{ role: 'user', content: prompt }]
-      })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, maxTokens })
     });
     if (res.ok) {
       const data = await res.json();
       return data.content[0].text;
     }
     const err = await res.json();
-    // 過負荷（529）またはレート制限（429）のときだけリトライ
     if ((res.status === 529 || res.status === 429) && attempt < delays.length) {
       const waitSec = delays[attempt] / 1000;
       if (onRetry) onRetry(attempt + 1, waitSec);
@@ -1282,10 +1253,6 @@ function renderReviewCard() {
 
 // ドラマのおすすめを取得する
 async function getRecommendations() {
-  if (!apiKey) {
-    showStatus('apiStatus', 'APIキーを入力してください', 'error');
-    return;
-  }
   if (selectedGenres.length === 0) {
     alert('ジャンルを選んでください');
     return;
@@ -1999,7 +1966,6 @@ if (typeof chrome !== 'undefined' && chrome?.storage?.onChanged) {
 // ─────────────────────────────────────────────────────────────────
 function initEventListeners() {
   // ─ ヘッダー ─
-  document.getElementById('btnSaveApiKey').addEventListener('click', saveApiKey);
   document.getElementById('btnSaveOsApiKey').addEventListener('click', saveOsApiKey);
   document.getElementById('btnWordbook').addEventListener('click', openWordbook);
   document.getElementById('btnOpenSettings').addEventListener('click', openSettings);
