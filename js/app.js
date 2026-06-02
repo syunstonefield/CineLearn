@@ -325,11 +325,6 @@ function renderProfileScreen() {
   grid.appendChild(addCard);
 }
 
-// APIキーはサーバー側で管理するため入力不要
-const osApiKey = localStorage.getItem('os_api_key') || '';
-if (osApiKey) {
-  document.getElementById('osApiKeyInput').value = osApiKey;
-}
 
 // TOEICスコアからレベルを判定する
 function getToeicLevel(score) {
@@ -417,16 +412,6 @@ function onTargetInput() {
   saveSettings();
 }
 
-// Open SubtitlesのAPIキーを保存する
-function saveOsApiKey() {
-  const key = document.getElementById('osApiKeyInput').value.trim();
-  if (!key) {
-    showStatus('apiStatus', '無効なキー', 'error');
-    return;
-  }
-  localStorage.setItem('os_api_key', key);
-  showStatus('apiStatus', 'OS key保存しました', 'success');
-}
 
 // ステータスメッセージを表示する
 function showStatus(id, msg, type) {
@@ -690,44 +675,27 @@ async function callClaude(prompt, maxTokens = 2000, onRetry = null) {
   }
 }
 
-// Open Subtitles APIで字幕を検索する
+// Open Subtitles APIで字幕を検索する（Netlify Function プロキシ経由）
 async function searchSubtitles(title, season, episode) {
-  const osKey = localStorage.getItem('os_api_key');
-  if (!osKey) throw new Error('Open Subtitles APIキーが設定されていません');
-  const params = new URLSearchParams({
-    query: title,
-    season_number: season,
-    episode_number: episode,
-    languages: 'en'
-  });
-  const res = await fetch(`https://api.opensubtitles.com/api/v1/subtitles?${params}`, {
-    headers: {
-      'Api-Key': osKey,
-      'Content-Type': 'application/json',
-      'User-Agent': 'CineLearn v1.0'
-    }
+  const res = await fetch('/api/subtitles', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'search', query: title, season, episode })
   });
   if (!res.ok) throw new Error('字幕の検索に失敗しました');
   const data = await res.json();
   return data.data;
 }
 
-// 字幕ファイルをダウンロードする
+// 字幕ファイルをダウンロードする（Netlify Function プロキシ経由）
 async function downloadSubtitle(fileId) {
-  const osKey = localStorage.getItem('os_api_key');
-  const res = await fetch('https://api.opensubtitles.com/api/v1/download', {
+  const res = await fetch('/api/subtitles', {
     method: 'POST',
-    headers: {
-      'Api-Key': osKey,
-      'Content-Type': 'application/json',
-      'User-Agent': 'CineLearn v1.0'
-    },
-    body: JSON.stringify({ file_id: fileId })
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'download', fileId })
   });
   if (!res.ok) throw new Error('字幕のダウンロードに失敗しました');
-  const data = await res.json();
-  const srtRes = await fetch(data.link);
-  return await srtRes.text();
+  return await res.text();
 }
 
 // SRTテキストからセリフだけ抽出する
@@ -899,15 +867,6 @@ async function preloadSubtitle() {
   cachedSubtitleText = '';
   cachedSubtitleSource = '';
 
-  const osKey = localStorage.getItem('os_api_key');
-  if (!osKey) {
-    cachedSubtitleSource = 'AIの推測（Open Subtitles未設定）';
-    document.getElementById('vocabSection').innerHTML =
-      '<div class="empty-state">「単語を生成」を押してください</div>';
-    document.getElementById('vocabGenBtn').disabled = false;
-    document.getElementById('vocabGenBtn').textContent = '単語を生成';
-    return;
-  }
 
   try {
     const subtitles = await searchSubtitles(
@@ -1966,7 +1925,6 @@ if (typeof chrome !== 'undefined' && chrome?.storage?.onChanged) {
 // ─────────────────────────────────────────────────────────────────
 function initEventListeners() {
   // ─ ヘッダー ─
-  document.getElementById('btnSaveOsApiKey').addEventListener('click', saveOsApiKey);
   document.getElementById('btnWordbook').addEventListener('click', openWordbook);
   document.getElementById('btnOpenSettings').addEventListener('click', openSettings);
   document.getElementById('btnProfileSwitch').addEventListener('click', () => {
