@@ -22,8 +22,18 @@ function sbEnabled() { return !!(SUPABASE_URL && SUPABASE_ANON_KEY); }
 
 // ─── セッション ────────────────────────────────────────────────────────────────
 function getSession()    { try { return JSON.parse(localStorage.getItem(SB_SESSION_KEY)); } catch { return null; } }
-function setSession(d)   { localStorage.setItem(SB_SESSION_KEY, JSON.stringify(d)); }
-function clearSession()  { localStorage.removeItem(SB_SESSION_KEY); }
+function setSession(d) {
+  localStorage.setItem(SB_SESSION_KEY, JSON.stringify(d));
+  if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+    chrome.storage.local.set({ [SB_SESSION_KEY]: d });
+  }
+}
+function clearSession() {
+  localStorage.removeItem(SB_SESSION_KEY);
+  if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+    chrome.storage.local.remove(SB_SESSION_KEY);
+  }
+}
 function getCurrentUser(){ return getSession()?.user || null; }
 function isLoggedIn() {
   const s = getSession();

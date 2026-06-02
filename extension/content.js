@@ -355,8 +355,8 @@ async function showWordPopup(word, sentence, rect) {
   document.getElementById('cl-save-btn').addEventListener('click', (e) => {
     e.stopImmediatePropagation();
     e.preventDefault();
-    const ctx = getEpisodeContext();
-    saveWord({
+    const ctx   = getEpisodeContext();
+    const entry = {
       word,
       sentence:   sentence || '',
       phonetic:   dict?.phonetic || '',
@@ -367,7 +367,9 @@ async function showWordPopup(word, sentence, rect) {
       dramaTitle: ctx.dramaTitle,
       season:     ctx.season,
       episode:    ctx.episode,
-    });
+    };
+    saveWord(entry);
+    chrome.runtime.sendMessage({ type: 'SAVE_WORD_TO_CLOUD', word: entry }).catch(() => {});
     closePopupAndResume();
     const epInfo = ctx.season != null ? ` S${ctx.season}E${ctx.episode}` : '';
     showToast(`「${word}」を保存しました${epInfo} ✓`);
