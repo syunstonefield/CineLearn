@@ -706,10 +706,15 @@ function toggleService(card) {
 // ジャンルタグは initEventListeners() で登録
 
 // Claude APIを呼び出す（Netlify Function プロキシ経由・過負荷時は最大3回リトライ）
+// 拡張機能内（chrome-extension://）から開いた場合は絶対URLを使う
+const API_BASE = (typeof chrome !== 'undefined' && chrome.runtime?.id)
+  ? 'https://fantastic-heliotrope-e6aa67.netlify.app'
+  : '';
+
 async function callClaude(prompt, maxTokens = 2000, onRetry = null) {
   const delays = [3000, 6000, 12000];
   for (let attempt = 0; attempt <= delays.length; attempt++) {
-    const res = await fetch('/api/claude', {
+    const res = await fetch(`${API_BASE}/api/claude`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ prompt, maxTokens })
@@ -731,7 +736,7 @@ async function callClaude(prompt, maxTokens = 2000, onRetry = null) {
 
 // Open Subtitles APIで字幕を検索する（Netlify Function プロキシ経由）
 async function searchSubtitles(title, season, episode) {
-  const res = await fetch('/api/subtitles', {
+  const res = await fetch(`${API_BASE}/api/subtitles`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'search', query: title, season, episode })
@@ -743,7 +748,7 @@ async function searchSubtitles(title, season, episode) {
 
 // 字幕ファイルをダウンロードする（Netlify Function プロキシ経由）
 async function downloadSubtitle(fileId) {
-  const res = await fetch('/api/subtitles', {
+  const res = await fetch(`${API_BASE}/api/subtitles`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'download', fileId })

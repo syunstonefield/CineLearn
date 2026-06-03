@@ -7,6 +7,7 @@
   "permissions": ["storage", "tabs"],
 
   "host_permissions": [
+    "https://fantastic-heliotrope-e6aa67.netlify.app/*",
     "https://*.supabase.co/*",
     "https://www.netflix.com/*",
     "https://www.amazon.co.jp/*",
