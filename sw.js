@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE_NAME = 'cinelearn-v2';
+const CACHE_NAME = 'cinelearn-v3';
 
 self.addEventListener('install', e => {
   self.skipWaiting();
