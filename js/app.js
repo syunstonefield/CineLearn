@@ -256,10 +256,21 @@ async function applyProfileSettings(s) {
 // プロフィールを選択してアプリに入る
 function selectProfile(id) {
   currentProfileId = id;
+  window._clProfileId = id; // supabase.js から参照できるよう公開
   // 拡張機能がプロフィール別キーに保存できるよう共有する
   if (typeof chrome !== 'undefined' && chrome.storage?.local) {
     chrome.storage.local.set({ cl_active_profile: id });
   }
+
+  // Supabase から取得した単語（cl_my_words）をプロフィール別キーに移行する
+  const profileKey = `cl_my_words_${id}`;
+  if (!localStorage.getItem(profileKey)) {
+    const cloudWords = localStorage.getItem('cl_my_words');
+    if (cloudWords) localStorage.setItem(profileKey, cloudWords);
+  }
+  // badge を正しい件数に更新（非同期・エラー無視）
+  if (typeof updateWordbookBadge === 'function') updateWordbookBadge();
+
   const profile = loadProfiles().find(p => p.id === id);
   if (!profile) return;
 

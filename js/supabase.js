@@ -204,7 +204,10 @@ async function pullFromCloud() {
     `/rest/v1/my_words?user_id=eq.${uid}&select=*&order=created_at.desc&limit=500`
   );
   if (Array.isArray(words) && words.length) {
-    localStorage.setItem('cl_my_words', JSON.stringify(
+    // プロフィールが選択済みならプロフィール別キーに、未選択なら共通キーに保存
+    const profileId = window._clProfileId || null;
+    const wordsKey  = profileId ? `cl_my_words_${profileId}` : 'cl_my_words';
+    localStorage.setItem(wordsKey, JSON.stringify(
       words.map(w => ({
         word: w.word, sentence: w.sentence, phonetic: w.phonetic,
         pos: w.pos, definition: w.definition, savedAt: w.saved_at,
@@ -212,6 +215,8 @@ async function pullFromCloud() {
         season: w.season, episode: w.episode
       }))
     ));
+    // badge 更新（app.js がロード済みなら）
+    if (typeof updateWordbookBadge === 'function') updateWordbookBadge();
   }
 }
 
