@@ -927,24 +927,44 @@ async function resolveUnassignedWords() {
   const unassigned = words.filter(w => w.dramaTitle && w.season == null);
   if (!unassigned.length) return;
 
-  // 学習履歴を新しい順に並べる（直近エピソード優先）
-  const history = loadHistory().sort((a, b) =>
-    (b.date || '').localeCompare(a.date || '')
-  );
+  // 現在のエピソードの字幕（メモリ）を先頭に、その後 localStorage の全 cl_sub_* キーを検索
+  // 履歴に存在しないエピソードも対象にするため history ではなく localStorage を直接スキャン
+  const subEntries = []; // { titleKey, season, episode, sub }
+
+  // ① 現在ロード済みの字幕（最優先）
+  if (cachedSubtitleText && selectedDrama && selectedSeason && selectedEpisode) {
+    subEntries.push({
+      titleKey: (selectedDrama.englishTitle || selectedDrama.title).toLowerCase(),
+      season:   selectedSeason,
+      episode:  selectedEpisode,
+      sub:      cachedSubtitleText.toLowerCase(),
+    });
+  }
+
+  // ② localStorage の cl_sub_* キーをすべてスキャン（直近保存順は不定だが全件検索）
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (!key?.startsWith('cl_sub_')) continue;
+    // キー形式: cl_sub_{title}_s{N}e{N}
+    const m = key.match(/^cl_sub_(.+)_s(\d+)e(\d+)$/);
+    if (!m) continue;
+    const sub = localStorage.getItem(key);
+    if (!sub) continue;
+    subEntries.push({
+      titleKey: m[1],
+      season:   parseInt(m[2]),
+      episode:  parseInt(m[3]),
+      sub:      sub.toLowerCase(),
+    });
+  }
 
   let changed = false;
   for (const w of unassigned) {
-    const tl = w.dramaTitle.toLowerCase();
-    const relatedHistory = history.filter(h => {
-      const ht = (h.drama?.title || '').toLowerCase();
-      return ht.includes(tl) || tl.includes(ht);
-    });
-    for (const entry of relatedHistory) {
-      const sub =
-        localStorage.getItem(subtitleCacheKey(entry.drama.title, entry.season, entry.episode)) ||
-        localStorage.getItem(subtitleCacheKey(entry.drama.englishTitle, entry.season, entry.episode));
-      if (!sub) continue;
-      if (sub.toLowerCase().includes(w.word.toLowerCase())) {
+    const tl = w.dramaTitle.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    for (const entry of subEntries) {
+      // タイトルの緩やかな一致
+      if (!entry.titleKey.includes(tl.slice(0, 5)) && !tl.includes(entry.titleKey.slice(0, 5))) continue;
+      if (entry.sub.includes(w.word.toLowerCase())) {
         w.season  = entry.season;
         w.episode = entry.episode;
         changed = true;
