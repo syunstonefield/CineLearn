@@ -19,7 +19,7 @@ export default async function handler(req, res) {
   }
 
   if (action === 'seasons') {
-    const r = await fetch(`${TMDB_BASE}/tv/${tvId}?api_key=${apiKey}&language=ja-JP`);
+    const r = await fetch(`${TMDB_BASE}/tv/${tvId}?api_key=${apiKey}&language=en-US`);
     const data = await r.json();
     return res.status(200).json(data);
   }

@@ -747,7 +747,8 @@ async function fetchSeasonInfoFromTMDb(title) {
       .filter(s => s.season_number > 0 && s.episode_count > 0)
       .map(s => ({ season: s.season_number, episodes: s.episode_count }));
 
-    return seasons.length ? seasons : null;
+    const englishTitle = detail.name || show.original_name || title;
+    return seasons.length ? { seasons, englishTitle } : null;
   } catch {
     return null;
   }
@@ -970,8 +971,9 @@ async function preloadSubtitle() {
 
 
   try {
+    const searchTitle = selectedDrama.englishTitle || selectedDrama.title;
     const subtitles = await searchSubtitles(
-      selectedDrama.title,
+      searchTitle,
       selectedSeason,
       selectedEpisode
     );
@@ -1456,8 +1458,10 @@ async function selectViewingService(service, drama) {
 
   try {
     // TMDb でシーズン情報を取得（Claude より正確）
-    const tmdbSeasons = await fetchSeasonInfoFromTMDb(drama.title);
-    if (tmdbSeasons) {
+    const tmdbResult = await fetchSeasonInfoFromTMDb(drama.title);
+    if (tmdbResult) {
+      const { seasons: tmdbSeasons, englishTitle } = tmdbResult;
+      if (englishTitle) selectedDrama.englishTitle = englishTitle;
       dramaSeasonInfo = tmdbSeasons;
       buildSeasonEpisodeSelectors(tmdbSeasons);
     } else {
