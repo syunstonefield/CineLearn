@@ -895,7 +895,9 @@ async function getMyWordsForEpisode(dramaTitle, season, episode) {
     ''
   ).toLowerCase();
 
-  return words.filter(w => {
+  console.log(`[ExtWords] S${season}E${episode} | words=${words.length} | episodeSub=${episodeSub.length}chars | cachedText=${cachedSubtitleText.length}chars`);
+
+  const result = words.filter(w => {
     if (!w.dramaTitle) return false;
     const wl = w.dramaTitle.toLowerCase();
     if (!(wl.includes(tl) || tl.includes(wl))) return false;
@@ -903,10 +905,11 @@ async function getMyWordsForEpisode(dramaTitle, season, episode) {
       return w.season === season && w.episode === episode;
     }
     // S/E 不明: 字幕キャッシュがあれば実際に登場するか確認
-    if (episodeSub) return episodeSub.includes(w.word.toLowerCase());
-    // キャッシュなし: 表示しない（ドラマ全体に散らばるのを防ぐ）
-    return false;
+    const found = episodeSub ? episodeSub.includes(w.word.toLowerCase()) : false;
+    console.log(`[ExtWords]   "${w.word}" S/E=null | episodeSub exists=${!!episodeSub} | found=${found}`);
+    return found;
   });
+  return result;
 }
 
 // 未割当単語をキャッシュ済み字幕から自動解決してストアを更新する
