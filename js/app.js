@@ -547,25 +547,30 @@ async function loadDramaFromLibrary(drama) {
     `「${drama.title}」をどのサービスで視聴しますか？`;
 
   const services = [
-    { name: 'Netflix',      icon: '🔴' },
-    { name: 'Prime Video',  icon: '🔵' },
-    { name: 'Disney+',      icon: '🔷' },
-    { name: 'Hulu',         icon: '🟢' },
-    { name: 'U-NEXT',       icon: '🟣' },
-    { name: 'Apple TV+',    icon: '🍎' },
+    { name: 'Netflix',      icon: '🔴', enabled: true  },
+    { name: 'Prime Video',  icon: '🔵', enabled: false },
+    { name: 'Disney+',      icon: '🔷', enabled: false },
+    { name: 'Hulu',         icon: '🟢', enabled: false },
+    { name: 'U-NEXT',       icon: '🟣', enabled: false },
+    { name: 'Apple TV+',    icon: '🍎', enabled: false },
   ];
   const grid = document.getElementById('viewingServiceGrid');
   grid.innerHTML = '';
   services.forEach(svc => {
     const card2 = document.createElement('div');
     card2.className = 'viewing-service-card';
-    // 前回使ったサービスを強調
-    if (svc.name === selectedViewingService) {
-      card2.style.borderColor = 'var(--accent)';
-      card2.style.background = 'rgba(193,127,59,0.07)';
+    if (!svc.enabled) {
+      card2.style.opacity = '0.38';
+      card2.style.cursor = 'not-allowed';
+      card2.innerHTML = `<div class="vs-icon">${svc.icon}</div><div class="vs-name">${svc.name}</div><div style="font-size:10px;color:var(--text-muted);margin-top:4px">近日対応</div>`;
+    } else {
+      if (svc.name === selectedViewingService) {
+        card2.style.borderColor = 'var(--accent)';
+        card2.style.background = 'rgba(193,127,59,0.07)';
+      }
+      card2.innerHTML = `<div class="vs-icon">${svc.icon}</div><div class="vs-name">${svc.name}</div>${svc.name === selectedViewingService ? '<div style="font-size:11px;color:var(--accent);margin-top:4px">前回使用</div>' : ''}`;
+      card2.addEventListener('click', () => selectViewingService(svc.name, drama));
     }
-    card2.innerHTML = `<div class="vs-icon">${svc.icon}</div><div class="vs-name">${svc.name}</div>${svc.name === selectedViewingService ? '<div style="font-size:11px;color:var(--accent);margin-top:4px">前回使用</div>' : ''}`;
-    card2.addEventListener('click', () => selectViewingService(svc.name, drama));
     grid.appendChild(card2);
   });
 }
@@ -714,6 +719,39 @@ function toggleService(card) {
 const API_BASE = (typeof chrome !== 'undefined' && chrome.runtime?.id)
   ? 'https://fantastic-heliotrope-e6aa67.netlify.app'
   : '';
+
+// TMDb API でシーズン・エピソード情報を取得する
+async function fetchSeasonInfoFromTMDb(title) {
+  try {
+    // ① タイトルで検索
+    const searchRes = await fetch(`${API_BASE}/api/tmdb`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'search', query: title })
+    });
+    const searchData = await searchRes.json();
+    const show = searchData.results?.[0];
+    if (!show) return null;
+
+    // ② シーズン詳細を取得
+    const detailRes = await fetch(`${API_BASE}/api/tmdb`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'seasons', tvId: show.id })
+    });
+    const detail = await detailRes.json();
+    if (!detail.seasons) return null;
+
+    // Specials（season_number=0）を除外して整形
+    const seasons = detail.seasons
+      .filter(s => s.season_number > 0 && s.episode_count > 0)
+      .map(s => ({ season: s.season_number, episodes: s.episode_count }));
+
+    return seasons.length ? seasons : null;
+  } catch {
+    return null;
+  }
+}
 
 async function callClaude(prompt, maxTokens = 2000, onRetry = null) {
   const delays = [3000, 6000, 12000];
@@ -1371,20 +1409,30 @@ function selectDrama(drama, card) {
 
   // 視聴サービス選択グリッドを生成
   const services = [
-    { name: 'Netflix',      icon: '🔴' },
-    { name: 'Prime Video',  icon: '🔵' },
-    { name: 'Disney+',      icon: '🔷' },
-    { name: 'Hulu',         icon: '🟢' },
-    { name: 'U-NEXT',       icon: '🟣' },
-    { name: 'Apple TV+',    icon: '🍎' },
+    { name: 'Netflix',      icon: '🔴', enabled: true  },
+    { name: 'Prime Video',  icon: '🔵', enabled: false },
+    { name: 'Disney+',      icon: '🔷', enabled: false },
+    { name: 'Hulu',         icon: '🟢', enabled: false },
+    { name: 'U-NEXT',       icon: '🟣', enabled: false },
+    { name: 'Apple TV+',    icon: '🍎', enabled: false },
   ];
   const grid = document.getElementById('viewingServiceGrid');
   grid.innerHTML = '';
   services.forEach(svc => {
     const card2 = document.createElement('div');
     card2.className = 'viewing-service-card';
-    card2.innerHTML = `<div class="vs-icon">${svc.icon}</div><div class="vs-name">${svc.name}</div>`;
-    card2.addEventListener('click', () => selectViewingService(svc.name, drama));
+    if (!svc.enabled) {
+      card2.style.opacity = '0.38';
+      card2.style.cursor = 'not-allowed';
+      card2.innerHTML = `<div class="vs-icon">${svc.icon}</div><div class="vs-name">${svc.name}</div><div style="font-size:10px;color:var(--text-muted);margin-top:4px">近日対応</div>`;
+    } else {
+      if (svc.name === selectedViewingService) {
+        card2.style.borderColor = 'var(--accent)';
+        card2.style.background = 'rgba(193,127,59,0.07)';
+      }
+      card2.innerHTML = `<div class="vs-icon">${svc.icon}</div><div class="vs-name">${svc.name}</div>${svc.name === selectedViewingService ? '<div style="font-size:11px;color:var(--accent);margin-top:4px">前回使用</div>' : ''}`;
+      card2.addEventListener('click', () => selectViewingService(svc.name, drama));
+    }
     grid.appendChild(card2);
   });
 }
@@ -1405,21 +1453,20 @@ async function selectViewingService(service, drama) {
     '<div class="loading"><div class="spinner"></div>シーズン情報を取得中...</div>';
 
   try {
-    const prompt = `「${drama.title}」（${drama.genre}）を${service}（日本）で視聴できるシーズンとエピソード数を教えてください。
-サービスによって配信しているシーズン数が異なる場合があります。${service}で実際に配信されているシーズンのみ返してください。
-
-以下のJSON形式のみで返答（説明不要）:
-{
-  "seasons": [
-    { "season": 1, "episodes": 10 },
-    { "season": 2, "episodes": 8 }
-  ]
-}`;
-
-    const text = await callClaude(prompt);
-    const json = JSON.parse(text.match(/\{[\s\S]*\}/)[0]);
-    dramaSeasonInfo = json.seasons;
-    buildSeasonEpisodeSelectors(json.seasons);
+    // TMDb でシーズン情報を取得（Claude より正確）
+    const tmdbSeasons = await fetchSeasonInfoFromTMDb(drama.title);
+    if (tmdbSeasons) {
+      dramaSeasonInfo = tmdbSeasons;
+      buildSeasonEpisodeSelectors(tmdbSeasons);
+    } else {
+      // TMDb で見つからない場合は Claude にフォールバック
+      const prompt = `「${drama.title}」のシーズンとエピソード数をJSON形式のみで返答してください。
+{ "seasons": [{ "season": 1, "episodes": 10 }] }`;
+      const text = await callClaude(prompt);
+      const json = JSON.parse(text.match(/\{[\s\S]*\}/)[0]);
+      dramaSeasonInfo = json.seasons;
+      buildSeasonEpisodeSelectors(json.seasons);
+    }
   } catch (e) {
     dramaSeasonInfo = [
       { season: 1, episodes: 10 },

@@ -11,6 +11,11 @@
   to     = "/.netlify/functions/subtitles"
   status = 200
 
+[[redirects]]
+  from   = "/api/tmdb"
+  to     = "/.netlify/functions/tmdb"
+  status = 200
+
 [[headers]]
   for = "/sw.js"
   [headers.values]
