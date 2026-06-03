@@ -160,7 +160,11 @@ const cloudSync = {
 
   async myWords(words) {
     const uid = getCurrentUser()?.id;
-    if (!uid || !words?.length) return;
+    if (!uid) return;
+    // 全削除してから現在のリストを挿入（置き換え戦略）
+    // → 削除した単語が Supabase に残らないことを保証する
+    await sbFetch(`/rest/v1/my_words?user_id=eq.${uid}`, { method: 'DELETE' });
+    if (!words?.length) return;
     await sbFetch('/rest/v1/my_words', {
       method: 'POST',
       headers: { 'Prefer': 'resolution=merge-duplicates' },

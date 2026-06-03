@@ -1914,14 +1914,11 @@ async function renderWordbook() {
   });
 }
 
-// 単語を1件削除する（削除リストに追加 + ストア + Supabase）
+// 単語を1件削除する（削除リストに追加 + ストア更新 → store.set が cloudSync.myWords を呼ぶ）
 async function deleteMyWord(wordText) {
   addToDeletedWords(wordText);
   const words = await store.get(myWordsKey()) || [];
   await store.set(myWordsKey(), words.filter(w => w.word !== wordText));
-  if (typeof cloudSync !== 'undefined' && isLoggedIn()) {
-    cloudSync.deleteWord(wordText).catch(() => {});
-  }
   await renderWordbook();
   updateWordbookBadge();
 }
@@ -1932,9 +1929,6 @@ async function clearAllWords() {
   const words = await store.get(myWordsKey()) || [];
   addToDeletedWords(words.map(w => w.word));
   await store.set(myWordsKey(), []);
-  if (typeof cloudSync !== 'undefined' && isLoggedIn()) {
-    cloudSync.clearWords().catch(() => {});
-  }
   await renderWordbook();
   updateWordbookBadge();
 }
