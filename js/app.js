@@ -1053,7 +1053,7 @@ async function generateVocabFromEpisode() {
         '<div class="loading"><div class="spinner"></div>単語を分析中...</div>';
     }
 
-    const truncated = cachedSubtitleText.slice(0, 3000);
+    const truncated = cachedSubtitleText;
     const tierGuide = `各単語に以下のいずれかのtierを付けてください：
 - "core"    ：目標レベルで頻出・必ず覚えるべき語
 - "advanced"：やや高度または専門的だが理解を深める語
