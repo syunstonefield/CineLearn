@@ -247,8 +247,27 @@ function getEpisodeContext() {
   let season    = null;
   let episode   = null;
 
+  const sePatterns = [
+    /[Ss]eason\s*(\d+)[\s:·•,]+[Ee]pisode\s*(\d+)/,
+    /[Ss](\d+)\s*[Ee](\d+)/,
+    /(\d+)\s*[×x]\s*(\d+)/,
+    // 日本語フォーマット「第N話」「シーズンN エピソードN」
+    /シーズン\s*(\d+)\s*[エエ]ピソード\s*(\d+)/,
+    /第\s*(\d+)\s*[シーズン].*第\s*(\d+)\s*話/,
+  ];
+
+  function extractSE(text) {
+    for (const pat of sePatterns) {
+      const m = text.match(pat);
+      if (m) return { season: parseInt(m[1]), episode: parseInt(m[2]) };
+    }
+    return null;
+  }
+
+  // ① タイトル要素から取得
   const titleSelectors = [
     '[data-uia="video-title"]',
+    '[data-uia="player-title"]',
     '.video-title',
     '[class*="PlayerTitle"]',
     '[class*="VideoTitle"]',
@@ -264,29 +283,48 @@ function getEpisodeContext() {
     const text = el.textContent.trim();
     if (!text) continue;
 
-    // S/E を抽出（複数フォーマット対応）
-    const sePatterns = [
-      /[Ss]eason\s*(\d+)[\s:·•,]+[Ee]pisode\s*(\d+)/,
-      /[Ss](\d+)\s*[Ee](\d+)/,
-      /(\d+)\s*[×x]\s*(\d+)/,
-    ];
-    for (const pat of sePatterns) {
-      const m = text.match(pat);
-      if (m) { season = parseInt(m[1]); episode = parseInt(m[2]); break; }
+    if (!season) {
+      const se = extractSE(text);
+      if (se) { season = se.season; episode = se.episode; }
     }
 
     const heading   = el.querySelector('h1,h2,h3,h4,h5');
     const candidate = heading
       ? heading.textContent.trim()
-      : text.split(/[\n\r]/)[0].split(/[:\-–—]/)[0].trim();
+      : text.split(/[\n\r]/)[0].split(/[:\-–—\/]/)[0].trim(); // / でも分割（SUITS/スーツ対策）
     if (candidate && !showTitle) showTitle = candidate;
     if (showTitle && season !== null) break;
   }
 
+  // ② S/E がまだ取れていない場合、DOM 全体から広く検索
+  if (season === null) {
+    const seSelectors = [
+      '[data-uia="episode-title"]',
+      '[data-uia="player-episode-title"]',
+      '[class*="EpisodeTitle"]',
+      '[class*="episode-title"]',
+      '[class*="SubTitle"]',
+      '[class*="subtitle"]',
+    ];
+    for (const sel of seSelectors) {
+      const el = document.querySelector(sel);
+      if (!el) continue;
+      const se = extractSE(el.textContent);
+      if (se) { season = se.season; episode = se.episode; break; }
+    }
+  }
+
+  // ③ document.title から S/E を試みる（例: "Suits S1E1 | Netflix"）
+  if (season === null) {
+    const se = extractSE(document.title);
+    if (se) { season = se.season; episode = se.episode; }
+  }
+
+  // ④ タイトルが未取得の場合 document.title から抽出（/ 前の部分をシリーズ名とする）
   if (!showTitle) {
     showTitle = document.title
       .replace(/\s*[|\-–—]\s*(Netflix|Prime Video|Amazon|Disney\+|Apple TV\+?|Hulu|U-NEXT)\s*$/i, '')
-      .split(/\s*[:\-–—]\s*/)[0]
+      .split(/\s*[:\-–—\/]\s*/)[0]  // / でも分割
       .trim();
   }
 
