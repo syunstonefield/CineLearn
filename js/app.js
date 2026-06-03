@@ -1024,19 +1024,6 @@ async function generateVocabFromEpisode() {
   document.getElementById('vocabNextBtn').style.display = 'none';
 
   try {
-    // 目標スコアが入力されているかで説明文を切り替える
-    const levelLabels = {
-      'A2': 'A2（初級）', 'B1': 'B1（中級）',
-      'B2': 'B2（中上級）', 'C1': 'C1（上級）'
-    };
-    const currentInfo = `現在 ${levelLabels[userLevel]}（TOEICスコア目安: ${toeicScore}点）`;
-    const targetInfo = targetToeicScore > 0
-      ? `目標 ${levelLabels[targetLevel]}（${targetToeicScore}点）`
-      : `目標スコア未設定`;
-
-    // 除外ヒント（wordlist.js）
-    const excludeHint = typeof getExcludeHint === 'function' ? getExcludeHint(toeicScore) : '';
-
     if (!cachedSubtitleText) {
       btn.textContent = '字幕を読み込み中...';
       document.getElementById('vocabSection').innerHTML =
@@ -1053,29 +1040,45 @@ async function generateVocabFromEpisode() {
         '<div class="loading"><div class="spinner"></div>単語を分析中...</div>';
     }
 
-    const truncated = cachedSubtitleText;
-    const tierGuide = `各単語に以下のいずれかのtierを付けてください：
-- "core"    ：目標レベルで頻出・必ず覚えるべき語
-- "advanced"：やや高度または専門的だが理解を深める語
-- "context" ：このドラマ特有の専門語・固有表現・低頻度語`;
+    // TOEICスコア帯に基づく選択範囲を計算
+    const cur  = toeicScore > 0 ? toeicScore : 0;
+    const tgt  = targetToeicScore > 0 ? targetToeicScore : cur + 200;
+    const lower = Math.max(0, cur - 200); // 現在スコアより200点下まで（復習帯）
+    const upper = tgt;                    // 目標スコアが上限
+
+    const levelSpec = cur > 0
+      ? `【学習者レベル】
+- 現在のTOEICスコア: 約${cur}点
+- 目標TOEICスコア: 約${upper}点
+- 選択範囲: TOEIC ${lower}〜${upper}点レベルの語彙
+- 優先度: ${cur}〜${upper}点帯の単語を全体の約70%、${lower}〜${cur}点帯の復習語を約30%
+- 除外: ${upper}点を大きく超える語（学習者には早すぎる）および${lower}点未満の超基礎語`
+      : '【学習者レベル】スコア未設定のため全レベルから選択';
+
+    const tierGuide = `各単語に以下のtierを付けてください：
+- "core"    ：${cur}点前後〜${Math.min(cur + 100, upper)}点帯。このエピソードで必須の語
+- "advanced"：${Math.min(cur + 100, upper)}〜${upper}点帯。目標達成に向けて習得すべき語
+- "context" ：このドラマ・エピソード特有の専門語・固有表現（スコア帯不問）`;
 
     const prompt = `以下は「${selectedDrama.title}」Season ${selectedSeason} Episode ${selectedEpisode} の実際の英語字幕テキストです。
 
 ---字幕テキスト---
-${truncated}
+${cachedSubtitleText}
 ---ここまで---
 
-${currentInfo}・${targetInfo}の日本人英語学習者向けに、以下のJSON形式のみで返答してください（説明不要）。
-${excludeHint}
+上記の字幕テキストを使って、以下のJSON形式のみで返答してください（説明不要）。
+
+${levelSpec}
+
 ${tierGuide}
 
 {
   "drama": [
-    この字幕に実際に登場する重要単語を${vocabCount}個。必ず字幕内に存在する単語のみ。
+    この字幕に実際に登場する単語を${vocabCount}個。必ず字幕内に存在する単語のみ。スコア範囲（${lower}〜${upper}点）に合った難易度で選ぶ。
     { "word": "英単語", "pos": "品詞（名詞/動詞/形容詞/副詞）", "definition": "日本語の意味（簡潔に）", "example": "字幕内の実際の例文（英語・短め）", "tier": "core"|"advanced"|"context" }
   ],
   "plus": [
-    このエピソードのテーマ・文脈に関連するが字幕外の推奨単語を5〜8個。
+    このエピソードのテーマ・文脈に関連するが字幕外の推奨単語を5〜8個。同じスコア範囲（${lower}〜${upper}点）で選ぶ。
     { "word": "英単語", "pos": "品詞（名詞/動詞/形容詞/副詞）", "definition": "日本語の意味（簡潔に）", "example": "この文脈で使えそうな例文（英語・短め）", "tier": "core"|"advanced"|"context" }
   ]
 }`;
