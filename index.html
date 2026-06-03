@@ -56,11 +56,33 @@
     <div id="dramaLibrary" class="drama-library"></div>
   </div>
 
+  <!-- ── Screen service-select: 視聴サービス選択 ── -->
+  <div class="screen" id="screen-service-select">
+    <div class="screen-inner">
+      <div class="screen-header">
+        <button class="btn-back" id="btnBackToMainFromService">← マイドラマ</button>
+        <div>
+          <div class="screen-title">視聴サービスを選択</div>
+          <div class="screen-desc" id="serviceSelectDramaTitle">どのサービスで視聴しますか？</div>
+        </div>
+      </div>
+
+      <p style="color:var(--text-muted);font-size:14px;margin-bottom:24px;line-height:1.7">
+        サービスによって配信しているシーズン・話数が異なります。<br>
+        今回視聴するサービスを選んでください。
+      </p>
+
+      <div class="viewing-service-grid" id="viewingServiceGrid">
+        <!-- JS で動的生成 -->
+      </div>
+    </div>
+  </div>
+
   <!-- ── Screen 4: エピソード選択 + 単語リスト ── -->
   <div class="screen" id="screen-4">
     <div class="screen-inner">
       <div class="screen-header">
-        <button class="btn-back" id="btnBackToMain">← マイドラマ</button>
+        <button class="btn-back" id="btnBackToMain">← サービス選択</button>
         <div>
           <div class="screen-title">視聴前の準備</div>
           <div class="screen-desc" id="vocabDramaTitle">エピソードを選んで単語を予習する</div>

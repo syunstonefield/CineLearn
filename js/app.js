@@ -15,6 +15,7 @@ let targetLevel = 'B1';   // 目標レベル
 let vocabCount = 30;      // 生成する単語数（目標スコアから自動計算）
 let vocabWords = [];
 let dramaSeasonInfo = [];
+let selectedViewingService = null; // 今回視聴するサービス
 // テストに含める単語階層（core / advanced / context）
 let testTiers = ['core', 'advanced'];
 
@@ -163,7 +164,7 @@ function saveSettings() {
     toeicScore, targetToeicScore, userLevel, targetLevel, vocabCount,
     selectedServices, selectedGenres, selectedDrama,
     selectedSeason, selectedEpisode, vocabWords, dramaSeasonInfo,
-    testTiers,
+    testTiers, selectedViewingService,
   };
   saveProfiles(profiles);
 }
@@ -192,6 +193,7 @@ async function applyProfileSettings(s) {
   if (s.vocabWords?.length)       vocabWords       = s.vocabWords;
   if (s.dramaSeasonInfo?.length)  dramaSeasonInfo  = s.dramaSeasonInfo;
   if (s.testTiers?.length)        testTiers        = s.testTiers;
+  if (s.selectedViewingService)  selectedViewingService = s.selectedViewingService;
 
   // ── UI復元：TOEICスコア ──
   if (s.toeicScore > 0) {
@@ -529,10 +531,43 @@ function buildLibraryCard({ drama, episodes, bestScore, lastDate }) {
   return card;
 }
 
-// ライブラリのドラマカードをクリックして学習へ
+// ライブラリのドラマカードをクリックして学習へ（サービス選択画面を経由）
 async function loadDramaFromLibrary(drama) {
   selectedDrama = drama;
+  dramaSeasonInfo = []; // サービスが変わる可能性があるのでリセット
   saveSettings();
+
+  // サービス選択画面へ
+  goToStep('service-select');
+  document.getElementById('serviceSelectDramaTitle').textContent =
+    `「${drama.title}」をどのサービスで視聴しますか？`;
+
+  const services = [
+    { name: 'Netflix',      icon: '🔴' },
+    { name: 'Prime Video',  icon: '🔵' },
+    { name: 'Disney+',      icon: '🔷' },
+    { name: 'Hulu',         icon: '🟢' },
+    { name: 'U-NEXT',       icon: '🟣' },
+    { name: 'Apple TV+',    icon: '🍎' },
+  ];
+  const grid = document.getElementById('viewingServiceGrid');
+  grid.innerHTML = '';
+  services.forEach(svc => {
+    const card2 = document.createElement('div');
+    card2.className = 'viewing-service-card';
+    // 前回使ったサービスを強調
+    if (svc.name === selectedViewingService) {
+      card2.style.borderColor = 'var(--accent)';
+      card2.style.background = 'rgba(193,127,59,0.07)';
+    }
+    card2.innerHTML = `<div class="vs-icon">${svc.icon}</div><div class="vs-name">${svc.name}</div>${svc.name === selectedViewingService ? '<div style="font-size:11px;color:var(--accent);margin-top:4px">前回使用</div>' : ''}`;
+    card2.addEventListener('click', () => selectViewingService(svc.name, drama));
+    grid.appendChild(card2);
+  });
+}
+
+// ※ 以下は削除（loadDramaFromLibrary の旧実装は selectViewingService に統合）
+async function _loadDramaFromLibrary_unused(drama) {
   goToStep(4);
 
   document.getElementById('vocabDramaTitle').textContent =
@@ -586,6 +621,8 @@ JSON形式のみで返答: { "seasons": [{ "season": 1, "episodes": 10 }] }`;
     })();
   }
 }
+
+} // end _loadDramaFromLibrary_unused
 
 // ── 設定モーダル ──────────────────────────────────────────────
 function openSettings() {
@@ -1315,21 +1352,53 @@ function selectDrama(drama, card) {
   selectedDrama = drama;
   cachedSubtitleText = '';
   cachedSubtitleSource = '';
-  closeAddDrama(); // 追加モーダルを閉じる
+  selectedViewingService = null;
+  dramaSeasonInfo = [];
+  closeAddDrama();
 
-  setTimeout(async () => {
-    goToStep(4);
-    document.getElementById('vocabDramaTitle').textContent =
-      `「${drama.title}」のエピソードを選んで単語を予習する`;
+  // サービス選択画面へ遷移
+  goToStep('service-select');
+  document.getElementById('serviceSelectDramaTitle').textContent =
+    `「${drama.title}」をどのサービスで視聴しますか？`;
 
-    // シーズン・エピソード情報をAIに取得させる
-    document.getElementById('episodeSelected').textContent = 'シーズン情報を取得中...';
-    document.getElementById('vocabGenBtn').disabled = true;
-    document.getElementById('vocabSection').innerHTML =
-      '<div class="loading"><div class="spinner"></div>シーズン情報を取得中...</div>';
+  // 視聴サービス選択グリッドを生成
+  const services = [
+    { name: 'Netflix',      icon: '🔴' },
+    { name: 'Prime Video',  icon: '🔵' },
+    { name: 'Disney+',      icon: '🔷' },
+    { name: 'Hulu',         icon: '🟢' },
+    { name: 'U-NEXT',       icon: '🟣' },
+    { name: 'Apple TV+',    icon: '🍎' },
+  ];
+  const grid = document.getElementById('viewingServiceGrid');
+  grid.innerHTML = '';
+  services.forEach(svc => {
+    const card2 = document.createElement('div');
+    card2.className = 'viewing-service-card';
+    card2.innerHTML = `<div class="vs-icon">${svc.icon}</div><div class="vs-name">${svc.name}</div>`;
+    card2.addEventListener('click', () => selectViewingService(svc.name, drama));
+    grid.appendChild(card2);
+  });
+}
 
-    try {
-      const prompt = `「${drama.title}」（${drama.genre}）のシーズンとエピソード数を教えてください。
+// サービスが選ばれた後にシーズン情報を取得してscreen-4へ
+async function selectViewingService(service, drama) {
+  selectedViewingService = service;
+  saveSettings();
+
+  goToStep(4);
+  document.getElementById('vocabDramaTitle').textContent =
+    `「${drama.title}」（${service}）のエピソードを選んで単語を予習する`;
+
+  document.getElementById('episodeSelected').textContent = 'シーズン情報を取得中...';
+  document.getElementById('vocabGenBtn').style.display = '';
+  document.getElementById('vocabGenBtn').disabled = true;
+  document.getElementById('vocabSection').innerHTML =
+    '<div class="loading"><div class="spinner"></div>シーズン情報を取得中...</div>';
+
+  try {
+    const prompt = `「${drama.title}」（${drama.genre}）を${service}（日本）で視聴できるシーズンとエピソード数を教えてください。
+サービスによって配信しているシーズン数が異なる場合があります。${service}で実際に配信されているシーズンのみ返してください。
 
 以下のJSON形式のみで返答（説明不要）:
 {
@@ -1339,27 +1408,29 @@ function selectDrama(drama, card) {
   ]
 }`;
 
-      const text = await callClaude(prompt);
-      const json = JSON.parse(text.match(/\{[\s\S]*\}/)[0]);
-      dramaSeasonInfo = json.seasons;
-      buildSeasonEpisodeSelectors(json.seasons);
-    } catch (e) {
-      // 取得失敗時はデフォルト3シーズン×10話
-      dramaSeasonInfo = [
-        { season: 1, episodes: 10 },
-        { season: 2, episodes: 10 },
-        { season: 3, episodes: 10 }
-      ];
-      buildSeasonEpisodeSelectors(dramaSeasonInfo);
-    }
+    const text = await callClaude(prompt);
+    const json = JSON.parse(text.match(/\{[\s\S]*\}/)[0]);
+    dramaSeasonInfo = json.seasons;
+    buildSeasonEpisodeSelectors(json.seasons);
+  } catch (e) {
+    dramaSeasonInfo = [
+      { season: 1, episodes: 10 },
+      { season: 2, episodes: 10 },
+      { season: 3, episodes: 10 }
+    ];
+    buildSeasonEpisodeSelectors(dramaSeasonInfo);
+  }
 
-    selectedSeason = 1;
-    selectedEpisode = 1;
-    saveSettings();
+  selectedSeason = 1;
+  selectedEpisode = 1;
+  saveSettings();
 
-    // S1E1の字幕を即座に読み込む
-    await preloadSubtitle();
-  }, 300);
+  try {
+    if (!(await checkAndShowSavedVocab())) await preloadSubtitle();
+  } catch {
+    const b = document.getElementById('vocabGenBtn');
+    if (b) { b.style.display = ''; b.disabled = false; b.textContent = '単語を生成'; }
+  }
 }
 
 // クイズを生成する（バックグラウンド）
@@ -2052,7 +2123,8 @@ function initEventListeners() {
   });
 
   // ─ screen-4 ─
-  document.getElementById('btnBackToMain').addEventListener('click', () => goToStep('main'));
+  document.getElementById('btnBackToMain').addEventListener('click', () => goToStep('service-select'));
+  document.getElementById('btnBackToMainFromService').addEventListener('click', () => goToStep('main'));
   document.getElementById('seasonSelect').addEventListener('change', onSeasonChange);
   document.getElementById('episodeSelect').addEventListener('change', onEpisodeChange);
   document.getElementById('vocabGenBtn').addEventListener('click', generateVocabFromEpisode);

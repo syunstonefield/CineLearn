@@ -253,6 +253,33 @@ header {
   gap: 12px;
 }
 
+/* 視聴サービス選択グリッド */
+.viewing-service-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.viewing-service-card {
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: 14px;
+  padding: 24px 16px;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.2s;
+}
+
+.viewing-service-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(193,127,59,0.15);
+}
+
+.viewing-service-card .vs-icon { font-size: 28px; margin-bottom: 10px; }
+.viewing-service-card .vs-name { font-size: 15px; font-weight: 600; color: var(--text); }
+
 .service-card {
   background: var(--surface);
   border: 2px solid var(--border);
