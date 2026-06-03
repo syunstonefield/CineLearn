@@ -216,11 +216,11 @@ async function pullFromCloud() {
     localStorage.setItem('cl_srs', JSON.stringify(map));
   }
 
-  // my_words
+  // my_words（空配列でも必ず更新してローカルの削除済み単語を消す）
   const words = await sbFetch(
     `/rest/v1/my_words?user_id=eq.${uid}&select=*&order=created_at.desc&limit=500`
   );
-  if (Array.isArray(words) && words.length) {
+  if (Array.isArray(words)) {
     const wordsList = JSON.stringify(
       words.map(w => ({
         word: w.word, sentence: w.sentence, phonetic: w.phonetic,

@@ -2095,4 +2095,16 @@ if (typeof isLoggedIn === 'function' && isLoggedIn()) {
   const btn = document.getElementById('btnSignOut');
   if (btn) btn.style.display = 'inline-flex';
 }
+
+// タブ・アプリが再表示されたとき（他デバイスの変更を反映するため）自動同期
+let _lastPullAt = 0;
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  if (typeof pullFromCloud !== 'function') return;
+  if (typeof isLoggedIn !== 'function' || !isLoggedIn()) return;
+  const now = Date.now();
+  if (now - _lastPullAt < 30_000) return; // 30秒以内は再実行しない
+  _lastPullAt = now;
+  pullFromCloud();
+});
 renderProfileScreen();
