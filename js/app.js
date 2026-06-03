@@ -1073,6 +1073,26 @@ async function preloadSubtitle() {
   }
 }
 
+// 字幕をサイレントにキャッシュ（UI 変更なし・拡張機能単語のエピソード照合用）
+async function preloadSubtitleSilent(cacheKey) {
+  try {
+    const searchTitle = selectedDrama.englishTitle || selectedDrama.title;
+    const subtitles = await searchSubtitles(searchTitle, selectedSeason, selectedEpisode);
+    if (!subtitles?.length) return;
+    const best = subtitles.reduce((a, b) =>
+      (b.attributes.download_count || 0) > (a.attributes.download_count || 0) ? b : a
+    );
+    const srtText = await downloadSubtitle(best.attributes.files[0].file_id);
+    const text = parseSrt(srtText);
+    if (!text) return;
+    cachedSubtitleText = text;
+    try { localStorage.setItem(cacheKey, text); } catch {}
+    // キャッシュ取得後に拡張機能単語セクションを再描画
+    await renderExtWordsSection(vocabWords || []);
+    await resolveUnassignedWords();
+  } catch {}
+}
+
 // 単語を生成する（字幕はキャッシュ済み）
 async function generateVocabFromEpisode() {
   if (!selectedDrama) return;
@@ -1564,7 +1584,20 @@ async function selectViewingService(service, drama) {
   saveSettings();
 
   try {
-    if (!(await checkAndShowSavedVocab())) await preloadSubtitle();
+    const hasSaved = await checkAndShowSavedVocab();
+    if (!hasSaved) {
+      await preloadSubtitle();
+    } else {
+      // 保存済み単語がある場合でも字幕キャッシュをバックグラウンドで取得
+      // （拡張機能単語のエピソード照合に使用）
+      const cacheKey = subtitleCacheKey(
+        selectedDrama.englishTitle || selectedDrama.title,
+        selectedSeason, selectedEpisode
+      );
+      if (!localStorage.getItem(cacheKey)) {
+        preloadSubtitleSilent(cacheKey);
+      }
+    }
   } catch {
     const b = document.getElementById('vocabGenBtn');
     if (b) { b.style.display = ''; b.disabled = false; b.textContent = '単語を生成'; }
