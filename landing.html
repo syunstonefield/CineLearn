@@ -336,6 +336,148 @@
     footer small { color: #666; font-size: 13px; }
     footer a { color: var(--gold-bg); text-decoration: none; font-size: 13px; }
 
+    /* ── SETUP GUIDE ── */
+    .setup { background: var(--bg-section); }
+    .setup-tabs {
+      display: flex; gap: 8px; margin-bottom: 48px; flex-wrap: wrap;
+    }
+    .tab-btn {
+      padding: 9px 20px; border-radius: 100px; font-size: 14px; font-weight: 600;
+      border: 1.5px solid var(--border); background: var(--bg-card);
+      color: var(--text-muted); cursor: pointer; transition: all 0.2s;
+    }
+    .tab-btn.active { background: var(--gold); color: #fff; border-color: var(--gold); }
+
+    .setup-steps { display: flex; flex-direction: column; gap: 28px; }
+    .install-step {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 40px; align-items: center;
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 20px; padding: 32px; box-shadow: var(--shadow);
+    }
+    .install-step.reverse { direction: rtl; }
+    .install-step.reverse > * { direction: ltr; }
+    .step-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--gold-light); color: var(--gold);
+      font-size: 12px; font-weight: 700; letter-spacing: 1px;
+      text-transform: uppercase; padding: 4px 12px; border-radius: 100px;
+      margin-bottom: 12px;
+    }
+    .install-step h3 { font-size: 19px; font-weight: 700; margin-bottom: 10px; line-height: 1.35; }
+    .install-step p { color: var(--text-muted); font-size: 14px; line-height: 1.85; }
+    .install-step .note {
+      margin-top: 12px; padding: 10px 14px;
+      background: var(--bg-section); border-radius: 8px;
+      font-size: 13px; color: var(--text-muted);
+    }
+    .install-step .note strong { color: var(--gold); }
+
+    /* CSS ILLUSTRATIONS */
+    .illus { border-radius: 12px; overflow: hidden; background: #f8f6f2; border: 1px solid var(--border); }
+    .illus-bar {
+      background: #eceae4; padding: 10px 14px;
+      display: flex; align-items: center; gap: 6px; border-bottom: 1px solid var(--border);
+    }
+    .illus-dot { width: 9px; height: 9px; border-radius: 50%; }
+    .illus-dot:nth-child(1){background:#ff5f57}
+    .illus-dot:nth-child(2){background:#febc2e}
+    .illus-dot:nth-child(3){background:#28c840}
+    .illus-url {
+      flex: 1; background: #e4e2dc; border-radius: 5px;
+      padding: 3px 10px; font-size: 11px; color: #888;
+    }
+    .illus-body { padding: 20px; }
+
+    /* GitHub download */
+    .gh-release {
+      background: #fff; border: 1px solid #d0d7de; border-radius: 8px; overflow: hidden;
+    }
+    .gh-release-head {
+      padding: 10px 14px; background: #f6f8fa; border-bottom: 1px solid #d0d7de;
+      font-size: 12px; font-weight: 600; color: #24292f;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .gh-tag { background: #ddf4ff; color: #0969da; border: 1px solid #b6e3ff; border-radius: 100px; padding: 1px 7px; font-size: 11px; }
+    .gh-asset {
+      padding: 10px 14px; display: flex; align-items: center; gap: 10px;
+      border-bottom: 1px solid #f0f0f0; font-size: 13px; color: #24292f;
+    }
+    .gh-asset:last-child { border-bottom: none; }
+    .gh-icon { font-size: 16px; }
+    .gh-name { flex: 1; }
+    .gh-dl { background: #2da44e; color: #fff; border: none; padding: 5px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; }
+
+    /* Extensions page mock */
+    .ext-page { padding: 0; }
+    .ext-header {
+      background: #fff; padding: 12px 16px; border-bottom: 1px solid #e0e0e0;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .ext-title { font-size: 14px; font-weight: 600; color: #202124; }
+    .dev-toggle {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 12px; color: #5f6368;
+    }
+    .toggle-track {
+      width: 36px; height: 20px; border-radius: 10px; background: #1a73e8;
+      position: relative; display: inline-block;
+    }
+    .toggle-thumb {
+      width: 16px; height: 16px; background: #fff; border-radius: 50%;
+      position: absolute; top: 2px; right: 2px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }
+    .ext-body { padding: 16px; }
+    .ext-load-btn {
+      background: #fff; border: 1px solid #dadce0; border-radius: 4px;
+      padding: 7px 14px; font-size: 13px; color: #1a73e8;
+      font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 6px;
+    }
+    .ext-card {
+      background: #fff; border: 1px solid #e0e0e0; border-radius: 8px;
+      padding: 14px; margin-top: 12px; display: flex; align-items: center; gap: 12px;
+    }
+    .ext-logo {
+      width: 40px; height: 40px; background: #0a0a0a; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Playfair Display', serif; font-size: 13px; font-weight: 700;
+      color: #c8a96e;
+    }
+    .ext-info { flex: 1; }
+    .ext-name { font-size: 14px; font-weight: 600; color: #202124; }
+    .ext-id { font-size: 11px; color: #5f6368; margin-top: 2px; }
+    .ext-on { width: 32px; height: 18px; background: #1a73e8; border-radius: 9px; position: relative; }
+    .ext-on::after { content:''; width:14px;height:14px;background:#fff;border-radius:50%;position:absolute;top:2px;right:2px; }
+
+    /* Netflix subtitle mock */
+    .netflix-mock {
+      background: #141414; border-radius: 10px; overflow: hidden;
+      aspect-ratio: 16/9; position: relative; display: flex;
+      align-items: flex-end; justify-content: center; padding-bottom: 16px;
+    }
+    .netflix-sub {
+      background: rgba(0,0,0,0.75); color: #fff; padding: 6px 16px;
+      border-radius: 4px; font-size: 13px; text-align: center; line-height: 1.6;
+    }
+    .netflix-sub .cl-word {
+      border-bottom: 2px solid #c8a96e; cursor: pointer; color: #f5e9d0;
+    }
+    .netflix-popup {
+      position: absolute; bottom: 56px; left: 50%; transform: translateX(-50%);
+      background: #fff; border-radius: 12px; padding: 12px 16px; width: 200px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    }
+    .netflix-popup .pw { font-size: 16px; font-weight: 700; color: #c17f3b; margin-bottom: 2px; }
+    .netflix-popup .pm { font-size: 11px; color: #888; margin-bottom: 8px; }
+    .netflix-popup .pd { font-size: 12px; color: #444; margin-bottom: 10px; line-height: 1.5; }
+    .netflix-popup .ps { background: #c17f3b; color: #fff; border: none; width: 100%; padding: 7px; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer; }
+    .netflix-scene {
+      position: absolute; inset: 0; background: linear-gradient(135deg, #1a0a0a 0%, #0d1a2a 100%);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 32px; opacity: 0.4;
+    }
+
     /* RESPONSIVE */
     @media (max-width: 800px) {
       nav { padding: 14px 20px; }
@@ -368,9 +510,6 @@
     <span class="s-badge">🔴 Netflix</span>
     <span class="s-badge">🔵 Prime Video</span>
     <span class="s-badge">🔷 Disney+</span>
-    <span class="s-badge">🟢 Hulu</span>
-    <span class="s-badge">🟣 U-NEXT</span>
-    <span class="s-badge">🍎 Apple TV+</span>
   </div>
 
   <div class="hero-btns">
@@ -429,21 +568,6 @@
       <div class="service-card featured">
         <div class="service-icon">🔷</div>
         <div class="service-name">Disney+</div>
-        <div class="service-note">字幕クリック保存対応</div>
-      </div>
-      <div class="service-card">
-        <div class="service-icon">🟢</div>
-        <div class="service-name">Hulu</div>
-        <div class="service-note">字幕クリック保存対応</div>
-      </div>
-      <div class="service-card">
-        <div class="service-icon">🟣</div>
-        <div class="service-name">U-NEXT</div>
-        <div class="service-note">字幕クリック保存対応</div>
-      </div>
-      <div class="service-card">
-        <div class="service-icon">🍎</div>
-        <div class="service-name">Apple TV+</div>
         <div class="service-note">字幕クリック保存対応</div>
       </div>
     </div>
@@ -639,6 +763,233 @@
   </div>
 </section>
 
+<!-- SETUP GUIDE -->
+<section class="section setup" id="setup">
+  <div class="container">
+    <span class="section-tag">導入方法</span>
+    <h2>今すぐ使い始める</h2>
+    <p class="section-lead" style="margin-bottom:36px">Webアプリはブラウザで開くだけ。Netflix連携にはChrome拡張機能（無料）が必要です。</p>
+
+    <div class="setup-tabs">
+      <button class="tab-btn active" onclick="showTab('web',this)">① Webアプリを開く</button>
+      <button class="tab-btn" onclick="showTab('ext',this)">② Chrome拡張をインストール</button>
+    </div>
+
+    <!-- WEB APP STEPS -->
+    <div id="tab-web" class="setup-steps">
+
+      <div class="install-step">
+        <div>
+          <span class="step-badge">STEP 1</span>
+          <h3>URLをブラウザで開く</h3>
+          <p>インストール不要。下のURLをChromeやSafariで開くだけで、すぐに使い始められます。スマホにも対応しています。</p>
+          <div class="note"><strong>URL：</strong> fantastic-heliotrope-e6aa67.netlify.app</div>
+        </div>
+        <div class="illus">
+          <div class="illus-bar">
+            <div class="illus-dot"></div><div class="illus-dot"></div><div class="illus-dot"></div>
+            <div class="illus-url">🔒 fantastic-heliotrope-e6aa67.netlify.app</div>
+          </div>
+          <div class="illus-body" style="text-align:center;padding:28px 20px">
+            <div style="font-family:'Playfair Display',serif;font-size:28px;font-weight:700;color:#1a1a1a;margin-bottom:6px">Cine<span style="color:#b8923a">Learn</span></div>
+            <div style="font-size:13px;color:#999;margin-bottom:20px">ドラマで学ぶ、究極の英語習得</div>
+            <div style="display:flex;flex-direction:column;gap:8px;max-width:200px;margin:0 auto">
+              <div style="background:#f4f2ee;border-radius:10px;padding:10px;font-size:12px;color:#666;border:1px solid #e8e4dc">👤 プロフィールを選ぶ</div>
+              <div style="background:#f4f2ee;border-radius:10px;padding:10px;font-size:12px;color:#666;border:1px solid #e8e4dc">🎬 ドラマを追加する</div>
+              <div style="background:#b8923a;border-radius:10px;padding:10px;font-size:12px;color:#fff;font-weight:600">今すぐ始める →</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="install-step reverse">
+        <div>
+          <span class="step-badge">STEP 2</span>
+          <h3>プロフィールを作成してログイン</h3>
+          <p>家族や友人と1つのアカウントを共有できます。プロフィールごとに学習データが独立しているので、それぞれのペースで進められます。</p>
+          <div class="note"><strong>💡 ヒント：</strong>ログインするとスマホ・PCでデータが同期されます。スキップしてローカルのみでも使えます。</div>
+        </div>
+        <div class="illus">
+          <div class="illus-bar">
+            <div class="illus-dot"></div><div class="illus-dot"></div><div class="illus-dot"></div>
+            <div class="illus-url">だれが観ますか？</div>
+          </div>
+          <div class="illus-body" style="display:flex;gap:12px;justify-content:center;padding:24px 16px;flex-wrap:wrap">
+            <div style="text-align:center">
+              <div style="width:60px;height:60px;border-radius:12px;background:#1A73E8;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;color:#fff;margin:0 auto 6px">S</div>
+              <div style="font-size:12px;color:#333">しゅん</div>
+            </div>
+            <div style="text-align:center">
+              <div style="width:60px;height:60px;border-radius:12px;background:#2E7D32;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;color:#fff;margin:0 auto 6px">M</div>
+              <div style="font-size:12px;color:#333">まい</div>
+            </div>
+            <div style="text-align:center">
+              <div style="width:60px;height:60px;border-radius:12px;background:#e8e4dc;display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 6px;border:2px dashed #ccc">＋</div>
+              <div style="font-size:12px;color:#999">追加</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /tab-web -->
+
+    <!-- EXTENSION STEPS -->
+    <div id="tab-ext" class="setup-steps" style="display:none">
+
+      <div class="install-step">
+        <div>
+          <span class="step-badge">STEP 1</span>
+          <h3>GitHubからzipファイルをダウンロード</h3>
+          <p>下のリンクからCineLearnのリリースページを開き、<code style="background:#f4f2ee;padding:2px 6px;border-radius:4px;font-size:13px">CineLearn-extension.zip</code> をダウンロードしてください。</p>
+          <div class="note"><strong>📎 ダウンロード：</strong>github.com/syunstonefield/CineLearn/releases</div>
+        </div>
+        <div class="illus">
+          <div class="illus-bar">
+            <div class="illus-dot"></div><div class="illus-dot"></div><div class="illus-dot"></div>
+            <div class="illus-url">github.com/syunstonefield/CineLearn/releases</div>
+          </div>
+          <div class="illus-body">
+            <div class="gh-release">
+              <div class="gh-release-head">🏷 <span class="gh-tag">v1.0.0</span> CineLearn Extension — Latest</div>
+              <div class="gh-asset">
+                <span class="gh-icon">📦</span>
+                <span class="gh-name">CineLearn-extension.zip</span>
+                <button class="gh-dl">⬇ Download</button>
+              </div>
+              <div class="gh-asset" style="color:#999;font-size:12px">
+                <span class="gh-icon">📄</span>
+                <span class="gh-name">Source code (zip)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="install-step reverse">
+        <div>
+          <span class="step-badge">STEP 2</span>
+          <h3>zipを解凍してフォルダを取り出す</h3>
+          <p>ダウンロードした <code style="background:#f4f2ee;padding:2px 6px;border-radius:4px;font-size:13px">CineLearn-extension.zip</code> をダブルクリックで解凍します。<br>中に <strong>cinelearn</strong> というフォルダが展開されます。</p>
+          <div class="note"><strong>💡 ヒント：</strong>フォルダはデスクトップや「書類」など、わかりやすい場所に置いておきましょう。</div>
+        </div>
+        <div class="illus">
+          <div class="illus-bar">
+            <div class="illus-dot"></div><div class="illus-dot"></div><div class="illus-dot"></div>
+            <div class="illus-url" style="text-align:center">Finder</div>
+          </div>
+          <div class="illus-body" style="padding:16px">
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="display:flex;align-items:center;gap:10px;padding:8px;background:#f0ece4;border-radius:8px">
+                <span style="font-size:20px">🗜️</span>
+                <div>
+                  <div style="font-size:13px;font-weight:500;color:#333">CineLearn-extension.zip</div>
+                  <div style="font-size:11px;color:#999">ダウンロード</div>
+                </div>
+              </div>
+              <div style="text-align:center;font-size:18px;color:#999">↓ ダブルクリックで解凍</div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px;background:#e8f5e9;border-radius:8px;border:2px solid #4caf50">
+                <span style="font-size:20px">📁</span>
+                <div>
+                  <div style="font-size:13px;font-weight:600;color:#2e7d32">cinelearn（フォルダ）</div>
+                  <div style="font-size:11px;color:#66bb6a">← これを使います</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="install-step">
+        <div>
+          <span class="step-badge">STEP 3</span>
+          <h3>Chromeの拡張機能ページを開いてデベロッパーモードをON</h3>
+          <p>Chromeのアドレスバーに <code style="background:#f4f2ee;padding:2px 6px;border-radius:4px;font-size:13px">chrome://extensions</code> と入力してEnter。右上の「<strong>デベロッパーモード</strong>」トグルをオンにします。</p>
+        </div>
+        <div class="illus">
+          <div class="illus-bar">
+            <div class="illus-dot"></div><div class="illus-dot"></div><div class="illus-dot"></div>
+            <div class="illus-url">chrome://extensions</div>
+          </div>
+          <div class="ext-page">
+            <div class="ext-header">
+              <div class="ext-title">拡張機能</div>
+              <div class="dev-toggle">
+                デベロッパーモード
+                <div class="toggle-track"><div class="toggle-thumb"></div></div>
+                <span style="color:#1a73e8;font-weight:600">ON ✓</span>
+              </div>
+            </div>
+            <div style="padding:12px 16px;display:flex;gap:8px;border-bottom:1px solid #f0f0f0;background:#f8f9fa">
+              <div class="ext-load-btn">📂 パッケージ化されていない拡張機能を読み込む</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="install-step reverse">
+        <div>
+          <span class="step-badge">STEP 4</span>
+          <h3>「パッケージ化されていない拡張機能を読み込む」でフォルダを選択</h3>
+          <p>「パッケージ化されていない拡張機能を読み込む」をクリックし、先ほど解凍した <strong>cinelearn フォルダ</strong>を選択します。これで拡張機能がChromeに追加されます。</p>
+          <div class="note"><strong>✅ 完了：</strong>CineLearnがChromeの拡張機能一覧に表示されればインストール完了です。</div>
+        </div>
+        <div class="illus">
+          <div class="illus-bar">
+            <div class="illus-dot"></div><div class="illus-dot"></div><div class="illus-dot"></div>
+            <div class="illus-url">chrome://extensions</div>
+          </div>
+          <div class="ext-page">
+            <div class="ext-header">
+              <div class="ext-title">拡張機能</div>
+              <div class="dev-toggle">デベロッパーモード <div class="toggle-track"><div class="toggle-thumb"></div></div></div>
+            </div>
+            <div style="padding:12px 16px">
+              <div class="ext-card">
+                <div class="ext-logo">CL</div>
+                <div class="ext-info">
+                  <div class="ext-name">CineLearn Word Saver</div>
+                  <div class="ext-id">ドラマ字幕から単語を保存</div>
+                </div>
+                <div class="ext-on"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="install-step">
+        <div>
+          <span class="step-badge">STEP 5</span>
+          <h3>Netflixを開いて字幕の単語をクリック</h3>
+          <p>NetflixやAmazon Primeで動画を再生し、字幕に表示される単語をクリックするだけ。辞書ポップアップが表示され、ワンクリックで単語帳に保存できます。</p>
+          <div class="note"><strong>🔄 自動同期：</strong>保存した単語はCineLearnのWebアプリとスマホに自動で同期されます。</div>
+        </div>
+        <div class="illus" style="overflow:hidden">
+          <div class="illus-bar">
+            <div class="illus-dot"></div><div class="illus-dot"></div><div class="illus-dot"></div>
+            <div class="illus-url">🔒 netflix.com/watch/...</div>
+          </div>
+          <div style="padding:0">
+            <div class="netflix-mock">
+              <div class="netflix-scene">🎬</div>
+              <div class="netflix-popup">
+                <div class="pw">leverage</div>
+                <div class="pm">/ˈliːvərɪdʒ/ · noun</div>
+                <div class="pd">the power to influence a person or situation</div>
+                <button class="ps">✓ 単語帳に保存</button>
+              </div>
+              <div class="netflix-sub">
+                You don't have enough <span class="cl-word">leverage</span> to win this case.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /tab-ext -->
+  </div>
+</section>
+
 <!-- FOR WHO -->
 <section class="section forwho">
   <div class="container">
@@ -695,7 +1046,16 @@
     }),
     { threshold: 0.08 }
   );
-  document.querySelectorAll('.step-card, .feat-row, .service-card, .forwho-card, .story-pull, .vs-card').forEach(el => {
+  function showTab(name, btn) {
+    document.getElementById('tab-web').style.display = name === 'web' ? 'flex' : 'none';
+    document.getElementById('tab-ext').style.display = name === 'ext' ? 'flex' : 'none';
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+  document.getElementById('tab-web').style.display = 'flex';
+  document.getElementById('tab-ext').style.display = 'none';
+
+  document.querySelectorAll('.step-card, .feat-row, .service-card, .forwho-card, .story-pull, .vs-card, .install-step').forEach(el => {
     el.style.opacity = '0';
     el.style.transform = 'translateY(20px)';
     el.style.transition = 'opacity 0.55s ease, transform 0.55s ease';
