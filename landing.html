@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CineLearn — ドラマで学ぶ、究極の英語習得</title>
+  <meta name="description" content="好きなドラマを観るだけで英語が身につく。AIと忘却曲線アルゴリズムが、あなたの視聴体験を最強の学習ルーティンに変える。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --gold: #c8a96e;
+      --gold-light: #e0c98a;
+      --bg: #080808;
+      --bg-card: #111111;
+      --bg-card2: #181818;
+      --text: #f0f0f0;
+      --text-muted: #888;
+      --border: rgba(255,255,255,0.07);
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      line-height: 1.7;
+      overflow-x: hidden;
+    }
+
+    /* ── NAV ── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 20px 48px;
+      background: linear-gradient(to bottom, rgba(8,8,8,0.95), transparent);
+      backdrop-filter: blur(4px);
+    }
+    .nav-logo { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 700; letter-spacing: 0.5px; }
+    .nav-logo span { color: var(--gold); }
+    .nav-cta {
+      background: var(--gold); color: #000;
+      padding: 10px 24px; border-radius: 6px;
+      font-weight: 600; font-size: 14px; text-decoration: none;
+      transition: background 0.2s;
+    }
+    .nav-cta:hover { background: var(--gold-light); }
+
+    /* ── HERO ── */
+    .hero {
+      min-height: 100vh;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      text-align: center;
+      padding: 120px 24px 80px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse 80% 60% at 50% 40%, rgba(200,169,110,0.08) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(200,169,110,0.1); border: 1px solid rgba(200,169,110,0.3);
+      color: var(--gold); padding: 6px 16px; border-radius: 100px;
+      font-size: 13px; font-weight: 500; margin-bottom: 32px;
+      letter-spacing: 0.5px;
+    }
+    .hero h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(40px, 7vw, 80px);
+      font-weight: 900; line-height: 1.1;
+      max-width: 900px; margin-bottom: 28px;
+    }
+    .hero h1 em { color: var(--gold); font-style: normal; }
+    .hero-sub {
+      font-size: clamp(16px, 2vw, 20px);
+      color: var(--text-muted); max-width: 600px;
+      margin-bottom: 48px; font-weight: 300; line-height: 1.8;
+    }
+    .hero-btns { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+    .btn-primary {
+      background: var(--gold); color: #000;
+      padding: 16px 36px; border-radius: 8px;
+      font-size: 16px; font-weight: 700; text-decoration: none;
+      transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px;
+    }
+    .btn-primary:hover { background: var(--gold-light); transform: translateY(-2px); }
+    .btn-secondary {
+      background: transparent; color: var(--text);
+      padding: 16px 36px; border-radius: 8px;
+      font-size: 16px; font-weight: 500; text-decoration: none;
+      border: 1px solid rgba(255,255,255,0.2);
+      transition: all 0.2s;
+    }
+    .btn-secondary:hover { border-color: var(--gold); color: var(--gold); }
+    .hero-scroll {
+      position: absolute; bottom: 40px; left: 50%;
+      transform: translateX(-50%);
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+      color: var(--text-muted); font-size: 12px;
+    }
+    .hero-scroll::after {
+      content: ''; width: 1px; height: 48px;
+      background: linear-gradient(to bottom, rgba(200,169,110,0.5), transparent);
+    }
+
+    /* ── SECTIONS ── */
+    section { padding: 100px 24px; }
+    .container { max-width: 1100px; margin: 0 auto; }
+    .section-label {
+      font-size: 12px; font-weight: 600; letter-spacing: 3px;
+      text-transform: uppercase; color: var(--gold); margin-bottom: 16px;
+    }
+    .section-title {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(28px, 4vw, 44px);
+      font-weight: 700; line-height: 1.2;
+      margin-bottom: 20px;
+    }
+    .section-sub {
+      color: var(--text-muted); font-size: 17px;
+      max-width: 600px; line-height: 1.8;
+    }
+
+    /* ── PROBLEM ── */
+    .problem { background: var(--bg); }
+    .problem-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 48px;
+      align-items: center; margin-top: 64px;
+    }
+    .problem-quote {
+      border-left: 3px solid var(--gold);
+      padding: 24px 32px;
+      background: var(--bg-card);
+      border-radius: 0 12px 12px 0;
+      font-size: 18px; line-height: 1.9;
+      color: var(--text-muted);
+    }
+    .problem-quote strong { color: var(--text); }
+    .problem-vs {
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    .vs-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 12px; padding: 24px;
+      display: flex; align-items: flex-start; gap: 16px;
+    }
+    .vs-icon { font-size: 28px; flex-shrink: 0; }
+    .vs-title { font-weight: 600; font-size: 15px; margin-bottom: 4px; }
+    .vs-desc { color: var(--text-muted); font-size: 14px; }
+    .vs-card.bad .vs-title { color: #e05555; }
+    .vs-card.good .vs-title { color: #55c4a8; }
+
+    /* ── HOW IT WORKS ── */
+    .how { background: linear-gradient(to bottom, var(--bg), var(--bg-card2)); }
+    .steps {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 32px; margin-top: 64px; position: relative;
+    }
+    .steps::before {
+      content: '';
+      position: absolute; top: 40px; left: 16.6%; right: 16.6%; height: 1px;
+      background: linear-gradient(to right, transparent, var(--gold), transparent);
+    }
+    .step {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 16px; padding: 36px 28px;
+      text-align: center; position: relative;
+      transition: border-color 0.3s, transform 0.3s;
+    }
+    .step:hover { border-color: rgba(200,169,110,0.4); transform: translateY(-4px); }
+    .step-num {
+      width: 48px; height: 48px; border-radius: 50%;
+      background: var(--gold); color: #000;
+      font-family: 'Playfair Display', serif;
+      font-size: 20px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 24px;
+    }
+    .step-icon { font-size: 36px; margin-bottom: 16px; }
+    .step h3 { font-size: 18px; font-weight: 600; margin-bottom: 12px; }
+    .step p { color: var(--text-muted); font-size: 14px; line-height: 1.8; }
+
+    /* ── FEATURES ── */
+    .features { background: var(--bg-card2); }
+    .feature-list { display: flex; flex-direction: column; gap: 80px; margin-top: 80px; }
+    .feature-item {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 64px; align-items: center;
+    }
+    .feature-item.reverse { direction: rtl; }
+    .feature-item.reverse > * { direction: ltr; }
+    .feature-tag {
+      display: inline-block; background: rgba(200,169,110,0.1);
+      color: var(--gold); font-size: 12px; font-weight: 600;
+      letter-spacing: 2px; text-transform: uppercase;
+      padding: 4px 12px; border-radius: 4px; margin-bottom: 16px;
+    }
+    .feature-item h3 {
+      font-family: 'Playfair Display', serif;
+      font-size: 28px; font-weight: 700; margin-bottom: 16px; line-height: 1.3;
+    }
+    .feature-item p { color: var(--text-muted); font-size: 15px; line-height: 1.9; }
+    .feature-visual {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px; padding: 32px;
+      min-height: 260px;
+      display: flex; flex-direction: column; justify-content: center;
+    }
+    .feature-demo-bar {
+      height: 8px; border-radius: 4px;
+      background: rgba(255,255,255,0.07); margin-bottom: 12px; overflow: hidden;
+    }
+    .feature-demo-fill {
+      height: 100%; border-radius: 4px;
+      background: linear-gradient(to right, var(--gold), var(--gold-light));
+    }
+    .vocab-pill {
+      display: inline-block; background: rgba(200,169,110,0.15);
+      color: var(--gold-light); border: 1px solid rgba(200,169,110,0.3);
+      padding: 4px 12px; border-radius: 100px;
+      font-size: 13px; margin: 4px;
+    }
+    .vocab-pill.dim { background: rgba(255,255,255,0.04); color: var(--text-muted); border-color: transparent; }
+    .srs-card {
+      background: var(--bg-card2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 16px 20px; margin-bottom: 12px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .srs-word { font-weight: 600; font-size: 16px; }
+    .srs-badge {
+      font-size: 12px; padding: 3px 10px; border-radius: 100px; font-weight: 500;
+    }
+    .srs-badge.today { background: rgba(229,73,20,0.15); color: #e54914; }
+    .srs-badge.tomorrow { background: rgba(200,169,110,0.15); color: var(--gold); }
+    .srs-badge.done { background: rgba(85,196,168,0.15); color: #55c4a8; }
+
+    /* ── STORY ── */
+    .story { background: var(--bg); }
+    .story-inner {
+      max-width: 780px; margin: 0 auto;
+    }
+    .story-inner .section-title { text-align: center; }
+    .story-inner .section-label { text-align: center; display: block; }
+    .story-body {
+      margin-top: 48px;
+      color: var(--text-muted); font-size: 16px; line-height: 2;
+    }
+    .story-body p { margin-bottom: 24px; }
+    .story-body strong { color: var(--text); }
+    .story-highlight {
+      border: 1px solid rgba(200,169,110,0.3);
+      background: rgba(200,169,110,0.05);
+      border-radius: 12px; padding: 28px 36px;
+      margin: 40px 0;
+      font-size: 18px; font-style: italic;
+      color: var(--text); line-height: 1.8; text-align: center;
+    }
+
+    /* ── FOR WHO ── */
+    .forwho { background: var(--bg-card2); }
+    .forwho-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 24px; margin-top: 56px;
+    }
+    .forwho-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 16px; padding: 32px 24px;
+      transition: border-color 0.3s;
+    }
+    .forwho-card:hover { border-color: rgba(200,169,110,0.35); }
+    .forwho-icon { font-size: 32px; margin-bottom: 16px; }
+    .forwho-card h3 { font-size: 17px; font-weight: 600; margin-bottom: 10px; }
+    .forwho-card p { color: var(--text-muted); font-size: 14px; line-height: 1.8; }
+
+    /* ── CTA ── */
+    .cta-section {
+      background: linear-gradient(135deg, #0f0f0f 0%, #1a1408 50%, #0f0f0f 100%);
+      text-align: center; padding: 120px 24px;
+      position: relative; overflow: hidden;
+    }
+    .cta-section::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse 60% 80% at 50% 50%, rgba(200,169,110,0.07), transparent);
+    }
+    .cta-section .section-title { max-width: 700px; margin: 0 auto 16px; position: relative; }
+    .cta-section .section-sub { margin: 0 auto 48px; position: relative; }
+    .cta-btns { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; position: relative; }
+
+    /* ── FOOTER ── */
+    footer {
+      background: #050505; border-top: 1px solid var(--border);
+      padding: 40px 48px;
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 16px;
+    }
+    footer .nav-logo { font-size: 18px; }
+    footer p { color: var(--text-muted); font-size: 13px; }
+    footer a { color: var(--gold); text-decoration: none; font-size: 13px; }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 860px) {
+      nav { padding: 16px 24px; }
+      .problem-grid, .feature-item, .steps { grid-template-columns: 1fr; }
+      .feature-item.reverse { direction: ltr; }
+      .steps::before { display: none; }
+      .forwho-grid { grid-template-columns: 1fr; }
+      footer { flex-direction: column; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">Cine<span>Learn</span></div>
+  <a href="https://fantastic-heliotrope-e6aa67.netlify.app" class="nav-cta">今すぐ始める →</a>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-badge">⭐ TOEIC 900点の壁を越えるために生まれた</div>
+  <h1>
+    ドラマを観るだけで<br>
+    <em>生きた英語</em>が身につく
+  </h1>
+  <p class="hero-sub">
+    AIと忘却曲線アルゴリズムが、あなたのエンタメ時間を最強の英語学習ルーティンへ。
+    没入感を一切損なわず、教科書には載っていない実践的な語彙を確実に習得します。
+  </p>
+  <div class="hero-btns">
+    <a href="https://fantastic-heliotrope-e6aa67.netlify.app" class="btn-primary">🎬 無料で始める</a>
+    <a href="#how" class="btn-secondary">仕組みを見る</a>
+  </div>
+  <div class="hero-scroll">スクロール</div>
+</section>
+
+<!-- PROBLEM -->
+<section class="problem">
+  <div class="container">
+    <p class="section-label">The Problem</p>
+    <h2 class="section-title">語学学習か、エンタメか。<br>その二択を終わりにする。</h2>
+    <p class="section-sub">
+      既存のツールは、視聴体験を犠牲にして学習効率を上げようとする。
+      CineLearn はその発想を逆転させました。
+    </p>
+    <div class="problem-grid">
+      <div class="problem-quote">
+        知らない単語が出るたびに動画を一時停止し、手作業でリストに保存していく。
+        <strong>「純粋にドラマを楽しむ没入感」が完全に失われてしまう。</strong>
+        このジレンマを解決するツールは、世界中を探しても見つかりませんでした。
+      </div>
+      <div class="problem-vs">
+        <div class="vs-card bad">
+          <div class="vs-icon">😤</div>
+          <div>
+            <div class="vs-title">従来のアプローチ</div>
+            <div class="vs-desc">単語が出るたびに停止 → 手動で記録 → 没入感ゼロ → 継続できない</div>
+          </div>
+        </div>
+        <div class="vs-card good">
+          <div class="vs-icon">🎯</div>
+          <div>
+            <div class="vs-title">CineLearn のアプローチ</div>
+            <div class="vs-desc">視聴前に単語を予習 → ドラマに完全没入 → 科学的アルゴリズムで定着</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="how" id="how">
+  <div class="container">
+    <p class="section-label">How It Works</p>
+    <h2 class="section-title">3ステップで始まる、<br>新しい学習サイクル</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-icon">🤖</div>
+        <h3>AIが単語を自動生成</h3>
+        <p>観たいドラマとエピソードを選ぶだけ。AIと字幕APIが字幕を解析し、あなたのレベルに合わせた未知単語リストを自動で作成します。</p>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-icon">🎬</div>
+        <h3>予習してドラマに没入</h3>
+        <p>フラッシュカードで単語を予習したら、再生ボタンを押すだけ。あとはドラマのストーリーに熱中するだけでOKです。</p>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-icon">📈</div>
+        <h3>最適タイミングで復習</h3>
+        <p>SM-2アルゴリズムが「忘れかけたタイミング」を算出。視聴済みドラマの単語テストが自動スケジューリングされます。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="features" id="features">
+  <div class="container">
+    <p class="section-label">Features</p>
+    <h2 class="section-title">テクノロジーで<br>煩わしさをゼロにする</h2>
+    <div class="feature-list">
+
+      <!-- Feature 1 -->
+      <div class="feature-item">
+        <div>
+          <span class="feature-tag">AI × 字幕API</span>
+          <h3>視聴前の自動単語抽出で、動画を止めない</h3>
+          <p>
+            AIと字幕APIを組み合わせ「次に見るエピソード」の字幕データを裏側で解析。
+            ユーザーのTOEICレベルに合わせて既知単語を自動除外し、未知の重要単語だけを抽出します。
+            <strong style="color:var(--text)">あらかじめ予習しておくことで、再生後はドラマに没入するだけ。</strong>
+          </p>
+        </div>
+        <div class="feature-visual">
+          <div style="margin-bottom:20px">
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Suits S3E4 — 抽出された重要単語</div>
+            <span class="vocab-pill">litigation</span>
+            <span class="vocab-pill">affidavit</span>
+            <span class="vocab-pill">deposition</span>
+            <span class="vocab-pill dim">the</span>
+            <span class="vocab-pill">injunction</span>
+            <span class="vocab-pill dim">and</span>
+            <span class="vocab-pill">subpoena</span>
+            <span class="vocab-pill dim">was</span>
+            <span class="vocab-pill">leverage</span>
+          </div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">基礎単語を自動除外 → 未知語のみ表示</div>
+          <div class="feature-demo-bar"><div class="feature-demo-fill" style="width:72%"></div></div>
+          <div style="font-size:11px;color:var(--gold)">1,847語を除外 → 重要単語 12語に絞り込み</div>
+        </div>
+      </div>
+
+      <!-- Feature 2 -->
+      <div class="feature-item reverse">
+        <div>
+          <span class="feature-tag">Spaced Repetition</span>
+          <h3>忘却曲線に基づくアルゴリズムで確実に定着</h3>
+          <p>
+            科学的に実証されている「間隔反復法（SM-2アルゴリズム）」をシステムに組み込み。
+            過去の記憶状態から「いつ復習すれば最も定着するか」を算出し、最適なタイミングで自動出題します。
+            <strong style="color:var(--text)">繰り返しが必要な単語だけを、必要なときに復習できます。</strong>
+          </p>
+        </div>
+        <div class="feature-visual">
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">今日の復習スケジュール</div>
+          <div class="srs-card">
+            <div>
+              <div class="srs-word">litigation</div>
+              <div style="font-size:12px;color:var(--text-muted)">Suits S3E4</div>
+            </div>
+            <span class="srs-badge today">🔴 今日</span>
+          </div>
+          <div class="srs-card">
+            <div>
+              <div class="srs-word">leverage</div>
+              <div style="font-size:12px;color:var(--text-muted)">Silicon Valley S1E2</div>
+            </div>
+            <span class="srs-badge tomorrow">📅 明日</span>
+          </div>
+          <div class="srs-card">
+            <div>
+              <div class="srs-word">affidavit</div>
+              <div style="font-size:12px;color:var(--text-muted)">Suits S2E8</div>
+            </div>
+            <span class="srs-badge done">⭐ 習得済み</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Feature 3 -->
+      <div class="feature-item">
+        <div>
+          <span class="feature-tag">Chrome Extension</span>
+          <h3>Netflix視聴中に単語を1クリック保存</h3>
+          <p>
+            Chrome拡張機能を使えば、Netflixなどの字幕に表示される単語をクリックするだけで保存。
+            辞書検索・意味確認・単語帳への追加がワンアクションで完了します。
+            <strong style="color:var(--text)">保存した単語はSupabaseでクラウド同期され、スマホでも確認できます。</strong>
+          </p>
+        </div>
+        <div class="feature-visual" style="align-items:center">
+          <div style="text-align:center;width:100%">
+            <div style="
+              background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);
+              border-radius:14px;padding:20px 24px;max-width:260px;margin:0 auto;
+              box-shadow:0 8px 32px rgba(0,0,0,0.5);
+            ">
+              <div style="font-size:22px;font-weight:700;color:var(--gold);margin-bottom:4px">leverage</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">/ˈliːvərɪdʒ/ · noun</div>
+              <div style="font-size:13px;color:var(--text);margin-bottom:16px;line-height:1.6">
+                the power to influence a person or situation
+              </div>
+              <button style="
+                width:100%;background:var(--gold);color:#000;border:none;
+                padding:10px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;
+              ">✓ 保存</button>
+            </div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:16px">字幕をクリック → ポップアップ表示 → 保存</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- STORY -->
+<section class="story" id="story">
+  <div class="story-inner container">
+    <p class="section-label">Development Story</p>
+    <h2 class="section-title">なぜこのプロダクトを<br>作ったのか</h2>
+    <div class="story-body">
+      <p>
+        毎朝30分、海外ドラマの視聴を日々のルーティンにしています。
+        <strong>TOEIC 900点の壁を越え、さらにその先にある「生きた英語」を身につけるためには</strong>、
+        ネイティブのリアルな会話に触れ続けることが不可欠だからです。
+      </p>
+      <p>
+        特に『Suits/スーツ』で飛び交う法務・交渉フレーズや、『シリコンバレー』のIT業界特有のスラングなど、
+        教科書には載っていない実践的な表現を学ぶために、既存の語学学習用拡張機能を利用していました。
+      </p>
+      <p>
+        しかし、そこに大きなストレスがありました。
+        知らない単語が出るたびに字幕を追い、動画を一時停止しては手作業でリストに保存していく。
+        <strong>「純粋にドラマのストーリーを楽しむ没入感」が完全に失われてしまうのです。</strong>
+      </p>
+      <div class="story-highlight">
+        「学習効率」を優先すればエンタメとしての楽しさが奪われ、<br>
+        「楽しさ」を優先すれば単語は記憶に定着しない。<br><br>
+        このジレンマを解決するツールは、世界中を探しても見つかりませんでした。
+      </div>
+      <p>
+        <strong>「それなら、自分で作るしかない。」</strong>
+      </p>
+      <p>
+        そう考え、情報工学の知見をフル活用して自らの課題を解決するために開発したのがこのプロダクトです。
+        目指したのは、学習における無駄な作業をテクノロジーで完全に自動化すること。
+        没入感を一切損なわず、それでいて確実に語彙が積み上がっていく体験を実現することでした。
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- FOR WHO -->
+<section class="forwho">
+  <div class="container">
+    <p class="section-label">For Who</p>
+    <h2 class="section-title">あなたのための<br>英語学習ツール</h2>
+    <p class="section-sub">
+      初心者向けのゲーム要素は持っていません。
+      明確な目標を持ち、本気でレベルアップを目指す人のために設計されています。
+    </p>
+    <div class="forwho-grid">
+      <div class="forwho-card">
+        <div class="forwho-icon">🏢</div>
+        <h3>ビジネス英語を高めたい社会人</h3>
+        <p>SuitsやSuccessionで飛び交うビジネス・法務フレーズを、ドラマを観ながら自然に習得したい方。</p>
+      </div>
+      <div class="forwho-card">
+        <div class="forwho-icon">💻</div>
+        <h3>IT・テック系の英語に触れたい方</h3>
+        <p>シリコンバレーやMr. Robotで登場するIT業界特有のスラングや専門用語を身につけたい方。</p>
+      </div>
+      <div class="forwho-card">
+        <div class="forwho-icon">📊</div>
+        <h3>TOEIC 800〜900点台を目指す方</h3>
+        <p>基礎は固まった。あとは「生きた英語」への圧倒的な露出量が必要だと感じている中上級者。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <div class="container">
+    <p class="section-label">Get Started</p>
+    <h2 class="section-title">あなたの趣味の時間を、<br>最強の学習ルーティンに</h2>
+    <p class="section-sub">
+      学習の準備はすべてシステムに任せてください。
+      あなたはただ、お気に入りのドラマを楽しむだけです。
+    </p>
+    <div class="cta-btns">
+      <a href="https://fantastic-heliotrope-e6aa67.netlify.app" class="btn-primary">🎬 無料で始める</a>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="nav-logo">Cine<span>Learn</span></div>
+  <p>© 2025 CineLearn. ドラマで学ぶ、究極の英語習得。</p>
+  <a href="https://fantastic-heliotrope-e6aa67.netlify.app">アプリを開く →</a>
+</footer>
+
+<script>
+  // フェードインアニメーション
+  const observer = new IntersectionObserver(
+    entries => entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.style.opacity = '1';
+        e.target.style.transform = 'translateY(0)';
+      }
+    }),
+    { threshold: 0.1 }
+  );
+
+  document.querySelectorAll('.step, .feature-item, .forwho-card, .vs-card').forEach(el => {
+    el.style.opacity = '0';
+    el.style.transform = 'translateY(24px)';
+    el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+    observer.observe(el);
+  });
+</script>
+
+</body>
+</html>
