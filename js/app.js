@@ -1067,6 +1067,10 @@ async function preloadSubtitle() {
       if (btn) { btn.style.display = ''; btn.disabled = false; btn.textContent = '単語を生成'; }
       document.getElementById('vocabSection').innerHTML =
         '<div class="empty-state">「単語を生成」を押してください</div>';
+      // 字幕取得直後に未割当単語を解決して拡張機能単語を即時表示
+      resolveUnassignedWords()
+        .then(() => renderExtWordsSection(vocabWords || []))
+        .catch(() => {});
     } else {
       document.getElementById('episodeSelected').textContent =
         `Season ${selectedSeason} Episode ${selectedEpisode} ⚠ 字幕なし`;
