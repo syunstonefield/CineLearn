@@ -717,7 +717,7 @@ function toggleService(card) {
 // Claude APIを呼び出す（Netlify Function プロキシ経由・過負荷時は最大3回リトライ）
 // 拡張機能内（chrome-extension://）から開いた場合は絶対URLを使う
 const API_BASE = (typeof chrome !== 'undefined' && chrome.runtime?.id)
-  ? 'https://fantastic-heliotrope-e6aa67.netlify.app'
+  ? 'https://cine-learn.vercel.app'
   : '';
 
 // TMDb API でシーズン・エピソード情報を取得する
