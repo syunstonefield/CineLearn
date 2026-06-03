@@ -983,25 +983,26 @@ async function preloadSubtitle() {
       cachedSubtitleSource = '実際の字幕データから';
       document.getElementById('episodeSelected').textContent =
         `Season ${selectedSeason} Episode ${selectedEpisode} ✓ 字幕取得済み`;
+      const btn = document.getElementById('vocabGenBtn');
+      if (btn) { btn.style.display = ''; btn.disabled = false; btn.textContent = '単語を生成'; }
+      document.getElementById('vocabSection').innerHTML =
+        '<div class="empty-state">「単語を生成」を押してください</div>';
     } else {
-      cachedSubtitleSource = 'AIの推測（字幕が見つかりませんでした）';
       document.getElementById('episodeSelected').textContent =
         `Season ${selectedSeason} Episode ${selectedEpisode} ⚠ 字幕なし`;
+      document.getElementById('vocabSection').innerHTML =
+        '<div class="empty-state" style="color:var(--text-muted)">このエピソードの字幕が見つかりませんでした。<br>別のエピソードを選択してください。</div>';
+      const btn = document.getElementById('vocabGenBtn');
+      if (btn) { btn.style.display = 'none'; }
     }
   } catch (e) {
-    cachedSubtitleSource = 'AIの推測（字幕取得エラー）';
     document.getElementById('episodeSelected').textContent =
       `Season ${selectedSeason} Episode ${selectedEpisode} ⚠ 字幕エラー`;
+    document.getElementById('vocabSection').innerHTML =
+      '<div class="empty-state" style="color:var(--text-muted)">字幕の取得に失敗しました。<br>別のエピソードを選択してください。</div>';
+    const btn = document.getElementById('vocabGenBtn');
+    if (btn) { btn.style.display = 'none'; }
   }
-
-  const btn = document.getElementById('vocabGenBtn');
-  if (btn) {
-    btn.style.display = '';
-    btn.disabled = false;
-    btn.textContent = '単語を生成';
-  }
-  document.getElementById('vocabSection').innerHTML =
-    '<div class="empty-state">「単語を生成」を押してください</div>';
 }
 
 // 単語を生成する（字幕はキャッシュ済み）
@@ -1030,59 +1031,50 @@ async function generateVocabFromEpisode() {
     // 除外ヒント（wordlist.js）
     const excludeHint = typeof getExcludeHint === 'function' ? getExcludeHint(toeicScore) : '';
 
-    let prompt = '';
-    const tierGuide = `
-各単語に以下のいずれかのtierを付けてください：
+    if (!cachedSubtitleText) {
+      document.getElementById('vocabSection').innerHTML =
+        '<div class="empty-state" style="color:var(--text-muted)">字幕が取得できていません。別のエピソードを選択してください。</div>';
+      btn.disabled = false;
+      btn.textContent = '単語を生成';
+      return;
+    }
+
+    const truncated = cachedSubtitleText.slice(0, 3000);
+    const tierGuide = `各単語に以下のいずれかのtierを付けてください：
 - "core"    ：目標レベルで頻出・必ず覚えるべき語
 - "advanced"：やや高度または専門的だが理解を深める語
 - "context" ：このドラマ特有の専門語・固有表現・低頻度語`;
 
-    if (cachedSubtitleText) {
-      const truncated = cachedSubtitleText.slice(0, 3000);
-      prompt = `以下は「${selectedDrama.title}」Season ${selectedSeason} Episode ${selectedEpisode} の実際の英語字幕テキストです。
+    const prompt = `以下は「${selectedDrama.title}」Season ${selectedSeason} Episode ${selectedEpisode} の実際の英語字幕テキストです。
 
 ---字幕テキスト---
 ${truncated}
 ---ここまで---
 
-この字幕から、${currentInfo}・${targetInfo}の日本人英語学習者が覚えるべき重要単語を${vocabCount}個選んでください。
-実際にこのエピソードで使われている単語を優先してください。
-目標レベルに向けてステップアップできる難易度の単語を選んでください。${excludeHint}
+${currentInfo}・${targetInfo}の日本人英語学習者向けに、以下のJSON形式のみで返答してください（説明不要）。
+${excludeHint}
 ${tierGuide}
 
-以下のJSON形式のみで返答（説明不要）:
-[
-  {
-    "word": "英単語",
-    "pos": "品詞（名詞/動詞/形容詞/副詞）",
-    "definition": "日本語の意味（簡潔に）",
-    "example": "字幕内の実際の例文またはそれに近い文（英語・短め）",
-    "tier": "core"|"advanced"|"context"
-  }
-]`;
-    } else {
-      prompt = `英語学習アドバイザーとして、「${selectedDrama.title}」Season ${selectedSeason} Episode ${selectedEpisode} (${selectedDrama.genre})を${currentInfo}・${targetInfo}の日本人学習者が視聴する前に覚えるべき重要英単語を${vocabCount}個選んでください。
-目標レベルに向けてステップアップできる難易度の単語を選んでください。${excludeHint}
-${tierGuide}
-
-以下のJSON形式のみで返答（説明不要）:
-[
-  {
-    "word": "英単語",
-    "pos": "品詞（名詞/動詞/形容詞/副詞）",
-    "definition": "日本語の意味（簡潔に）",
-    "example": "このエピソードで使われそうな例文（英語・短め）",
-    "tier": "core"|"advanced"|"context"
-  }
-]`;
-    }
+{
+  "drama": [
+    この字幕に実際に登場する重要単語を${vocabCount}個。必ず字幕内に存在する単語のみ。
+    { "word": "英単語", "pos": "品詞（名詞/動詞/形容詞/副詞）", "definition": "日本語の意味（簡潔に）", "example": "字幕内の実際の例文（英語・短め）", "tier": "core"|"advanced"|"context" }
+  ],
+  "plus": [
+    このエピソードのテーマ・文脈に関連するが字幕外の推奨単語を5〜8個。
+    { "word": "英単語", "pos": "品詞（名詞/動詞/形容詞/副詞）", "definition": "日本語の意味（簡潔に）", "example": "この文脈で使えそうな例文（英語・短め）", "tier": "core"|"advanced"|"context" }
+  ]
+}`;
 
     // 50単語のJSONは約4000トークン必要なため余裕を持たせる
     const text = await callClaude(prompt, Math.max(2000, vocabCount * 80), (attempt, waitSec) => {
       document.getElementById('vocabSection').innerHTML =
         `<div class="loading"><div class="spinner"></div>混雑中... ${waitSec}秒後に再試行 (${attempt}/3)</div>`;
     });
-    let json = JSON.parse(text.match(/\[[\s\S]*\]/)[0]);
+    const parsed = JSON.parse(text.match(/\{[\s\S]*\}/)[0]);
+    const dramaWords = (parsed.drama || []).map(w => ({ ...w, source: 'drama' }));
+    const plusWords  = (parsed.plus  || []).map(w => ({ ...w, source: 'plus'  }));
+    let json = [...dramaWords, ...plusWords];
 
     // 後処理フィルター：除外語リストに含まれる単語を除去する
     if (typeof getExcludeSet === 'function' && toeicScore > 0) {
@@ -1128,12 +1120,12 @@ async function renderVocab(words, sourceLabel, skipHistory = false) {
   });
   currentVocabWords = words;
 
-  const wordsHTML = words.map(w => {
-    const status       = getWordStatus(w.word);
-    const isMast       = status === 'mastered';
-    const isDueNow     = status === 'due' || status === 'new';
-    const isSkip       = status === 'skipped';
-    const isReviewed   = status === 'reviewed_today';
+  const buildWordHTML = (w) => {
+    const status     = getWordStatus(w.word);
+    const isMast     = status === 'mastered';
+    const isDueNow   = status === 'due' || status === 'new';
+    const isSkip     = status === 'skipped';
+    const isReviewed = status === 'reviewed_today';
     const srsBadge = isMast      ? '<span class="srs-badge badge-mastered">⭐</span>'
                    : isDueNow    ? '<span class="srs-badge badge-due">🔴</span>'
                    : isReviewed  ? '<span class="srs-badge badge-reviewed">✓</span>'
@@ -1142,11 +1134,9 @@ async function renderVocab(words, sourceLabel, skipHistory = false) {
     const tierBadge = tier === 'context'  ? '<span class="tier-pill tier-context">Context</span>'
                     : tier === 'advanced' ? '<span class="tier-pill tier-advanced">Advanced</span>'
                     :                      '<span class="tier-pill tier-core">Core</span>';
-    // testTiers 対象外の単語はテキスト全体をやや淡色に
-    const notInTest = !testTiers.includes(tier);
+    const notInTest  = !testTiers.includes(tier);
     const nextReview = nextReviewLabel(w.word);
-    const nextLabel  = nextReview
-      ? `<span class="srs-next-review">📅 次回: ${nextReview}</span>` : '';
+    const nextLabel  = nextReview ? `<span class="srs-next-review">📅 次回: ${nextReview}</span>` : '';
     return `
       <div class="vocab-item${isMast ? ' vocab-mastered' : ''}${isSkip ? ' vocab-skipped' : ''}${notInTest ? ' vocab-no-test' : ''}">
         <div style="flex:1">
@@ -1162,14 +1152,25 @@ async function renderVocab(words, sourceLabel, skipHistory = false) {
         <div class="vocab-def">${w.definition || ''}</div>
         <button class="btn-srs-skip${isSkip ? ' btn-srs-resume' : ''}" data-word="${w.word}">${isSkip ? 'Resume' : 'Skip'}</button>
       </div>`;
-  }).join('');
+  };
+
+  // source フィールドで分割（旧データは全て drama 扱い）
+  const dramaWords = words.filter(w => w.source !== 'plus');
+  const plusWords  = words.filter(w => w.source === 'plus');
+
+  const dramaHTML = dramaWords.map(buildWordHTML).join('');
+  const plusHTML  = plusWords.length > 0
+    ? `<div class="plus-words-section">
+        <div class="source-label" style="margin-top:16px;margin-bottom:6px">📌 関連おすすめ単語（字幕外）</div>
+        <div class="vocab-list">${plusWords.map(buildWordHTML).join('')}</div>
+      </div>`
+    : '';
 
   const { due } = episodeStats(words);
   const reviewBtnHTML = due > 0
     ? `<button class="btn-review-start" id="btnStartReview">🔴 今日の復習 ${due}単語を始める</button>`
     : '';
 
-  // 新規生成時のみソースラベルを表示（保存済みはプログレス欄がヘッダー代わり）
   const sourceSection = !skipHistory && sourceLabel
     ? `<div class="source-label" style="margin-bottom:8px">📝 ${sourceLabel}から生成</div>` : '';
 
@@ -1177,7 +1178,8 @@ async function renderVocab(words, sourceLabel, skipHistory = false) {
   sect.innerHTML = `
     ${buildProgressHTML(words)}
     ${sourceSection}
-    <div class="vocab-list">${wordsHTML}</div>
+    <div class="vocab-list">${dramaHTML}</div>
+    ${plusHTML}
     ${reviewBtnHTML}
   `;
 
