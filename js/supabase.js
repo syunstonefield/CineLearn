@@ -229,12 +229,22 @@ async function pullFromCloud() {
         season: w.season, episode: w.episode
       }))
     );
-    // 常に共通キーに保存（selectProfile() での移行元として使う）
-    localStorage.setItem('cl_my_words', wordsList);
-    // プロフィールが選択済みなら直接プロフィール別キーにも保存
     const profileId = window._clProfileId || null;
-    if (profileId) localStorage.setItem(`cl_my_words_${profileId}`, wordsList);
-    // badge・単語帳を更新（app.js がロード済みかつプロフィール選択済みなら）
+    const profileKey = profileId ? `cl_my_words_${profileId}` : null;
+    const parsed     = JSON.parse(wordsList);
+
+    // localStorage に保存（モバイル・Netlify 版）
+    localStorage.setItem('cl_my_words', wordsList);
+    if (profileKey) localStorage.setItem(profileKey, wordsList);
+
+    // chrome.storage.local にも保存（拡張機能版デスクトップ）
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+      const data = { 'cl_my_words': parsed };
+      if (profileKey) data[profileKey] = parsed;
+      chrome.storage.local.set(data);
+    }
+
+    // badge・単語帳を更新
     if (typeof updateWordbookBadge === 'function') updateWordbookBadge();
     if (typeof renderWordbook === 'function') {
       const modal = document.getElementById('wordbookModal');
