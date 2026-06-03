@@ -263,10 +263,12 @@ function selectProfile(id) {
   }
 
   // Supabase から取得した単語（cl_my_words）をプロフィール別キーに移行する
+  // ※ 常に上書きして最新のクラウドデータを反映する
   const profileKey = `cl_my_words_${id}`;
-  if (!localStorage.getItem(profileKey)) {
-    const cloudWords = localStorage.getItem('cl_my_words');
-    if (cloudWords) localStorage.setItem(profileKey, cloudWords);
+  const cloudWords = localStorage.getItem('cl_my_words');
+  if (cloudWords) {
+    const parsed = JSON.parse(cloudWords);
+    if (parsed.length > 0) localStorage.setItem(profileKey, cloudWords);
   }
   // badge を正しい件数に更新（非同期・エラー無視）
   if (typeof updateWordbookBadge === 'function') updateWordbookBadge();
