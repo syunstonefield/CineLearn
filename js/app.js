@@ -1831,7 +1831,22 @@ function addToDeletedWords(wordTexts) {
 async function getActiveWords() {
   const all     = await store.get(myWordsKey()) || [];
   const deleted = getDeletedWords();
-  return deleted.length ? all.filter(w => !deleted.includes(w.word)) : all;
+  if (!deleted.length) return all;
+
+  // 削除リストにあっても再保存された単語は削除リストから除外して表示する
+  const resaved = all.filter(w => deleted.includes(w.word));
+  if (resaved.length) {
+    const resavedSet = new Set(resaved.map(w => w.word));
+    const newDeleted = deleted.filter(w => !resavedSet.has(w));
+    localStorage.setItem(deletedWordsKey(), JSON.stringify(newDeleted));
+    // Supabase にも反映（再保存された単語を含むリストで上書き）
+    if (typeof cloudSync !== 'undefined' && isLoggedIn()) {
+      cloudSync.myWords(all).catch(() => {});
+    }
+    return all; // 再保存された単語を含む全件を返す
+  }
+
+  return all.filter(w => !deleted.includes(w.word));
 }
 
 // ─────────────────────────────────────────
