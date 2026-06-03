@@ -566,7 +566,8 @@ async function loadDramaFromLibrary(drama) {
   });
 }
 
-// ※ 以下は削除（loadDramaFromLibrary の旧実装は selectViewingService に統合）
+// ※ 旧実装（使用停止・selectViewingService に統合）
+// eslint-disable-next-line no-unused-vars
 async function _loadDramaFromLibrary_unused(drama) {
   goToStep(4);
 
@@ -621,8 +622,6 @@ JSON形式のみで返答: { "seasons": [{ "season": 1, "episodes": 10 }] }`;
     })();
   }
 }
-
-} // end _loadDramaFromLibrary_unused
 
 // ── 設定モーダル ──────────────────────────────────────────────
 function openSettings() {
