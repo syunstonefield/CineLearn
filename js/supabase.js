@@ -141,6 +141,23 @@ const cloudSync = {
     });
   },
 
+  // 1件削除
+  async deleteWord(wordText) {
+    const uid = getCurrentUser()?.id;
+    if (!uid) return;
+    await sbFetch(
+      `/rest/v1/my_words?user_id=eq.${uid}&word=eq.${encodeURIComponent(wordText)}`,
+      { method: 'DELETE' }
+    );
+  },
+
+  // 全件削除
+  async clearWords() {
+    const uid = getCurrentUser()?.id;
+    if (!uid) return;
+    await sbFetch(`/rest/v1/my_words?user_id=eq.${uid}`, { method: 'DELETE' });
+  },
+
   async myWords(words) {
     const uid = getCurrentUser()?.id;
     if (!uid || !words?.length) return;
