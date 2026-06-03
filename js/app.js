@@ -1034,11 +1034,19 @@ async function generateVocabFromEpisode() {
     const excludeHint = typeof getExcludeHint === 'function' ? getExcludeHint(toeicScore) : '';
 
     if (!cachedSubtitleText) {
+      btn.textContent = '字幕を読み込み中...';
       document.getElementById('vocabSection').innerHTML =
-        '<div class="empty-state" style="color:var(--text-muted)">字幕が取得できていません。別のエピソードを選択してください。</div>';
-      btn.disabled = false;
-      btn.textContent = '単語を生成';
-      return;
+        '<div class="loading"><div class="spinner"></div>字幕を読み込み中...</div>';
+      await preloadSubtitle();
+      if (!cachedSubtitleText) {
+        btn.disabled = false;
+        btn.textContent = '単語を生成';
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = '生成中...';
+      document.getElementById('vocabSection').innerHTML =
+        '<div class="loading"><div class="spinner"></div>単語を分析中...</div>';
     }
 
     const truncated = cachedSubtitleText.slice(0, 3000);
