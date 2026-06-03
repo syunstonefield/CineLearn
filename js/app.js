@@ -515,11 +515,18 @@ function buildLibraryCard({ drama, episodes, bestScore, lastDate }) {
 function deleteDramaFromLibrary(title) {
   if (!confirm(`「${title}」をライブラリから削除しますか？\n学習履歴もすべて消えます。`)) return;
   const history = loadHistory();
+  const toDelete = history.filter(h => h.drama?.title === title);
   const newHistory = history.filter(h => h.drama?.title !== title);
   localStorage.setItem(HISTORY_KEY, JSON.stringify(newHistory));
-  if (typeof cloudSync !== 'undefined' && isLoggedIn()) {
-    cloudSync.history(newHistory).catch(() => {});
+
+  // Supabase から該当IDを削除
+  if (typeof sbFetch !== 'undefined' && isLoggedIn() && toDelete.length) {
+    const ids = toDelete.map(h => h.id).filter(Boolean);
+    if (ids.length) {
+      sbFetch(`/rest/v1/history?id=in.(${ids.join(',')})`, { method: 'DELETE' }).catch(() => {});
+    }
   }
+
   if (selectedDrama?.title === title) {
     selectedDrama = null;
     dramaSeasonInfo = [];
