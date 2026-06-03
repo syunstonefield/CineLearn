@@ -979,7 +979,11 @@ async function preloadSubtitle() {
     );
 
     if (subtitles && subtitles.length > 0) {
-      const fileId = subtitles[0].attributes.files[0].file_id;
+      // ダウンロード数が最多のファイルを選択（完全度・品質が高い傾向）
+      const best = subtitles.reduce((a, b) =>
+        (b.attributes.download_count || 0) > (a.attributes.download_count || 0) ? b : a
+      );
+      const fileId = best.attributes.files[0].file_id;
       const srtText = await downloadSubtitle(fileId);
       cachedSubtitleText = parseSrt(srtText);
       cachedSubtitleSource = '実際の字幕データから';
