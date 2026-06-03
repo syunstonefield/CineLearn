@@ -3,22 +3,26 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CineLearn — ドラマ観てたら英語できてた</title>
-  <meta name="description" content="好きなドラマを観るだけで英語が身につく。難しいことは全部AIに任せて、あなたはドラマを楽しむだけ。">
+  <title>CineLearn — ドラマで学ぶ、究極の英語習得</title>
+  <meta name="description" content="Netflix・Amazon Prime・Disney+を観ながら英語が身につく。AIと忘却曲線アルゴリズムが、あなたの視聴体験を最強の学習ルーティンに変える。">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --gold: #c8a96e;
-      --gold-light: #dfc088;
-      --bg: #0d0d0d;
-      --bg-card: #161616;
-      --bg-card2: #1c1c1c;
-      --text: #efefef;
-      --text-muted: #999;
-      --border: rgba(255,255,255,0.08);
+      --gold: #b8923a;
+      --gold-bg: #c8a96e;
+      --gold-light: #f5e9d0;
+      --bg: #fafaf8;
+      --bg-card: #ffffff;
+      --bg-section: #f4f2ee;
+      --text: #1a1a1a;
+      --text-muted: #666;
+      --text-light: #999;
+      --border: #e8e4dc;
+      --shadow: 0 2px 16px rgba(0,0,0,0.07);
+      --shadow-lg: 0 8px 40px rgba(0,0,0,0.1);
       --radius: 16px;
     }
 
@@ -31,253 +35,311 @@
       overflow-x: hidden;
     }
 
-    /* NAV */
+    /* ── NAV ── */
     nav {
       position: fixed; top: 0; left: 0; right: 0; z-index: 100;
       display: flex; align-items: center; justify-content: space-between;
-      padding: 18px 40px;
-      background: rgba(13,13,13,0.85);
+      padding: 18px 48px;
+      background: rgba(250,250,248,0.92);
       backdrop-filter: blur(12px);
       border-bottom: 1px solid var(--border);
     }
-    .logo { font-family: 'Playfair Display', serif; font-size: 20px; font-weight: 700; }
+    .logo { font-family: 'Playfair Display', serif; font-size: 20px; font-weight: 700; color: var(--text); }
     .logo span { color: var(--gold); }
     .nav-btn {
-      background: var(--gold); color: #1a1000;
+      background: var(--gold); color: #fff;
       padding: 9px 22px; border-radius: 100px;
       font-size: 14px; font-weight: 600; text-decoration: none;
       transition: opacity 0.2s;
     }
     .nav-btn:hover { opacity: 0.85; }
 
-    /* HERO */
+    /* ── HERO ── */
     .hero {
       min-height: 100vh;
       display: flex; flex-direction: column;
       align-items: center; justify-content: center;
       text-align: center;
-      padding: 100px 24px 60px;
+      padding: 120px 24px 80px;
+      background: linear-gradient(160deg, #fff 0%, #faf6ef 60%, #f4f0e6 100%);
     }
     .hero-eyebrow {
-      font-size: 13px; color: var(--gold);
-      letter-spacing: 1px; margin-bottom: 24px;
-      opacity: 0.85;
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--gold-light); color: var(--gold);
+      border: 1px solid #e8d5b0;
+      padding: 6px 16px; border-radius: 100px;
+      font-size: 13px; font-weight: 600; letter-spacing: 0.5px;
+      margin-bottom: 32px;
     }
     .hero h1 {
       font-family: 'Playfair Display', serif;
-      font-size: clamp(36px, 6.5vw, 72px);
-      line-height: 1.15; font-weight: 700;
-      max-width: 820px; margin-bottom: 24px;
+      font-size: clamp(38px, 6.5vw, 74px);
+      font-weight: 900; line-height: 1.1;
+      max-width: 900px; margin-bottom: 24px;
+      color: var(--text);
     }
     .hero h1 em { color: var(--gold); font-style: italic; }
-    .hero-desc {
+    .hero-sub {
       font-size: clamp(15px, 1.8vw, 18px);
-      color: var(--text-muted); max-width: 520px;
-      margin-bottom: 40px; line-height: 1.9;
+      color: var(--text-muted); max-width: 580px;
+      margin-bottom: 20px; line-height: 1.9;
     }
-    .hero-cta {
-      display: flex; gap: 12px; flex-wrap: wrap; justify-content: center;
-      margin-bottom: 64px;
+
+    /* STREAMING BADGES IN HERO */
+    .streaming-row {
+      display: flex; align-items: center; gap: 10px;
+      flex-wrap: wrap; justify-content: center;
+      margin-bottom: 44px;
     }
-    .btn-gold {
-      background: var(--gold); color: #1a1000;
-      padding: 14px 32px; border-radius: 100px;
+    .streaming-row span { font-size: 13px; color: var(--text-light); }
+    .s-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--bg-card); border: 1px solid var(--border);
+      padding: 6px 14px; border-radius: 100px;
+      font-size: 13px; font-weight: 600; color: var(--text);
+      box-shadow: var(--shadow);
+    }
+
+    .hero-btns { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; margin-bottom: 64px; }
+    .btn-primary {
+      background: var(--gold); color: #fff;
+      padding: 14px 34px; border-radius: 100px;
       font-size: 15px; font-weight: 600; text-decoration: none;
       transition: opacity 0.2s, transform 0.2s;
+      box-shadow: 0 4px 20px rgba(184,146,58,0.35);
     }
-    .btn-gold:hover { opacity: 0.85; transform: translateY(-1px); }
-    .btn-ghost {
+    .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn-outline {
       background: transparent; color: var(--text-muted);
       padding: 14px 28px; border-radius: 100px;
       font-size: 15px; font-weight: 500; text-decoration: none;
-      border: 1px solid var(--border);
+      border: 1.5px solid var(--border);
       transition: border-color 0.2s, color 0.2s;
     }
-    .btn-ghost:hover { border-color: rgba(200,169,110,0.4); color: var(--gold); }
+    .btn-outline:hover { border-color: var(--gold); color: var(--gold); }
 
-    /* HERO VISUAL MOCKUP */
+    /* HERO MOCKUP */
     .hero-visual {
       max-width: 680px; width: 100%;
-      background: var(--bg-card);
-      border: 1px solid var(--border);
+      background: var(--bg-card); border: 1px solid var(--border);
       border-radius: 20px; overflow: hidden;
-      box-shadow: 0 40px 80px rgba(0,0,0,0.5);
+      box-shadow: var(--shadow-lg);
     }
     .mock-bar {
-      background: #0a0a0a; padding: 12px 16px;
+      background: #f0ece4; padding: 12px 16px;
       display: flex; align-items: center; gap: 8px;
+      border-bottom: 1px solid var(--border);
     }
     .mock-dot { width: 10px; height: 10px; border-radius: 50%; }
     .mock-dot:nth-child(1) { background: #ff5f57; }
     .mock-dot:nth-child(2) { background: #febc2e; }
     .mock-dot:nth-child(3) { background: #28c840; }
+    .mock-url { flex: 1; background: #e8e4dc; border-radius: 6px; padding: 4px 12px; font-size: 12px; color: #999; }
     .mock-body { padding: 28px; }
-    .mock-label { font-size: 11px; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 16px; }
-    .word-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
+    .mock-label { font-size: 11px; color: var(--text-light); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 14px; }
+    .word-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
     .chip {
-      padding: 6px 14px; border-radius: 100px; font-size: 13px;
-      font-weight: 500; cursor: default;
+      padding: 5px 14px; border-radius: 100px; font-size: 13px; font-weight: 500;
     }
-    .chip.active {
-      background: rgba(200,169,110,0.15);
-      border: 1px solid rgba(200,169,110,0.35);
-      color: var(--gold-light);
-    }
-    .chip.dim {
-      background: rgba(255,255,255,0.04);
-      color: #555; font-size: 12px;
-    }
-    .mock-progress {
-      background: rgba(255,255,255,0.06); border-radius: 100px; height: 6px; margin-bottom: 8px;
-    }
-    .mock-fill {
-      height: 100%; border-radius: 100px;
-      background: linear-gradient(90deg, var(--gold), var(--gold-light));
-      width: 68%;
-    }
-    .mock-note { font-size: 12px; color: var(--text-muted); }
+    .chip.on { background: var(--gold-light); border: 1px solid #e8d5b0; color: var(--gold); }
+    .chip.off { background: #f0ede8; color: #bbb; font-size: 12px; }
+    .mock-bar2 { background: #f0ece4; border-radius: 100px; height: 6px; margin-bottom: 8px; }
+    .mock-fill { height: 100%; width: 68%; border-radius: 100px; background: linear-gradient(90deg, var(--gold), #d4a84b); }
+    .mock-note { font-size: 12px; color: var(--text-light); }
 
-    /* SECTION BASE */
-    .section { padding: 90px 24px; }
+    /* ── SECTION BASE ── */
+    .section { padding: 96px 24px; }
     .container { max-width: 1060px; margin: 0 auto; }
-    .tag {
-      display: inline-block; font-size: 12px; font-weight: 600;
-      letter-spacing: 1.5px; text-transform: uppercase;
-      color: var(--gold); margin-bottom: 14px; opacity: 0.9;
+    .section-tag {
+      font-size: 12px; font-weight: 600; letter-spacing: 2px;
+      text-transform: uppercase; color: var(--gold);
+      margin-bottom: 14px; display: block;
     }
     h2 {
       font-family: 'Playfair Display', serif;
       font-size: clamp(26px, 3.5vw, 40px);
-      font-weight: 700; line-height: 1.25; margin-bottom: 16px;
+      font-weight: 700; line-height: 1.2; margin-bottom: 16px;
     }
-    .lead { color: var(--text-muted); font-size: 16px; max-width: 560px; line-height: 1.9; }
+    .section-lead { color: var(--text-muted); font-size: 16px; max-width: 560px; line-height: 1.9; }
 
-    /* RELATABLE */
-    .relatable { background: var(--bg); }
-    .chat-block {
-      max-width: 600px; margin: 48px auto 0;
-      display: flex; flex-direction: column; gap: 14px;
+    /* ── SERVICES ── */
+    .services { background: var(--bg-section); }
+    .services-intro { text-align: center; margin-bottom: 52px; }
+    .services-intro .section-lead { margin: 0 auto; }
+    .services-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 16px;
     }
-    .bubble {
-      padding: 14px 20px; border-radius: 18px;
-      font-size: 15px; line-height: 1.7; max-width: 88%;
+    .service-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 24px 20px;
+      text-align: center;
+      box-shadow: var(--shadow);
+      transition: transform 0.2s, box-shadow 0.2s;
     }
-    .bubble.left {
-      background: var(--bg-card2); align-self: flex-start;
-      border-bottom-left-radius: 4px;
-    }
-    .bubble.right {
-      background: rgba(200,169,110,0.12);
-      border: 1px solid rgba(200,169,110,0.2);
-      align-self: flex-end; text-align: right;
-      border-bottom-right-radius: 4px;
-      color: var(--gold-light);
-    }
-    .bubble-name { font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
+    .service-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+    .service-icon { font-size: 36px; margin-bottom: 10px; }
+    .service-name { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+    .service-note { font-size: 12px; color: var(--text-light); }
+    .service-card.featured { border-color: #e8d5b0; background: #fffdf8; }
 
-    /* HOW */
-    .how { background: var(--bg-card); }
+    /* ── PROBLEM ── */
+    .problem { background: var(--bg-card); }
+    .problem-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 48px; align-items: center; margin-top: 56px;
+    }
+    .problem-quote {
+      background: #faf6ef; border-left: 3px solid var(--gold);
+      border-radius: 0 var(--radius) var(--radius) 0;
+      padding: 28px 32px; font-size: 17px; line-height: 1.9;
+      color: var(--text-muted);
+    }
+    .problem-quote strong { color: var(--text); }
+    .vs-stack { display: flex; flex-direction: column; gap: 14px; }
+    .vs-card {
+      background: var(--bg-section); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 20px 24px;
+      display: flex; align-items: flex-start; gap: 14px;
+    }
+    .vs-icon { font-size: 26px; flex-shrink: 0; }
+    .vs-title { font-size: 14px; font-weight: 600; margin-bottom: 3px; }
+    .vs-desc { font-size: 13px; color: var(--text-muted); line-height: 1.7; }
+    .vs-card.bad .vs-title { color: #d94f4f; }
+    .vs-card.good .vs-title { color: #2da87c; }
+
+    /* ── HOW ── */
+    .how { background: var(--bg-section); }
     .steps-row {
       display: grid; grid-template-columns: repeat(3, 1fr);
       gap: 24px; margin-top: 52px;
     }
     .step-card {
-      background: var(--bg-card2); border-radius: var(--radius);
-      padding: 32px 24px; border: 1px solid var(--border);
-      transition: border-color 0.25s, transform 0.25s;
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 32px 24px;
+      box-shadow: var(--shadow);
+      transition: transform 0.2s, box-shadow 0.2s;
     }
-    .step-card:hover { border-color: rgba(200,169,110,0.3); transform: translateY(-3px); }
+    .step-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
     .step-num {
-      font-size: 11px; font-weight: 600; letter-spacing: 1px;
-      color: var(--gold); margin-bottom: 12px; opacity: 0.8;
+      width: 40px; height: 40px; border-radius: 50%;
+      background: var(--gold); color: #fff;
+      font-family: 'Playfair Display', serif; font-size: 17px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 20px;
     }
-    .step-icon { font-size: 32px; margin-bottom: 14px; }
+    .step-icon { font-size: 30px; margin-bottom: 14px; }
     .step-card h3 { font-size: 17px; font-weight: 600; margin-bottom: 10px; }
     .step-card p { color: var(--text-muted); font-size: 14px; line-height: 1.85; }
 
-    /* FEATURES */
-    .features { background: var(--bg); }
-    .feat-grid { display: flex; flex-direction: column; gap: 64px; margin-top: 60px; }
+    /* ── FEATURES ── */
+    .features { background: var(--bg-card); }
+    .feat-list { display: flex; flex-direction: column; gap: 72px; margin-top: 64px; }
     .feat-row {
       display: grid; grid-template-columns: 1fr 1fr;
-      gap: 52px; align-items: center;
+      gap: 56px; align-items: center;
     }
     .feat-row.flip { direction: rtl; }
     .feat-row.flip > * { direction: ltr; }
-    .feat-text h3 { font-size: 22px; font-weight: 600; margin-bottom: 12px; line-height: 1.4; }
-    .feat-text p { color: var(--text-muted); font-size: 15px; line-height: 1.9; }
-    .feat-text .tag { display: block; }
-    .feat-card {
-      background: var(--bg-card); border: 1px solid var(--border);
+    .feat-tag {
+      display: inline-block; background: var(--gold-light); color: var(--gold);
+      font-size: 11px; font-weight: 600; letter-spacing: 1.5px;
+      text-transform: uppercase; padding: 4px 12px; border-radius: 4px; margin-bottom: 14px;
+    }
+    .feat-row h3 { font-size: 24px; font-weight: 700; margin-bottom: 14px; line-height: 1.35; font-family: 'Playfair Display', serif; }
+    .feat-row p { color: var(--text-muted); font-size: 15px; line-height: 1.9; }
+    .feat-visual {
+      background: var(--bg-section); border: 1px solid var(--border);
       border-radius: 20px; padding: 28px;
+      box-shadow: var(--shadow);
     }
 
-    /* SRS MINI */
+    /* SRS CARDS */
     .srs-item {
       display: flex; align-items: center; justify-content: space-between;
       padding: 12px 0; border-bottom: 1px solid var(--border);
     }
     .srs-item:last-child { border-bottom: none; }
-    .srs-word { font-size: 15px; font-weight: 600; }
-    .srs-from { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
-    .pill {
-      font-size: 11px; font-weight: 600; padding: 3px 10px;
-      border-radius: 100px; white-space: nowrap;
-    }
-    .pill.red { background: rgba(239,68,68,0.12); color: #f87171; }
-    .pill.gold { background: rgba(200,169,110,0.12); color: var(--gold); }
-    .pill.green { background: rgba(52,211,153,0.12); color: #34d399; }
+    .srs-word { font-size: 15px; font-weight: 600; color: var(--text); }
+    .srs-from { font-size: 11px; color: var(--text-light); margin-top: 2px; }
+    .pill { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 100px; white-space: nowrap; }
+    .pill.red { background: #fdecea; color: #d94f4f; }
+    .pill.gold { background: var(--gold-light); color: var(--gold); }
+    .pill.green { background: #e8f7f1; color: #2da87c; }
 
     /* POPUP MOCK */
+    .popup-wrap { display: flex; align-items: center; justify-content: center; min-height: 220px; }
     .popup-mock {
       background: #fff; border-radius: 16px; overflow: hidden;
-      box-shadow: 0 20px 40px rgba(0,0,0,0.4); max-width: 260px; margin: 0 auto;
+      box-shadow: 0 16px 40px rgba(0,0,0,0.14); max-width: 260px; width: 100%;
+      border: 1px solid var(--border);
     }
     .popup-head { padding: 16px 20px 12px; border-bottom: 1px solid #f0f0f0; }
-    .popup-word { font-size: 20px; font-weight: 700; color: #c17f3b; }
+    .popup-word { font-size: 22px; font-weight: 700; color: var(--gold); }
     .popup-phon { font-size: 12px; color: #aaa; margin-top: 2px; }
-    .popup-def { padding: 12px 20px 16px; font-size: 13px; color: #444; line-height: 1.6; }
+    .popup-def { padding: 12px 20px; font-size: 13px; color: #555; line-height: 1.7; }
     .popup-save {
-      margin: 0 20px 16px; width: calc(100% - 40px);
-      background: #c17f3b; color: #fff; border: none;
+      display: block; margin: 0 16px 16px; width: calc(100% - 32px);
+      background: var(--gold); color: #fff; border: none;
       padding: 10px; border-radius: 10px; font-size: 14px; font-weight: 600;
     }
 
-    /* STORY */
-    .story { background: var(--bg-card); }
-    .story-wrap { max-width: 720px; margin: 0 auto; }
-    .story-wrap .tag { display: block; }
-    .story-wrap h2 { margin-bottom: 40px; }
-    .story-text { color: var(--text-muted); font-size: 16px; line-height: 2.05; }
-    .story-text p { margin-bottom: 22px; }
-    .story-text strong { color: var(--text); font-weight: 600; }
-    .story-callout {
-      background: rgba(200,169,110,0.07);
-      border: 1px solid rgba(200,169,110,0.2);
-      border-radius: var(--radius); padding: 24px 28px;
-      margin: 32px 0; font-size: 17px; color: var(--text);
-      line-height: 1.85; font-style: italic;
+    /* ── STORY ── */
+    .story { background: var(--bg-section); }
+    .story-inner { max-width: 740px; margin: 0 auto; }
+    .story-body { color: var(--text-muted); font-size: 16px; line-height: 2.05; margin-top: 44px; }
+    .story-body p { margin-bottom: 22px; }
+    .story-body strong { color: var(--text); font-weight: 600; }
+    .story-pull {
+      background: var(--bg-card); border: 1px solid #e8d5b0;
+      border-radius: var(--radius); padding: 26px 32px;
+      margin: 36px 0; font-size: 17px; font-style: italic;
+      color: var(--text); line-height: 1.85; text-align: center;
+      box-shadow: var(--shadow);
     }
 
-    /* CTA */
-    .cta { background: var(--bg); text-align: center; padding: 100px 24px; }
-    .cta h2 { max-width: 600px; margin: 0 auto 16px; }
-    .cta .lead { margin: 0 auto 40px; }
+    /* ── FOR WHO ── */
+    .forwho { background: var(--bg-card); }
+    .forwho-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 24px; margin-top: 52px;
+    }
+    .forwho-card {
+      background: var(--bg-section); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 28px 22px;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .forwho-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+    .forwho-icon { font-size: 32px; margin-bottom: 14px; }
+    .forwho-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+    .forwho-card p { color: var(--text-muted); font-size: 14px; line-height: 1.8; }
+
+    /* ── CTA ── */
+    .cta {
+      background: linear-gradient(135deg, #2a1f0a 0%, #1a1208 50%, #2a1f0a 100%);
+      text-align: center; padding: 110px 24px;
+    }
+    .cta h2 { color: #fff; max-width: 680px; margin: 0 auto 16px; }
+    .cta .section-lead { color: rgba(255,255,255,0.6); margin: 0 auto 44px; }
+    .cta .section-tag { color: var(--gold-bg); }
 
     /* FOOTER */
     footer {
-      background: #0a0a0a; border-top: 1px solid var(--border);
-      padding: 32px 40px;
+      background: #111; border-top: 1px solid rgba(255,255,255,0.08);
+      padding: 32px 48px;
       display: flex; align-items: center; justify-content: space-between;
       flex-wrap: wrap; gap: 12px;
     }
-    footer small { color: var(--text-muted); font-size: 13px; }
-    footer a { color: var(--gold); text-decoration: none; font-size: 13px; }
+    footer .logo { color: #fff; }
+    footer .logo span { color: var(--gold-bg); }
+    footer small { color: #666; font-size: 13px; }
+    footer a { color: var(--gold-bg); text-decoration: none; font-size: 13px; }
 
     /* RESPONSIVE */
-    @media (max-width: 760px) {
+    @media (max-width: 800px) {
       nav { padding: 14px 20px; }
-      .steps-row, .feat-row { grid-template-columns: 1fr; }
+      .problem-grid, .feat-row, .steps-row, .forwho-grid { grid-template-columns: 1fr; }
       .feat-row.flip { direction: ltr; }
       footer { flex-direction: column; text-align: center; }
     }
@@ -288,70 +350,133 @@
 <!-- NAV -->
 <nav>
   <div class="logo">Cine<span>Learn</span></div>
-  <a href="https://fantastic-heliotrope-e6aa67.netlify.app" class="nav-btn">使ってみる →</a>
+  <a href="https://fantastic-heliotrope-e6aa67.netlify.app" class="nav-btn">今すぐ始める →</a>
 </nav>
 
 <!-- HERO -->
 <section class="hero">
-  <p class="hero-eyebrow">🎬 ドラマ × 英語学習</p>
-  <h1>ドラマ観てたら、<br><em>英語できてた。</em></h1>
-  <p class="hero-desc">
-    難しいことは全部 AI に任せて、あなたはただお気に入りのドラマを楽しむだけ。
-    気づいたら語彙が増えてた、そんな学習体験を作りました。
+  <div class="hero-eyebrow">⭐ TOEIC 900点の壁を越えるために生まれた</div>
+  <h1>ドラマを観るだけで<br><em>生きた英語</em>が身につく</h1>
+  <p class="hero-sub">
+    AIと忘却曲線アルゴリズムが、あなたのエンタメ時間を最強の英語学習ルーティンへ。
+    没入感を一切損なわず、教科書には載っていない実践的な語彙を確実に習得します。
   </p>
-  <div class="hero-cta">
-    <a href="https://fantastic-heliotrope-e6aa67.netlify.app" class="btn-gold">無料で始める 🚀</a>
-    <a href="#how" class="btn-ghost">どんな仕組み？</a>
+
+  <!-- STREAMING BADGES -->
+  <div class="streaming-row">
+    <span>対応サービス</span>
+    <span class="s-badge">🔴 Netflix</span>
+    <span class="s-badge">🔵 Prime Video</span>
+    <span class="s-badge">🔷 Disney+</span>
+    <span class="s-badge">🟢 Hulu</span>
+    <span class="s-badge">🟣 U-NEXT</span>
+    <span class="s-badge">🍎 Apple TV+</span>
+  </div>
+
+  <div class="hero-btns">
+    <a href="https://fantastic-heliotrope-e6aa67.netlify.app" class="btn-primary">🎬 無料で始める</a>
+    <a href="#how" class="btn-outline">仕組みを見る</a>
   </div>
 
   <!-- MOCKUP -->
   <div class="hero-visual">
     <div class="mock-bar">
       <div class="mock-dot"></div><div class="mock-dot"></div><div class="mock-dot"></div>
-      <span style="font-size:12px;color:#555;margin-left:8px">Suits S3E4 — 今週の予習単語</span>
+      <div class="mock-url">Suits S3E4 — 今週の予習単語</div>
     </div>
     <div class="mock-body">
-      <div class="mock-label">AIが選んだ重要単語 12語</div>
+      <div class="mock-label">AIが抽出した重要単語</div>
       <div class="word-chips">
-        <span class="chip active">litigation</span>
-        <span class="chip active">affidavit</span>
-        <span class="chip dim">the</span>
-        <span class="chip active">leverage</span>
-        <span class="chip dim">was</span>
-        <span class="chip active">deposition</span>
-        <span class="chip active">subpoena</span>
-        <span class="chip dim">and</span>
-        <span class="chip active">injunction</span>
-        <span class="chip dim">it</span>
-        <span class="chip active">counsel</span>
+        <span class="chip on">litigation</span>
+        <span class="chip on">affidavit</span>
+        <span class="chip off">the</span>
+        <span class="chip on">leverage</span>
+        <span class="chip off">was</span>
+        <span class="chip on">deposition</span>
+        <span class="chip on">subpoena</span>
+        <span class="chip off">and</span>
+        <span class="chip on">injunction</span>
+        <span class="chip on">counsel</span>
       </div>
-      <div class="mock-progress"><div class="mock-fill"></div></div>
-      <div class="mock-note">基礎単語 1,847語を自動スキップ → 重要語だけ抽出</div>
+      <div class="mock-bar2"><div class="mock-fill"></div></div>
+      <div class="mock-note">基礎単語 1,847語を自動スキップ → 重要語 12語に絞り込み</div>
     </div>
   </div>
 </section>
 
-<!-- RELATABLE -->
-<section class="section relatable">
-  <div class="container" style="text-align:center">
-    <span class="tag">あるある</span>
-    <h2>こんな経験、ない？</h2>
-    <div class="chat-block">
-      <div class="bubble left">
-        <div class="bubble-name">ドラマ好きな自分</div>
-        「Suitsめちゃくちゃ面白いんだけど、知らない単語多すぎて毎回一時停止してしまう…」
+<!-- SERVICES -->
+<section class="section services" id="services">
+  <div class="container">
+    <div class="services-intro">
+      <span class="section-tag">対応サービス</span>
+      <h2>あなたが今使っている<br>サブスクがそのまま教材になる</h2>
+      <p class="section-lead">
+        新しいサービスを契約する必要はありません。すでに持っているNetflixやAmazon Primeが、
+        そのまま英語学習の教材に変わります。
+      </p>
+    </div>
+    <div class="services-grid">
+      <div class="service-card featured">
+        <div class="service-icon">🔴</div>
+        <div class="service-name">Netflix</div>
+        <div class="service-note">字幕クリック保存対応</div>
       </div>
-      <div class="bubble left">
-        <div class="bubble-name">ドラマ好きな自分</div>
-        「停止してメモして、また再生して、また停止して……もうドラマ楽しめてないじゃん😇」
+      <div class="service-card featured">
+        <div class="service-icon">🔵</div>
+        <div class="service-name">Prime Video</div>
+        <div class="service-note">字幕クリック保存対応</div>
       </div>
-      <div class="bubble right">
-        <div class="bubble-name">CineLearn</div>
-        視聴前に単語を予習しておけばいいんです 👀
+      <div class="service-card featured">
+        <div class="service-icon">🔷</div>
+        <div class="service-name">Disney+</div>
+        <div class="service-note">字幕クリック保存対応</div>
       </div>
-      <div class="bubble right">
-        <div class="bubble-name">CineLearn</div>
-        AI が字幕を解析して「あなたが知らなそうな単語」だけ事前に教えてくれます ✨
+      <div class="service-card">
+        <div class="service-icon">🟢</div>
+        <div class="service-name">Hulu</div>
+        <div class="service-note">字幕クリック保存対応</div>
+      </div>
+      <div class="service-card">
+        <div class="service-icon">🟣</div>
+        <div class="service-name">U-NEXT</div>
+        <div class="service-note">字幕クリック保存対応</div>
+      </div>
+      <div class="service-card">
+        <div class="service-icon">🍎</div>
+        <div class="service-name">Apple TV+</div>
+        <div class="service-note">字幕クリック保存対応</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PROBLEM -->
+<section class="section problem">
+  <div class="container">
+    <span class="section-tag">The Problem</span>
+    <h2>語学学習か、エンタメか。<br>その二択を終わりにする。</h2>
+    <p class="section-lead">既存のツールは、視聴体験を犠牲にして学習効率を上げようとする。CineLearnはその発想を逆転させました。</p>
+    <div class="problem-grid">
+      <div class="problem-quote">
+        知らない単語が出るたびに動画を一時停止し、手作業でリストに保存していく。
+        <strong>「純粋にドラマを楽しむ没入感」が完全に失われてしまう。</strong>
+        このジレンマを解決するツールは、世界中を探しても見つかりませんでした。
+      </div>
+      <div class="vs-stack">
+        <div class="vs-card bad">
+          <div class="vs-icon">😤</div>
+          <div>
+            <div class="vs-title">従来のアプローチ</div>
+            <div class="vs-desc">単語が出るたびに停止 → 手動で記録 → 没入感ゼロ → 継続できない</div>
+          </div>
+        </div>
+        <div class="vs-card good">
+          <div class="vs-icon">🎯</div>
+          <div>
+            <div class="vs-title">CineLearnのアプローチ</div>
+            <div class="vs-desc">視聴前に単語を予習 → ドラマに完全没入 → 科学的アルゴリズムで定着</div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -360,27 +485,26 @@
 <!-- HOW IT WORKS -->
 <section class="section how" id="how">
   <div class="container">
-    <span class="tag">使い方</span>
-    <h2>シンプルに、3ステップ</h2>
-    <p class="lead">面倒な設定は不要。ドラマを選んで、予習して、観るだけです。</p>
+    <span class="section-tag">How It Works</span>
+    <h2>3ステップで始まる、<br>新しい学習サイクル</h2>
     <div class="steps-row">
       <div class="step-card">
-        <div class="step-num">STEP 01</div>
+        <div class="step-num">1</div>
         <div class="step-icon">🤖</div>
-        <h3>ドラマ × エピソードを選ぶ</h3>
-        <p>観たい作品とエピソードを選ぶだけ。AI が字幕を解析して、あなたのレベルに合わせた単語リストを自動生成します。</p>
+        <h3>AIが単語を自動生成</h3>
+        <p>観たいドラマとエピソードを選ぶだけ。AIと字幕APIが字幕を解析し、あなたのレベルに合わせた未知単語リストを自動で作成します。</p>
       </div>
       <div class="step-card">
-        <div class="step-num">STEP 02</div>
+        <div class="step-num">2</div>
         <div class="step-icon">📖</div>
-        <h3>サクッと予習する</h3>
-        <p>フラッシュカードで重要単語を確認。全部覚えなくてOK。「あ、この単語出てきたな」と気づける程度で十分です。</p>
+        <h3>予習してドラマに没入</h3>
+        <p>フラッシュカードで単語を予習したら、再生ボタンを押すだけ。あとはドラマのストーリーに熱中するだけでOKです。</p>
       </div>
       <div class="step-card">
-        <div class="step-num">STEP 03</div>
-        <div class="step-icon">🎬</div>
-        <h3>あとはドラマに没入するだけ</h3>
-        <p>再生ボタンを押したらもう何もしなくていい。ストーリーを楽しんでいる間に、単語が記憶に入ってきます。</p>
+        <div class="step-num">3</div>
+        <div class="step-icon">📈</div>
+        <h3>最適タイミングで復習</h3>
+        <p>SM-2アルゴリズムが「忘れかけたタイミング」を算出。視聴済みドラマの単語テストが自動スケジューリングされます。</p>
       </div>
     </div>
   </div>
@@ -389,60 +513,77 @@
 <!-- FEATURES -->
 <section class="section features" id="features">
   <div class="container">
-    <span class="tag">機能</span>
-    <h2>地味に嬉しい機能たち</h2>
-    <div class="feat-grid">
+    <span class="section-tag">Features</span>
+    <h2>テクノロジーで<br>煩わしさをゼロにする</h2>
+    <div class="feat-list">
 
-      <!-- SRS -->
       <div class="feat-row">
-        <div class="feat-text">
-          <span class="tag">忘却曲線</span>
-          <h3>「そろそろ忘れかけてるでしょ」のタイミングでテストが来る</h3>
+        <div>
+          <span class="feat-tag">AI × 字幕API</span>
+          <h3>視聴前の自動単語抽出で、動画を止めない</h3>
           <p>
-            SM-2アルゴリズムが記憶の状態を追跡。
-            復習が必要な単語だけ、絶妙なタイミングでテストしてくれます。
-            毎日何十単語もやる必要なし。<br>
-            <strong style="color:var(--text)">今日やるべき分だけ、コンパクトに。</strong>
+            AIと字幕APIを組み合わせ「次に見るエピソード」の字幕データを裏側で解析。
+            ユーザーのTOEICレベルに合わせて既知単語を自動除外し、未知の重要単語だけを抽出します。
+            <strong style="color:var(--text)">あらかじめ予習しておくことで、再生後はドラマに没入するだけ。</strong>
           </p>
         </div>
-        <div class="feat-card">
-          <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px">📅 今日の復習</div>
-          <div class="srs-item">
-            <div>
-              <div class="srs-word">litigation</div>
-              <div class="srs-from">Suits S3E4</div>
+        <div class="feat-visual">
+          <div style="margin-bottom:18px">
+            <div style="font-size:11px;color:var(--text-light);margin-bottom:12px;letter-spacing:1px;text-transform:uppercase">Suits S3E4 — 抽出された重要単語</div>
+            <div class="word-chips">
+              <span class="chip on">litigation</span>
+              <span class="chip on">affidavit</span>
+              <span class="chip on">deposition</span>
+              <span class="chip off">the</span>
+              <span class="chip on">injunction</span>
+              <span class="chip off">and</span>
+              <span class="chip on">subpoena</span>
+              <span class="chip on">leverage</span>
             </div>
-            <span class="pill red">今日</span>
+          </div>
+          <div class="mock-bar2"><div class="mock-fill"></div></div>
+          <div style="font-size:12px;color:var(--gold);margin-top:8px">1,847語を除外 → 重要単語 12語に絞り込み</div>
+        </div>
+      </div>
+
+      <div class="feat-row flip">
+        <div>
+          <span class="feat-tag">Spaced Repetition</span>
+          <h3>忘却曲線に基づくアルゴリズムで確実に定着</h3>
+          <p>
+            科学的に実証されている「間隔反復法（SM-2アルゴリズム）」をシステムに組み込み。
+            過去の記憶状態から「いつ復習すれば最も定着するか」を算出し、最適なタイミングで自動出題します。
+            <strong style="color:var(--text)">繰り返しが必要な単語だけを、必要なときに復習できます。</strong>
+          </p>
+        </div>
+        <div class="feat-visual">
+          <div style="font-size:12px;color:var(--text-light);margin-bottom:14px">今日の復習スケジュール</div>
+          <div class="srs-item">
+            <div><div class="srs-word">litigation</div><div class="srs-from">Suits S3E4</div></div>
+            <span class="pill red">🔴 今日</span>
           </div>
           <div class="srs-item">
-            <div>
-              <div class="srs-word">leverage</div>
-              <div class="srs-from">Silicon Valley S1E2</div>
-            </div>
-            <span class="pill gold">明日</span>
+            <div><div class="srs-word">leverage</div><div class="srs-from">Silicon Valley S1E2</div></div>
+            <span class="pill gold">📅 明日</span>
           </div>
           <div class="srs-item">
-            <div>
-              <div class="srs-word">affidavit</div>
-              <div class="srs-from">Suits S2E8</div>
-            </div>
+            <div><div class="srs-word">affidavit</div><div class="srs-from">Suits S2E8</div></div>
             <span class="pill green">⭐ 習得済み</span>
           </div>
         </div>
       </div>
 
-      <!-- EXTENSION -->
-      <div class="feat-row flip">
-        <div class="feat-text">
-          <span class="tag">Chrome拡張機能</span>
-          <h3>Netflix で気になった単語、その場でポチっと保存</h3>
+      <div class="feat-row">
+        <div>
+          <span class="feat-tag">Chrome Extension</span>
+          <h3>Netflix視聴中に単語を1クリック保存</h3>
           <p>
-            字幕の単語をクリックすると辞書が出て、そのまま単語帳へ保存できます。
-            一時停止しなくて OK。ポップアップ確認してすぐ再生に戻れます。<br>
-            <strong style="color:var(--text)">保存した単語はスマホとも自動で同期。</strong>
+            Chrome拡張機能を使えば、字幕に表示される単語をクリックするだけで保存。
+            辞書検索・意味確認・単語帳への追加がワンアクションで完了します。
+            <strong style="color:var(--text)">保存した単語はSupabaseでクラウド同期され、スマホでも確認できます。</strong>
           </p>
         </div>
-        <div class="feat-card" style="display:flex;align-items:center;justify-content:center;min-height:220px">
+        <div class="feat-visual popup-wrap">
           <div>
             <div class="popup-mock">
               <div class="popup-head">
@@ -452,7 +593,7 @@
               <div class="popup-def">the power to influence a person or situation to achieve a particular outcome</div>
               <button class="popup-save">✓ 単語帳に保存</button>
             </div>
-            <div style="text-align:center;font-size:12px;color:var(--text-muted);margin-top:14px">← 字幕をクリックするだけ</div>
+            <div style="text-align:center;font-size:12px;color:var(--text-light);margin-top:12px">← 字幕をクリックするだけ</div>
           </div>
         </div>
       </div>
@@ -463,51 +604,84 @@
 
 <!-- STORY -->
 <section class="section story" id="story">
-  <div class="container story-wrap">
-    <span class="tag">作った理由</span>
-    <h2>自分が欲しかったから、作りました</h2>
-    <div class="story-text">
+  <div class="container story-inner">
+    <span class="section-tag">Development Story</span>
+    <h2>なぜこのプロダクトを作ったのか</h2>
+    <div class="story-body">
       <p>
-        毎朝ドラマを観るのが日課なんですが、TOEIC 900 点を目指すなら
-        <strong>「教科書には載っていない生きた英語」</strong>に触れ続けるしかないなと思っていて。
-        Suits のリーガルフレーズとか、シリコンバレーのスラングとか。
+        毎朝30分、海外ドラマの視聴を日々のルーティンにしています。
+        <strong>TOEIC900点の壁を越え、さらにその先にある「生きた英語」を身につけるためには</strong>、
+        ネイティブのリアルな会話に触れ続けることが不可欠だからです。
       </p>
       <p>
-        で、Language Reactor とか既存のツールも試したんですが、
-        どれも「字幕を追いかけながら単語を記録する」スタイルで、
-        結局ドラマに集中できないまま終わるんですよね。
+        特に『Suits/スーツ』で飛び交う法務・交渉フレーズや、『シリコンバレー』のIT業界特有のスラングなど、
+        教科書には載っていない実践的な表現を学ぶために、既存の語学学習用拡張機能（Language Reactorなど）を利用していました。
       </p>
-      <div class="story-callout">
-        学習モードで観ると楽しくないし、<br>
-        楽しんで観ると全然覚えられない。<br><br>
-        その中間がなかった。
+      <p>
+        しかし、そこに大きなストレスがありました。
+        知らない単語が出るたびに字幕を追い、動画を一時停止しては手作業でリストに保存していく。
+        <strong>これでは「純粋にドラマのストーリーを楽しむ没入感」が完全に失われてしまいます。</strong>
+      </p>
+      <div class="story-pull">
+        「学習効率」を優先すればエンタメとしての楽しさが奪われ、<br>
+        「楽しさ」を優先すれば単語は記憶に定着しない。<br><br>
+        このジレンマを解決するツールは、世界中を探しても見つかりませんでした。
       </div>
       <p>
-        だったら「視聴前に予習を完結させてしまえばいい」と気づいて、
-        自分で作り始めました。エンジニアなので。
+        <strong>「それなら、自分で作るしかない。」</strong>
       </p>
       <p>
-        今では毎朝ドラマを観る前に 5 分だけ単語確認して、
-        あとは字幕を止めずに没入するだけ。<strong>これが思ったより効く。</strong>
+        そう考え、情報工学の知見をフル活用して自らの課題を解決するために開発したのがこのプロダクトです。
+        目指したのは、学習における無駄な作業をテクノロジーで完全に自動化すること。
+        没入感を一切損なわず、それでいて確実に語彙が積み上がっていく体験を実現することでした。
       </p>
     </div>
   </div>
 </section>
 
-<!-- CTA -->
-<section class="section cta">
+<!-- FOR WHO -->
+<section class="section forwho">
   <div class="container">
-    <span class="tag">Get Started</span>
-    <h2>まずは、好きなドラマを<br>選んでみてください</h2>
-    <p class="lead">アカウント登録不要でも使えます。難しい設定もなし。</p>
-    <a href="https://fantastic-heliotrope-e6aa67.netlify.app" class="btn-gold">使ってみる（無料）🎬</a>
+    <span class="section-tag">For Who</span>
+    <h2>あなたのための<br>英語学習ツール</h2>
+    <p class="section-lead">初心者向けの強制的なゲーム要素は持っていません。明確な目標を持ち、本気でレベルアップを目指す人のために設計されています。</p>
+    <div class="forwho-grid">
+      <div class="forwho-card">
+        <div class="forwho-icon">🏢</div>
+        <h3>ビジネス英語を高めたい社会人</h3>
+        <p>SuitsやSuccessionで飛び交うビジネス・法務フレーズを、ドラマを観ながら自然に習得したい方。</p>
+      </div>
+      <div class="forwho-card">
+        <div class="forwho-icon">💻</div>
+        <h3>IT・テック系の英語に触れたい方</h3>
+        <p>シリコンバレーやMr. Robotで登場するIT業界特有のスラングや専門用語を身につけたい方。</p>
+      </div>
+      <div class="forwho-card">
+        <div class="forwho-icon">📊</div>
+        <h3>TOEIC 800〜900点台を目指す方</h3>
+        <p>基礎は固まった。あとは「生きた英語」への圧倒的な露出量が必要だと感じている中上級者。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta">
+  <div class="container">
+    <span class="section-tag">Get Started</span>
+    <h2>あなたの趣味の時間を、<br>最強の学習ルーティンに</h2>
+    <p class="section-lead">
+      学習の準備はすべてシステムに任せてください。
+      あなたはただ、お気に入りのドラマを楽しむだけです。
+    </p>
+    <a href="https://fantastic-heliotrope-e6aa67.netlify.app" class="btn-primary">🎬 無料で始める</a>
   </div>
 </section>
 
 <!-- FOOTER -->
 <footer>
   <div class="logo">Cine<span>Learn</span></div>
-  <small>© 2025 CineLearn</small>
+  <small>© 2025 CineLearn. ドラマで学ぶ、究極の英語習得。</small>
   <a href="https://fantastic-heliotrope-e6aa67.netlify.app">アプリを開く →</a>
 </footer>
 
@@ -521,7 +695,7 @@
     }),
     { threshold: 0.08 }
   );
-  document.querySelectorAll('.step-card, .feat-row, .bubble, .story-callout').forEach(el => {
+  document.querySelectorAll('.step-card, .feat-row, .service-card, .forwho-card, .story-pull, .vs-card').forEach(el => {
     el.style.opacity = '0';
     el.style.transform = 'translateY(20px)';
     el.style.transition = 'opacity 0.55s ease, transform 0.55s ease';
