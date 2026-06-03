@@ -877,7 +877,7 @@ async function getMyWordsForEpisode(dramaTitle, season, episode) {
   if (!dramaTitle) return [];
   const words = await getActiveWords();
   const tl = dramaTitle.toLowerCase();
-  return words.filter(w => {
+  const result = words.filter(w => {
     if (!w.dramaTitle) return false;
     const wl = w.dramaTitle.toLowerCase();
     if (!(wl.includes(tl) || tl.includes(wl))) return false;
@@ -888,6 +888,12 @@ async function getMyWordsForEpisode(dramaTitle, season, episode) {
     // S/E が取得できなかった単語はタイトル一致のみで表示
     return true;
   });
+  console.log(`[ExtWords] searching: title="${dramaTitle}" S${season}E${episode} | total words=${words.length} | matched=${result.length}`);
+  if (words.length > 0) {
+    const sample = words.slice(0, 3).map(w => `"${w.word}"(${w.dramaTitle} S${w.season}E${w.episode})`).join(', ');
+    console.log(`[ExtWords] sample words: ${sample}`);
+  }
+  return result;
 }
 
 // 「追加した単語」セクションを vocabSection の末尾に追加する
