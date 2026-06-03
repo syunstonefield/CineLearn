@@ -371,7 +371,10 @@ async function showWordPopup(word, sentence, rect) {
       <div style="font-size:12px;color:#aaa;margin-top:4px">辞書を検索中...</div>
     </div>`;
 
-  const dict = await lookupWord(word);
+  const [dict, ctx] = await Promise.all([lookupWord(word), Promise.resolve(getEpisodeContext())]);
+
+  const seInputStyle = `width:44px;border:1px solid #ddd;border-radius:6px;
+    padding:4px 6px;font-size:13px;text-align:center;font-family:inherit;`;
 
   popup.innerHTML = `
     <div style="padding:16px 16px 12px;border-bottom:1px solid #f0f0f0">
@@ -389,6 +392,16 @@ async function showWordPopup(word, sentence, rect) {
         line-height:1.5;font-style:italic;
         border-top:1px solid #f5f5f5;padding-top:8px">"${sentence}"</div>` : ''}
     </div>
+    <div style="padding:8px 16px;border-bottom:1px solid #f0f0f0;
+      display:flex;align-items:center;gap:6px;font-size:12px;color:#666">
+      <span>S</span>
+      <input id="cl-season-input" type="number" min="1" max="99"
+        value="${ctx.season ?? ''}" placeholder="?" style="${seInputStyle}">
+      <span>E</span>
+      <input id="cl-episode-input" type="number" min="1" max="999"
+        value="${ctx.episode ?? ''}" placeholder="?" style="${seInputStyle}">
+      <span style="color:#aaa;font-size:11px;margin-left:2px">${ctx.dramaTitle || ''}</span>
+    </div>
     <div style="padding:10px 16px;display:flex;gap:8px">
       <button id="cl-save-btn" style="flex:1;background:${ACCENT};color:#fff;
         border:none;padding:9px;border-radius:10px;font-size:13px;font-weight:500;
@@ -401,7 +414,8 @@ async function showWordPopup(word, sentence, rect) {
   document.getElementById('cl-save-btn').addEventListener('click', (e) => {
     e.stopImmediatePropagation();
     e.preventDefault();
-    const ctx   = getEpisodeContext();
+    const sVal = parseInt(document.getElementById('cl-season-input').value);
+    const eVal = parseInt(document.getElementById('cl-episode-input').value);
     const entry = {
       word,
       sentence:   sentence || '',
@@ -411,15 +425,15 @@ async function showWordPopup(word, sentence, rect) {
       savedAt:    new Date().toLocaleDateString('ja-JP'),
       source:     document.title.split(/[|\-–—]/)[0].trim(),
       dramaTitle: ctx.dramaTitle,
-      season:     ctx.season,
-      episode:    ctx.episode,
+      season:     isNaN(sVal) ? null : sVal,
+      episode:    isNaN(eVal) ? null : eVal,
     };
     saveWord(entry);
     try {
       chrome.runtime.sendMessage({ type: 'SAVE_WORD_TO_CLOUD', word: entry }).catch(() => {});
     } catch {}
     closePopupAndResume();
-    const epInfo = ctx.season != null ? ` S${ctx.season}E${ctx.episode}` : '';
+    const epInfo = entry.season != null ? ` S${entry.season}E${entry.episode}` : '';
     showToast(`「${word}」を保存しました${epInfo} ✓`);
   });
 
