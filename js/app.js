@@ -263,6 +263,9 @@ function selectProfile(id) {
   nameEl.textContent = profile.name;
 
   applyProfileSettings(profile.settings || {});
+
+  // クラウド同期後にバックグラウンドで未割当単語を自動解決
+  setTimeout(() => resolveUnassignedWords().catch(() => {}), 3000);
 }
 
 // プロフィール選択画面を描画する
@@ -871,29 +874,77 @@ async function triggerEpisodeLoad() {
   await preloadSubtitle();
 }
 
+// 字幕キャッシュのキー
+function subtitleCacheKey(title, season, episode) {
+  const safe = (title || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
+  return `cl_sub_${safe}_s${season}e${episode}`;
+}
+
 // 拡張機能で保存した単語のうち、現ドラマ・エピソードに一致するものを返す
-// season/episode が null の単語（DOM取得不可の場合）はタイトル一致のみで表示する
+// S/E 不明の単語は字幕キャッシュで出現を確認してフィルタリング
 async function getMyWordsForEpisode(dramaTitle, season, episode) {
   if (!dramaTitle) return [];
   const words = await getActiveWords();
   const tl = dramaTitle.toLowerCase();
-  const result = words.filter(w => {
+
+  // 現エピソードの字幕キャッシュ（メモリ優先 → localStorage）
+  const episodeSub = (
+    cachedSubtitleText ||
+    localStorage.getItem(subtitleCacheKey(dramaTitle, season, episode)) ||
+    localStorage.getItem(subtitleCacheKey(selectedDrama?.englishTitle, season, episode)) ||
+    ''
+  ).toLowerCase();
+
+  return words.filter(w => {
     if (!w.dramaTitle) return false;
     const wl = w.dramaTitle.toLowerCase();
     if (!(wl.includes(tl) || tl.includes(wl))) return false;
-    // S/E が記録されている場合は完全一致必須
     if (w.season != null && w.episode != null) {
       return w.season === season && w.episode === episode;
     }
-    // S/E が取得できなかった単語はタイトル一致のみで表示
-    return true;
+    // S/E 不明: 字幕キャッシュがあれば実際に登場するか確認
+    if (episodeSub) return episodeSub.includes(w.word.toLowerCase());
+    // キャッシュなし: 表示しない（ドラマ全体に散らばるのを防ぐ）
+    return false;
   });
-  console.log(`[ExtWords] searching: title="${dramaTitle}" S${season}E${episode} | total words=${words.length} | matched=${result.length}`);
-  if (words.length > 0) {
-    const sample = words.slice(0, 3).map(w => `"${w.word}"(${w.dramaTitle} S${w.season}E${w.episode})`).join(', ');
-    console.log(`[ExtWords] sample words: ${sample}`);
+}
+
+// 未割当単語をキャッシュ済み字幕から自動解決してストアを更新する
+async function resolveUnassignedWords() {
+  const words = await getActiveWords();
+  const unassigned = words.filter(w => w.dramaTitle && w.season == null);
+  if (!unassigned.length) return;
+
+  // 学習履歴を新しい順に並べる（直近エピソード優先）
+  const history = loadHistory().sort((a, b) =>
+    (b.date || '').localeCompare(a.date || '')
+  );
+
+  let changed = false;
+  for (const w of unassigned) {
+    const tl = w.dramaTitle.toLowerCase();
+    const relatedHistory = history.filter(h => {
+      const ht = (h.drama?.title || '').toLowerCase();
+      return ht.includes(tl) || tl.includes(ht);
+    });
+    for (const entry of relatedHistory) {
+      const sub =
+        localStorage.getItem(subtitleCacheKey(entry.drama.title, entry.season, entry.episode)) ||
+        localStorage.getItem(subtitleCacheKey(entry.drama.englishTitle, entry.season, entry.episode));
+      if (!sub) continue;
+      if (sub.toLowerCase().includes(w.word.toLowerCase())) {
+        w.season  = entry.season;
+        w.episode = entry.episode;
+        changed = true;
+        break;
+      }
+    }
   }
-  return result;
+
+  if (changed) {
+    await store.set(myWordsKey(), words);
+    console.log('[CineLearn] 未割当単語のエピソードを自動解決しました');
+  }
 }
 
 // 「追加した単語」セクションを vocabSection の末尾に追加する
@@ -993,6 +1044,11 @@ async function preloadSubtitle() {
       const srtText = await downloadSubtitle(fileId);
       cachedSubtitleText = parseSrt(srtText);
       cachedSubtitleSource = '実際の字幕データから';
+      // 字幕テキストを永続キャッシュに保存（未割当単語のエピソード解決に使用）
+      try {
+        const key = subtitleCacheKey(selectedDrama.englishTitle || selectedDrama.title, selectedSeason, selectedEpisode);
+        localStorage.setItem(key, cachedSubtitleText);
+      } catch { /* QuotaExceeded は無視 */ }
       document.getElementById('episodeSelected').textContent =
         `Season ${selectedSeason} Episode ${selectedEpisode} ✓ 字幕取得済み`;
       const btn = document.getElementById('vocabGenBtn');
