@@ -862,7 +862,16 @@ async function triggerEpisodeLoad() {
   quizData = [];
 
   // 保存済み単語があれば即表示して字幕ロードをスキップ
-  if (await checkAndShowSavedVocab()) return;
+  if (await checkAndShowSavedVocab()) {
+    const cacheKey = subtitleCacheKey(
+      selectedDrama?.englishTitle || selectedDrama?.title,
+      selectedSeason, selectedEpisode
+    );
+    if (selectedDrama && !localStorage.getItem(cacheKey)) {
+      preloadSubtitleSilent(cacheKey);
+    }
+    return;
+  }
 
   document.getElementById('episodeSelected').textContent =
     `Season ${selectedSeason} Episode ${selectedEpisode} を選択中`;
