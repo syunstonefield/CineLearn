@@ -217,8 +217,12 @@ async function pullFromCloud() {
     // プロフィールが選択済みなら直接プロフィール別キーにも保存
     const profileId = window._clProfileId || null;
     if (profileId) localStorage.setItem(`cl_my_words_${profileId}`, wordsList);
-    // badge 更新（app.js がロード済みなら）
+    // badge・単語帳を更新（app.js がロード済みかつプロフィール選択済みなら）
     if (typeof updateWordbookBadge === 'function') updateWordbookBadge();
+    if (typeof renderWordbook === 'function') {
+      const modal = document.getElementById('wordbookModal');
+      if (modal?.style.display === 'flex') renderWordbook();
+    }
   }
 }
 

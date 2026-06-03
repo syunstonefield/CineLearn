@@ -791,7 +791,7 @@ async function triggerEpisodeLoad() {
 // season/episode が null の単語（DOM取得不可の場合）はタイトル一致のみで表示する
 async function getMyWordsForEpisode(dramaTitle, season, episode) {
   if (!dramaTitle) return [];
-  const words = await store.get(myWordsKey()) || [];
+  const words = await getActiveWords();
   const tl = dramaTitle.toLowerCase();
   return words.filter(w => {
     if (!w.dramaTitle) return false;
@@ -1814,6 +1814,26 @@ function myWordsKey() {
   return currentProfileId ? `cl_my_words_${currentProfileId}` : 'cl_my_words';
 }
 
+// ── 削除済み単語リスト（ローカル保持・非表示フィルタ用） ──────────────────────
+function deletedWordsKey() {
+  return currentProfileId ? `cl_deleted_words_${currentProfileId}` : 'cl_deleted_words';
+}
+function getDeletedWords() {
+  try { return JSON.parse(localStorage.getItem(deletedWordsKey()) || '[]'); }
+  catch { return []; }
+}
+function addToDeletedWords(wordTexts) {
+  const list = Array.isArray(wordTexts) ? wordTexts : [wordTexts];
+  const current = getDeletedWords();
+  localStorage.setItem(deletedWordsKey(), JSON.stringify([...new Set([...current, ...list])]));
+}
+// 削除済みを除いた単語リストを返す
+async function getActiveWords() {
+  const all     = await store.get(myWordsKey()) || [];
+  const deleted = getDeletedWords();
+  return deleted.length ? all.filter(w => !deleted.includes(w.word)) : all;
+}
+
 // ─────────────────────────────────────────
 // 単語帳（マイ単語帳）
 // ─────────────────────────────────────────
@@ -1834,9 +1854,9 @@ function closeWordbookOnOverlay(e) {
   if (e.target === document.getElementById('wordbookModal')) closeWordbook();
 }
 
-// 単語帳の内容を描画する
+// 単語帳の内容を描画する（削除済みを除く）
 async function renderWordbook() {
-  const words = await store.get(myWordsKey()) || [];
+  const words = await getActiveWords();
   const container = document.getElementById('wordbookContent');
 
   if (words.length === 0) {
@@ -1894,8 +1914,9 @@ async function renderWordbook() {
   });
 }
 
-// 単語を1件削除する
+// 単語を1件削除する（削除リストに追加し、ストアからも除去）
 async function deleteMyWord(wordText) {
+  addToDeletedWords(wordText);
   const words = await store.get(myWordsKey()) || [];
   await store.set(myWordsKey(), words.filter(w => w.word !== wordText));
   await renderWordbook();
@@ -1905,14 +1926,16 @@ async function deleteMyWord(wordText) {
 // 単語をすべて削除する
 async function clearAllWords() {
   if (!confirm('保存した単語をすべて削除しますか？')) return;
+  const words = await store.get(myWordsKey()) || [];
+  addToDeletedWords(words.map(w => w.word));
   await store.set(myWordsKey(), []);
   await renderWordbook();
   updateWordbookBadge();
 }
 
-// ヘッダーの件数バッジを更新する
+// ヘッダーの件数バッジを更新する（削除済みを除く）
 async function updateWordbookBadge() {
-  const words = await store.get(myWordsKey()) || [];
+  const words = await getActiveWords();
   const badge = document.getElementById('wordbookBadge');
   if (badge) badge.textContent = words.length > 0 ? words.length : '';
 }
