@@ -2057,6 +2057,7 @@ if (typeof chrome !== 'undefined' && chrome?.storage?.onChanged) {
 // ─────────────────────────────────────────────────────────────────
 function initEventListeners() {
   // ─ ヘッダー ─
+  document.getElementById('btnLogo').addEventListener('click', () => goToStep('main'));
   document.getElementById('btnWordbook').addEventListener('click', openWordbook);
   document.getElementById('btnOpenSettings').addEventListener('click', openSettings);
   document.getElementById('btnProfileSwitch').addEventListener('click', () => {
