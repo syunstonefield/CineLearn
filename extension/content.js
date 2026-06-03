@@ -373,7 +373,9 @@ async function showWordPopup(word, sentence, rect) {
       episode:    ctx.episode,
     };
     saveWord(entry);
-    chrome.runtime.sendMessage({ type: 'SAVE_WORD_TO_CLOUD', word: entry }).catch(() => {});
+    try {
+      chrome.runtime.sendMessage({ type: 'SAVE_WORD_TO_CLOUD', word: entry }).catch(() => {});
+    } catch {}
     closePopupAndResume();
     const epInfo = ctx.season != null ? ` S${ctx.season}E${ctx.episode}` : '';
     showToast(`「${word}」を保存しました${epInfo} ✓`);
