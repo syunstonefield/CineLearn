@@ -1351,6 +1351,36 @@ header {
   font-weight: 700;
   color: rgba(255,255,255,0.9);
   letter-spacing: -1px;
+  position: relative;
+}
+
+.library-card-delete {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.35);
+  color: rgba(255,255,255,0.85);
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s, background 0.2s;
+  line-height: 1;
+}
+
+.library-card:hover .library-card-delete {
+  opacity: 1;
+}
+
+.library-card-delete:hover {
+  background: rgba(200, 60, 60, 0.8) !important;
+  color: #fff;
 }
 
 .library-card-body {

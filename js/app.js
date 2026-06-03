@@ -226,32 +226,7 @@ async function applyProfileSettings(s) {
     openSettings();
     return;
   }
-  // ── ドラマが選択済みなら（単語の有無に関わらず）Step 4 へ ──
-  if (s.selectedDrama) {
-    document.getElementById('vocabDramaTitle').textContent =
-      `「${s.selectedDrama.title}」のエピソードを選んで単語を予習する`;
-    if (s.dramaSeasonInfo?.length) {
-      buildSeasonEpisodeSelectors(s.dramaSeasonInfo);
-      document.getElementById('seasonSelect').value = s.selectedSeason;
-      const seasonData = s.dramaSeasonInfo.find(si => si.season === s.selectedSeason);
-      if (seasonData) updateEpisodeSelector(seasonData.episodes);
-      document.getElementById('episodeSelect').value = s.selectedEpisode;
-    }
-    document.getElementById('vocabNextBtn').style.display = 'none';
-    // 保存済み単語があれば即表示、なければ生成ボタン待機
-    if (!(await checkAndShowSavedVocab())) {
-      document.getElementById('episodeSelected').textContent =
-        `Season ${s.selectedSeason} Episode ${s.selectedEpisode}`;
-      document.getElementById('vocabGenBtn').style.display = '';
-      document.getElementById('vocabGenBtn').disabled = false;
-      document.getElementById('vocabGenBtn').textContent = '単語を生成';
-      document.getElementById('vocabSection').innerHTML =
-        '<div class="empty-state">「単語を生成」を押してください</div>';
-    }
-    goToStep(4);
-    return;
-  }
-  // ── ドラマ未選択ならメイン画面へ ──
+  // ── 常にドラマライブラリ（メイン画面）へ ──
   goToStep('main');
 }
 
@@ -513,6 +488,7 @@ function buildLibraryCard({ drama, episodes, bestScore, lastDate }) {
   card.innerHTML = `
     <div class="library-card-banner" style="background:${platformColor(drama.platform)}">
       ${drama.title.charAt(0)}
+      <button class="library-card-delete" title="削除">✕</button>
     </div>
     <div class="library-card-body">
       <div class="library-card-title">${drama.title}</div>
@@ -527,8 +503,29 @@ function buildLibraryCard({ drama, episodes, bestScore, lastDate }) {
       <button class="library-card-action">${episodes.length > 0 ? '続きを学習 →' : '学習を始める →'}</button>
     </div>`;
 
+  card.querySelector('.library-card-delete').addEventListener('click', (e) => {
+    e.stopPropagation();
+    deleteDramaFromLibrary(drama.title);
+  });
   card.addEventListener('click', () => loadDramaFromLibrary(drama));
   return card;
+}
+
+// ドラマをライブラリから削除する（履歴も含めて）
+function deleteDramaFromLibrary(title) {
+  if (!confirm(`「${title}」をライブラリから削除しますか？\n学習履歴もすべて消えます。`)) return;
+  const history = loadHistory();
+  const newHistory = history.filter(h => h.drama?.title !== title);
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(newHistory));
+  if (typeof cloudSync !== 'undefined' && isLoggedIn()) {
+    cloudSync.history(newHistory).catch(() => {});
+  }
+  if (selectedDrama?.title === title) {
+    selectedDrama = null;
+    dramaSeasonInfo = [];
+    saveSettings();
+  }
+  renderDramaLibrary();
 }
 
 // ライブラリのドラマカードをクリックして学習へ（サービス選択画面を経由）
