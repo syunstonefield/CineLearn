@@ -251,12 +251,12 @@ function getEpisodeContext() {
     /[Ss]eason\s*(\d+)[\s:·•,]+[Ee]pisode\s*(\d+)/,
     /[Ss](\d+)\s*[Ee](\d+)/,
     /(\d+)\s*[×x]\s*(\d+)/,
-    // 日本語フォーマット「第N話」「シーズンN エピソードN」
-    /シーズン\s*(\d+)\s*[エエ]ピソード\s*(\d+)/,
-    /第\s*(\d+)\s*[シーズン].*第\s*(\d+)\s*話/,
+    /シーズン\s*(\d+)[^\d]+エピソード\s*(\d+)/,
+    /シーズン\s*(\d+)[^\d]+第\s*(\d+)\s*話/,
   ];
 
   function extractSE(text) {
+    if (!text) return null;
     for (const pat of sePatterns) {
       const m = text.match(pat);
       if (m) return { season: parseInt(m[1]), episode: parseInt(m[2]) };
@@ -264,13 +264,17 @@ function getEpisodeContext() {
     return null;
   }
 
-  // ① タイトル要素から取得
+  // ① 特定セレクターから S/E とタイトルを取得
   const titleSelectors = [
     '[data-uia="video-title"]',
     '[data-uia="player-title"]',
+    '[data-uia="episode-title"]',
+    '[data-uia="player-episode-title"]',
     '.video-title',
     '[class*="PlayerTitle"]',
     '[class*="VideoTitle"]',
+    '[class*="EpisodeTitle"]',
+    '[class*="episode-title"]',
     '[class*="player-title"]',
     '[class*="titleTreatmentWrapper"]',
     '[data-testid="title"]',
@@ -278,53 +282,53 @@ function getEpisodeContext() {
   ];
 
   for (const sel of titleSelectors) {
-    const el = document.querySelector(sel);
-    if (!el) continue;
-    const text = el.textContent.trim();
-    if (!text) continue;
-
-    if (!season) {
-      const se = extractSE(text);
-      if (se) { season = se.season; episode = se.episode; }
+    for (const el of document.querySelectorAll(sel)) {
+      const text = el.textContent.trim();
+      if (!text) continue;
+      if (!season) {
+        const se = extractSE(text);
+        if (se) { season = se.season; episode = se.episode; }
+      }
+      if (!showTitle) {
+        const heading = el.querySelector('h1,h2,h3,h4,h5');
+        const candidate = heading
+          ? heading.textContent.trim()
+          : text.split(/[\n\r]/)[0].split(/[:\-–—\/]/)[0].trim();
+        if (candidate) showTitle = candidate;
+      }
     }
-
-    const heading   = el.querySelector('h1,h2,h3,h4,h5');
-    const candidate = heading
-      ? heading.textContent.trim()
-      : text.split(/[\n\r]/)[0].split(/[:\-–—\/]/)[0].trim(); // / でも分割（SUITS/スーツ対策）
-    if (candidate && !showTitle) showTitle = candidate;
     if (showTitle && season !== null) break;
   }
 
-  // ② S/E がまだ取れていない場合、DOM 全体から広く検索
+  // ② ページ全体の全テキストノードから S/E を広くスキャン（Netflix 等で有効）
   if (season === null) {
-    const seSelectors = [
-      '[data-uia="episode-title"]',
-      '[data-uia="player-episode-title"]',
-      '[class*="EpisodeTitle"]',
-      '[class*="episode-title"]',
-      '[class*="SubTitle"]',
-      '[class*="subtitle"]',
-    ];
-    for (const sel of seSelectors) {
-      const el = document.querySelector(sel);
-      if (!el) continue;
-      const se = extractSE(el.textContent);
-      if (se) { season = se.season; episode = se.episode; break; }
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        const p = node.parentElement;
+        // スクリプト・スタイル・字幕テキスト自体は除外
+        if (!p || ['SCRIPT','STYLE','NOSCRIPT'].includes(p.tagName)) return NodeFilter.FILTER_REJECT;
+        if (p.classList.contains('cl-word') || p.closest('#cl-popup')) return NodeFilter.FILTER_REJECT;
+        return node.textContent.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+      }
+    });
+    let node;
+    while ((node = walker.nextNode()) && season === null) {
+      const se = extractSE(node.textContent);
+      if (se) { season = se.season; episode = se.episode; }
     }
   }
 
-  // ③ document.title から S/E を試みる（例: "Suits S1E1 | Netflix"）
+  // ③ document.title から S/E を試みる
   if (season === null) {
     const se = extractSE(document.title);
     if (se) { season = se.season; episode = se.episode; }
   }
 
-  // ④ タイトルが未取得の場合 document.title から抽出（/ 前の部分をシリーズ名とする）
+  // ④ タイトルが未取得の場合 document.title から抽出
   if (!showTitle) {
     showTitle = document.title
       .replace(/\s*[|\-–—]\s*(Netflix|Prime Video|Amazon|Disney\+|Apple TV\+?|Hulu|U-NEXT)\s*$/i, '')
-      .split(/\s*[:\-–—\/]\s*/)[0]  // / でも分割
+      .split(/\s*[:\-–—\/]\s*/)[0]
       .trim();
   }
 
