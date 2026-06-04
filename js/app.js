@@ -430,11 +430,14 @@ function finishOnboarding() {
 
   saveSettings();
 
-  // ドラマ追加画面へ（検索バーをフォーカス）
+  // ドラマ追加モーダルを開いて検索バーにフォーカス
   goToStep('main');
   setTimeout(() => {
-    const inp = document.getElementById('manualSearchInput');
-    if (inp) { inp.focus(); inp.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    openAddDrama();
+    setTimeout(() => {
+      const inp = document.getElementById('manualSearchInput');
+      if (inp) inp.focus();
+    }, 100);
   }, 300);
 }
 
