@@ -358,6 +358,7 @@ function initAuthModal() {
   const signOutBtn = document.getElementById('btnSignOut');
   if (signOutBtn) {
     signOutBtn.addEventListener('click', async () => {
+      if (!confirm('ログアウトしますか？')) return;
       await supaSignOut();
       clearSession();
       localStorage.removeItem('cl_profiles');
