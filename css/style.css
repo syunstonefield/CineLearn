@@ -1963,3 +1963,44 @@ header {
   color: var(--text-muted);
   line-height: 1.4;
 }
+
+/* ── Onboarding ──────────────────────────────────────────── */
+.onboarding-steps {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 32px;
+}
+.onboarding-step {
+  width: 32px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  transition: background 0.3s;
+}
+.onboarding-step.active {
+  background: var(--accent);
+}
+.onboarding-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+.onboarding-desc {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-bottom: 24px;
+}
+.btn-text-link {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 8px;
+}
+.btn-text-link:hover { color: var(--text); }

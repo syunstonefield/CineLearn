@@ -44,6 +44,67 @@
     </div>
   </div>
 
+  <!-- ── Screen onboarding: 初期設定 ── -->
+  <div class="screen" id="screen-onboarding">
+    <div class="screen-inner" style="max-width:480px;margin:0 auto;padding:32px 20px 80px">
+
+      <!-- ステップインジケーター -->
+      <div class="onboarding-steps">
+        <div class="onboarding-step active" id="ob-step-dot-1"></div>
+        <div class="onboarding-step" id="ob-step-dot-2"></div>
+      </div>
+
+      <!-- Step 1: TOEIC スコア -->
+      <div id="ob-step-1">
+        <h2 class="onboarding-title">あなたの英語レベルを教えてください</h2>
+        <p class="onboarding-desc">TOEICスコアを入力すると、あなたに最適な単語が選ばれます</p>
+        <div class="toeic-wrap">
+          <div class="toeic-input-row">
+            <input type="number" class="toeic-input" id="ob-toeicScore" placeholder="例：650" min="10" max="990">
+            <span class="toeic-unit">点</span>
+          </div>
+          <div class="toeic-hint">TOEICを受けたことがない場合は目安で入力してください</div>
+          <div class="toeic-levels">
+            <div class="toeic-level-row" data-score="300"><div class="toeic-range">〜 400点</div><div class="toeic-level-info"><span class="level-pill level-A2">A2 初級</span><span class="toeic-level-desc">基本的な表現は理解できる</span></div></div>
+            <div class="toeic-level-row" data-score="550"><div class="toeic-range">400〜 600点</div><div class="toeic-level-info"><span class="level-pill level-B1">B1 中級</span><span class="toeic-level-desc">日常会話は概ね理解できる</span></div></div>
+            <div class="toeic-level-row" data-score="750"><div class="toeic-range">600〜 800点</div><div class="toeic-level-info"><span class="level-pill level-B2">B2 中上級</span><span class="toeic-level-desc">複雑な内容も理解できる</span></div></div>
+            <div class="toeic-level-row" data-score="900"><div class="toeic-range">800点〜</div><div class="toeic-level-info"><span class="level-pill level-C1">C1 上級</span><span class="toeic-level-desc">幅広いトピックを理解できる</span></div></div>
+          </div>
+          <div class="level-result" id="ob-levelResult" style="display:none">
+            <span class="level-result-label">判定レベル：</span>
+            <span class="level-result-value" id="ob-levelResultValue"></span>
+          </div>
+          <div id="ob-targetWrap" style="display:none;margin-top:16px">
+            <div class="target-label">目標TOEICスコア <span class="target-optional">（任意）</span></div>
+            <div class="toeic-input-row">
+              <input type="number" class="toeic-input" id="ob-targetScore" placeholder="例：730" min="10" max="990">
+              <span class="toeic-unit">点（目標）</span>
+            </div>
+          </div>
+        </div>
+        <button class="btn-primary" id="ob-next-btn" style="width:100%;margin-top:28px" disabled>次へ →</button>
+        <button class="btn-text-link" id="ob-skip-score-btn" style="width:100%;margin-top:12px;text-align:center">スキップ</button>
+      </div>
+
+      <!-- Step 2: サービス選択 -->
+      <div id="ob-step-2" style="display:none">
+        <h2 class="onboarding-title">利用している動画サービスを選んでください</h2>
+        <p class="onboarding-desc">複数選択できます</p>
+        <div class="service-grid" style="margin-top:20px">
+          <div class="service-card" data-service="Netflix"><div class="service-name">Netflix</div><div class="service-check">✓</div></div>
+          <div class="service-card" data-service="Amazon Prime"><div class="service-name">Amazon Prime</div><div class="service-check">✓</div></div>
+          <div class="service-card" data-service="Disney+"><div class="service-name">Disney+</div><div class="service-check">✓</div></div>
+          <div class="service-card" data-service="Apple TV+"><div class="service-name">Apple TV+</div><div class="service-check">✓</div></div>
+          <div class="service-card" data-service="Hulu"><div class="service-name">Hulu</div><div class="service-check">✓</div></div>
+          <div class="service-card" data-service="U-NEXT"><div class="service-name">U-NEXT</div><div class="service-check">✓</div></div>
+        </div>
+        <button class="btn-primary" id="ob-done-btn" style="width:100%;margin-top:28px" disabled>はじめる 🎬</button>
+        <button class="btn-text-link" id="ob-back-btn" style="width:100%;margin-top:12px;text-align:center">← 戻る</button>
+      </div>
+
+    </div>
+  </div>
+
   <!-- ── Screen main: ダッシュボード ── -->
   <div class="screen" id="screen-main">
     <div class="main-toolbar">

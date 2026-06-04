@@ -313,11 +313,131 @@ function renderProfileScreen() {
     const profiles = loadProfiles();
     profiles.push(profile);
     saveProfiles(profiles);
-    renderProfileScreen();
+    // 新規プロフィールはオンボーディングへ
+    currentProfileId = profile.id;
+    window._clProfileId = profile.id;
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+      chrome.storage.local.set({ cl_active_profile: profile.id });
+    }
+    startOnboarding();
   });
   grid.appendChild(addCard);
 }
 
+
+// ─────────────────────────────────────────
+// オンボーディング（新規プロフィール作成後）
+// ─────────────────────────────────────────
+let obSelectedServices = [];
+
+function startOnboarding() {
+  obSelectedServices = [];
+  goToStep('onboarding');
+
+  // ステップインジケーターをリセット
+  document.getElementById('ob-step-dot-1').classList.add('active');
+  document.getElementById('ob-step-dot-2').classList.remove('active');
+  document.getElementById('ob-step-1').style.display = '';
+  document.getElementById('ob-step-2').style.display = 'none';
+
+  // TOEICスコア入力
+  const scoreInput = document.getElementById('ob-toeicScore');
+  const nextBtn    = document.getElementById('ob-next-btn');
+  scoreInput.value = '';
+  document.getElementById('ob-levelResult').style.display = 'none';
+  document.getElementById('ob-targetWrap').style.display  = 'none';
+  nextBtn.disabled = true;
+
+  scoreInput.oninput = () => {
+    const val = parseInt(scoreInput.value);
+    if (val >= 10 && val <= 990) {
+      const level = getToeicLevel(val);
+      const labels = { A2: 'A2（初級）', B1: 'B1（中級）', B2: 'B2（中上級）', C1: 'C1（上級）' };
+      document.getElementById('ob-levelResult').style.display = 'flex';
+      document.getElementById('ob-levelResultValue').textContent = labels[level];
+      document.getElementById('ob-targetWrap').style.display = 'block';
+      nextBtn.disabled = false;
+    } else {
+      document.getElementById('ob-levelResult').style.display = 'none';
+      document.getElementById('ob-targetWrap').style.display  = 'none';
+      nextBtn.disabled = true;
+    }
+  };
+
+  // TOEICレベル行クリック
+  document.querySelectorAll('#ob-step-1 .toeic-level-row').forEach(row => {
+    row.onclick = () => {
+      scoreInput.value = row.dataset.score;
+      scoreInput.dispatchEvent(new Event('input'));
+    };
+  });
+
+  // 次へ
+  nextBtn.onclick = () => showObStep2();
+
+  // スキップ（スコアなしでサービス選択へ）
+  document.getElementById('ob-skip-score-btn').onclick = () => showObStep2();
+
+  // サービスカード（step2）
+  document.querySelectorAll('#ob-step-2 .service-card').forEach(card => {
+    card.classList.remove('selected');
+    card.onclick = () => {
+      card.classList.toggle('selected');
+      obSelectedServices = [...document.querySelectorAll('#ob-step-2 .service-card.selected')]
+        .map(c => c.dataset.service);
+      document.getElementById('ob-done-btn').disabled = obSelectedServices.length === 0;
+    };
+  });
+
+  // 戻る
+  document.getElementById('ob-back-btn').onclick = () => {
+    document.getElementById('ob-step-dot-1').classList.add('active');
+    document.getElementById('ob-step-dot-2').classList.remove('active');
+    document.getElementById('ob-step-1').style.display = '';
+    document.getElementById('ob-step-2').style.display = 'none';
+  };
+
+  // 完了
+  document.getElementById('ob-done-btn').onclick = () => finishOnboarding();
+}
+
+function showObStep2() {
+  document.getElementById('ob-step-dot-1').classList.remove('active');
+  document.getElementById('ob-step-dot-2').classList.add('active');
+  document.getElementById('ob-step-1').style.display = 'none';
+  document.getElementById('ob-step-2').style.display = '';
+  document.getElementById('ob-done-btn').disabled = true;
+}
+
+function finishOnboarding() {
+  // スコア反映
+  const scoreVal = parseInt(document.getElementById('ob-toeicScore').value);
+  if (scoreVal >= 10 && scoreVal <= 990) {
+    toeicScore = scoreVal;
+    userLevel  = getToeicLevel(scoreVal);
+    document.getElementById('toeicScore').value = scoreVal;
+    const targetVal = parseInt(document.getElementById('ob-targetScore').value);
+    if (targetVal >= scoreVal && targetVal <= 990) {
+      targetToeicScore = targetVal;
+      targetLevel      = getToeicLevel(targetVal);
+    }
+  }
+
+  // サービス反映
+  selectedServices = obSelectedServices;
+  document.querySelectorAll('#settingsModal .service-card').forEach(card => {
+    card.classList.toggle('selected', selectedServices.includes(card.dataset.service));
+  });
+
+  saveSettings();
+
+  // ドラマ追加画面へ（検索バーをフォーカス）
+  goToStep('main');
+  setTimeout(() => {
+    const inp = document.getElementById('manualSearchInput');
+    if (inp) { inp.focus(); inp.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+  }, 300);
+}
 
 // TOEICスコアからレベルを判定する
 function getToeicLevel(score) {
