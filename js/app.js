@@ -88,8 +88,9 @@ function reviewWord(word, quality) {
     e.repetitions++;
   }
   const d = new Date(); d.setDate(d.getDate() + e.interval);
-  e.dueDate    = d.toISOString().slice(0, 10);
-  e.lastReview = todayStr();
+  e.dueDate     = d.toISOString().slice(0, 10);
+  e.lastReview  = todayStr();
+  e.lastQuality = quality;
   all[k] = e;
   saveSrs(all);
 }
@@ -1388,9 +1389,14 @@ async function renderVocab(words, sourceLabel, skipHistory = false) {
     const isDueNow   = status === 'due' || status === 'new';
     const isSkip     = status === 'skipped';
     const isReviewed = status === 'reviewed_today';
+    const lastQ = isReviewed ? (loadSrs()[w.word.toLowerCase()]?.lastQuality ?? null) : null;
+    const reviewedBadge = lastQ === 5 ? '<span class="srs-badge badge-reviewed badge-q-easy">✅ 知ってた</span>'
+                        : lastQ === 3 ? '<span class="srs-badge badge-reviewed badge-q-hard">🤔 うろ覚え</span>'
+                        : lastQ === 0 ? '<span class="srs-badge badge-reviewed badge-q-fail">😰 知らなかった</span>'
+                        : '<span class="srs-badge badge-reviewed">✓ 復習済み</span>';
     const srsBadge = isMast      ? '<span class="srs-badge badge-mastered">⭐</span>'
                    : isDueNow    ? '<span class="srs-badge badge-due">🔴</span>'
-                   : isReviewed  ? '<span class="srs-badge badge-reviewed">✓</span>'
+                   : isReviewed  ? reviewedBadge
                    : '';
     const tier = w.tier || 'core';
     const tierBadge = tier === 'context'  ? '<span class="tier-pill tier-context">Context</span>'
@@ -1429,9 +1435,11 @@ async function renderVocab(words, sourceLabel, skipHistory = false) {
     : '';
 
   const { due } = episodeStats(words);
+  const doneToday = todaySessionCount(currentHistoryId);
+  const sessionLabel = doneToday > 0 ? ` <span class="review-done-count">（今日${doneToday}回済み）</span>` : '';
   const reviewBtnHTML = due > 0
-    ? `<button class="btn-review-start" id="btnStartReview">🔴 今日の復習 ${due}単語を始める</button>`
-    : '';
+    ? `<button class="btn-review-start" id="btnStartReview">🔴 今日の復習 ${due}単語を始める${sessionLabel}</button>`
+    : (doneToday > 0 ? `<div class="review-completed-today">✅ 今日の復習完了（${doneToday}回）</div>` : '');
 
   const sourceSection = !skipHistory && sourceLabel
     ? `<div class="source-label" style="margin-bottom:8px">📝 ${sourceLabel}から生成</div>` : '';
@@ -1473,9 +1481,35 @@ async function renderVocab(words, sourceLabel, skipHistory = false) {
 // ─────────────────────────────────────────
 // 復習セッション（フラッシュカード）
 // ─────────────────────────────────────────
-let reviewQueue   = [];
-let reviewQIdx    = 0;
-let reviewRatings = {}; // word → quality (0/3/5)
+const REVIEW_LOG_KEY = 'cl_review_log';
+let reviewQueue      = [];
+let reviewQIdx       = 0;
+let reviewRatings    = {}; // word → quality (0/3/5)
+let currentSessionNum = 0; // 今日の何回目か
+
+function loadReviewLog() {
+  try { return JSON.parse(localStorage.getItem(REVIEW_LOG_KEY) || '[]'); } catch { return []; }
+}
+function saveReviewLog(log) { localStorage.setItem(REVIEW_LOG_KEY, JSON.stringify(log)); }
+
+function todaySessionCount(historyId) {
+  const today = todayStr();
+  return loadReviewLog().filter(s => s.date === today && s.historyId === historyId).length;
+}
+
+function recordReviewSession(historyId, easy, hard, fail) {
+  const log = loadReviewLog();
+  const today = todayStr();
+  const todayCount = log.filter(s => s.date === today && s.historyId === historyId).length;
+  log.push({ date: today, historyId, sessionNum: todayCount + 1, easy, hard, fail, total: easy + hard + fail });
+  saveReviewLog(log);
+  return todayCount + 1;
+}
+
+function getTodaySessions(historyId) {
+  const today = todayStr();
+  return loadReviewLog().filter(s => s.date === today && s.historyId === historyId);
+}
 
 function startReview(words) {
   const srs = loadSrs();
@@ -1484,6 +1518,7 @@ function startReview(words) {
     .sort(() => Math.random() - 0.5);
   reviewQIdx    = 0;
   reviewRatings = {};
+  currentSessionNum = todaySessionCount(currentHistoryId) + 1;
   document.getElementById('reviewModal').style.display = 'flex';
   renderReviewCard();
 }
@@ -1496,6 +1531,10 @@ function renderReviewCard() {
     const failed = reviewQueue.filter(w => reviewRatings[w.word] === 0);
     const hard   = reviewQueue.filter(w => reviewRatings[w.word] === 3);
     const easy   = reviewQueue.filter(w => (reviewRatings[w.word] ?? 5) === 5);
+
+    // セッションを記録
+    const sessionNum = recordReviewSession(currentHistoryId, easy.length, hard.length, failed.length);
+    const todaySessions = getTodaySessions(currentHistoryId);
 
     const makeGroup = (words, icon, label, cls) => {
       if (!words.length) return '';
@@ -1510,12 +1549,42 @@ function renderReviewCard() {
         </div>`;
     };
 
+    const makeSessionHistory = (sessions) => {
+      if (sessions.length <= 1) return '';
+      const rows = sessions.map(s => `
+        <tr>
+          <td style="padding:4px 8px;color:var(--text-muted)">${s.sessionNum}回目</td>
+          <td style="padding:4px 8px;text-align:center">✅ ${s.easy}</td>
+          <td style="padding:4px 8px;text-align:center">🤔 ${s.hard}</td>
+          <td style="padding:4px 8px;text-align:center">😰 ${s.fail}</td>
+        </tr>`).join('');
+      return `
+        <details class="review-history-details" style="margin-bottom:12px">
+          <summary style="cursor:pointer;font-size:12px;color:var(--text-muted);margin-bottom:6px">今日の復習履歴（${sessions.length}回）</summary>
+          <table style="width:100%;font-size:12px;border-collapse:collapse">
+            <thead><tr style="color:var(--text-muted)">
+              <th style="padding:4px 8px;text-align:left">回数</th>
+              <th style="padding:4px 8px">知ってた</th>
+              <th style="padding:4px 8px">うろ覚え</th>
+              <th style="padding:4px 8px">知らなかった</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </details>`;
+    };
+
     const allPerfect = failed.length === 0 && hard.length === 0;
     content.innerHTML = `
       <div class="review-done">
         <div style="font-size:48px;margin-bottom:8px">${allPerfect ? '🌟' : '🎉'}</div>
-        <div style="font-size:19px;font-weight:600;margin-bottom:4px">復習完了！</div>
-        <div style="color:var(--text-muted);font-size:13px;margin-bottom:16px">${reviewQueue.length}単語を復習しました</div>
+        <div style="font-size:19px;font-weight:600;margin-bottom:4px">復習完了！（今日${sessionNum}回目）</div>
+        <div style="color:var(--text-muted);font-size:13px;margin-bottom:8px">${reviewQueue.length}単語を復習しました</div>
+        <div class="review-session-badges" style="display:flex;gap:8px;justify-content:center;margin-bottom:16px">
+          <span class="badge-easy">✅ 知ってた ${easy.length}</span>
+          <span class="badge-hard">🤔 うろ覚え ${hard.length}</span>
+          <span class="badge-fail">😰 知らなかった ${failed.length}</span>
+        </div>
+        ${makeSessionHistory(todaySessions)}
         ${allPerfect
           ? '<div class="review-all-perfect">全問正解！すばらしい 🎊</div>'
           : `<div class="review-summary">

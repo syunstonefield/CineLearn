@@ -1707,6 +1707,27 @@ header {
   color: var(--green);
   opacity: 0.85;
 }
+.badge-q-easy {
+  background: rgba(52,199,89,0.13);
+  color: var(--green);
+  padding: 2px 6px;
+  border-radius: 10px;
+  opacity: 1;
+}
+.badge-q-hard {
+  background: rgba(255,149,0,0.13);
+  color: var(--accent);
+  padding: 2px 6px;
+  border-radius: 10px;
+  opacity: 1;
+}
+.badge-q-fail {
+  background: rgba(255,59,48,0.13);
+  color: var(--red);
+  padding: 2px 6px;
+  border-radius: 10px;
+  opacity: 1;
+}
 
 /* 次回復習日ラベル */
 .srs-next-review {
@@ -1963,6 +1984,37 @@ header {
   color: var(--text-muted);
   line-height: 1.4;
 }
+
+/* ── Review session badges & history ────────────────────── */
+.badge-easy, .badge-hard, .badge-fail {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.badge-easy { background: rgba(52,199,89,0.15); color: var(--green); }
+.badge-hard { background: rgba(255,149,0,0.15);  color: var(--accent); }
+.badge-fail { background: rgba(255,59,48,0.15);  color: var(--red); }
+
+.review-done-count {
+  font-size: 12px;
+  font-weight: 400;
+  opacity: 0.8;
+}
+.review-completed-today {
+  margin-top: 8px;
+  padding: 10px 14px;
+  background: rgba(52,199,89,0.12);
+  color: var(--green);
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
+.review-history-details summary::-webkit-details-marker { display: none; }
+.review-history-details summary::before { content: '▶ '; font-size: 10px; }
+.review-history-details[open] summary::before { content: '▼ '; }
 
 /* ── Onboarding ──────────────────────────────────────────── */
 .onboarding-steps {
