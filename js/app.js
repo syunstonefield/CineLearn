@@ -430,10 +430,15 @@ function finishOnboarding() {
 
   saveSettings();
 
-  // ドラマ追加モーダルを開いて検索バーにフォーカス
+  // ドラマ追加モーダルを開いてタイトル検索タブへ
   goToStep('main');
   setTimeout(() => {
     openAddDrama();
+    // タイトル検索タブを選択
+    document.querySelectorAll('.modal-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+    document.querySelector('[data-tab="search"]').classList.add('active');
+    document.getElementById('tabSearch').classList.add('active');
     setTimeout(() => {
       const inp = document.getElementById('manualSearchInput');
       if (inp) inp.focus();
