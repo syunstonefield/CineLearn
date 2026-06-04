@@ -378,15 +378,14 @@ function startOnboarding() {
   // スキップ（スコアなしでサービス選択へ）
   document.getElementById('ob-skip-score-btn').onclick = () => showObStep2();
 
-  // サービスカード（step2）
-  document.querySelectorAll('#ob-step-2 .service-card').forEach(card => {
-    card.classList.remove('selected');
-    card.onclick = () => {
-      card.classList.toggle('selected');
-      obSelectedServices = [...document.querySelectorAll('#ob-step-2 .service-card.selected')]
-        .map(c => c.dataset.service);
-      document.getElementById('ob-done-btn').disabled = obSelectedServices.length === 0;
-    };
+  // サービスカード（step2）— グローバルの toggleService とは独立したハンドラ
+  document.getElementById('ob-step-2').addEventListener('click', e => {
+    const card = e.target.closest('.service-card');
+    if (!card) return;
+    card.classList.toggle('selected');
+    obSelectedServices = [...document.querySelectorAll('#ob-step-2 .service-card.selected')]
+      .map(c => c.dataset.service);
+    document.getElementById('ob-done-btn').disabled = obSelectedServices.length === 0;
   });
 
   // 戻る
@@ -2404,7 +2403,8 @@ function initEventListeners() {
     row.addEventListener('click', () => setToeic(parseInt(row.dataset.score)));
   });
   document.getElementById('targetScore').addEventListener('input', onTargetInput);
-  document.querySelectorAll('.service-card').forEach(card => {
+  // オンボーディング画面のカードは除外（専用ハンドラあり）
+  document.querySelectorAll('.service-card:not(#ob-step-2 .service-card)').forEach(card => {
     card.addEventListener('click', () => toggleService(card));
   });
 
