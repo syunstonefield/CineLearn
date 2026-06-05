@@ -750,17 +750,26 @@ async function loadDramaFromLibrary(drama) {
   const makeCard = (svc, highlight) => {
     const card2 = document.createElement('div');
     card2.className = 'viewing-service-card';
-    if (svc.name === selectedViewingService) {
+    const isRegistered = selectedServices.includes(svc.name);
+    const isSelected   = svc.name === selectedViewingService;
+
+    if (isSelected) {
       card2.style.borderColor = 'var(--accent)';
       card2.style.background  = 'rgba(193,127,59,0.07)';
     } else if (highlight) {
       card2.style.borderColor = 'rgba(52,199,89,0.5)';
     }
-    const sub = svc.name === selectedViewingService
+    if (!isRegistered) {
+      card2.style.opacity = '0.35';
+    }
+
+    const sub = isSelected
       ? '<div style="font-size:10px;color:var(--accent);margin-top:3px">前回使用</div>'
       : highlight
         ? '<div style="font-size:10px;color:#2da87c;margin-top:3px">✓ 配信中</div>'
-        : '';
+        : !isRegistered
+          ? '<div style="font-size:10px;color:var(--text-muted);margin-top:3px">未登録</div>'
+          : '';
     card2.innerHTML = `<div class="vs-icon">${svc.icon}</div><div class="vs-name">${svc.name}</div>${sub}`;
     card2.addEventListener('click', () => selectViewingService(svc.name, drama));
     return card2;
