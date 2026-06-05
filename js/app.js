@@ -1731,13 +1731,34 @@ async function preloadSubtitle() {
     );
 
     if (subtitles && subtitles.length > 0) {
-      // ダウンロード数が最多のファイルを選択（完全度・品質が高い傾向）
-      const best = subtitles.reduce((a, b) =>
-        (b.attributes.download_count || 0) > (a.attributes.download_count || 0) ? b : a
-      );
-      const fileId   = best.attributes.files[0].file_id;
-      const fileName = best.attributes.release || best.attributes.files[0]?.file_name || fileId;
-      const srtText = await downloadSubtitle(fileId);
+      // 字幕候補をスコアリングして最適なものを選ぶ
+      // 音楽ファイル（♪が多い）やHI字幕（聴覚障害者向け、効果音記述が多い）を低評価
+      function scoreSubtitle(sub) {
+        const attr = sub.attributes;
+        let score = attr.download_count || 0;
+        // HI（hearing impaired）字幕は効果音記述が多く学習に不向き
+        if (attr.hearing_impaired) score -= 50000;
+        // ファイル名に "hi", "hearing", "sdh", "forced" が含まれる場合も減点
+        const name = (attr.release || attr.files?.[0]?.file_name || '').toLowerCase();
+        if (/\b(hi|hearing|sdh|forced)\b/.test(name)) score -= 30000;
+        return score;
+      }
+      const sorted = [...subtitles].sort((a, b) => scoreSubtitle(b) - scoreSubtitle(a));
+
+      // 上位3候補を試して、♪が少ないものを採用
+      let fileId = null, fileName = null, srtText = null;
+      for (const cand of sorted.slice(0, 3)) {
+        const fid   = cand.attributes.files[0].file_id;
+        const fname = cand.attributes.release || cand.attributes.files[0]?.file_name || fid;
+        const text  = await downloadSubtitle(fid);
+        if (!text) continue;
+        // ♪記号の割合が5%超 → 音楽字幕として却下
+        const musicRatio = (text.match(/♪/g) || []).length / (text.length / 100);
+        if (musicRatio > 5) { console.log(`[subtitle] skip music file: ${fname}`); continue; }
+        fileId = fid; fileName = fname; srtText = text;
+        break;
+      }
+      if (!fileId) { fileId = sorted[0].attributes.files[0].file_id; fileName = '(fallback)'; srtText = await downloadSubtitle(fileId); }
       cachedSubtitleText = parseSrt(srtText);
       cachedRawSrt       = srtText; // タイムスタンプ検索用に生SRTを保持
       cachedSubtitleSource = '実際の字幕データから';
