@@ -705,11 +705,23 @@ async function loadDramaFromLibrary(drama) {
   // TMDb で視聴可能サービスを取得
   let availableNames = new Set();
   try {
-    if (drama.tmdbId) {
+    // tmdbId が未取得なら先にタイトル検索してIDを取得
+    let tmdbId = drama.tmdbId;
+    if (!tmdbId) {
+      const searchRes = await fetch(`${API_BASE}/api/tmdb`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'search', query: drama.title }),
+      });
+      const searchData = await searchRes.json();
+      tmdbId = searchData.results?.[0]?.id;
+      if (tmdbId) { drama.tmdbId = tmdbId; selectedDrama.tmdbId = tmdbId; }
+    }
+    if (tmdbId) {
       const r = await fetch(`${API_BASE}/api/tmdb`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'watch_providers', tvId: drama.tmdbId }),
+        body: JSON.stringify({ action: 'watch_providers', tvId: tmdbId }),
       });
       const data = await r.json();
       const jpProviders = data.results?.JP;
