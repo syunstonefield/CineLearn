@@ -679,30 +679,20 @@ async function loadDramaFromLibrary(drama) {
     `「${drama.title}」をどのサービスで視聴しますか？`;
 
   const services = [
-    { name: 'Netflix',      icon: '🔴', enabled: true  },
-    { name: 'Prime Video',  icon: '🔵', enabled: false },
-    { name: 'Disney+',      icon: '🔷', enabled: false },
-    { name: 'Hulu',         icon: '🟢', enabled: false },
-    { name: 'U-NEXT',       icon: '🟣', enabled: false },
-    { name: 'Apple TV+',    icon: '🍎', enabled: false },
+    { name: 'Netflix', icon: '🔴', enabled: true },
+    { name: 'YouTube', icon: '▶️', enabled: true },
   ];
   const grid = document.getElementById('viewingServiceGrid');
   grid.innerHTML = '';
   services.forEach(svc => {
     const card2 = document.createElement('div');
     card2.className = 'viewing-service-card';
-    if (!svc.enabled) {
-      card2.style.opacity = '0.38';
-      card2.style.cursor = 'not-allowed';
-      card2.innerHTML = `<div class="vs-icon">${svc.icon}</div><div class="vs-name">${svc.name}</div><div style="font-size:10px;color:var(--text-muted);margin-top:4px">近日対応</div>`;
-    } else {
-      if (svc.name === selectedViewingService) {
-        card2.style.borderColor = 'var(--accent)';
-        card2.style.background = 'rgba(193,127,59,0.07)';
-      }
-      card2.innerHTML = `<div class="vs-icon">${svc.icon}</div><div class="vs-name">${svc.name}</div>${svc.name === selectedViewingService ? '<div style="font-size:11px;color:var(--accent);margin-top:4px">前回使用</div>' : ''}`;
-      card2.addEventListener('click', () => selectViewingService(svc.name, drama));
+    if (svc.name === selectedViewingService) {
+      card2.style.borderColor = 'var(--accent)';
+      card2.style.background = 'rgba(193,127,59,0.07)';
     }
+    card2.innerHTML = `<div class="vs-icon">${svc.icon}</div><div class="vs-name">${svc.name}</div>${svc.name === selectedViewingService ? '<div style="font-size:11px;color:var(--accent);margin-top:4px">前回使用</div>' : ''}`;
+    card2.addEventListener('click', () => selectViewingService(svc.name, drama));
     grid.appendChild(card2);
   });
 }
@@ -2131,30 +2121,20 @@ function selectDrama(drama, card) {
 
   // 視聴サービス選択グリッドを生成
   const services = [
-    { name: 'Netflix',      icon: '🔴', enabled: true  },
-    { name: 'Prime Video',  icon: '🔵', enabled: false },
-    { name: 'Disney+',      icon: '🔷', enabled: false },
-    { name: 'Hulu',         icon: '🟢', enabled: false },
-    { name: 'U-NEXT',       icon: '🟣', enabled: false },
-    { name: 'Apple TV+',    icon: '🍎', enabled: false },
+    { name: 'Netflix', icon: '🔴' },
+    { name: 'YouTube', icon: '▶️' },
   ];
   const grid = document.getElementById('viewingServiceGrid');
   grid.innerHTML = '';
   services.forEach(svc => {
     const card2 = document.createElement('div');
     card2.className = 'viewing-service-card';
-    if (!svc.enabled) {
-      card2.style.opacity = '0.38';
-      card2.style.cursor = 'not-allowed';
-      card2.innerHTML = `<div class="vs-icon">${svc.icon}</div><div class="vs-name">${svc.name}</div><div style="font-size:10px;color:var(--text-muted);margin-top:4px">近日対応</div>`;
-    } else {
-      if (svc.name === selectedViewingService) {
-        card2.style.borderColor = 'var(--accent)';
-        card2.style.background = 'rgba(193,127,59,0.07)';
-      }
-      card2.innerHTML = `<div class="vs-icon">${svc.icon}</div><div class="vs-name">${svc.name}</div>${svc.name === selectedViewingService ? '<div style="font-size:11px;color:var(--accent);margin-top:4px">前回使用</div>' : ''}`;
-      card2.addEventListener('click', () => selectViewingService(svc.name, drama));
+    if (svc.name === selectedViewingService) {
+      card2.style.borderColor = 'var(--accent)';
+      card2.style.background = 'rgba(193,127,59,0.07)';
     }
+    card2.innerHTML = `<div class="vs-icon">${svc.icon}</div><div class="vs-name">${svc.name}</div>${svc.name === selectedViewingService ? '<div style="font-size:11px;color:var(--accent);margin-top:4px">前回使用</div>' : ''}`;
+    card2.addEventListener('click', () => selectViewingService(svc.name, drama));
     grid.appendChild(card2);
   });
 }
