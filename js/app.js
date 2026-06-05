@@ -1735,11 +1735,13 @@ async function preloadSubtitle() {
       const best = subtitles.reduce((a, b) =>
         (b.attributes.download_count || 0) > (a.attributes.download_count || 0) ? b : a
       );
-      const fileId = best.attributes.files[0].file_id;
+      const fileId   = best.attributes.files[0].file_id;
+      const fileName = best.attributes.release || best.attributes.files[0]?.file_name || fileId;
       const srtText = await downloadSubtitle(fileId);
       cachedSubtitleText = parseSrt(srtText);
       cachedRawSrt       = srtText; // タイムスタンプ検索用に生SRTを保持
       cachedSubtitleSource = '実際の字幕データから';
+      console.log(`[subtitle] S${selectedSeason}E${selectedEpisode} → file: ${fileName} (id:${fileId})`);
       // 字幕テキストを永続キャッシュに保存（未割当単語のエピソード解決に使用）
       try {
         const title = selectedDrama.englishTitle || selectedDrama.title;
