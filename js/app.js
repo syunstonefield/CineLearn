@@ -2101,19 +2101,19 @@ async function renderVocab(words, sourceLabel, skipHistory = false) {
 }
 
 // 生SRTが未保存の場合、バックグラウンドで取得して単語カードのタイムスタンプを補完する
-// example はあるが example_ja がない単語をまとめてAIで翻訳して補完する
+// example_ja_ok フラグがない単語をAIで翻訳して補完する
+let _fillJaRunning = false;
 async function fillMissingExampleJa(words, sourceLabel) {
-  // example_ja_ok フラグがないものを対象（正しく文翻訳されていないものすべて）
+  if (_fillJaRunning) return;               // 二重実行防止
   const missing = words.filter(w => w.example && !w.example_ja_ok);
   if (!missing.length) return;
 
+  _fillJaRunning = true;
   try {
-    // 新規生成と同じ構造（word+exampleを一緒に渡す）で翻訳させる
     const inputArr = missing.map(w => ({ word: w.word, example: w.example, example_ja: '' }));
-    const prompt = `以下のJSON配列の各要素について、example（ドラマの字幕から引用した英文）を自然な日本語に翻訳してexample_jaに入れてください。
-- example_ja には example の文全体の翻訳のみ入れること（単語の意味説明は不要）
-- example が空の場合は example_ja も空文字にすること
-- JSON配列のみ返答してください（説明不要）
+    const prompt = `以下のJSON配列の各要素について、example（ドラマの字幕の英文）を自然な日本語に翻訳してexample_jaに入れてください。
+- example の文全体を翻訳すること（単語の意味説明は不要）
+- JSON配列のみ返答（説明不要）
 
 ${JSON.stringify(inputArr, null, 2)}`;
 
@@ -2125,53 +2125,25 @@ ${JSON.stringify(inputArr, null, 2)}`;
     let changed = false;
     arr.forEach(item => {
       if (!item?.word || !item?.example_ja?.trim()) return;
-      const w = missing.find(x => x.word.toLowerCase() === item.word.toLowerCase());
+      const w = words.find(x => x.word.toLowerCase() === item.word.toLowerCase());
       if (!w) return;
       w.example_ja    = item.example_ja.trim();
       w.example_ja_ok = true;
-      const vw = vocabWords.find(v => v.word === w.word);
-      if (vw) { vw.example_ja = w.example_ja; vw.example_ja_ok = true; }
       changed = true;
-
-      // DOM を直接更新（再描画なし）
-      const wordEls = document.querySelectorAll('.vocab-item');
-      wordEls.forEach(el => {
-        const wordEl = el.querySelector('.vocab-word');
-        if (!wordEl || wordEl.textContent.trim().toLowerCase() !== w.word.toLowerCase()) return;
-        const wrap = el.querySelector('.word-example-wrap');
-        if (wrap) {
-          // すでに wrap があれば example_ja だけ追加/更新
-          let jaEl = wrap.querySelector('.word-example-ja');
-          if (!jaEl) {
-            jaEl = document.createElement('span');
-            jaEl.className = 'word-example-ja';
-            wrap.appendChild(jaEl);
-          }
-          jaEl.textContent = w.example_ja;
-        } else if (w.example) {
-          // wrap ごと作成
-          const enEl = el.querySelector('.word-example-en');
-          if (enEl) {
-            const newWrap = document.createElement('div');
-            newWrap.className = 'word-example-wrap';
-            const enSpan = document.createElement('span');
-            enSpan.className = 'word-example-en';
-            enSpan.textContent = w.example;
-            const jaSpan = document.createElement('span');
-            jaSpan.className = 'word-example-ja';
-            jaSpan.textContent = w.example_ja;
-            newWrap.appendChild(enSpan);
-            newWrap.appendChild(jaSpan);
-            enEl.replaceWith(newWrap);
-          }
-        }
-      });
     });
 
     if (changed) {
       updateHistoryWords(currentHistoryId, words);
+      // vocabWords も同期
+      words.forEach(w => {
+        const vw = vocabWords.find(v => v.word === w.word);
+        if (vw && w.example_ja_ok) { vw.example_ja = w.example_ja; vw.example_ja_ok = true; }
+      });
+      // 再描画（mutex が true の間は fillMissingExampleJa は再実行されない）
+      await renderVocab(words, sourceLabel, true);
     }
-  } catch { /* 失敗は無視 */ }
+  } catch(e) { console.error('[fillMissingExampleJa]', e); }
+  finally { _fillJaRunning = false; }
 }
 
 async function fetchRawSrtIfMissing(words, sourceLabel) {
