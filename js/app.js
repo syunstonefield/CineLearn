@@ -1590,7 +1590,49 @@ ${tierGuide}
       return out;
     }
 
-    const parsed = JSON.parse(repairJson(rawJson));
+    // まず通常パースを試み、失敗したら個別オブジェクト抽出にフォールバック
+    function extractWords(raw) {
+      // 試行1: repairJson → JSON.parse
+      try {
+        const p = JSON.parse(repairJson(raw));
+        if (p.drama || p.plus) return p;
+      } catch {}
+
+      // 試行2: drama/plus 配列の中身を個別に抽出
+      // { "word": "...", ... } の形式のオブジェクトを正規表現で収集
+      const drama = [], plus = [];
+      // drama配列とplus配列の位置を特定
+      const dramaMatch = raw.match(/"drama"\s*:\s*\[/);
+      const plusMatch  = raw.match(/"plus"\s*:\s*\[/);
+      const dramaStart = dramaMatch ? dramaMatch.index + dramaMatch[0].length : -1;
+      const plusStart  = plusMatch  ? plusMatch.index  + plusMatch[0].length  : -1;
+
+      function extractObjects(str, from, to) {
+        const slice = str.slice(from, to > 0 ? to : undefined);
+        const results = [];
+        let depth = 0, objStart = -1;
+        for (let i = 0; i < slice.length; i++) {
+          if (slice[i] === '{') { if (depth === 0) objStart = i; depth++; }
+          else if (slice[i] === '}') {
+            depth--;
+            if (depth === 0 && objStart >= 0) {
+              try {
+                const obj = JSON.parse(repairJson(slice.slice(objStart, i + 1)));
+                if (obj.word) results.push(obj);
+              } catch {}
+              objStart = -1;
+            }
+          }
+        }
+        return results;
+      }
+
+      if (dramaStart >= 0) drama.push(...extractObjects(raw, dramaStart, plusStart));
+      if (plusStart  >= 0) plus.push(...extractObjects(raw, plusStart));
+      return { drama, plus };
+    }
+
+    const parsed   = extractWords(rawJson);
     const dramaWords = (parsed.drama || []).map(w => ({ ...w, source: 'drama' }));
     const plusWords  = (parsed.plus  || []).map(w => ({ ...w, source: 'plus'  }));
     let json = [...dramaWords, ...plusWords];
