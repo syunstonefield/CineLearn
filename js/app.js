@@ -1422,19 +1422,17 @@ async function getMyWordsForEpisode(dramaTitle, season, episode) {
     ''
   ).toLowerCase();
 
-  console.log(`[ExtWords] S${season}E${episode} | words=${words.length} | episodeSub=${episodeSub.length}chars | cachedText=${cachedSubtitleText.length}chars`);
 
   const result = words.filter(w => {
     if (!w.dramaTitle) return false;
     const wl = w.dramaTitle.toLowerCase();
     if (!(wl.includes(tl) || tl.includes(wl))) return false;
     if (w.season != null && w.episode != null) {
-      return w.season === season && w.episode === episode;
+      // 型が異なる場合（数値 vs 文字列）に備えて == を使用
+      return w.season == season && w.episode == episode;
     }
     // S/E 不明: 字幕キャッシュがあれば実際に登場するか確認
-    const found = episodeSub ? episodeSub.includes(w.word.toLowerCase()) : false;
-    console.log(`[ExtWords]   "${w.word}" S/E=null | episodeSub exists=${!!episodeSub} | found=${found}`);
-    return found;
+    return episodeSub ? episodeSub.includes(w.word.toLowerCase()) : false;
   });
   return result;
 }
@@ -3467,9 +3465,15 @@ function startExtPoll() {
   _extPollTimer = setInterval(async () => {
     if (!selectedDrama) return;
     const words = await store.get(myWordsKey()) || [];
+    // タイトル比較は部分一致・大文字小文字無視（拡張機能が保存するタイトルと差異がある場合に対応）
+    const tl = (selectedDrama.title || '').toLowerCase();
     const snapshot = JSON.stringify(
-      words.filter(w => w.dramaTitle === selectedDrama.title && w.season == selectedSeason && w.episode == selectedEpisode)
-           .map(w => w.word + '|' + w.definition)
+      words.filter(w => {
+        if (!w.dramaTitle) return false;
+        const wl = w.dramaTitle.toLowerCase();
+        if (!(wl.includes(tl) || tl.includes(wl))) return false;
+        return w.season == selectedSeason && w.episode == selectedEpisode;
+      }).map(w => w.word + '|' + w.definition)
     );
     if (snapshot !== _extPollSnapshot) {
       _extPollSnapshot = snapshot;
