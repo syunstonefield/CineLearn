@@ -1891,8 +1891,8 @@ ${tierGuide}
     }
 
     const parsed   = extractWords(rawJson);
-    const dramaWords = (parsed.drama || []).map(w => ({ ...w, source: 'drama' }));
-    const plusWords  = (parsed.plus  || []).map(w => ({ ...w, source: 'plus'  }));
+    const dramaWords = (parsed.drama || []).map(w => ({ ...w, source: 'drama', example_ja_ok: !!w.example_ja }));
+    const plusWords  = (parsed.plus  || []).map(w => ({ ...w, source: 'plus',  example_ja_ok: !!w.example_ja }));
     let json = [...dramaWords, ...plusWords];
 
     // 後処理：例文に単語（または活用形）が含まれていない場合は例文を削除
@@ -2103,8 +2103,8 @@ async function renderVocab(words, sourceLabel, skipHistory = false) {
 // 生SRTが未保存の場合、バックグラウンドで取得して単語カードのタイムスタンプを補完する
 // example はあるが example_ja がない単語をまとめてAIで翻訳して補完する
 async function fillMissingExampleJa(words, sourceLabel) {
-  // example_ja が未設定 OR 短すぎる（単語の意味レベル＝15文字未満）ものを対象にする
-  const missing = words.filter(w => w.example && (!w.example_ja || w.example_ja.length < 15));
+  // example_ja_ok フラグがないものを対象（正しく文翻訳されていないものすべて）
+  const missing = words.filter(w => w.example && !w.example_ja_ok);
   if (!missing.length) return;
 
   try {
@@ -2127,9 +2127,10 @@ ${JSON.stringify(inputArr, null, 2)}`;
       if (!item?.word || !item?.example_ja?.trim()) return;
       const w = missing.find(x => x.word.toLowerCase() === item.word.toLowerCase());
       if (!w) return;
-      w.example_ja = item.example_ja.trim();
+      w.example_ja    = item.example_ja.trim();
+      w.example_ja_ok = true;
       const vw = vocabWords.find(v => v.word === w.word);
-      if (vw) vw.example_ja = w.example_ja;
+      if (vw) { vw.example_ja = w.example_ja; vw.example_ja_ok = true; }
       changed = true;
 
       // DOM を直接更新（再描画なし）
