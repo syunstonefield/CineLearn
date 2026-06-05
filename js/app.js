@@ -1536,14 +1536,20 @@ ${levelSpec}
 
 ${tierGuide}
 
+【重要ルール】
+- drama の example は必ず字幕テキストから一字一句そのまま抜き出すこと（要約・言い換え禁止）
+- example には必ず "word" に指定した単語（または活用形）が含まれていること
+- example が見つからない場合は example を空文字 "" にすること（作文禁止）
+- plus の example のみ自由に作文してよいが、必ず "word" を含めること
+
 {
   "drama": [
     この字幕に実際に登場する単語を${vocabCount}個。必ず字幕内に存在する単語のみ。スコア範囲（${lower}〜${upper}点）に合った難易度で選ぶ。
-    { "word": "英単語", "pos": "品詞（名詞/動詞/形容詞/副詞）", "definition": "日本語の意味（簡潔に）", "example": "字幕内の実際の例文（英語・短め）", "tier": "core"|"advanced"|"context" }
+    { "word": "英単語（原形）", "pos": "品詞（名詞/動詞/形容詞/副詞）", "definition": "日本語の意味（簡潔に）", "example": "字幕からそのままコピーした文（必ずwordの活用形を含む。見つからなければ空文字）", "tier": "core"|"advanced"|"context" }
   ],
   "plus": [
     このエピソードのテーマ・文脈に関連するが字幕外の推奨単語を5〜8個。同じスコア範囲（${lower}〜${upper}点）で選ぶ。
-    { "word": "英単語", "pos": "品詞（名詞/動詞/形容詞/副詞）", "definition": "日本語の意味（簡潔に）", "example": "この文脈で使えそうな例文（英語・短め）", "tier": "core"|"advanced"|"context" }
+    { "word": "英単語（原形）", "pos": "品詞（名詞/動詞/形容詞/副詞）", "definition": "日本語の意味（簡潔に）", "example": "必ずwordを含む自然な英文（作文可）", "tier": "core"|"advanced"|"context" }
   ]
 }`;
 
@@ -1556,6 +1562,18 @@ ${tierGuide}
     const dramaWords = (parsed.drama || []).map(w => ({ ...w, source: 'drama' }));
     const plusWords  = (parsed.plus  || []).map(w => ({ ...w, source: 'plus'  }));
     let json = [...dramaWords, ...plusWords];
+
+    // 後処理：例文に単語（または活用形）が含まれていない場合は例文を削除
+    json = json.map(w => {
+      if (!w.example) return w;
+      const variants = getWordVariants(w.word);
+      const exLower  = w.example.toLowerCase();
+      const hasWord   = [...variants].some(v => {
+        const re = new RegExp(`\\b${v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`);
+        return re.test(exLower);
+      });
+      return hasWord ? w : { ...w, example: '' };
+    });
 
     // 後処理フィルター：除外語リストに含まれる単語を除去する
     if (typeof getExcludeSet === 'function' && toeicScore > 0) {
