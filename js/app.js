@@ -744,18 +744,17 @@ async function loadDramaFromLibrary(drama) {
 
   grid.innerHTML = '';
 
-  const confirmed  = ALL_SERVICES.filter(s => availableNames.has(s.name));
-  const others     = ALL_SERVICES.filter(s => !availableNames.has(s.name));
+  const confirmed = ALL_SERVICES.filter(s => availableNames.has(s.name));
+  const others    = ALL_SERVICES.filter(s => !availableNames.has(s.name));
 
   const makeCard = (svc, highlight) => {
     const card2 = document.createElement('div');
     card2.className = 'viewing-service-card';
     if (svc.name === selectedViewingService) {
       card2.style.borderColor = 'var(--accent)';
-      card2.style.background = 'rgba(193,127,59,0.07)';
-    }
-    if (highlight) {
-      card2.style.borderColor = card2.style.borderColor || 'rgba(52,199,89,0.5)';
+      card2.style.background  = 'rgba(193,127,59,0.07)';
+    } else if (highlight) {
+      card2.style.borderColor = 'rgba(52,199,89,0.5)';
     }
     const sub = svc.name === selectedViewingService
       ? '<div style="font-size:10px;color:var(--accent);margin-top:3px">前回使用</div>'
@@ -767,21 +766,39 @@ async function loadDramaFromLibrary(drama) {
     return card2;
   };
 
-  if (confirmed.length > 0) {
-    const label = document.createElement('div');
-    label.style.cssText = 'font-size:11px;color:var(--text-muted);margin-bottom:8px;text-align:center';
-    label.textContent = '✓ 配信確認済み';
-    grid.appendChild(label);
-    confirmed.forEach(svc => grid.appendChild(makeCard(svc, true)));
+  const makeSection = (label, services, highlight) => {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'width:100%';
 
-    const sep = document.createElement('div');
-    sep.style.cssText = 'font-size:11px;color:var(--text-muted);margin:12px 0 8px;text-align:center;border-top:1px solid var(--border);padding-top:12px';
-    sep.textContent = 'その他のサービス';
-    grid.appendChild(sep);
-    others.forEach(svc => grid.appendChild(makeCard(svc, false)));
+    const lbl = document.createElement('div');
+    lbl.style.cssText = 'font-size:11px;color:var(--text-muted);margin-bottom:8px';
+    lbl.textContent = label;
+    wrap.appendChild(lbl);
+
+    const innerGrid = document.createElement('div');
+    innerGrid.style.cssText = 'display:grid;grid-template-columns:repeat(3,1fr);gap:10px';
+    services.forEach(svc => innerGrid.appendChild(makeCard(svc, highlight)));
+    wrap.appendChild(innerGrid);
+    return wrap;
+  };
+
+  // グリッド自体はflex縦並びに変更
+  grid.style.cssText = 'display:flex;flex-direction:column;gap:16px';
+
+  if (confirmed.length > 0) {
+    grid.appendChild(makeSection('✓ 配信確認済み', confirmed, true));
+    if (others.length > 0) {
+      const sep = document.createElement('div');
+      sep.style.cssText = 'border-top:1px solid var(--border);padding-top:16px;width:100%';
+      grid.appendChild(sep);
+      grid.appendChild(makeSection('その他のサービス', others, false));
+    }
   } else {
-    // TMDBで取得できなかった場合は全サービス表示
-    ALL_SERVICES.forEach(svc => grid.appendChild(makeCard(svc, false)));
+    // TMDBで取得できなかった場合は全サービスを1グリッドで表示
+    const innerGrid = document.createElement('div');
+    innerGrid.style.cssText = 'display:grid;grid-template-columns:repeat(3,1fr);gap:10px';
+    ALL_SERVICES.forEach(svc => innerGrid.appendChild(makeCard(svc, false)));
+    grid.appendChild(innerGrid);
   }
 }
 
