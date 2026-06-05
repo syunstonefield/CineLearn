@@ -2125,19 +2125,50 @@ ${JSON.stringify(inputArr, null, 2)}`;
     let changed = false;
     arr.forEach(item => {
       if (!item?.word || !item?.example_ja?.trim()) return;
-      // word名でマッチ（インデックスずれに対応）
       const w = missing.find(x => x.word.toLowerCase() === item.word.toLowerCase());
       if (!w) return;
       w.example_ja = item.example_ja.trim();
       const vw = vocabWords.find(v => v.word === w.word);
       if (vw) vw.example_ja = w.example_ja;
       changed = true;
+
+      // DOM を直接更新（再描画なし）
+      const wordEls = document.querySelectorAll('.vocab-item');
+      wordEls.forEach(el => {
+        const wordEl = el.querySelector('.vocab-word');
+        if (!wordEl || wordEl.textContent.trim().toLowerCase() !== w.word.toLowerCase()) return;
+        const wrap = el.querySelector('.word-example-wrap');
+        if (wrap) {
+          // すでに wrap があれば example_ja だけ追加/更新
+          let jaEl = wrap.querySelector('.word-example-ja');
+          if (!jaEl) {
+            jaEl = document.createElement('span');
+            jaEl.className = 'word-example-ja';
+            wrap.appendChild(jaEl);
+          }
+          jaEl.textContent = w.example_ja;
+        } else if (w.example) {
+          // wrap ごと作成
+          const enEl = el.querySelector('.word-example-en');
+          if (enEl) {
+            const newWrap = document.createElement('div');
+            newWrap.className = 'word-example-wrap';
+            const enSpan = document.createElement('span');
+            enSpan.className = 'word-example-en';
+            enSpan.textContent = w.example;
+            const jaSpan = document.createElement('span');
+            jaSpan.className = 'word-example-ja';
+            jaSpan.textContent = w.example_ja;
+            newWrap.appendChild(enSpan);
+            newWrap.appendChild(jaSpan);
+            enEl.replaceWith(newWrap);
+          }
+        }
+      });
     });
 
     if (changed) {
-      // 履歴に保存して再描画
       updateHistoryWords(currentHistoryId, words);
-      renderVocab(words, sourceLabel, true);
     }
   } catch { /* 失敗は無視 */ }
 }
