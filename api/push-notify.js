@@ -14,7 +14,7 @@ const VAPID_PRIVATE_KEY    = process.env.VAPID_PRIVATE_KEY;
 const CRON_SECRET          = process.env.CRON_SECRET; // 不正リクエスト防止
 
 webpush.setVapidDetails(
-  'mailto:your@email.com', // ← 自分のメールアドレスに変更
+  'mailto:syun.stone.field@gmail.com', // ← 自分のメールアドレスに変更
   VAPID_PUBLIC_KEY,
   VAPID_PRIVATE_KEY,
 );
