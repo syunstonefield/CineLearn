@@ -951,11 +951,136 @@ function parseSrt(srtText) {
   return dialogues.join(' ');
 }
 
+// ── 活用形バリアント生成 ──────────────────────────────────────────────────────
+
+// 不規則動詞テーブル（原形 → 活用形リスト）
+const IRREGULAR_VERBS = {
+  be:['am','is','are','was','were','been','being'],
+  have:['has','had','having'],
+  do:['does','did','done','doing'],
+  go:['goes','went','gone','going'],
+  say:['says','said','saying'],
+  get:['gets','got','gotten','getting'],
+  make:['makes','made','making'],
+  know:['knows','knew','known','knowing'],
+  think:['thinks','thought','thinking'],
+  take:['takes','took','taken','taking'],
+  see:['sees','saw','seen','seeing'],
+  come:['comes','came','coming'],
+  give:['gives','gave','given','giving'],
+  find:['finds','found','finding'],
+  tell:['tells','told','telling'],
+  feel:['feels','felt','feeling'],
+  keep:['keeps','kept','keeping'],
+  run:['runs','ran','running'],
+  leave:['leaves','left','leaving'],
+  hear:['hears','heard','hearing'],
+  let:['lets','letting'],
+  begin:['begins','began','begun','beginning'],
+  show:['shows','showed','shown','showing'],
+  lead:['leads','led','leading'],
+  mean:['means','meant','meaning'],
+  meet:['meets','met','meeting'],
+  lose:['loses','lost','losing'],
+  pay:['pays','paid','paying'],
+  sit:['sits','sat','sitting'],
+  stand:['stands','stood','standing'],
+  understand:['understands','understood','understanding'],
+  speak:['speaks','spoke','spoken','speaking'],
+  write:['writes','wrote','written','writing'],
+  read:['reads','reading'],
+  bring:['brings','brought','bringing'],
+  buy:['buys','bought','buying'],
+  send:['sends','sent','sending'],
+  build:['builds','built','building'],
+  fall:['falls','fell','fallen','falling'],
+  hold:['holds','held','holding'],
+  spend:['spends','spent','spending'],
+  cut:['cuts','cutting'],
+  put:['puts','putting'],
+  set:['sets','setting'],
+  try:['tries','tried','trying'],
+  become:['becomes','became','becoming'],
+  happen:['happens','happened','happening'],
+  suppose:['supposes','supposed','supposing'],
+};
+
+// 活用形 → 原形の逆引きマップを構築
+const IRREGULAR_REVERSE = {};
+for (const [base, forms] of Object.entries(IRREGULAR_VERBS)) {
+  for (const f of forms) IRREGULAR_REVERSE[f] = base;
+}
+
+// 単語の検索候補セットを生成（原形・活用形・語幹）
+function getWordVariants(word) {
+  const w = word.toLowerCase();
+  const v = new Set([w]);
+
+  // 不規則動詞：原形 → 全活用形
+  if (IRREGULAR_VERBS[w]) IRREGULAR_VERBS[w].forEach(f => v.add(f));
+
+  // 不規則動詞：活用形 → 原形と全兄弟形
+  if (IRREGULAR_REVERSE[w]) {
+    const base = IRREGULAR_REVERSE[w];
+    v.add(base);
+    IRREGULAR_VERBS[base]?.forEach(f => v.add(f));
+  }
+
+  // 規則変化を生成
+  // -e 語尾: make → making/makes/made
+  if (w.endsWith('e')) {
+    v.add(w + 's');
+    v.add(w.slice(0, -1) + 'ing');
+    v.add(w.slice(0, -1) + 'ed');
+  } else {
+    v.add(w + 's');
+    v.add(w + 'ing');
+    v.add(w + 'ed');
+    v.add(w + 'd');
+    // 末尾が「短母音+子音」: run → running
+    if (/[aeiou][bcdfghjklmnpqrstvwxyz]$/.test(w)) {
+      v.add(w + w.slice(-1) + 'ing');
+      v.add(w + w.slice(-1) + 'ed');
+    }
+  }
+  // -y → -ies/-ied
+  if (w.endsWith('y') && !/[aeiou]y$/.test(w)) {
+    v.add(w.slice(0, -1) + 'ies');
+    v.add(w.slice(0, -1) + 'ied');
+  }
+  // -es: watches → watch
+  if (w.endsWith('es') && w.length > 4) v.add(w.slice(0, -2));
+  if (w.endsWith('ies') && w.length > 4) v.add(w.slice(0, -3) + 'y');
+
+  // -ing → 語幹を推定
+  if (w.endsWith('ing') && w.length > 5) {
+    const stem = w.slice(0, -3);
+    v.add(stem);
+    v.add(stem + 'e');
+    if (stem.length > 2 && stem.slice(-1) === stem.slice(-2, -1)) v.add(stem.slice(0, -1));
+  }
+  // -ed → 語幹を推定
+  if (w.endsWith('ed') && w.length > 4) {
+    const stem = w.slice(0, -2);
+    v.add(stem);
+    v.add(stem + 'e');
+    if (stem.length > 2 && stem.slice(-1) === stem.slice(-2, -1)) v.add(stem.slice(0, -1));
+  }
+  // -s → 語幹
+  if (w.endsWith('s') && w.length > 3 && !w.endsWith('ss')) v.add(w.slice(0, -1));
+
+  return v;
+}
+
 // SRTから「単語が登場する最初のタイムスタンプ」を返す
 // 戻り値: "3:24" 形式の文字列、見つからなければ null
 function findWordTimestampInSrt(srtText, word) {
-  const lower = word.toLowerCase();
-  const lines  = srtText.split('\n');
+  const variants = getWordVariants(word);
+  // 全バリアントをまとめた正規表現: \b(run|runs|ran|running)\b
+  const escaped  = [...variants].map(v => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const wordRegex = new RegExp(`\\b(${escaped.join('|')})\\b`, 'i');
+
+  const lines = srtText.split('\n');
   let currentTime = null;
 
   for (let i = 0; i < lines.length; i++) {
@@ -972,14 +1097,10 @@ function findWordTimestampInSrt(srtText, word) {
       currentTime = `${mins}:${String(secs).padStart(2, '0')}`;
       continue;
     }
-    // セリフ行：単語が含まれるか確認
+    // セリフ行：バリアントのいずれかが含まれるか確認
     if (currentTime && line && !/^\d+$/.test(line)) {
-      const clean = line.replace(/<[^>]+>/g, '').toLowerCase();
-      // 単語境界で一致（部分一致を防ぐ）
-      const wordRegex = new RegExp(`\\b${lower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`);
-      if (wordRegex.test(clean)) {
-        return currentTime;
-      }
+      const clean = line.replace(/<[^>]+>/g, '').replace(/[♪♫]/g, '');
+      if (wordRegex.test(clean)) return currentTime;
     }
   }
   return null;
