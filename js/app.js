@@ -2108,21 +2108,25 @@ async function fillMissingExampleJa(words, sourceLabel) {
   if (!missing.length) return;
 
   try {
-    const list = missing.map((w, i) => `${i + 1}. "${w.example}"`).join('\n');
-    const prompt = `以下の英文（ドラマの字幕）をそれぞれ自然な日本語に翻訳してください。
-単語の意味ではなく、文全体の翻訳をしてください。
-JSON配列のみで返してください（説明不要）。
+    const sentences = missing.map(w => w.example);
+    const prompt = `次の英文リストを順番通りに日本語訳してください。文全体を訳してください（単語の意味説明は不要）。
+JSON文字列配列のみで返答してください（説明・番号不要）。
 
-[{"index":1,"ja":"日本語訳"}, ...]
+英文リスト:
+${sentences.map((s, i) => `${i + 1}. ${s}`).join('\n')}
 
-${list}`;
+回答形式: ["1番目の日本語訳", "2番目の日本語訳", ...]`;
+
     const text = await callClaude(prompt, 1000);
     const arr  = JSON.parse(text.match(/\[[\s\S]*\]/)[0]);
 
     let changed = false;
-    arr.forEach(item => {
-      const w = missing[item.index - 1];
-      if (w && item.ja) { w.example_ja = item.ja; changed = true; }
+    arr.forEach((ja, i) => {
+      const w = missing[i];
+      if (w && typeof ja === 'string' && ja.trim()) {
+        w.example_ja = ja.trim();
+        changed = true;
+      }
     });
 
     if (changed) {
