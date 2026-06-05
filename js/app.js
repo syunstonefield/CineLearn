@@ -615,6 +615,44 @@ function renderDramaLibrary() {
 
   container.innerHTML = '';
   map.forEach(data => container.appendChild(buildLibraryCard(data)));
+
+  // posterPath が未設定のドラマをバックグラウンドで取得して更新
+  const missing = [...map.values()].filter(d => !d.drama.posterPath);
+  if (missing.length) fetchMissingPosters(missing);
+}
+
+async function fetchMissingPosters(entries) {
+  for (const { drama } of entries) {
+    try {
+      const res = await fetch(`${API_BASE}/api/tmdb`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'search', query: drama.englishTitle || drama.title }),
+      });
+      const data = await res.json();
+      const hit  = data.results?.[0];
+      if (!hit?.poster_path) continue;
+
+      const p = `https://image.tmdb.org/t/p/w500${hit.poster_path}`;
+      drama.posterPath = p;
+      if (!hit.id) continue;
+      drama.tmdbId = hit.id;
+
+      // myDramas にも反映
+      const md = myDramas.find(d => d.title === drama.title);
+      if (md) { md.posterPath = p; md.tmdbId = hit.id; }
+
+      // カードのバナーを即時更新
+      const banner = document.querySelector(
+        `.library-card-banner[data-title="${CSS.escape(drama.title)}"]`
+      );
+      if (banner) {
+        banner.style.background = `url('${p}') center/cover no-repeat`;
+        banner.textContent = '';
+      }
+    } catch { /* 取得失敗は無視 */ }
+  }
+  saveSettings();
 }
 
 function buildLibraryCard({ drama, episodes, bestScore, lastDate }) {
@@ -633,7 +671,7 @@ function buildLibraryCard({ drama, episodes, bestScore, lastDate }) {
     ? '' : drama.title.charAt(0);
 
   card.innerHTML = `
-    <div class="library-card-banner" style="${bannerStyle}">
+    <div class="library-card-banner" style="${bannerStyle}" data-title="${drama.title.replace(/"/g, '&quot;')}">
       ${bannerInner}
       <button class="library-card-delete" title="削除">✕</button>
     </div>
