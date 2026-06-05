@@ -22,6 +22,11 @@
       "js": ["extension/content.js"],
       "css": ["extension/content.css"],
       "run_at": "document_start"
+    },
+    {
+      "matches": ["https://cine-learn.vercel.app/*"],
+      "js": ["extension/bridge.js"],
+      "run_at": "document_idle"
     }
   ],
 

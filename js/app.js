@@ -3202,6 +3202,11 @@ window.addEventListener('storage', (e) => {
 // pullFromCloud 後に supabase.js から発火されるカスタムイベント
 window.addEventListener('cl_my_words_updated', () => onMyWordsChanged());
 
+// bridge.js（拡張機能コンテンツスクリプト）から chrome.storage 変化を受け取る
+window.addEventListener('cl_storage_bridge', (e) => {
+  if (e.detail?.key?.startsWith('cl_my_words')) onMyWordsChanged();
+});
+
 // ─────────────────────────────────────────────────────────────────
 // イベントリスナー登録
 // Manifest V3 の拡張機能ページは onclick 属性をセキュリティポリシーで禁止するため
