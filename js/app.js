@@ -1585,7 +1585,14 @@ ${JSON.stringify(inputArr)}`;
         const stored = allWords.find(w => w.word?.toLowerCase() === item.word.toLowerCase());
         if (stored) { stored.definition = item.definition_ja.trim(); changed = true; }
       });
-      if (changed) await store.set(myWordsKey(), allWords);
+      if (changed) {
+        await store.set(myWordsKey(), allWords);
+        // 翻訳完了後に表示を更新
+        if (selectedDrama && document.getElementById('screen-4')?.classList.contains('active')) {
+          document.getElementById('ext-words-section')?.remove();
+          renderExtWordsSection(vocabWords);
+        }
+      }
     } catch(e) { console.error('[translateExtWordDefs]', e); }
   }
 }
@@ -3167,24 +3174,28 @@ async function updateWordbookBadge() {
 updateWordbookBadge();
 
 // 拡張機能が単語を追加したとき、リアルタイムでバッジ・一覧を更新する
+function onMyWordsChanged() {
+  updateWordbookBadge();
+  if (document.getElementById('wordbookModal').style.display === 'flex') {
+    renderWordbook();
+  }
+  if (selectedDrama && document.getElementById('screen-4')?.classList.contains('active')) {
+    document.getElementById('ext-words-section')?.remove();
+    renderExtWordsSection(vocabWords);
+  }
+}
+
+// chrome.storage 経由（拡張機能からの保存）
 if (typeof chrome !== 'undefined' && chrome?.storage?.onChanged) {
   chrome.storage.onChanged.addListener((changes) => {
-    if (!Object.keys(changes).some(k => k.startsWith('cl_my_words'))) return;
-
-    updateWordbookBadge();
-
-    // 単語帳モーダルが開いていれば再描画
-    if (document.getElementById('wordbookModal').style.display === 'flex') {
-      renderWordbook();
-    }
-
-    // screen-4 が表示中で現エピソードに一致する単語が追加されたら追加単語セクションを更新
-    if (selectedDrama && document.getElementById('screen-4').classList.contains('active')) {
-      document.getElementById('ext-words-section')?.remove();
-      renderExtWordsSection(vocabWords);
-    }
+    if (Object.keys(changes).some(k => k.startsWith('cl_my_words'))) onMyWordsChanged();
   });
 }
+
+// localStorage 経由（直接保存された場合のフォールバック）
+window.addEventListener('storage', (e) => {
+  if (e.key?.startsWith('cl_my_words')) onMyWordsChanged();
+});
 
 // ─────────────────────────────────────────────────────────────────
 // イベントリスナー登録
