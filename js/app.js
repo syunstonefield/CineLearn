@@ -88,9 +88,10 @@ function reviewWord(word, quality) {
     e.repetitions++;
   }
   const d = new Date(); d.setDate(d.getDate() + e.interval);
-  e.dueDate     = d.toISOString().slice(0, 10);
-  e.lastReview  = todayStr();
-  e.lastQuality = quality;
+  e.dueDate      = d.toISOString().slice(0, 10);
+  e.lastReview   = todayStr();
+  e.lastQuality  = quality;
+  e.reviewCount  = (e.reviewCount || 0) + 1;
   all[k] = e;
   saveSrs(all);
 }
@@ -1389,7 +1390,12 @@ async function renderVocab(words, sourceLabel, skipHistory = false) {
     const isDueNow   = status === 'due' || status === 'new';
     const isSkip     = status === 'skipped';
     const isReviewed = status === 'reviewed_today';
-    const lastQ = isReviewed ? (loadSrs()[w.word.toLowerCase()]?.lastQuality ?? null) : null;
+    const srsEntry = loadSrs()[w.word.toLowerCase()];
+    const lastQ = isReviewed ? (srsEntry?.lastQuality ?? null) : null;
+    const reviewCount = srsEntry?.reviewCount || 0;
+    const reviewCountLabel = reviewCount > 0
+      ? `<span class="review-count-label">${reviewCount}回復習済み</span>`
+      : '';
     const reviewedBadge = lastQ === 5 ? '<span class="srs-badge badge-reviewed badge-q-easy">✅ 知ってた</span>'
                         : lastQ === 3 ? '<span class="srs-badge badge-reviewed badge-q-hard">🤔 うろ覚え</span>'
                         : lastQ === 0 ? '<span class="srs-badge badge-reviewed badge-q-fail">😰 知らなかった</span>'
@@ -1413,6 +1419,7 @@ async function renderVocab(words, sourceLabel, skipHistory = false) {
             <div class="vocab-word">${w.word}</div>
             ${tierBadge}
             ${nextLabel}
+            ${reviewCountLabel}
           </div>
           <div style="font-size:12px;color:var(--text-muted);margin-top:3px">${w.example || ''}</div>
         </div>

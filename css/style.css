@@ -1729,6 +1729,16 @@ header {
   opacity: 1;
 }
 
+/* 復習回数ラベル */
+.review-count-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  background: rgba(120,120,128,0.12);
+  padding: 2px 7px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
 /* 次回復習日ラベル */
 .srs-next-review {
   font-size: 10px;
