@@ -2117,21 +2117,21 @@ async function fillMissingExampleJa(words, sourceLabel) {
 
 ${JSON.stringify(inputArr, null, 2)}`;
 
-    const text = await callClaude(prompt, 1000);
-    console.log('[fillMissingExampleJa] Claude response:', text.slice(0, 300));
-    const arr  = JSON.parse(repairJson(text.match(/\[[\s\S]*\]/)?.[0] || '[]'));
-    console.log('[fillMissingExampleJa] parsed arr:', arr);
+    const text = await callClaude(prompt, 1500);
+    const rawArr = text.match(/\[[\s\S]*\]/)?.[0] || '[]';
+    let arr = [];
+    try { arr = JSON.parse(rawArr); } catch { arr = JSON.parse(repairJson(rawArr)); }
 
     let changed = false;
-    arr.forEach((item, i) => {
-      const w = missing[i];
-      if (w && item?.example_ja?.trim()) {
-        w.example_ja = item.example_ja.trim();
-        // vocabWords も更新
-        const vw = vocabWords.find(v => v.word === w.word);
-        if (vw) vw.example_ja = w.example_ja;
-        changed = true;
-      }
+    arr.forEach(item => {
+      if (!item?.word || !item?.example_ja?.trim()) return;
+      // word名でマッチ（インデックスずれに対応）
+      const w = missing.find(x => x.word.toLowerCase() === item.word.toLowerCase());
+      if (!w) return;
+      w.example_ja = item.example_ja.trim();
+      const vw = vocabWords.find(v => v.word === w.word);
+      if (vw) vw.example_ja = w.example_ja;
+      changed = true;
     });
 
     if (changed) {
