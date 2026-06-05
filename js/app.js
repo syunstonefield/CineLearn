@@ -951,6 +951,59 @@ function parseSrt(srtText) {
   return dialogues.join(' ');
 }
 
+// SRTから「単語が登場する最初のタイムスタンプ」を返す
+// 戻り値: "3:24" 形式の文字列、見つからなければ null
+function findWordTimestampInSrt(srtText, word) {
+  const lower = word.toLowerCase();
+  const lines  = srtText.split('\n');
+  let currentTime = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    // タイムスタンプ行: 00:03:24,500 --> 00:03:27,200
+    const tsMatch = line.match(/^(\d{2}):(\d{2}):(\d{2})[,.](\d+)\s*-->/);
+    if (tsMatch) {
+      const h = parseInt(tsMatch[1]);
+      const m = parseInt(tsMatch[2]);
+      const s = parseInt(tsMatch[3]);
+      const totalSec = h * 3600 + m * 60 + s;
+      const mins = Math.floor(totalSec / 60);
+      const secs = totalSec % 60;
+      currentTime = `${mins}:${String(secs).padStart(2, '0')}`;
+      continue;
+    }
+    // セリフ行：単語が含まれるか確認
+    if (currentTime && line && !/^\d+$/.test(line)) {
+      const clean = line.replace(/<[^>]+>/g, '').toLowerCase();
+      // 単語境界で一致（部分一致を防ぐ）
+      const wordRegex = new RegExp(`\\b${lower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`);
+      if (wordRegex.test(clean)) {
+        return currentTime;
+      }
+    }
+  }
+  return null;
+}
+
+// 全 cl_sub_* キャッシュから単語のタイムスタンプを検索
+function findWordTimestamp(word) {
+  // 現在ロード済みの字幕を優先
+  if (cachedSubtitleText) {
+    const t = findWordTimestampInSrt(cachedSubtitleText, word);
+    if (t) return t;
+  }
+  // localStorage の全 cl_sub_* を検索
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (!key?.startsWith('cl_sub_')) continue;
+    const srt = localStorage.getItem(key);
+    if (!srt) continue;
+    const t = findWordTimestampInSrt(srt, word);
+    if (t) return t;
+  }
+  return null;
+}
+
 // シーズン・エピソード選択肢を動的に構築する
 function buildSeasonEpisodeSelectors(seasons) {
   const seasonSelect = document.getElementById('seasonSelect');
@@ -1414,6 +1467,10 @@ async function renderVocab(words, sourceLabel, skipHistory = false) {
     const notInTest  = !testTiers.includes(tier);
     const nextReview = nextReviewLabel(w.word);
     const nextLabel  = nextReview ? `<span class="srs-next-review">📅 次回: ${nextReview}</span>` : '';
+    const timestamp  = findWordTimestamp(w.word);
+    const tsLabel    = timestamp
+      ? `<span class="word-timestamp" data-time="${timestamp}" title="タップしてコピー">📍 ${timestamp}</span>`
+      : '';
     return `
       <div class="vocab-item${isMast ? ' vocab-mastered' : ''}${isSkip ? ' vocab-skipped' : ''}${notInTest ? ' vocab-no-test' : ''}">
         <div style="flex:1">
@@ -1423,12 +1480,16 @@ async function renderVocab(words, sourceLabel, skipHistory = false) {
             ${tierBadge}
             ${nextLabel}
             ${reviewCountLabel}
+            ${tsLabel}
           </div>
           <div style="font-size:12px;color:var(--text-muted);margin-top:3px">${w.example || ''}</div>
         </div>
         <div class="vocab-pos">${w.pos || ''}</div>
         <div class="vocab-def">${w.definition || ''}</div>
-        <button class="btn-srs-skip${isSkip ? ' btn-srs-resume' : ''}" data-word="${w.word}">${isSkip ? 'Resume' : 'Skip'}</button>
+        <div class="vocab-card-actions">
+          <button class="btn-speak" data-word="${w.word}" title="発音を聞く">🔊</button>
+          <button class="btn-srs-skip${isSkip ? ' btn-srs-resume' : ''}" data-word="${w.word}">${isSkip ? 'Resume' : 'Skip'}</button>
+        </div>
       </div>`;
   };
 
@@ -1472,12 +1533,40 @@ async function renderVocab(words, sourceLabel, skipHistory = false) {
   // Skip / Resume / 復習開始ボタンの委譲リスナーを付け替え
   if (vocabClickListener) sect.removeEventListener('click', vocabClickListener);
   vocabClickListener = (e) => {
+    // Skip / Resume
     const skipBtn = e.target.closest('.btn-srs-skip');
     if (skipBtn) {
       skipBtn.classList.contains('btn-srs-resume')
         ? unskipWord(skipBtn.dataset.word)
         : skipWord(skipBtn.dataset.word);
       renderVocab(words, sourceLabel, true);
+      return;
+    }
+    // 🔊 発音ボタン
+    const speakBtn = e.target.closest('.btn-speak');
+    if (speakBtn) {
+      const word = speakBtn.dataset.word;
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(word);
+        utter.lang = 'en-US';
+        window.speechSynthesis.speak(utter);
+      }
+      return;
+    }
+    // 📍 タイムスタンプ（タップでコピー）
+    const tsLabel = e.target.closest('.word-timestamp');
+    if (tsLabel) {
+      const time = tsLabel.dataset.time;
+      navigator.clipboard.writeText(time).then(() => {
+        const orig = tsLabel.textContent;
+        tsLabel.textContent = '✅ コピー完了';
+        tsLabel.style.background = 'rgba(52,199,89,0.2)';
+        setTimeout(() => {
+          tsLabel.textContent = orig;
+          tsLabel.style.background = '';
+        }, 1500);
+      });
       return;
     }
     if (e.target.id === 'btnStartReview') startReview(words);

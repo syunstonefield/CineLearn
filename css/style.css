@@ -1768,6 +1768,43 @@ header {
 }
 
 /* Skip / Resume ボタン */
+/* 発音ボタン＋Skipをまとめるラッパー */
+.vocab-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* 🔊 発音ボタン */
+.btn-speak {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 7px;
+  font-size: 14px;
+  cursor: pointer;
+  line-height: 1;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.btn-speak:hover { background: rgba(120,120,128,0.1); border-color: var(--text-muted); }
+.btn-speak:active { transform: scale(0.92); }
+
+/* 📍 タイムスタンプ */
+.word-timestamp {
+  font-size: 11px;
+  color: var(--accent);
+  background: rgba(193,127,59,0.1);
+  padding: 2px 7px;
+  border-radius: 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+  user-select: none;
+}
+.word-timestamp:hover { background: rgba(193,127,59,0.2); }
+
 .btn-srs-skip {
   background: none;
   border: 1px solid var(--border);
