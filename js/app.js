@@ -1550,9 +1550,53 @@ function buildExtWordHTML(w) {
     </div>`;
 }
 
+// 英語定義を日本語に翻訳してlocalStorageに保存する
+async function translateExtWordDefinitions(extWords) {
+  // 日本語文字を含まない定義（＝英語）を持つ単語だけ対象
+  const needsTranslation = extWords.filter(w =>
+    w.definition && !/[぀-ヿ一-鿿]/.test(w.definition)
+  );
+  if (!needsTranslation.length) return;
+
+  const BATCH = 10;
+  for (let i = 0; i < needsTranslation.length; i += BATCH) {
+    const batch = needsTranslation.slice(i, i + BATCH);
+    const inputArr = batch.map(w => ({ word: w.word, definition: w.definition, definition_ja: '' }));
+    const prompt = `以下のJSON配列の各単語について、definition（英語の意味説明）を簡潔な日本語に翻訳してdefinition_jaに入れてください。
+- 簡潔に（10文字以内が理想）
+- JSON配列のみ返答（説明不要）
+
+${JSON.stringify(inputArr)}`;
+
+    try {
+      const text   = await callClaude(prompt, 800);
+      const rawArr = text.match(/\[[\s\S]*\]/)?.[0] || '[]';
+      let arr = [];
+      try { arr = JSON.parse(rawArr); } catch { arr = JSON.parse(repairJson(rawArr)); }
+
+      // 翻訳結果を元の extWords に反映して localStorage に保存
+      const store = window._clStore || { get: k => JSON.parse(localStorage.getItem(k)||'[]'), set: (k,v) => localStorage.setItem(k, JSON.stringify(v)) };
+      const allWords = await store.get(myWordsKey()) || [];
+      let changed = false;
+      arr.forEach(item => {
+        if (!item?.word || !item?.definition_ja?.trim()) return;
+        const orig = extWords.find(w => w.word.toLowerCase() === item.word.toLowerCase());
+        if (orig) { orig.definition = item.definition_ja.trim(); }
+        const stored = allWords.find(w => w.word?.toLowerCase() === item.word.toLowerCase());
+        if (stored) { stored.definition = item.definition_ja.trim(); changed = true; }
+      });
+      if (changed) await store.set(myWordsKey(), allWords);
+    } catch(e) { console.error('[translateExtWordDefs]', e); }
+  }
+}
+
 async function renderExtWordsSection(existingWords = []) {
   if (!selectedDrama) return;
   const extWords = await getMyWordsForEpisode(selectedDrama.title, selectedSeason, selectedEpisode);
+
+  // 英語定義をバックグラウンドで日本語に翻訳
+  translateExtWordDefinitions(extWords);
+
   const existingSet = new Set(existingWords.map(w => w.word.toLowerCase()));
   const newExt = extWords.filter(w => !existingSet.has(w.word.toLowerCase()));
   if (newExt.length === 0) return;
