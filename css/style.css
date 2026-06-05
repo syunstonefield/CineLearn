@@ -1343,7 +1343,7 @@ header {
 }
 
 .library-card-banner {
-  height: 90px;
+  height: 160px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1352,6 +1352,8 @@ header {
   color: rgba(255,255,255,0.9);
   letter-spacing: -1px;
   position: relative;
+  background-size: cover;
+  background-position: center;
 }
 
 .library-card-delete {

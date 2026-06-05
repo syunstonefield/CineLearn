@@ -617,9 +617,15 @@ function buildLibraryCard({ drama, episodes, bestScore, lastDate }) {
     ? `<span class="history-score ${bestScore >= 80 ? 'score-high' : bestScore >= 60 ? 'score-mid' : 'score-low'}">${bestScore}%</span>`
     : '';
 
+  const bannerStyle = drama.posterPath
+    ? `background:url('${drama.posterPath}') center/cover no-repeat;`
+    : `background:${platformColor(drama.platform)};`;
+  const bannerInner = drama.posterPath
+    ? '' : drama.title.charAt(0);
+
   card.innerHTML = `
-    <div class="library-card-banner" style="background:${platformColor(drama.platform)}">
-      ${drama.title.charAt(0)}
+    <div class="library-card-banner" style="${bannerStyle}">
+      ${bannerInner}
       <button class="library-card-delete" title="削除">✕</button>
     </div>
     <div class="library-card-body">
@@ -719,8 +725,13 @@ async function loadDramaFromLibrary(drama) {
         body: JSON.stringify({ action: 'search', query: drama.title }),
       });
       const searchData = await searchRes.json();
-      tmdbId = searchData.results?.[0]?.id;
+      const firstResult = searchData.results?.[0];
+      tmdbId = firstResult?.id;
       if (tmdbId) { drama.tmdbId = tmdbId; selectedDrama.tmdbId = tmdbId; }
+      if (firstResult?.poster_path && !drama.posterPath) {
+        const p = `https://image.tmdb.org/t/p/w500${firstResult.poster_path}`;
+        drama.posterPath = p; selectedDrama.posterPath = p;
+      }
     }
     if (tmdbId) {
       const r = await fetch(`${API_BASE}/api/tmdb`, {
@@ -984,7 +995,9 @@ async function fetchSeasonInfoFromTMDb(title) {
       .map(s => ({ season: s.season_number, episodes: s.episode_count }));
 
     const englishTitle = detail.name || show.original_name || title;
-    return seasons.length ? { seasons, englishTitle, tmdbId: show.id } : null;
+    const posterPath   = show.poster_path
+      ? `https://image.tmdb.org/t/p/w500${show.poster_path}` : null;
+    return seasons.length ? { seasons, englishTitle, tmdbId: show.id, posterPath } : null;
   } catch {
     return null;
   }
@@ -2248,9 +2261,10 @@ async function selectViewingService(service, drama) {
     // TMDb でシーズン情報を取得（Claude より正確）
     const tmdbResult = await fetchSeasonInfoFromTMDb(drama.title);
     if (tmdbResult) {
-      const { seasons: tmdbSeasons, englishTitle, tmdbId } = tmdbResult;
+      const { seasons: tmdbSeasons, englishTitle, tmdbId, posterPath } = tmdbResult;
       if (englishTitle) selectedDrama.englishTitle = englishTitle;
       if (tmdbId)       selectedDrama.tmdbId       = tmdbId;
+      if (posterPath)   selectedDrama.posterPath   = posterPath;
       dramaSeasonInfo = tmdbSeasons;
       buildSeasonEpisodeSelectors(tmdbSeasons);
     } else {
