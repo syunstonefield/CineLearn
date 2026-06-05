@@ -801,7 +801,6 @@ async function loadDramaFromLibrary(drama) {
         ...(jpProviders?.rent     || []),
         ...(jpProviders?.buy      || []),
       ];
-      console.log('[CineLearn] watch_providers JP:', JSON.stringify(providers.map(p => ({ id: p.provider_id, name: p.provider_name }))));
       providers.forEach(p => {
         if (PROVIDER_MAP[p.provider_id]) availableNames.add(PROVIDER_MAP[p.provider_id]);
       });
@@ -2104,7 +2103,8 @@ async function renderVocab(words, sourceLabel, skipHistory = false) {
 // 生SRTが未保存の場合、バックグラウンドで取得して単語カードのタイムスタンプを補完する
 // example はあるが example_ja がない単語をまとめてAIで翻訳して補完する
 async function fillMissingExampleJa(words, sourceLabel) {
-  const missing = words.filter(w => w.example && !w.example_ja);
+  // example_ja が未設定 OR 短すぎる（単語の意味レベル＝15文字未満）ものを対象にする
+  const missing = words.filter(w => w.example && (!w.example_ja || w.example_ja.length < 15));
   if (!missing.length) return;
 
   try {
