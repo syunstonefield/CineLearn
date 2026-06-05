@@ -559,6 +559,8 @@ function goToStep(step) {
   if (el) el.classList.add('active');
   window.scrollTo(0, 0);
   if (step === 'main') renderDramaLibrary();
+  // screen-4（単語リスト）ではポーリング開始、それ以外では停止
+  if (step === 4) startExtPoll(); else stopExtPoll();
 }
 
 // ── ドラマライブラリ（メイン画面） ──────────────────────────
@@ -3449,4 +3451,31 @@ document.addEventListener('visibilitychange', () => {
   _lastPullAt = now;
   pullFromCloud();
 });
+
+// ── 追加単語ポーリング ──────────────────────────────────────────────
+// screen-4 表示中に5秒ごと単語・定義の変化を検知して再描画
+let _extPollTimer = null;
+let _extPollSnapshot = '';
+
+function startExtPoll() {
+  stopExtPoll();
+  _extPollTimer = setInterval(async () => {
+    if (!selectedDrama) return;
+    const words = await store.get(myWordsKey()) || [];
+    const snapshot = JSON.stringify(
+      words.filter(w => w.dramaTitle === selectedDrama.title && w.season == selectedSeason && w.episode == selectedEpisode)
+           .map(w => w.word + '|' + w.definition)
+    );
+    if (snapshot !== _extPollSnapshot) {
+      _extPollSnapshot = snapshot;
+      document.getElementById('ext-words-section')?.remove();
+      renderExtWordsSection(vocabWords);
+    }
+  }, 5000);
+}
+
+function stopExtPoll() {
+  if (_extPollTimer) { clearInterval(_extPollTimer); _extPollTimer = null; }
+  _extPollSnapshot = '';
+}
 renderProfileScreen();
