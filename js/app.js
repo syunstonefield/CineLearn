@@ -3197,6 +3197,9 @@ window.addEventListener('storage', (e) => {
   if (e.key?.startsWith('cl_my_words')) onMyWordsChanged();
 });
 
+// pullFromCloud 後に supabase.js から発火されるカスタムイベント
+window.addEventListener('cl_my_words_updated', () => onMyWordsChanged());
+
 // ─────────────────────────────────────────────────────────────────
 // イベントリスナー登録
 // Manifest V3 の拡張機能ページは onclick 属性をセキュリティポリシーで禁止するため

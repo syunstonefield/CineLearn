@@ -248,6 +248,9 @@ async function pullFromCloud() {
       chrome.storage.local.set(data);
     }
 
+    // 単語リスト更新イベントを発火（app.js の renderExtWordsSection を再呼び出しさせる）
+    window.dispatchEvent(new CustomEvent('cl_my_words_updated'));
+
     // badge・単語帳を更新
     if (typeof updateWordbookBadge === 'function') updateWordbookBadge();
     if (typeof renderWordbook === 'function') {
