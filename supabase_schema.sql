@@ -67,3 +67,16 @@ CREATE TABLE IF NOT EXISTS my_words (
 );
 ALTER TABLE my_words ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "own words" ON my_words FOR ALL USING (auth.uid() = user_id);
+
+-- ── push_subscriptions ────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  user_id    UUID        REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  endpoint   TEXT        NOT NULL,
+  p256dh     TEXT        NOT NULL,
+  auth       TEXT        NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (user_id, endpoint)
+);
+ALTER TABLE push_subscriptions ENABLE ROW LEVEL SECURITY;
+-- サービスロールキーのみアクセス可（RLSはサーバーサイドでバイパス）
+CREATE POLICY "service role only" ON push_subscriptions FOR ALL USING (false);

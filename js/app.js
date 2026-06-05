@@ -2583,7 +2583,87 @@ function initEventListeners() {
   });
 }
 
+// ── Web Push 通知 ──────────────────────────────────────────────────────────────
+const VAPID_PUBLIC_KEY = 'BDvzao62EPn3UHluB_1UgyWnnmVyX3BGwnLg7q-TyfHYkQYRC0sAC4HU0bsLAAABQ_FfQkwvWRWLJRATiDuAslk';
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
+
+async function initPushNotify() {
+  const btn    = document.getElementById('btnEnableNotify');
+  const status = document.getElementById('notifyStatus');
+  if (!btn) return;
+
+  // 通知非対応ブラウザはボタンを隠す
+  if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+    btn.textContent = '⚠️ このブラウザは通知非対応です';
+    btn.disabled = true;
+    return;
+  }
+
+  // 既に許可済みの場合
+  if (Notification.permission === 'granted') {
+    btn.textContent = '✅ 通知は有効です';
+    btn.disabled = true;
+    btn.style.opacity = '0.6';
+    return;
+  }
+
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    btn.textContent = '設定中...';
+
+    // 通知許可を求める
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      btn.textContent = '🔕 通知が拒否されました';
+      status.textContent = 'ブラウザの設定から通知を許可してください';
+      status.style.display = 'block';
+      return;
+    }
+
+    try {
+      // Service Worker の購読を取得
+      const reg = await navigator.serviceWorker.ready;
+      const subscription = await reg.pushManager.subscribe({
+        userVisibleOnly:      true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+      });
+
+      // Supabase に保存（ログイン中のみ）
+      const user = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
+      if (user) {
+        await fetch('/api/push-subscribe', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ subscription, user_id: user.id }),
+        });
+        btn.textContent = '✅ 通知を有効にしました';
+        status.textContent = '毎朝8時に復習日をお知らせします 🎬';
+      } else {
+        btn.textContent = '✅ 通知を有効にしました';
+        status.textContent = 'ログインすると通知がサーバーから届きます';
+      }
+      status.style.display = 'block';
+      btn.disabled = true;
+      btn.style.opacity = '0.6';
+    } catch (err) {
+      console.error('Push subscribe error:', err);
+      btn.textContent = '⚠️ 通知の設定に失敗しました';
+      btn.disabled = false;
+      status.textContent = err.message;
+      status.style.display = 'block';
+    }
+  });
+}
+
 initEventListeners();
+initPushNotify();
+
 // Supabase が設定されていればログイン確認・データ同期
 if (typeof initSupabase === 'function') initSupabase();
 // ログイン済みならログアウトボタンを表示

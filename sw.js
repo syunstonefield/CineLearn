@@ -15,6 +15,33 @@ self.addEventListener('activate', e => {
   self.clients.claim();
 });
 
+// ── Push通知 ──────────────────────────────────────────────────────────────────
+self.addEventListener('push', e => {
+  let data = { title: '📚 CineLearn', body: '今日の復習をしよう！', url: '/' };
+  try { if (e.data) data = e.data.json(); } catch {}
+
+  e.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      data: { url: data.url },
+    })
+  );
+});
+
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  const url = e.notification.data?.url || '/';
+  e.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+      const existing = list.find(c => c.url.includes(self.location.origin));
+      if (existing) { existing.focus(); existing.navigate(url); }
+      else clients.openWindow(url);
+    })
+  );
+});
+
 // ネットワーク優先：常に最新版を取得し、オフライン時だけキャッシュを使う
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
