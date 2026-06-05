@@ -1075,12 +1075,30 @@ function getWordVariants(word) {
 // SRTから「単語が登場する最初のタイムスタンプ」を返す
 // 戻り値: "3:24" 形式の文字列、見つからなければ null
 function findWordTimestampInSrt(srtText, word) {
-  const variants = getWordVariants(word);
-  // 全バリアントをまとめた正規表現: \b(run|runs|ran|running)\b
-  const escaped  = [...variants].map(v => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-  const wordRegex = new RegExp(`\\b(${escaped.join('|')})\\b`, 'i');
+  const tokens = word.toLowerCase().trim().split(/\s+/);
 
-  const lines = srtText.split('\n');
+  // 単一単語：バリアント正規表現でマッチ
+  // フレーズ（複数単語）：各トークンが行内に存在するか個別チェック
+  //   例: "put out" → "put it out" の行でも "put" と "out" が両方あれば✅
+  //   例: "speak for" → "speaks for" でも "speak"バリアントと "for" が両方あれば✅
+  const makeChecker = (tokens) => {
+    if (tokens.length === 1) {
+      const variants = getWordVariants(tokens[0]);
+      const escaped  = [...variants].map(v => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+      const re = new RegExp(`\\b(${escaped.join('|')})\\b`, 'i');
+      return (clean) => re.test(clean);
+    }
+    // フレーズ：各トークンのバリアントが行内に全部あるか
+    const checkers = tokens.map(tok => {
+      const variants = getWordVariants(tok);
+      const escaped  = [...variants].map(v => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+      return new RegExp(`\\b(${escaped.join('|')})\\b`, 'i');
+    });
+    return (clean) => checkers.every(re => re.test(clean));
+  };
+
+  const matches = makeChecker(tokens);
+  const lines   = srtText.split('\n');
   let currentTime = null;
 
   for (let i = 0; i < lines.length; i++) {
@@ -1097,10 +1115,10 @@ function findWordTimestampInSrt(srtText, word) {
       currentTime = `${mins}:${String(secs).padStart(2, '0')}`;
       continue;
     }
-    // セリフ行：バリアントのいずれかが含まれるか確認
+    // セリフ行
     if (currentTime && line && !/^\d+$/.test(line)) {
       const clean = line.replace(/<[^>]+>/g, '').replace(/[♪♫]/g, '');
-      if (wordRegex.test(clean)) return currentTime;
+      if (matches(clean)) return currentTime;
     }
   }
   return null;
