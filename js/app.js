@@ -2118,13 +2118,18 @@ async function fillMissingExampleJa(words, sourceLabel) {
 ${JSON.stringify(inputArr, null, 2)}`;
 
     const text = await callClaude(prompt, 1000);
+    console.log('[fillMissingExampleJa] Claude response:', text.slice(0, 300));
     const arr  = JSON.parse(repairJson(text.match(/\[[\s\S]*\]/)?.[0] || '[]'));
+    console.log('[fillMissingExampleJa] parsed arr:', arr);
 
     let changed = false;
     arr.forEach((item, i) => {
       const w = missing[i];
       if (w && item?.example_ja?.trim()) {
         w.example_ja = item.example_ja.trim();
+        // vocabWords も更新
+        const vw = vocabWords.find(v => v.word === w.word);
+        if (vw) vw.example_ja = w.example_ja;
         changed = true;
       }
     });
