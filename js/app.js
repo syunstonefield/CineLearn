@@ -616,8 +616,10 @@ function renderDramaLibrary() {
   container.innerHTML = '';
   map.forEach(data => container.appendChild(buildLibraryCard(data)));
 
-  // posterPath が未設定のドラマをバックグラウンドで取得して更新
-  const missing = [...map.values()].filter(d => !d.drama.posterPath);
+  // posterPath が未設定 or 古い縦長画像（w500）のドラマを再取得
+  const missing = [...map.values()].filter(d =>
+    !d.drama.posterPath || d.drama.posterPath.includes('/w500')
+  );
   if (missing.length) fetchMissingPosters(missing);
 }
 
@@ -631,9 +633,10 @@ async function fetchMissingPosters(entries) {
       });
       const data = await res.json();
       const hit  = data.results?.[0];
-      if (!hit?.poster_path) continue;
+      if (!hit?.backdrop_path && !hit?.poster_path) continue;
 
-      const p = `https://image.tmdb.org/t/p/w500${hit.poster_path}`;
+      const imgPath = hit.backdrop_path || hit.poster_path;
+      const p = `https://image.tmdb.org/t/p/w780${imgPath}`;
       drama.posterPath = p;
       if (!hit.id) continue;
       drama.tmdbId = hit.id;
@@ -781,8 +784,9 @@ async function loadDramaFromLibrary(drama) {
       const firstResult = searchData.results?.[0];
       tmdbId = firstResult?.id;
       if (tmdbId) { drama.tmdbId = tmdbId; selectedDrama.tmdbId = tmdbId; }
-      if (firstResult?.poster_path && !drama.posterPath) {
-        const p = `https://image.tmdb.org/t/p/w500${firstResult.poster_path}`;
+      if ((firstResult?.backdrop_path || firstResult?.poster_path) && !drama.posterPath) {
+        const imgPath = firstResult.backdrop_path || firstResult.poster_path;
+        const p = `https://image.tmdb.org/t/p/w780${imgPath}`;
         drama.posterPath = p; selectedDrama.posterPath = p;
         const md = myDramas.find(d => d.title === drama.title);
         if (md) md.posterPath = p;
@@ -1049,8 +1053,8 @@ async function fetchSeasonInfoFromTMDb(title) {
       .map(s => ({ season: s.season_number, episodes: s.episode_count }));
 
     const englishTitle = detail.name || show.original_name || title;
-    const posterPath   = show.poster_path
-      ? `https://image.tmdb.org/t/p/w500${show.poster_path}` : null;
+    const imgPath    = show.backdrop_path || show.poster_path;
+    const posterPath = imgPath ? `https://image.tmdb.org/t/p/w780${imgPath}` : null;
     return seasons.length ? { seasons, englishTitle, tmdbId: show.id, posterPath } : null;
   } catch {
     return null;
