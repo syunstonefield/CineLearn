@@ -742,30 +742,47 @@ async function loadDramaFromLibrary(drama) {
     }
   } catch { /* 取得失敗時は全サービス表示 */ }
 
-  // 取得できなかった場合は全サービスを表示
-  const services = availableNames.size > 0
-    ? ALL_SERVICES.filter(s => availableNames.has(s.name))
-    : ALL_SERVICES;
-
   grid.innerHTML = '';
-  if (availableNames.size > 0) {
-    const note = document.createElement('div');
-    note.style.cssText = 'font-size:11px;color:var(--text-muted);margin-bottom:10px;text-align:center';
-    note.textContent = '日本で視聴可能なサービス';
-    grid.appendChild(note);
-  }
 
-  services.forEach(svc => {
+  const confirmed  = ALL_SERVICES.filter(s => availableNames.has(s.name));
+  const others     = ALL_SERVICES.filter(s => !availableNames.has(s.name));
+
+  const makeCard = (svc, highlight) => {
     const card2 = document.createElement('div');
     card2.className = 'viewing-service-card';
     if (svc.name === selectedViewingService) {
       card2.style.borderColor = 'var(--accent)';
       card2.style.background = 'rgba(193,127,59,0.07)';
     }
-    card2.innerHTML = `<div class="vs-icon">${svc.icon}</div><div class="vs-name">${svc.name}</div>${svc.name === selectedViewingService ? '<div style="font-size:11px;color:var(--accent);margin-top:4px">前回使用</div>' : ''}`;
+    if (highlight) {
+      card2.style.borderColor = card2.style.borderColor || 'rgba(52,199,89,0.5)';
+    }
+    const sub = svc.name === selectedViewingService
+      ? '<div style="font-size:10px;color:var(--accent);margin-top:3px">前回使用</div>'
+      : highlight
+        ? '<div style="font-size:10px;color:#2da87c;margin-top:3px">✓ 配信中</div>'
+        : '';
+    card2.innerHTML = `<div class="vs-icon">${svc.icon}</div><div class="vs-name">${svc.name}</div>${sub}`;
     card2.addEventListener('click', () => selectViewingService(svc.name, drama));
-    grid.appendChild(card2);
-  });
+    return card2;
+  };
+
+  if (confirmed.length > 0) {
+    const label = document.createElement('div');
+    label.style.cssText = 'font-size:11px;color:var(--text-muted);margin-bottom:8px;text-align:center';
+    label.textContent = '✓ 配信確認済み';
+    grid.appendChild(label);
+    confirmed.forEach(svc => grid.appendChild(makeCard(svc, true)));
+
+    const sep = document.createElement('div');
+    sep.style.cssText = 'font-size:11px;color:var(--text-muted);margin:12px 0 8px;text-align:center;border-top:1px solid var(--border);padding-top:12px';
+    sep.textContent = 'その他のサービス';
+    grid.appendChild(sep);
+    others.forEach(svc => grid.appendChild(makeCard(svc, false)));
+  } else {
+    // TMDBで取得できなかった場合は全サービス表示
+    ALL_SERVICES.forEach(svc => grid.appendChild(makeCard(svc, false)));
+  }
 }
 
 // ※ 旧実装（使用停止・selectViewingService に統合）
