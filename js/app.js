@@ -2,6 +2,7 @@
 let selectedServices = [];
 let selectedGenres = ['Crime Thriller'];
 let selectedDrama = null;
+let myDramas = []; // 追加したドラマの永続リスト
 let selectedSeason = 1;
 let selectedEpisode = 1;
 let quizData = [];
@@ -166,7 +167,7 @@ function saveSettings() {
     toeicScore, targetToeicScore, userLevel, targetLevel, vocabCount,
     selectedServices, selectedGenres, selectedDrama,
     selectedSeason, selectedEpisode, vocabWords, dramaSeasonInfo,
-    testTiers, selectedViewingService,
+    testTiers, selectedViewingService, myDramas,
   };
   saveProfiles(profiles);
 }
@@ -178,6 +179,7 @@ async function applyProfileSettings(s) {
   vocabCount = 30; selectedServices = []; selectedGenres = ['Crime Thriller'];
   selectedDrama = null; selectedSeason = 1; selectedEpisode = 1;
   vocabWords = []; dramaSeasonInfo = []; testTiers = ['core', 'advanced'];
+  myDramas = [];
 
   if (!s || !Object.keys(s).length) { goToStep(1); return; }
 
@@ -195,7 +197,8 @@ async function applyProfileSettings(s) {
   if (s.vocabWords?.length)       vocabWords       = s.vocabWords;
   if (s.dramaSeasonInfo?.length)  dramaSeasonInfo  = s.dramaSeasonInfo;
   if (s.testTiers?.length)        testTiers        = s.testTiers;
-  if (s.selectedViewingService)  selectedViewingService = s.selectedViewingService;
+  if (s.selectedViewingService)   selectedViewingService = s.selectedViewingService;
+  if (s.myDramas?.length)         myDramas         = s.myDramas;
 
   // ── UI復元：TOEICスコア ──
   if (s.toeicScore > 0) {
@@ -589,7 +592,13 @@ function renderDramaLibrary() {
     if (h.date > d.lastDate) d.lastDate = h.date;
   });
 
-  // 現在選択中ドラマがまだ履歴にないなら追加
+  // myDramas に登録済みで履歴にないドラマも表示
+  myDramas.forEach(d => {
+    if (!map.has(d.title)) {
+      map.set(d.title, { drama: d, episodes: [], bestScore: null, lastDate: null });
+    }
+  });
+  // 後方互換：selectedDrama が myDramas 未登録なら表示
   if (selectedDrama && !map.has(selectedDrama.title)) {
     map.set(selectedDrama.title, { drama: selectedDrama, episodes: [], bestScore: null, lastDate: null });
   }
@@ -665,6 +674,8 @@ function deleteDramaFromLibrary(title) {
     }
   }
 
+  myDramas = myDramas.filter(d => d.title !== title);
+
   if (selectedDrama?.title === title) {
     selectedDrama = null;
     dramaSeasonInfo = [];
@@ -676,7 +687,11 @@ function deleteDramaFromLibrary(title) {
 // ライブラリのドラマカードをクリックして学習へ（サービス選択画面を経由）
 async function loadDramaFromLibrary(drama) {
   selectedDrama = drama;
-  dramaSeasonInfo = []; // サービスが変わる可能性があるのでリセット
+  dramaSeasonInfo = [];
+  // myDramas に未登録なら追加
+  if (!myDramas.some(d => d.title === drama.title)) {
+    myDramas.push(drama);
+  }
   saveSettings();
 
   // サービス選択画面へ
@@ -731,6 +746,8 @@ async function loadDramaFromLibrary(drama) {
       if (firstResult?.poster_path && !drama.posterPath) {
         const p = `https://image.tmdb.org/t/p/w500${firstResult.poster_path}`;
         drama.posterPath = p; selectedDrama.posterPath = p;
+        const md = myDramas.find(d => d.title === drama.title);
+        if (md) md.posterPath = p;
       }
     }
     if (tmdbId) {
