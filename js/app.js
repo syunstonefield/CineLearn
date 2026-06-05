@@ -1493,6 +1493,60 @@ async function resolveUnassignedWords() {
 }
 
 // 「追加した単語」セクションを vocabSection の末尾に追加する
+// buildWordHTML の外部版（拡張機能単語・マイ単語帳など renderVocab 外で使用）
+function buildExtWordHTML(w) {
+  const status     = getWordStatus(w.word);
+  const isMast     = status === 'mastered';
+  const isDueNow   = status === 'due' || status === 'new';
+  const isSkip     = status === 'skipped';
+  const isReviewed = status === 'reviewed_today';
+  const srsEntry   = loadSrs()[w.word.toLowerCase()];
+  const lastQ      = isReviewed ? (srsEntry?.lastQuality ?? null) : null;
+  const reviewCount = srsEntry?.reviewCount || 0;
+  const hasReviewed = !!srsEntry?.lastReview;
+  const reviewCountLabel = reviewCount > 0
+    ? `<span class="review-count-label">${reviewCount}回復習済み</span>`
+    : hasReviewed ? `<span class="review-count-label">復習済み</span>` : '';
+  const reviewedBadge = lastQ === 5 ? '<span class="srs-badge badge-reviewed badge-q-easy">✅ 知ってた</span>'
+                      : lastQ === 3 ? '<span class="srs-badge badge-reviewed badge-q-hard">🤔 うろ覚え</span>'
+                      : lastQ === 0 ? '<span class="srs-badge badge-reviewed badge-q-fail">😰 知らなかった</span>'
+                      : '<span class="srs-badge badge-reviewed">✓ 復習済み</span>';
+  const srsBadge = isMast    ? '<span class="srs-badge badge-mastered">⭐</span>'
+                 : isDueNow  ? '<span class="srs-badge badge-due">🔴</span>'
+                 : isReviewed ? reviewedBadge : '';
+  const nextReview = nextReviewLabel(w.word);
+  const nextLabel  = nextReview ? `<span class="srs-next-review">📅 次回: ${nextReview}</span>` : '';
+  const timestamp  = findWordTimestamp(w.word);
+  const tsLabel    = timestamp ? `<span class="word-timestamp" data-time="${timestamp}">📍 ${timestamp}</span>` : '';
+  const tier = w.tier || 'core';
+  const tierBadge = tier === 'context'  ? '<span class="tier-pill tier-context">Context</span>'
+                  : tier === 'advanced' ? '<span class="tier-pill tier-advanced">Advanced</span>'
+                  :                      '<span class="tier-pill tier-core">Core</span>';
+  return `
+    <div class="vocab-item${isMast ? ' vocab-mastered' : ''}${isSkip ? ' vocab-skipped' : ''}">
+      <div style="flex:1">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          ${srsBadge}
+          <div class="vocab-word">${w.word}</div>
+          ${tierBadge}
+          ${nextLabel}
+          ${reviewCountLabel}
+          ${tsLabel}
+        </div>
+        ${w.example ? `<div class="word-example-wrap">
+          <span class="word-example-en">${w.example}</span>
+          ${w.example_ja ? `<span class="word-example-ja">${w.example_ja}</span>` : ''}
+        </div>` : ''}
+      </div>
+      <div class="vocab-pos">${w.pos || ''}</div>
+      <div class="vocab-def">${w.definition || ''}</div>
+      <div class="vocab-card-actions">
+        <button class="btn-speak" data-word="${w.word}">🔊</button>
+        <button class="btn-srs-skip${isSkip ? ' btn-srs-resume' : ''}" data-word="${w.word}">${isSkip ? 'Resume' : 'Skip'}</button>
+      </div>
+    </div>`;
+}
+
 async function renderExtWordsSection(existingWords = []) {
   if (!selectedDrama) return;
   const extWords = await getMyWordsForEpisode(selectedDrama.title, selectedSeason, selectedEpisode);
@@ -1505,24 +1559,57 @@ async function renderExtWordsSection(existingWords = []) {
   // 前回の拡張機能単語セクションがあれば置き換え
   document.getElementById('ext-words-section')?.remove();
 
+  // 拡張機能単語を buildWordHTML 互換の形式に変換
+  const extNormalized = newExt.map(w => ({
+    word:       w.word,
+    pos:        w.pos        || '',
+    definition: w.definition || '',
+    example:    w.sentence   || '',   // sentence → example にマッピング
+    example_ja: w.example_ja || '',
+    tier:       w.tier       || 'core',
+    source:     'ext',
+  }));
+
   const div = document.createElement('div');
   div.id = 'ext-words-section';
-  div.innerHTML = `
-    <div class="source-label" style="margin-top:14px">✏️ 追加した単語</div>
-    <div class="vocab-list">
-      ${newExt.map(w => `
-        <div class="vocab-item">
-          <div style="flex:1">
-            <div class="vocab-word">${w.word}</div>
-            ${w.sentence ? `<div style="font-size:12px;color:var(--text-muted);margin-top:3px;font-style:italic">"${w.sentence}"</div>` : ''}
-          </div>
-          ${w.pos ? `<div class="vocab-pos">${w.pos}</div>` : ''}
-          <div class="vocab-def">${w.definition || '（定義なし）'}</div>
-        </div>
-      `).join('')}
-    </div>
-  `;
+  const labelDiv = document.createElement('div');
+  labelDiv.className = 'source-label';
+  labelDiv.style.marginTop = '14px';
+  labelDiv.textContent = '✏️ 追加した単語';
+  div.appendChild(labelDiv);
+
+  const listDiv = document.createElement('div');
+  listDiv.className = 'vocab-list';
+  // buildWordHTML を呼ぶために一時的に words コンテキストを利用
+  extNormalized.forEach(w => { listDiv.innerHTML += buildExtWordHTML(w); });
+  div.appendChild(listDiv);
   sect.appendChild(div);
+
+  // スピーク・スキップ・タイムスタンプのイベントを付与
+  listDiv.addEventListener('click', e => {
+    const speakBtn = e.target.closest('.btn-speak');
+    if (speakBtn && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(speakBtn.dataset.word);
+      u.lang = 'en-US';
+      window.speechSynthesis.speak(u);
+    }
+    const skipBtn = e.target.closest('.btn-srs-skip');
+    if (skipBtn) {
+      skipBtn.classList.contains('btn-srs-resume')
+        ? unskipWord(skipBtn.dataset.word)
+        : skipWord(skipBtn.dataset.word);
+      renderExtWordsSection(existingWords);
+    }
+    const tsLabel = e.target.closest('.word-timestamp');
+    if (tsLabel) {
+      navigator.clipboard.writeText(tsLabel.dataset.time).then(() => {
+        const orig = tsLabel.textContent;
+        tsLabel.textContent = '✅ コピー完了';
+        setTimeout(() => { tsLabel.textContent = orig; }, 1500);
+      });
+    }
+  });
 }
 
 // 保存済み単語をチェックして表示する（履歴あり → true）
@@ -2009,9 +2096,40 @@ async function renderVocab(words, sourceLabel, skipHistory = false) {
 
   // バックグラウンドで生SRTを取得（タイムスタンプ未表示の既存単語リスト対応）
   fetchRawSrtIfMissing(words, sourceLabel);
+
+  // バックグラウンドで example_ja を補完（既存単語リスト対応）
+  fillMissingExampleJa(words, sourceLabel);
 }
 
 // 生SRTが未保存の場合、バックグラウンドで取得して単語カードのタイムスタンプを補完する
+// example はあるが example_ja がない単語をまとめてAIで翻訳して補完する
+async function fillMissingExampleJa(words, sourceLabel) {
+  const missing = words.filter(w => w.example && !w.example_ja);
+  if (!missing.length) return;
+
+  try {
+    const list = missing.map(w => `${w.word}: "${w.example}"`).join('\n');
+    const prompt = `以下の英文を自然な日本語に翻訳してください。JSON配列のみで返してください。
+[{"word":"単語","ja":"日本語訳"}, ...]
+
+${list}`;
+    const text = await callClaude(prompt, 1000);
+    const arr  = JSON.parse(text.match(/\[[\s\S]*\]/)[0]);
+
+    let changed = false;
+    arr.forEach(item => {
+      const w = words.find(x => x.word.toLowerCase() === item.word.toLowerCase());
+      if (w && item.ja) { w.example_ja = item.ja; changed = true; }
+    });
+
+    if (changed) {
+      // 履歴に保存して再描画
+      updateHistoryWords(currentHistoryId, words);
+      renderVocab(words, sourceLabel, true);
+    }
+  } catch { /* 失敗は無視 */ }
+}
+
 async function fetchRawSrtIfMissing(words, sourceLabel) {
   if (!selectedDrama || !selectedSeason || !selectedEpisode) return;
   const title  = selectedDrama.englishTitle || selectedDrama.title;
@@ -2598,6 +2716,17 @@ function saveToHistory() {
 }
 
 // クイズ生成完了後に履歴のクイズデータを更新する
+function updateHistoryWords(id, words) {
+  if (!id) return;
+  const history = loadHistory();
+  const idx = history.findIndex(h => h.id === id);
+  if (idx >= 0) {
+    history[idx].words = words;
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+    if (typeof cloudSync !== 'undefined' && isLoggedIn()) cloudSync.history(history);
+  }
+}
+
 function updateHistoryQuizData(id, quiz) {
   if (!id) return;
   const history = loadHistory();
