@@ -1545,11 +1545,11 @@ ${tierGuide}
 {
   "drama": [
     この字幕に実際に登場する単語を${vocabCount}個。必ず字幕内に存在する単語のみ。スコア範囲（${lower}〜${upper}点）に合った難易度で選ぶ。
-    { "word": "英単語（原形）", "pos": "品詞（名詞/動詞/形容詞/副詞）", "definition": "日本語の意味（簡潔に）", "example": "字幕からそのままコピーした文（必ずwordの活用形を含む。見つからなければ空文字）", "tier": "core"|"advanced"|"context" }
+    { "word": "英単語（原形）", "pos": "品詞（名詞/動詞/形容詞/副詞）", "definition": "日本語の意味（簡潔に）", "example": "字幕からそのままコピーした文（必ずwordの活用形を含む。見つからなければ空文字）", "example_ja": "exampleの自然な日本語訳（exampleが空なら空文字）", "tier": "core"|"advanced"|"context" }
   ],
   "plus": [
     このエピソードのテーマ・文脈に関連するが字幕外の推奨単語を5〜8個。同じスコア範囲（${lower}〜${upper}点）で選ぶ。
-    { "word": "英単語（原形）", "pos": "品詞（名詞/動詞/形容詞/副詞）", "definition": "日本語の意味（簡潔に）", "example": "必ずwordを含む自然な英文（作文可）", "tier": "core"|"advanced"|"context" }
+    { "word": "英単語（原形）", "pos": "品詞（名詞/動詞/形容詞/副詞）", "definition": "日本語の意味（簡潔に）", "example": "必ずwordを含む自然な英文（作文可）", "example_ja": "exampleの自然な日本語訳", "tier": "core"|"advanced"|"context" }
   ]
 }`;
 
@@ -1664,7 +1664,10 @@ async function renderVocab(words, sourceLabel, skipHistory = false) {
             ${reviewCountLabel}
             ${tsLabel}
           </div>
-          <div style="font-size:12px;color:var(--text-muted);margin-top:3px">${w.example || ''}</div>
+          ${w.example ? `<div class="word-example-wrap">
+            <span class="word-example-en">${w.example}</span>
+            ${w.example_ja ? `<span class="word-example-ja">${w.example_ja}</span>` : ''}
+          </div>` : ''}
         </div>
         <div class="vocab-pos">${w.pos || ''}</div>
         <div class="vocab-def">${w.definition || ''}</div>
@@ -1933,7 +1936,10 @@ function renderReviewCard() {
       <button class="review-flip" id="reviewFlip">タップして意味を確認 →</button>
       <div class="review-answer" id="reviewAnswer" style="display:none">
         <div class="review-def-text">${w.definition || ''}</div>
-        ${w.example ? `<div class="review-example-text">"${w.example}"</div>` : ''}
+        ${w.example ? `<div class="review-example-text">
+          <div>"${w.example}"</div>
+          ${w.example_ja ? `<div class="review-example-ja">${w.example_ja}</div>` : ''}
+        </div>` : ''}
         <div class="review-rate-btns">
           <button class="btn-rate btn-rate-fail" data-q="0">😰<br><span>知らなかった</span></button>
           <button class="btn-rate btn-rate-hard" data-q="3">🤔<br><span>うろ覚え</span></button>
@@ -2520,7 +2526,10 @@ function showHistoryVocab(id) {
         <div class="vocab-item">
           <div style="flex:1">
             <div class="vocab-word">${w.word}</div>
-            <div style="font-size:12px;color:var(--text-muted);margin-top:3px">${w.example}</div>
+            ${w.example ? `<div class="word-example-wrap">
+              <span class="word-example-en">${w.example}</span>
+              ${w.example_ja ? `<span class="word-example-ja">${w.example_ja}</span>` : ''}
+            </div>` : ''}
           </div>
           <div class="vocab-pos">${w.pos}</div>
           <div class="vocab-def">${w.definition}</div>
