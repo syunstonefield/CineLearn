@@ -1584,6 +1584,34 @@ async function renderVocab(words, sourceLabel, skipHistory = false) {
 
   // 拡張機能で保存した単語のうち、この単語リストにないものを末尾に追加
   await renderExtWordsSection(words);
+
+  // バックグラウンドで生SRTを取得（タイムスタンプ未表示の既存単語リスト対応）
+  fetchRawSrtIfMissing(words, sourceLabel);
+}
+
+// 生SRTが未保存の場合、バックグラウンドで取得して単語カードのタイムスタンプを補完する
+async function fetchRawSrtIfMissing(words, sourceLabel) {
+  if (!selectedDrama || !selectedSeason || !selectedEpisode) return;
+  const title  = selectedDrama.englishTitle || selectedDrama.title;
+  const rawKey = subtitleRawCacheKey(title, selectedSeason, selectedEpisode);
+  if (localStorage.getItem(rawKey)) return; // すでにキャッシュ済み
+
+  try {
+    const subtitles = await searchSubtitles(title, selectedSeason, selectedEpisode);
+    if (!subtitles?.length) return;
+    const best   = subtitles.reduce((a, b) =>
+      (b.attributes.download_count || 0) > (a.attributes.download_count || 0) ? b : a);
+    const srtText = await downloadSubtitle(best.attributes.files[0].file_id);
+    if (!srtText) return;
+
+    // 生SRTを保存
+    cachedRawSrt = srtText;
+    try { localStorage.setItem(rawKey, srtText); } catch {}
+
+    // タイムスタンプが取得できた単語があれば再描画
+    const hasTimestamp = words.some(w => findWordTimestamp(w.word));
+    if (hasTimestamp) renderVocab(words, sourceLabel, true);
+  } catch { /* 取得失敗は無視 */ }
 }
 
 // ─────────────────────────────────────────
