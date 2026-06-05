@@ -2108,23 +2108,23 @@ async function fillMissingExampleJa(words, sourceLabel) {
   if (!missing.length) return;
 
   try {
-    const sentences = missing.map(w => w.example);
-    const prompt = `次の英文リストを順番通りに日本語訳してください。文全体を訳してください（単語の意味説明は不要）。
-JSON文字列配列のみで返答してください（説明・番号不要）。
+    // 新規生成と同じ構造（word+exampleを一緒に渡す）で翻訳させる
+    const inputArr = missing.map(w => ({ word: w.word, example: w.example, example_ja: '' }));
+    const prompt = `以下のJSON配列の各要素について、example（ドラマの字幕から引用した英文）を自然な日本語に翻訳してexample_jaに入れてください。
+- example_ja には example の文全体の翻訳のみ入れること（単語の意味説明は不要）
+- example が空の場合は example_ja も空文字にすること
+- JSON配列のみ返答してください（説明不要）
 
-英文リスト:
-${sentences.map((s, i) => `${i + 1}. ${s}`).join('\n')}
-
-回答形式: ["1番目の日本語訳", "2番目の日本語訳", ...]`;
+${JSON.stringify(inputArr, null, 2)}`;
 
     const text = await callClaude(prompt, 1000);
-    const arr  = JSON.parse(text.match(/\[[\s\S]*\]/)[0]);
+    const arr  = JSON.parse(repairJson(text.match(/\[[\s\S]*\]/)?.[0] || '[]'));
 
     let changed = false;
-    arr.forEach((ja, i) => {
+    arr.forEach((item, i) => {
       const w = missing[i];
-      if (w && typeof ja === 'string' && ja.trim()) {
-        w.example_ja = ja.trim();
+      if (w && item?.example_ja?.trim()) {
+        w.example_ja = item.example_ja.trim();
         changed = true;
       }
     });
