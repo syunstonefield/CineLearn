@@ -1558,14 +1558,39 @@ ${tierGuide}
       document.getElementById('vocabSection').innerHTML =
         `<div class="loading"><div class="spinner"></div>混雑中... ${waitSec}秒後に再試行 (${attempt}/3)</div>`;
     });
-    // JSON文字列内の制御文字・不正クォートをサニタイズしてからパース
+    // JSON文字列内の不正クォート・制御文字を修正してからパース
     const rawJson = text.match(/\{[\s\S]*\}/)?.[0] || '{}';
-    const sanitized = rawJson
-      // 文字列値内の改行・タブを空白に
-      .replace(/("(?:[^"\\]|\\.)*")/g, m =>
-        m.replace(/\n/g, ' ').replace(/\r/g, '').replace(/\t/g, ' ')
-      );
-    const parsed = JSON.parse(sanitized);
+
+    function repairJson(str) {
+      let out = '';
+      let inStr = false;
+      let escaped = false;
+      for (let i = 0; i < str.length; i++) {
+        const ch = str[i];
+        if (escaped) { out += ch; escaped = false; continue; }
+        if (ch === '\\') { out += ch; escaped = true; continue; }
+        if (ch === '"') {
+          if (!inStr) { inStr = true; out += ch; continue; }
+          // 文字列終了かどうかを判定：後続の非空白が : , } ] なら終了
+          let j = i + 1;
+          while (j < str.length && ' \t\r\n'.includes(str[j])) j++;
+          const next = str[j];
+          if (!next || ':,}]'.includes(next)) {
+            inStr = false; out += ch;
+          } else {
+            // 埋め込みクォート → エスケープ
+            out += '\\"';
+          }
+          continue;
+        }
+        if (inStr && (ch === '\n' || ch === '\r')) { out += ' '; continue; }
+        if (inStr && ch === '\t') { out += ' '; continue; }
+        out += ch;
+      }
+      return out;
+    }
+
+    const parsed = JSON.parse(repairJson(rawJson));
     const dramaWords = (parsed.drama || []).map(w => ({ ...w, source: 'drama' }));
     const plusWords  = (parsed.plus  || []).map(w => ({ ...w, source: 'plus'  }));
     let json = [...dramaWords, ...plusWords];
