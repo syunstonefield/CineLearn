@@ -985,17 +985,17 @@ function findWordTimestampInSrt(srtText, word) {
   return null;
 }
 
-// 全 cl_sub_* キャッシュから単語のタイムスタンプを検索
+// 全 cl_sub_raw_* キャッシュから単語のタイムスタンプを検索
 function findWordTimestamp(word) {
-  // 現在ロード済みの字幕を優先
-  if (cachedSubtitleText) {
-    const t = findWordTimestampInSrt(cachedSubtitleText, word);
+  // 現在ロード済みの生SRTを優先
+  if (cachedRawSrt) {
+    const t = findWordTimestampInSrt(cachedRawSrt, word);
     if (t) return t;
   }
-  // localStorage の全 cl_sub_* を検索
+  // localStorage の全 cl_sub_raw_* を検索
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
-    if (!key?.startsWith('cl_sub_')) continue;
+    if (!key?.startsWith('cl_sub_raw_')) continue;
     const srt = localStorage.getItem(key);
     if (!srt) continue;
     const t = findWordTimestampInSrt(srt, word);
@@ -1069,6 +1069,10 @@ async function triggerEpisodeLoad() {
 function subtitleCacheKey(title, season, episode) {
   const safe = (title || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
   return `cl_sub_${safe}_s${season}e${episode}`;
+}
+function subtitleRawCacheKey(title, season, episode) {
+  const safe = (title || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
+  return `cl_sub_raw_${safe}_s${season}e${episode}`;
 }
 
 // 拡張機能で保存した単語のうち、現ドラマ・エピソードに一致するものを返す
@@ -1233,8 +1237,9 @@ async function checkAndShowSavedVocab() {
 }
 
 // 字幕を事前に読み込んでおく
-let cachedSubtitleText = '';
+let cachedSubtitleText   = '';
 let cachedSubtitleSource = '';
+let cachedRawSrt         = ''; // タイムスタンプ検索用の生SRT
 
 async function preloadSubtitle() {
   cachedSubtitleText = '';
@@ -1257,11 +1262,15 @@ async function preloadSubtitle() {
       const fileId = best.attributes.files[0].file_id;
       const srtText = await downloadSubtitle(fileId);
       cachedSubtitleText = parseSrt(srtText);
+      cachedRawSrt       = srtText; // タイムスタンプ検索用に生SRTを保持
       cachedSubtitleSource = '実際の字幕データから';
       // 字幕テキストを永続キャッシュに保存（未割当単語のエピソード解決に使用）
       try {
-        const key = subtitleCacheKey(selectedDrama.englishTitle || selectedDrama.title, selectedSeason, selectedEpisode);
+        const title = selectedDrama.englishTitle || selectedDrama.title;
+        const key    = subtitleCacheKey(title, selectedSeason, selectedEpisode);
+        const rawKey = subtitleRawCacheKey(title, selectedSeason, selectedEpisode);
         localStorage.setItem(key, cachedSubtitleText);
+        localStorage.setItem(rawKey, srtText); // 生SRTも保存
       } catch { /* QuotaExceeded は無視 */ }
       document.getElementById('episodeSelected').textContent =
         `Season ${selectedSeason} Episode ${selectedEpisode} ✓ 字幕取得済み`;
