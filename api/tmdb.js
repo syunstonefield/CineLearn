@@ -24,5 +24,11 @@ export default async function handler(req, res) {
     return res.status(200).json(data);
   }
 
+  if (action === 'watch_providers') {
+    const r = await fetch(`${TMDB_BASE}/tv/${tvId}/watch/providers?api_key=${apiKey}`);
+    const data = await r.json();
+    return res.status(200).json(data);
+  }
+
   return res.status(400).json({ error: 'Invalid action' });
 }

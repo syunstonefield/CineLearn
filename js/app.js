@@ -678,12 +678,65 @@ async function loadDramaFromLibrary(drama) {
   document.getElementById('serviceSelectDramaTitle').textContent =
     `「${drama.title}」をどのサービスで視聴しますか？`;
 
-  const services = [
-    { name: 'Netflix', icon: '🔴', enabled: true },
-    { name: 'YouTube', icon: '▶️', enabled: true },
+  // TMDb の provider_id → CineLearnサービス名のマッピング（JP向け）
+  const PROVIDER_MAP = {
+    8:    'Netflix',
+    9:    'Amazon Prime',
+    337:  'Disney+',
+    2:    'Apple TV+',
+    269:  'Hulu',
+    97:   'U-NEXT',
+    192:  'YouTube',
+  };
+
+  const ALL_SERVICES = [
+    { name: 'Netflix',      icon: '🔴' },
+    { name: 'Amazon Prime', icon: '🔵' },
+    { name: 'Disney+',      icon: '🔷' },
+    { name: 'Apple TV+',    icon: '🍎' },
+    { name: 'Hulu',         icon: '🟢' },
+    { name: 'U-NEXT',       icon: '🟣' },
+    { name: 'YouTube',      icon: '▶️' },
   ];
+
   const grid = document.getElementById('viewingServiceGrid');
+  grid.innerHTML = '<div style="text-align:center;color:var(--text-muted);font-size:13px;padding:12px">視聴サービスを確認中...</div>';
+
+  // TMDb で視聴可能サービスを取得
+  let availableNames = new Set();
+  try {
+    if (drama.tmdbId) {
+      const r = await fetch(`${API_BASE}/api/tmdb`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'watch_providers', tvId: drama.tmdbId }),
+      });
+      const data = await r.json();
+      const jpProviders = data.results?.JP;
+      const providers = [
+        ...(jpProviders?.flatrate || []),
+        ...(jpProviders?.rent     || []),
+        ...(jpProviders?.buy      || []),
+      ];
+      providers.forEach(p => {
+        if (PROVIDER_MAP[p.provider_id]) availableNames.add(PROVIDER_MAP[p.provider_id]);
+      });
+    }
+  } catch { /* 取得失敗時は全サービス表示 */ }
+
+  // 取得できなかった場合は全サービスを表示
+  const services = availableNames.size > 0
+    ? ALL_SERVICES.filter(s => availableNames.has(s.name))
+    : ALL_SERVICES;
+
   grid.innerHTML = '';
+  if (availableNames.size > 0) {
+    const note = document.createElement('div');
+    note.style.cssText = 'font-size:11px;color:var(--text-muted);margin-bottom:10px;text-align:center';
+    note.textContent = '日本で視聴可能なサービス';
+    grid.appendChild(note);
+  }
+
   services.forEach(svc => {
     const card2 = document.createElement('div');
     card2.className = 'viewing-service-card';
@@ -870,7 +923,7 @@ async function fetchSeasonInfoFromTMDb(title) {
       .map(s => ({ season: s.season_number, episodes: s.episode_count }));
 
     const englishTitle = detail.name || show.original_name || title;
-    return seasons.length ? { seasons, englishTitle } : null;
+    return seasons.length ? { seasons, englishTitle, tmdbId: show.id } : null;
   } catch {
     return null;
   }
@@ -2158,8 +2211,9 @@ async function selectViewingService(service, drama) {
     // TMDb でシーズン情報を取得（Claude より正確）
     const tmdbResult = await fetchSeasonInfoFromTMDb(drama.title);
     if (tmdbResult) {
-      const { seasons: tmdbSeasons, englishTitle } = tmdbResult;
+      const { seasons: tmdbSeasons, englishTitle, tmdbId } = tmdbResult;
       if (englishTitle) selectedDrama.englishTitle = englishTitle;
+      if (tmdbId)       selectedDrama.tmdbId       = tmdbId;
       dramaSeasonInfo = tmdbSeasons;
       buildSeasonEpisodeSelectors(tmdbSeasons);
     } else {
