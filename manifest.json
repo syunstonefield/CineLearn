@@ -10,26 +10,14 @@
     "https://cine-learn.vercel.app/*",
     "https://*.supabase.co/*",
     "https://www.netflix.com/*",
-    "https://www.amazon.co.jp/*",
-    "https://www.amazon.com/*",
-    "https://www.primevideo.com/*",
-    "https://www.disneyplus.com/*",
-    "https://tv.apple.com/*",
-    "https://www.hulu.jp/*",
-    "https://video.unext.jp/*"
+    "https://www.youtube.com/*"
   ],
 
   "content_scripts": [
     {
       "matches": [
         "https://www.netflix.com/watch/*",
-        "https://www.amazon.co.jp/gp/video/*",
-        "https://www.amazon.com/gp/video/*",
-        "https://www.primevideo.com/detail/*",
-        "https://www.disneyplus.com/video/*",
-        "https://tv.apple.com/*",
-        "https://www.hulu.jp/watch/*",
-        "https://video.unext.jp/play/*"
+        "https://www.youtube.com/watch*"
       ],
       "js": ["extension/content.js"],
       "css": ["extension/content.css"],

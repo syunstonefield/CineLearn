@@ -9,9 +9,9 @@ const ACCENT        = '#c17f3b';
 const LONG_PRESS_MS = 600; // 長押し判定ミリ秒
 
 const SUBTITLE_SELECTORS = [
+  // Netflix
   '.player-timedtext-text-container',
   '[data-uia="player-text-cue"]',
-  '.atvwebplayersdk-captions-overlay',
   '.timedTextContainer',
   '[class*="SubtitleTextContainer"]',
   '[class*="subtitle-text-container"]',
@@ -20,6 +20,10 @@ const SUBTITLE_SELECTORS = [
   '.ms-cue-block',
   '[class*="CaptionText"]',
   '[class*="captionText"]',
+  // YouTube
+  '.ytp-caption-segment',
+  '.captions-text',
+  '[class*="caption-visual-line"]',
 ];
 
 // UI 要素（DOMContentLoaded 後に作成）
