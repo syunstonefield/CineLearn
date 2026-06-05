@@ -1393,9 +1393,12 @@ async function renderVocab(words, sourceLabel, skipHistory = false) {
     const srsEntry = loadSrs()[w.word.toLowerCase()];
     const lastQ = isReviewed ? (srsEntry?.lastQuality ?? null) : null;
     const reviewCount = srsEntry?.reviewCount || 0;
+    const hasReviewed = !!srsEntry?.lastReview;
     const reviewCountLabel = reviewCount > 0
       ? `<span class="review-count-label">${reviewCount}回復習済み</span>`
-      : '';
+      : hasReviewed
+        ? `<span class="review-count-label">復習済み</span>`
+        : '';
     const reviewedBadge = lastQ === 5 ? '<span class="srs-badge badge-reviewed badge-q-easy">✅ 知ってた</span>'
                         : lastQ === 3 ? '<span class="srs-badge badge-reviewed badge-q-hard">🤔 うろ覚え</span>'
                         : lastQ === 0 ? '<span class="srs-badge badge-reviewed badge-q-fail">😰 知らなかった</span>'
