@@ -730,6 +730,7 @@ async function loadDramaFromLibrary(drama) {
         ...(jpProviders?.rent     || []),
         ...(jpProviders?.buy      || []),
       ];
+      console.log('[CineLearn] watch_providers JP:', JSON.stringify(providers.map(p => ({ id: p.provider_id, name: p.provider_name }))));
       providers.forEach(p => {
         if (PROVIDER_MAP[p.provider_id]) availableNames.add(PROVIDER_MAP[p.provider_id]);
       });
