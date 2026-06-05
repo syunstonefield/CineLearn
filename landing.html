@@ -677,21 +677,31 @@
           <p>
             科学的に実証されている「間隔反復法（SM-2アルゴリズム）」をシステムに組み込み。
             過去の記憶状態から「いつ復習すれば最も定着するか」を算出し、最適なタイミングで自動出題します。
-            <strong style="color:var(--text)">繰り返しが必要な単語だけを、必要なときに復習できます。</strong>
+            各単語には復習回数・「知ってた／うろ覚え／知らなかった」の評価履歴も記録され、
+            <strong style="color:var(--text)">自分の定着度が一目でわかります。</strong>
           </p>
         </div>
         <div class="feat-visual">
           <div style="font-size:12px;color:var(--text-light);margin-bottom:14px">今日の復習スケジュール</div>
           <div class="srs-item">
-            <div><div class="srs-word">litigation</div><div class="srs-from">Suits S3E4</div></div>
+            <div>
+              <div class="srs-word">litigation</div>
+              <div class="srs-from">Suits S3E4 · <span style="color:#d94f4f">😰 知らなかった</span> · 2回復習済み</div>
+            </div>
             <span class="pill red">🔴 今日</span>
           </div>
           <div class="srs-item">
-            <div><div class="srs-word">leverage</div><div class="srs-from">Silicon Valley S1E2</div></div>
+            <div>
+              <div class="srs-word">leverage</div>
+              <div class="srs-from">Silicon Valley S1E2 · <span style="color:#2da87c">✅ 知ってた</span> · 4回復習済み</div>
+            </div>
             <span class="pill gold">📅 明日</span>
           </div>
           <div class="srs-item">
-            <div><div class="srs-word">affidavit</div><div class="srs-from">Suits S2E8</div></div>
+            <div>
+              <div class="srs-word">affidavit</div>
+              <div class="srs-from">Suits S2E8 · 7回復習済み</div>
+            </div>
             <span class="pill green">⭐ 習得済み</span>
           </div>
         </div>
@@ -718,6 +728,90 @@
               <button class="popup-save">✓ 単語帳に保存</button>
             </div>
             <div style="text-align:center;font-size:12px;color:var(--text-light);margin-top:12px">← 字幕をクリックするだけ</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- NEW: ドラマベースの単語カード -->
+      <div class="feat-row flip">
+        <div>
+          <span class="feat-tag">Drama-Based Vocabulary</span>
+          <h3>字幕と連動した、情報豊かな単語カード</h3>
+          <p>
+            単語カードにはドラマの字幕から自動抽出した例文と、AIによる自然な日本語訳を表示。
+            さらに🔊ボタンで発音を即再生、📍でドラマ内の登場シーン（タイムスタンプ）を確認できます。
+            <strong style="color:var(--text)">「この単語、あのシーンで出てきた」という文脈ごと記憶に残ります。</strong>
+          </p>
+        </div>
+        <div class="feat-visual">
+          <div style="font-size:11px;color:var(--text-light);margin-bottom:14px;letter-spacing:1px;text-transform:uppercase">単語カード</div>
+          <!-- word card mock -->
+          <div style="background:#fff;border:1px solid #e8e4dc;border-radius:14px;padding:16px 18px;margin-bottom:10px">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+              <span style="font-size:16px;font-weight:700;color:#1a1a1a">litigation</span>
+              <span style="background:#f5e9d0;color:#b8923a;font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px">Core</span>
+              <span style="background:rgba(193,127,59,0.1);color:#b8923a;font-size:10px;padding:2px 7px;border-radius:10px">📍 12:34</span>
+            </div>
+            <div style="font-size:12px;color:#888;margin-bottom:2px">You want to avoid litigation at all costs.</div>
+            <div style="font-size:11px;color:#aaa;">どんな手を使っても訴訟は避けたいはずだ。</div>
+            <div style="display:flex;gap:6px;margin-top:10px;justify-content:flex-end">
+              <button style="background:none;border:1px solid #e8e4dc;border-radius:6px;padding:3px 8px;font-size:13px;cursor:pointer">🔊</button>
+              <button style="background:none;border:1px solid #e8e4dc;border-radius:6px;padding:3px 9px;font-size:11px;color:#999;cursor:pointer">Skip</button>
+            </div>
+          </div>
+          <div style="background:#fff;border:1px solid #e8e4dc;border-radius:14px;padding:16px 18px">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+              <span style="background:#e8f7f1;color:#2da87c;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px">✅ 知ってた</span>
+              <span style="font-size:15px;font-weight:700;color:#1a1a1a">leverage</span>
+              <span style="background:#f5e9d0;color:#b8923a;font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px">Core</span>
+              <span style="font-size:10px;color:#999;background:#f4f2ee;padding:2px 7px;border-radius:10px">3回復習済み</span>
+            </div>
+            <div style="font-size:12px;color:#888;margin-bottom:2px">We don't have the leverage we need.</div>
+            <div style="font-size:11px;color:#aaa;">必要なレバレッジが足りない。</div>
+            <div style="display:flex;gap:6px;margin-top:10px;justify-content:flex-end">
+              <button style="background:none;border:1px solid #e8e4dc;border-radius:6px;padding:3px 8px;font-size:13px;cursor:pointer">🔊</button>
+              <button style="background:none;border:1px solid #e8e4dc;border-radius:6px;padding:3px 9px;font-size:11px;color:#999;cursor:pointer">Skip</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- NEW: 通知 -->
+      <div class="feat-row">
+        <div>
+          <span class="feat-tag">Smart Notifications</span>
+          <h3>復習タイミングをプッシュ通知でお知らせ</h3>
+          <p>
+            朝7時に「今日の復習単語数」、夜21時に「次のエピソードを見る前に復習しよう」という
+            2種類のリマインダーをスマホ・PCへ自動送信。
+            <strong style="color:var(--text)">視聴と学習をセットにする習慣が、自然と身につきます。</strong>
+          </p>
+          <ul style="list-style:none;padding:0;margin-top:16px;display:flex;flex-direction:column;gap:8px">
+            <li style="display:flex;align-items:center;gap:10px;font-size:14px;color:var(--text-muted)">
+              <span style="font-size:18px">🌅</span> <strong style="color:var(--text)">朝7時</strong>　今日の復習 N単語をお知らせ
+            </li>
+            <li style="display:flex;align-items:center;gap:10px;font-size:14px;color:var(--text-muted)">
+              <span style="font-size:18px">🌙</span> <strong style="color:var(--text)">夜21時</strong>　視聴前の復習リマインダー
+            </li>
+          </ul>
+        </div>
+        <div class="feat-visual" style="display:flex;flex-direction:column;gap:12px;justify-content:center">
+          <!-- notification mock -->
+          <div style="background:#1c1c1e;border-radius:16px;padding:14px 16px;display:flex;align-items:flex-start;gap:12px">
+            <div style="width:36px;height:36px;background:#b8923a;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:18px">📚</div>
+            <div>
+              <div style="color:#fff;font-size:13px;font-weight:600;margin-bottom:2px">今日の復習があります</div>
+              <div style="color:#aaa;font-size:12px;line-height:1.5">8単語の復習日です！忘れないうちにサクッと復習しよう 💪</div>
+              <div style="color:#666;font-size:11px;margin-top:4px">CineLearn · 朝7:00</div>
+            </div>
+          </div>
+          <div style="background:#1c1c1e;border-radius:16px;padding:14px 16px;display:flex;align-items:flex-start;gap:12px">
+            <div style="width:36px;height:36px;background:#b8923a;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:18px">🎬</div>
+            <div>
+              <div style="color:#fff;font-size:13px;font-weight:600;margin-bottom:2px">次のエピソードを見る前に</div>
+              <div style="color:#aaa;font-size:12px;line-height:1.5">単語を復習してからドラマを楽しもう！学習効果が2倍に 📖✨</div>
+              <div style="color:#666;font-size:11px;margin-top:4px">CineLearn · 夜21:00</div>
+            </div>
           </div>
         </div>
       </div>
