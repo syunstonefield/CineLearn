@@ -2110,36 +2110,37 @@ async function fillMissingExampleJa(words, sourceLabel) {
 
   _fillJaRunning = true;
   try {
-    const inputArr = missing.map(w => ({ word: w.word, example: w.example, example_ja: '' }));
-    const prompt = `以下のJSON配列の各要素について、example（ドラマの字幕の英文）を自然な日本語に翻訳してexample_jaに入れてください。
+    const BATCH = 10; // 一度に送る単語数（トークン制限対策）
+    let changed = false;
+
+    for (let i = 0; i < missing.length; i += BATCH) {
+      const batch = missing.slice(i, i + BATCH);
+      const inputArr = batch.map(w => ({ word: w.word, example: w.example, example_ja: '' }));
+      const prompt = `以下のJSON配列の各要素について、example（ドラマの字幕の英文）を自然な日本語に翻訳してexample_jaに入れてください。
 - example の文全体を翻訳すること（単語の意味説明は不要）
 - JSON配列のみ返答（説明不要）
 
-${JSON.stringify(inputArr, null, 2)}`;
+${JSON.stringify(inputArr)}`;
 
-    const text = await callClaude(prompt, 1500);
-    const rawArr = text.match(/\[[\s\S]*\]/)?.[0] || '[]';
-    let arr = [];
-    try { arr = JSON.parse(rawArr); } catch { arr = JSON.parse(repairJson(rawArr)); }
+      try {
+        const text   = await callClaude(prompt, 1500);
+        const rawArr = text.match(/\[[\s\S]*\]/)?.[0] || '[]';
+        let arr = [];
+        try { arr = JSON.parse(rawArr); } catch { arr = JSON.parse(repairJson(rawArr)); }
 
-    let changed = false;
-    arr.forEach(item => {
-      if (!item?.word || !item?.example_ja?.trim()) return;
-      const w = words.find(x => x.word.toLowerCase() === item.word.toLowerCase());
-      if (!w) return;
-      w.example_ja    = item.example_ja.trim();
-      w.example_ja_ok = true;
-      changed = true;
-    });
+        arr.forEach(item => {
+          if (!item?.word || !item?.example_ja?.trim()) return;
+          const w = words.find(x => x.word.toLowerCase() === item.word.toLowerCase());
+          if (!w) return;
+          w.example_ja    = item.example_ja.trim();
+          w.example_ja_ok = true;
+          changed = true;
+        });
+      } catch(e) { console.error('[fillMissingExampleJa batch]', e); }
+    }
 
     if (changed) {
       updateHistoryWords(currentHistoryId, words);
-      // vocabWords も同期
-      words.forEach(w => {
-        const vw = vocabWords.find(v => v.word === w.word);
-        if (vw && w.example_ja_ok) { vw.example_ja = w.example_ja; vw.example_ja_ok = true; }
-      });
-      // 再描画（mutex が true の間は fillMissingExampleJa は再実行されない）
       await renderVocab(words, sourceLabel, true);
     }
   } catch(e) { console.error('[fillMissingExampleJa]', e); }
