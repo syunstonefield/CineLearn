@@ -1016,58 +1016,74 @@ function getWordVariants(word) {
   const w = word.toLowerCase();
   const v = new Set([w]);
 
-  // 不規則動詞：原形 → 全活用形
+  // ── 不規則動詞 ──
   if (IRREGULAR_VERBS[w]) IRREGULAR_VERBS[w].forEach(f => v.add(f));
-
-  // 不規則動詞：活用形 → 原形と全兄弟形
   if (IRREGULAR_REVERSE[w]) {
     const base = IRREGULAR_REVERSE[w];
     v.add(base);
     IRREGULAR_VERBS[base]?.forEach(f => v.add(f));
   }
 
-  // 規則変化を生成
-  // -e 語尾: make → making/makes/made
-  if (w.endsWith('e')) {
-    v.add(w + 's');
-    v.add(w.slice(0, -1) + 'ing');
-    v.add(w.slice(0, -1) + 'ed');
-  } else {
-    v.add(w + 's');
-    v.add(w + 'ing');
-    v.add(w + 'ed');
-    v.add(w + 'd');
-    // 末尾が「短母音+子音」: run → running
-    if (/[aeiou][bcdfghjklmnpqrstvwxyz]$/.test(w)) {
-      v.add(w + w.slice(-1) + 'ing');
-      v.add(w + w.slice(-1) + 'ed');
+  // ── 語幹から全活用形を展開するヘルパー ──
+  // 語幹が判明したらここに渡すと s/ing/ed/es などを全部追加する
+  function expandBase(base) {
+    if (!base || base.length < 2) return;
+    v.add(base);
+    if (base.endsWith('e')) {
+      // incorporate → incorporates / incorporating / incorporated
+      v.add(base + 's');
+      v.add(base.slice(0, -1) + 'ing');
+      v.add(base.slice(0, -1) + 'ed');
+    } else if (base.endsWith('y') && !/[aeiou]y$/.test(base)) {
+      // study → studies / studied / studying
+      v.add(base.slice(0, -1) + 'ies');
+      v.add(base.slice(0, -1) + 'ied');
+      v.add(base + 'ing');
+    } else {
+      v.add(base + 's');
+      v.add(base + 'ing');
+      v.add(base + 'ed');
+      v.add(base + 'd');
+      // 短母音+子音の重子音: run → running
+      if (/[aeiou][bcdfghjklmnpqrstvwxyz]$/.test(base)) {
+        v.add(base + base.slice(-1) + 'ing');
+        v.add(base + base.slice(-1) + 'ed');
+      }
     }
   }
-  // -y → -ies/-ied
-  if (w.endsWith('y') && !/[aeiou]y$/.test(w)) {
-    v.add(w.slice(0, -1) + 'ies');
-    v.add(w.slice(0, -1) + 'ied');
-  }
-  // -es: watches → watch
-  if (w.endsWith('es') && w.length > 4) v.add(w.slice(0, -2));
-  if (w.endsWith('ies') && w.length > 4) v.add(w.slice(0, -3) + 'y');
 
-  // -ing → 語幹を推定
+  // 入力単語そのものを語幹として展開
+  expandBase(w);
+
+  // ── 活用形から語幹を逆算して再展開 ──
+
+  // -ing → 語幹
   if (w.endsWith('ing') && w.length > 5) {
     const stem = w.slice(0, -3);
-    v.add(stem);
-    v.add(stem + 'e');
-    if (stem.length > 2 && stem.slice(-1) === stem.slice(-2, -1)) v.add(stem.slice(0, -1));
+    expandBase(stem + 'e');   // making → make
+    expandBase(stem);          // think → think（eなし）
+    // running → run（重子音）
+    if (stem.length > 2 && stem.slice(-1) === stem.slice(-2, -1)) {
+      expandBase(stem.slice(0, -1));
+    }
   }
-  // -ed → 語幹を推定
+  // -ed → 語幹
   if (w.endsWith('ed') && w.length > 4) {
     const stem = w.slice(0, -2);
-    v.add(stem);
-    v.add(stem + 'e');
-    if (stem.length > 2 && stem.slice(-1) === stem.slice(-2, -1)) v.add(stem.slice(0, -1));
+    expandBase(stem + 'e');   // incorporated → incorporate
+    expandBase(stem);          // walked → walk
+    // stopped → stop（重子音）
+    if (stem.length > 2 && stem.slice(-1) === stem.slice(-2, -1)) {
+      expandBase(stem.slice(0, -1));
+    }
   }
-  // -s → 語幹
-  if (w.endsWith('s') && w.length > 3 && !w.endsWith('ss')) v.add(w.slice(0, -1));
+  // -ies → -y語幹
+  if (w.endsWith('ies') && w.length > 4) expandBase(w.slice(0, -3) + 'y');
+  // -ied → -y語幹
+  if (w.endsWith('ied') && w.length > 4) expandBase(w.slice(0, -3) + 'y');
+  // -s/-es → 語幹
+  if (w.endsWith('es') && w.length > 4)  expandBase(w.slice(0, -2));
+  if (w.endsWith('s')  && w.length > 3 && !w.endsWith('ss')) expandBase(w.slice(0, -1));
 
   return v;
 }
