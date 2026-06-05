@@ -1588,6 +1588,14 @@ async function renderExtWordsSection(existingWords = []) {
   div.appendChild(listDiv);
   sect.appendChild(div);
 
+  // 拡張機能単語を currentVocabWords にマージ（復習対象に含める）
+  const existingWordSet = new Set(currentVocabWords.map(w => w.word.toLowerCase()));
+  extNormalized.forEach(w => {
+    if (!existingWordSet.has(w.word.toLowerCase())) {
+      currentVocabWords.push(w);
+    }
+  });
+
   // スピーク・スキップ・タイムスタンプのイベントを付与
   listDiv.addEventListener('click', e => {
     const speakBtn = e.target.closest('.btn-speak');
