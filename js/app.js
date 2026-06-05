@@ -2605,11 +2605,34 @@ async function initPushNotify() {
     return;
   }
 
-  // 既に許可済みの場合
+  // 既に許可済みの場合 → 購読情報をSupabaseに保存し直す
   if (Notification.permission === 'granted') {
     btn.textContent = '✅ 通知は有効です';
     btn.disabled = true;
     btn.style.opacity = '0.6';
+    // 購読情報が未保存の可能性があるので再保存を試みる
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      let subscription = await reg.pushManager.getSubscription();
+      if (!subscription) {
+        subscription = await reg.pushManager.subscribe({
+          userVisibleOnly:      true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+        });
+      }
+      const user = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
+      if (user && subscription) {
+        const r = await fetch('/api/push-subscribe', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ subscription, user_id: user.id }),
+        });
+        if (r.ok) {
+          status.textContent = '毎朝8時に復習日をお知らせします 🎬';
+          status.style.display = 'block';
+        }
+      }
+    } catch (e) { console.error('re-subscribe error:', e); }
     return;
   }
 
@@ -2637,11 +2660,16 @@ async function initPushNotify() {
       // Supabase に保存（ログイン中のみ）
       const user = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
       if (user) {
-        await fetch('/api/push-subscribe', {
+        const r = await fetch('/api/push-subscribe', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
           body:    JSON.stringify({ subscription, user_id: user.id }),
         });
+        if (!r.ok) {
+          const err = await r.text();
+          console.error('push-subscribe failed:', err);
+          throw new Error('保存失敗: ' + err);
+        }
         btn.textContent = '✅ 通知を有効にしました';
         status.textContent = '毎朝8時に復習日をお知らせします 🎬';
       } else {
