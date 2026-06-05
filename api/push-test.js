@@ -35,7 +35,16 @@ export default async function handler(req, res) {
 
   // 全購読者を取得
   const subsRes = await sbFetch('/push_subscriptions?select=user_id,endpoint,p256dh,auth');
-  if (!subsRes.ok) return res.status(500).json({ error: 'subscriptions fetch failed' });
+  if (!subsRes.ok) {
+    const detail = await subsRes.text();
+    return res.status(500).json({
+      error: 'subscriptions fetch failed',
+      status: subsRes.status,
+      detail,
+      supabase_url: SUPABASE_URL ? '設定済み' : '未設定',
+      service_key:  SUPABASE_SERVICE_KEY ? '設定済み' : '未設定',
+    });
+  }
   const subscriptions = await subsRes.json();
 
   if (subscriptions.length === 0) {
