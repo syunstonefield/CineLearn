@@ -305,13 +305,24 @@ function getEpisodeContext() {
   }
 
   // ② ページ全体の全テキストノードから S/E を広くスキャン（Netflix 等で有効）
+  // ただし「次のエピソード」「オートプレイ」関連要素は除外して誤検知を防ぐ
   if (season === null) {
+    const EXCLUDE_SELECTORS = [
+      '[class*="next-episode"]', '[class*="nextEpisode"]', '[class*="next_episode"]',
+      '[class*="autoplay"]',     '[class*="AutoPlay"]',
+      '[class*="up-next"]',      '[class*="upNext"]',
+      '[class*="postplay"]',     '[class*="PostPlay"]',
+      '[data-uia*="next"]',      '[data-uia*="autoplay"]',
+      '[aria-label*="次のエピソード"]', '[aria-label*="Next Episode"]',
+    ];
+    const isExcluded = (el) => el?.closest(EXCLUDE_SELECTORS.join(','));
+
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
       acceptNode(node) {
         const p = node.parentElement;
-        // スクリプト・スタイル・字幕テキスト自体は除外
         if (!p || ['SCRIPT','STYLE','NOSCRIPT'].includes(p.tagName)) return NodeFilter.FILTER_REJECT;
         if (p.classList.contains('cl-word') || p.closest('#cl-popup')) return NodeFilter.FILTER_REJECT;
+        if (isExcluded(p)) return NodeFilter.FILTER_REJECT;
         return node.textContent.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
       }
     });
