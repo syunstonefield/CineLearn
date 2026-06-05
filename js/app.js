@@ -2221,36 +2221,12 @@ function renderDramas(dramas, containerId = 'dramaList') {
 function selectDrama(drama, card) {
   document.querySelectorAll('.drama-card').forEach(c => c.classList.remove('selected'));
   card.classList.add('selected');
-  selectedDrama = drama;
   cachedSubtitleText = '';
   cachedSubtitleSource = '';
   selectedViewingService = null;
   dramaSeasonInfo = [];
   closeAddDrama();
-
-  // サービス選択画面へ遷移
-  goToStep('service-select');
-  document.getElementById('serviceSelectDramaTitle').textContent =
-    `「${drama.title}」をどのサービスで視聴しますか？`;
-
-  // 視聴サービス選択グリッドを生成
-  const services = [
-    { name: 'Netflix', icon: '🔴' },
-    { name: 'YouTube', icon: '▶️' },
-  ];
-  const grid = document.getElementById('viewingServiceGrid');
-  grid.innerHTML = '';
-  services.forEach(svc => {
-    const card2 = document.createElement('div');
-    card2.className = 'viewing-service-card';
-    if (svc.name === selectedViewingService) {
-      card2.style.borderColor = 'var(--accent)';
-      card2.style.background = 'rgba(193,127,59,0.07)';
-    }
-    card2.innerHTML = `<div class="vs-icon">${svc.icon}</div><div class="vs-name">${svc.name}</div>${svc.name === selectedViewingService ? '<div style="font-size:11px;color:var(--accent);margin-top:4px">前回使用</div>' : ''}`;
-    card2.addEventListener('click', () => selectViewingService(svc.name, drama));
-    grid.appendChild(card2);
-  });
+  loadDramaFromLibrary(drama);
 }
 
 // サービスが選ばれた後にシーズン情報を取得してscreen-4へ
