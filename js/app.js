@@ -681,12 +681,17 @@ async function loadDramaFromLibrary(drama) {
   // TMDb の provider_id → CineLearnサービス名のマッピング（JP向け）
   const PROVIDER_MAP = {
     8:    'Netflix',
-    9:    'Amazon Prime',
+    1796: 'Netflix',      // Netflix Standard with Ads
+    10:   'Amazon Prime', // Amazon Video
+    9:    'Amazon Prime', // Amazon Prime Video（念のため）
     337:  'Disney+',
-    2:    'Apple TV+',
-    269:  'Hulu',
+    350:  'Apple TV+',
+    2:    'Apple TV+',    // Apple iTunes（念のため）
+    15:   'Hulu',
+    269:  'Hulu',         // Hulu Japan（念のため）
     97:   'U-NEXT',
     192:  'YouTube',
+    3:    'YouTube',      // Google Play Movies
   };
 
   const ALL_SERVICES = [
