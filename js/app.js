@@ -890,7 +890,7 @@ async function _loadDramaFromLibrary_unused(drama) {
   document.getElementById('vocabDramaTitle').textContent =
     `「${drama.title}」のエピソードを選んで単語を予習する`;
 
-  document.getElementById('vocabNextBtn').style.display = 'none';
+  document.getElementById('vocabNextBtn').style.display = 'none'; document.getElementById('vocabDeleteBtn').style.display = 'none';
 
   if (dramaSeasonInfo.length && selectedDrama?.title === drama.title) {
     buildSeasonEpisodeSelectors(dramaSeasonInfo);
@@ -1370,7 +1370,7 @@ async function triggerEpisodeLoad() {
   selectedEpisode = parseInt(document.getElementById('episodeSelect').value);
   saveSettings();
 
-  document.getElementById('vocabNextBtn').style.display = 'none';
+  document.getElementById('vocabNextBtn').style.display = 'none'; document.getElementById('vocabDeleteBtn').style.display = 'none';
   document.getElementById('vocabGenBtn').style.display = '';
   vocabWords = [];
   quizData = [];
@@ -1409,12 +1409,79 @@ function subtitleRawCacheKey(title, season, episode) {
 
 // 拡張機能で保存した単語のうち、現ドラマ・エピソードに一致するものを返す
 // S/E 不明の単語は字幕キャッシュで出現を確認してフィルタリング
+// ─── タイトル名寄せ（日本語 → 英語）────────────────────────────────────────
+// アマプラは日本語タイトル（例：オフキャンパス）で保存する一方、Webアプリの
+// ドラマは英語/TMDB名（例：Off Campus）。文字列では一致しないため、TMDB で
+// 日本語タイトルを英語名に解決し localStorage にキャッシュして名寄せする。
+function getTitleAliasMap() {
+  try { return JSON.parse(localStorage.getItem('cl_title_alias') || '{}'); }
+  catch { return {}; }
+}
+function saveTitleAlias(jp, en) {
+  if (!jp || !en) return;
+  const map = getTitleAliasMap();
+  if (map[jp] === en) return;
+  map[jp] = en;
+  try { localStorage.setItem('cl_title_alias', JSON.stringify(map)); } catch {}
+}
+async function resolveEnglishTitle(jpTitle) {
+  if (!jpTitle) return null;
+  // ASCII のみ（既に英語）なら解決不要
+  if (/^[\x00-\x7F]+$/.test(jpTitle)) return jpTitle;
+  const cache = getTitleAliasMap();
+  if (cache[jpTitle]) return cache[jpTitle];
+  try {
+    const searchRes = await fetch(`${API_BASE}/api/tmdb`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'search', query: jpTitle })
+    });
+    const searchData = await searchRes.json();
+    const show = searchData.results?.[0];
+    if (!show) return null;
+    const detailRes = await fetch(`${API_BASE}/api/tmdb`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'seasons', tvId: show.id })
+    });
+    const detail = await detailRes.json();
+    const en = detail.name || show.original_name || null;
+    if (en) saveTitleAlias(jpTitle, en);
+    return en;
+  } catch { return null; }
+}
+
 async function getMyWordsForEpisode(dramaTitle, season, episode) {
   if (!dramaTitle) return [];
   const words = await getActiveWords();
-  const tl = dramaTitle.toLowerCase();
 
-  // 現エピソードの字幕キャッシュ（メモリ優先 → localStorage）
+  // 比較用タイトル候補（選択中ドラマの title と englishTitle 両方）
+  const titleCandidates = [
+    dramaTitle,
+    selectedDrama?.title,
+    selectedDrama?.englishTitle,
+  ].filter(Boolean).map(t => t.toLowerCase());
+
+  // この回（S/E 一致）の単語の日本語タイトルを TMDB で英語名に名寄せ（キャッシュ優先）。
+  // ネットワークは未キャッシュの日本語タイトルのみ・該当回の単語に限定する。
+  const seWords = words.filter(w =>
+    w.dramaTitle && w.season != null && w.episode != null &&
+    w.season == season && w.episode == episode
+  );
+  const aliasCache = getTitleAliasMap();
+  const toResolve = [...new Set(
+    seWords.map(w => w.dramaTitle)
+      .filter(t => !/^[\x00-\x7F]+$/.test(t) && !aliasCache[t])
+  )];
+  for (const t of toResolve) { await resolveEnglishTitle(t); }
+  const alias = getTitleAliasMap();
+
+  // 元タイトル + 名寄せ後タイトルのいずれかが候補と相互包含すれば一致
+  const titleMatches = (w) => {
+    const names = [w.dramaTitle, alias[w.dramaTitle]]
+      .filter(Boolean).map(s => s.toLowerCase());
+    return names.some(wl => titleCandidates.some(tc => wl.includes(tc) || tc.includes(wl)));
+  };
+
+  // 現エピソードの字幕キャッシュ（S/E 不明な単語の照合にのみ使用）
   const episodeSub = (
     cachedSubtitleText ||
     localStorage.getItem(subtitleCacheKey(dramaTitle, season, episode)) ||
@@ -1422,16 +1489,14 @@ async function getMyWordsForEpisode(dramaTitle, season, episode) {
     ''
   ).toLowerCase();
 
-
   const result = words.filter(w => {
     if (!w.dramaTitle) return false;
-    const wl = w.dramaTitle.toLowerCase();
-    if (!(wl.includes(tl) || tl.includes(wl))) return false;
+    // タイトル一致が必須（名寄せ込み）。これにより別作品の同 S/E 単語の混入を防ぐ。
+    if (!titleMatches(w)) return false;
     if (w.season != null && w.episode != null) {
-      // 型が異なる場合（数値 vs 文字列）に備えて == を使用
-      return w.season == season && w.episode == episode;
+      return w.season == season && w.episode == episode; // 数値/文字列差に == で対応
     }
-    // S/E 不明: 字幕キャッシュがあれば実際に登場するか確認
+    // S/E 不明の単語のみ：字幕に登場するかで判定
     return episodeSub ? episodeSub.includes(w.word.toLowerCase()) : false;
   });
   return result;
@@ -1685,13 +1750,42 @@ async function checkAndShowSavedVocab() {
   );
 
   if (entry?.words?.length) {
-    vocabWords       = entry.words;
+    let words = entry.words;
+
+    // 自己修復：拡張機能由来(source:'ext')の単語を現在のロジックで再検証し、
+    // 別作品混入などで無効になったものを除去する（AI生成語は対象外）。
+    // 修正前に誤って焼き込まれた単語（例：別作品の同 S/E 語）を遡って掃除する。
+    if (words.some(w => w.source === 'ext')) {
+      try {
+        const validExt = await getMyWordsForEpisode(
+          selectedDrama.title, selectedSeason, selectedEpisode
+        );
+        const validSet = new Set(validExt.map(w => w.word.toLowerCase()));
+        const cleaned = words.filter(w =>
+          w.source !== 'ext' || validSet.has(w.word.toLowerCase())
+        );
+        if (cleaned.length !== words.length) {
+          words = cleaned;
+          entry.words = cleaned;
+          localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+          // クラウド履歴も更新
+          if (typeof sbFetch !== 'undefined' && isLoggedIn()) {
+            sbFetch(`/rest/v1/history?id=eq.${entry.id}`, {
+              method: 'PATCH',
+              body: JSON.stringify({ words: cleaned })
+            }).catch(() => {});
+          }
+        }
+      } catch { /* 再検証失敗時は元の単語をそのまま使う */ }
+    }
+
+    vocabWords       = words;
     quizData         = entry.quiz || [];
     currentHistoryId = entry.id;
     document.getElementById('episodeSelected').textContent =
       `Season ${selectedSeason} Episode ${selectedEpisode} ✓ 保存済み`;
     document.getElementById('vocabGenBtn').style.display = 'none';
-    renderVocab(entry.words, `${selectedDrama.title} S${selectedSeason}E${selectedEpisode}`, true);
+    renderVocab(words, `${selectedDrama.title} S${selectedSeason}E${selectedEpisode}`, true);
     return true;
   }
 
@@ -1707,7 +1801,7 @@ async function checkAndShowSavedVocab() {
   document.getElementById('vocabGenBtn').style.display = '';
   document.getElementById('vocabGenBtn').disabled = false;
   document.getElementById('vocabGenBtn').textContent = '単語を生成';
-  document.getElementById('vocabNextBtn').style.display = 'none';
+  document.getElementById('vocabNextBtn').style.display = 'none'; document.getElementById('vocabDeleteBtn').style.display = 'none';
   await renderExtWordsSection([]);
   return true;
 }
@@ -1829,7 +1923,7 @@ async function generateVocabFromEpisode() {
 
   document.getElementById('vocabSection').innerHTML =
     '<div class="loading"><div class="spinner"></div>単語を分析中...</div>';
-  document.getElementById('vocabNextBtn').style.display = 'none';
+  document.getElementById('vocabNextBtn').style.display = 'none'; document.getElementById('vocabDeleteBtn').style.display = 'none';
 
   try {
     if (!cachedSubtitleText) {
@@ -2129,6 +2223,7 @@ async function renderVocab(words, sourceLabel, skipHistory = false) {
 
   document.getElementById('vocabNextBtn').style.display = 'block';
   document.getElementById('vocabGenBtn').style.display  = 'none';
+  document.getElementById('vocabDeleteBtn').style.display = 'block';
 
   if (!skipHistory) saveToHistory();
   saveSettings();
@@ -3013,6 +3108,35 @@ function deleteHistoryItem(id) {
   updateHistoryBadge();
   renderHistoryList(); // 一覧を再描画
 }
+
+// 単語リスト削除ボタン
+document.getElementById('vocabDeleteBtn').addEventListener('click', async () => {
+  if (!confirm('この単語リストを削除しますか？')) return;
+  if (currentHistoryId) {
+    const history = loadHistory().filter(h => h.id !== currentHistoryId);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+    // Supabaseからも削除
+    if (typeof sbFetch !== 'undefined' && isLoggedIn()) {
+      sbFetch(`/rest/v1/history?id=eq.${currentHistoryId}`, { method: 'DELETE' }).catch(() => {});
+    }
+    currentHistoryId = null;
+    updateHistoryBadge();
+  }
+  // 字幕キャッシュも削除
+  if (selectedDrama && selectedSeason && selectedEpisode) {
+    const title = (selectedDrama.englishTitle || selectedDrama.title).toLowerCase().replace(/[^a-z0-9]/g, '_');
+    localStorage.removeItem(`cl_sub_${title}_s${selectedSeason}e${selectedEpisode}`);
+  }
+  vocabWords = [];
+  quizData = [];
+  document.getElementById('vocabSection').innerHTML = '<div class="empty-state">エピソードを選んでください</div>';
+  document.getElementById('vocabNextBtn').style.display = 'none';
+  document.getElementById('vocabDeleteBtn').style.display = 'none';
+  document.getElementById('vocabGenBtn').style.display = '';
+  document.getElementById('vocabGenBtn').disabled = false;
+  document.getElementById('vocabGenBtn').textContent = '単語を生成';
+  document.getElementById('episodeSelected').textContent = '';
+});
 
 // 起動時にバッジを初期化する
 updateHistoryBadge();

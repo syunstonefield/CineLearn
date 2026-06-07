@@ -8,6 +8,10 @@ const CL_WORDS_KEY_BASE = 'cl_my_words';
 const ACCENT        = '#c17f3b';
 const LONG_PRESS_MS = 600; // 長押し判定ミリ秒
 
+// Amazon Prime Video は video.pause() の連続呼び出しで DRM 再生が落ちるため、
+// ホバー時の自動一時停止を無効化する（クリックでの単語保存は有効）
+const IS_AMAZON = /amazon\.|primevideo\./.test(location.hostname);
+
 const SUBTITLE_SELECTORS = [
   // Netflix
   '.player-timedtext-text-container',
@@ -24,6 +28,15 @@ const SUBTITLE_SELECTORS = [
   '.ytp-caption-segment',
   '.captions-text',
   '[class*="caption-visual-line"]',
+  // Amazon Prime Video
+  '.atvwebplayersdk-captions-text',
+  '[class*="captions-text"]',
+  '.timedTextAttributedString',
+  '[data-testid="timed-text-container"]',
+  '[class*="TimedText"]',
+  '[class*="timedText"]',
+  '.dvui-caption',
+  '[class*="caption-window"]',
 ];
 
 // UI 要素（DOMContentLoaded 後に作成）
@@ -37,9 +50,12 @@ let popup = null;
 let longPressTimer    = null;
 let longPressTriggered = false;
 
-// mousedown：長押しタイマーをスタートし、Netflix へ伝播させない
-document.addEventListener('mousedown', (e) => {
-  const els    = document.elementsFromPoint(e.clientX, e.clientY);
+// mousedown / pointerdown：長押しタイマーをスタートし、プレイヤーへ伝播させない
+function handleDown(e) {
+  const clientX = e.clientX ?? e.touches?.[0]?.clientX;
+  const clientY = e.clientY ?? e.touches?.[0]?.clientY;
+  if (clientX == null) return;
+  const els    = document.elementsFromPoint(clientX, clientY);
   const wordEl = els.find(el => el.classList?.contains('cl-word'));
   if (!wordEl) return;
 
@@ -55,13 +71,15 @@ document.addEventListener('mousedown', (e) => {
     showWordPopup(wordEl.dataset.word, wordEl.dataset.sentence,
                   wordEl.getBoundingClientRect());
   }, LONG_PRESS_MS);
-}, true);
+}
+document.addEventListener('mousedown', handleDown, true);
 
-// click：Netflix の play/pause をブロックし、通常クリックのポップアップを表示
-// Netflix は mousedown ではなく click でplay/pauseを処理するため
-// click もキャプチャする必要がある
-document.addEventListener('click', (e) => {
-  const els    = document.elementsFromPoint(e.clientX, e.clientY);
+// click / pointerup：プレイヤーの play/pause をブロックし、ポップアップを表示
+function handleClick(e) {
+  const clientX = e.clientX ?? e.changedTouches?.[0]?.clientX;
+  const clientY = e.clientY ?? e.changedTouches?.[0]?.clientY;
+  if (clientX == null) return;
+  const els    = document.elementsFromPoint(clientX, clientY);
   const wordEl = els.find(el => el.classList?.contains('cl-word'));
   if (!wordEl) return;
 
@@ -80,7 +98,8 @@ document.addEventListener('click', (e) => {
   // 通常クリック：ポップアップ表示
   showWordPopup(wordEl.dataset.word, wordEl.dataset.sentence,
                 wordEl.getBoundingClientRect());
-}, true);
+}
+document.addEventListener('click', handleClick, true);
 
 // ─────────────────────────────────────────────────────────────────
 // ② ホバー検出（mousemove + elementsFromPoint）
@@ -152,9 +171,15 @@ function init() {
   });
 
   // 字幕監視を開始
-  findAndWatchSubtitles();
-  new MutationObserver(() => findAndWatchSubtitles())
-    .observe(document.body, { childList: true, subtree: true });
+  if (IS_AMAZON) {
+    // アマプラは React 管理 DOM のため直接書き換えると落ちる。
+    // 元字幕を透明化し、自前オーバーレイをポーリングで重ねる方式を使う。
+    createAmazonOverlay();
+  } else {
+    findAndWatchSubtitles();
+    new MutationObserver(() => findAndWatchSubtitles())
+      .observe(document.body, { childList: true, subtree: true });
+  }
 }
 
 // document_start では body がまだない → DOMContentLoaded まで待つ
@@ -179,7 +204,7 @@ function pauseVideo() {
   clearInterval(pauseKeepAlive);
   pauseKeepAlive = setInterval(() => {
     const keepPaused = isSubtitleHovered || popup?.style.display === 'flex';
-    if (!keepPaused) { clearInterval(pauseKeepAlive); return; }
+    if (!keepPaused) { clearInterval(pauseKeepAlive); pauseKeepAlive = null; return; }
     if (pausedVideoRef && !pausedVideoRef.paused) pausedVideoRef.pause();
   }, 50);
 }
@@ -198,6 +223,16 @@ function resumeVideo() {
     video.play().catch(() => {});
   }, 150);
 }
+
+// ユーザーが動画を直接操作（再生ボタン等）した場合はkeepaliveを解除する
+document.addEventListener('play', (e) => {
+  if (e.target?.tagName !== 'VIDEO') return;
+  // ユーザーが明示的に再生した場合、CineLearnの一時停止を解除
+  clearInterval(pauseKeepAlive);
+  pauseKeepAlive = null;
+  pausedVideoRef = null;
+  isSubtitleHovered = false;
+}, true);
 
 function closePopupAndResume() {
   if (!popup) return;
@@ -283,6 +318,14 @@ function getEpisodeContext() {
     '[class*="titleTreatmentWrapper"]',
     '[data-testid="title"]',
     '.webPlayerUIContainer .title',
+    // Amazon Prime Video
+    '[data-automation-id="title"]',
+    '.atvwebplayersdk-title-text',
+    '[class*="TitleText"]',
+    '[class*="titleText"]',
+    '.av-detail-section h1',
+    '[data-testid="series-title"]',
+    '[data-testid="episode-name"]',
   ];
 
   for (const sel of titleSelectors) {
@@ -450,9 +493,18 @@ async function showWordPopup(word, sentence, rect) {
 // ─────────────────────────────────────────────────────────────────
 function wrapWordsInElement(el) {
   if (!el || !el.textContent?.trim()) return;
-  if (el.querySelector?.('.cl-word')) return;
 
-  const sentence = el.textContent.trim();
+  // テキストが変化した場合は既存の cl-word を解除して再ラップする
+  const currentText = el.textContent.trim();
+  if (el.dataset.clWrapped === currentText) return; // 同じ内容なら何もしない
+
+  // 既存の cl-word span を元のテキストノードに戻す
+  el.querySelectorAll?.('.cl-word').forEach(span => {
+    span.replaceWith(document.createTextNode(span.textContent));
+  });
+
+  if (!el.textContent?.trim()) return;
+  const sentence = currentText;
   const walker   = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
       if (node.parentElement?.classList.contains('cl-word')) return NodeFilter.FILTER_REJECT;
@@ -484,14 +536,113 @@ function wrapWordsInElement(el) {
 
     parent.replaceChild(fragment, textNode);
   });
+
+  // ラップ済みテキストを記録（次回の変化検知に使う）
+  el.dataset.clWrapped = sentence;
 }
 
 // ─────────────────────────────────────────────────────────────────
-// 字幕コンテナを探して監視する
+// Amazon Prime Video 専用：オーバーレイ方式
+//   React が管理する字幕 DOM を直接書き換えると、次の字幕更新時に
+//   React の差分計算が壊れてプレイヤーごと落ちる（会話が速いと字幕欠落も発生）。
+//   そこで元字幕は CSS で透明化し、その上に自前のクリック可能な層を重ねる。
+// ─────────────────────────────────────────────────────────────────
+let clOverlay       = null;
+let lastOverlayText = '';
+
+function createAmazonOverlay() {
+  // ① 元字幕テキストを透明化（DOM は触らず CSS のみ＝React と競合しない）
+  const style = document.createElement('style');
+  style.textContent = `
+    .atvwebplayersdk-captions-text,
+    .atvwebplayersdk-captions-text * { color: transparent !important; }
+  `;
+  (document.head || document.documentElement).appendChild(style);
+
+  // ② オーバーレイ層
+  clOverlay = document.createElement('div');
+  Object.assign(clOverlay.style, {
+    position: 'fixed', zIndex: '2147483640',
+    pointerEvents: 'none', textAlign: 'center',
+    display: 'none', lineHeight: '1.3', whiteSpace: 'pre-wrap',
+    fontFamily: 'inherit',
+  });
+  document.body.appendChild(clOverlay);
+
+  // ③ ポーリングで字幕を追従（MutationObserver より競合が少なく安定）
+  setInterval(updateAmazonOverlay, 150);
+}
+
+function findAmazonCaption() {
+  const sels = ['.atvwebplayersdk-captions-text', '[class*="captions-text"]'];
+  for (const sel of sels) {
+    for (const el of document.querySelectorAll(sel)) {
+      if (el.innerText?.trim()) return el;
+    }
+  }
+  return null;
+}
+
+function updateAmazonOverlay() {
+  if (!clOverlay) return;
+  const cap = findAmazonCaption();
+  if (!cap) {
+    if (clOverlay.style.display !== 'none') {
+      clOverlay.style.display = 'none';
+      lastOverlayText = '';
+    }
+    return;
+  }
+
+  const text = cap.innerText.trim();
+  if (text !== lastOverlayText) {
+    lastOverlayText = text;
+    buildOverlayWords(text);
+  }
+
+  // 元字幕の位置・サイズに追従
+  const rect = cap.getBoundingClientRect();
+  const cs   = getComputedStyle(cap);
+  Object.assign(clOverlay.style, {
+    display:    'block',
+    left:       `${rect.left}px`,
+    top:        `${rect.top}px`,
+    width:      `${rect.width}px`,
+    fontSize:   cs.fontSize,
+    fontWeight: cs.fontWeight,
+  });
+}
+
+function buildOverlayWords(text) {
+  clOverlay.innerHTML = '';
+  const sentence = text.replace(/\n/g, ' ');
+  const lines    = text.split('\n');
+
+  lines.forEach((line, li) => {
+    line.split(/(\b[a-zA-Z']+\b)/).forEach(part => {
+      const isWord = /^[a-zA-Z]{2,}$/.test(part) || /^[a-zA-Z]+'[a-zA-Z]+$/.test(part);
+      const span   = document.createElement('span');
+      span.textContent     = part;
+      span.style.color     = '#fff';
+      span.style.textShadow = '0 1px 3px rgba(0,0,0,0.95)';
+      if (isWord) {
+        span.className        = 'cl-word';
+        span.dataset.word     = part.replace(/^'+|'+$/g, '');
+        span.dataset.sentence = sentence;
+      }
+      clOverlay.appendChild(span);
+    });
+    if (li < lines.length - 1) clOverlay.appendChild(document.createElement('br'));
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────
+// 字幕コンテナを探して監視する（Netflix / YouTube 用）
 // ─────────────────────────────────────────────────────────────────
 let watchedContainers = new Set();
 
 function findAndWatchSubtitles() {
+  if (IS_AMAZON) return; // アマプラはオーバーレイ方式を使うため何もしない
   SUBTITLE_SELECTORS.forEach(sel => {
     try {
       document.querySelectorAll(sel).forEach(el => {

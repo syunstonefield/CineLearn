@@ -11,6 +11,9 @@
   border-radius: 2px !important;
   padding: 0 1px !important;
   display: inline !important;
+  pointer-events: auto !important;
+  position: relative !important;
+  z-index: 2147483646 !important;
 }
 
 /* JS から requestAnimationFrame 経由で付け外しするハイライトクラス */
