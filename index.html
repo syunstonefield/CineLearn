@@ -152,28 +152,30 @@
       </div>
 
       <div class="episode-selector">
-        <div class="episode-label">視聴するエピソードを選択</div>
+        <div class="episode-label" id="episodeSelectorLabel">視聴するエピソードを選択</div>
         <div class="episode-row">
-          <div class="episode-field">
-            <label class="episode-field-label">シーズン</label>
-            <select class="episode-select" id="seasonSelect">
-              <option value="1">Season 1</option>
-            </select>
-          </div>
-          <div class="episode-field">
-            <label class="episode-field-label">エピソード</label>
-            <select class="episode-select" id="episodeSelect">
-              <option value="1">Episode 1</option>
-              <option value="2">Episode 2</option>
-              <option value="3">Episode 3</option>
-              <option value="4">Episode 4</option>
-              <option value="5">Episode 5</option>
-              <option value="6">Episode 6</option>
-              <option value="7">Episode 7</option>
-              <option value="8">Episode 8</option>
-              <option value="9">Episode 9</option>
-              <option value="10">Episode 10</option>
-            </select>
+          <div id="seasonEpisodeFields" style="display:contents">
+            <div class="episode-field">
+              <label class="episode-field-label">シーズン</label>
+              <select class="episode-select" id="seasonSelect">
+                <option value="1">Season 1</option>
+              </select>
+            </div>
+            <div class="episode-field">
+              <label class="episode-field-label">エピソード</label>
+              <select class="episode-select" id="episodeSelect">
+                <option value="1">Episode 1</option>
+                <option value="2">Episode 2</option>
+                <option value="3">Episode 3</option>
+                <option value="4">Episode 4</option>
+                <option value="5">Episode 5</option>
+                <option value="6">Episode 6</option>
+                <option value="7">Episode 7</option>
+                <option value="8">Episode 8</option>
+                <option value="9">Episode 9</option>
+                <option value="10">Episode 10</option>
+              </select>
+            </div>
           </div>
           <button class="btn-episode" id="vocabGenBtn" disabled>単語を生成</button>
           <button class="btn-episode" id="vocabDeleteBtn" style="display:none">リストを削除</button>

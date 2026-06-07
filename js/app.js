@@ -774,8 +774,9 @@ async function loadDramaFromLibrary(drama) {
   // TMDb で視聴可能サービスを取得
   let availableNames = new Set();
   try {
-    // tmdbId が未取得なら先にタイトル検索してIDを取得
+    // tmdbId が未取得なら先にタイトル検索してIDを取得（TV → 映画の順）
     let tmdbId = drama.tmdbId;
+    let isMovie = drama.type === 'movie';
     if (!tmdbId) {
       const searchRes = await fetch(`${API_BASE}/api/tmdb`, {
         method: 'POST',
@@ -783,7 +784,18 @@ async function loadDramaFromLibrary(drama) {
         body: JSON.stringify({ action: 'search', query: drama.title }),
       });
       const searchData = await searchRes.json();
-      const firstResult = searchData.results?.[0];
+      let firstResult = searchData.results?.[0];
+      // TV で見つからなければ映画として検索
+      if (!firstResult) {
+        const mvRes = await fetch(`${API_BASE}/api/tmdb`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'search_movie', query: drama.title }),
+        });
+        const mvData = await mvRes.json();
+        firstResult = mvData.results?.[0];
+        if (firstResult) isMovie = true;
+      }
       tmdbId = firstResult?.id;
       if (tmdbId) { drama.tmdbId = tmdbId; selectedDrama.tmdbId = tmdbId; }
       if ((firstResult?.backdrop_path || firstResult?.poster_path) && !drama.posterPath) {
@@ -798,7 +810,11 @@ async function loadDramaFromLibrary(drama) {
       const r = await fetch(`${API_BASE}/api/tmdb`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'watch_providers', tvId: tmdbId }),
+        body: JSON.stringify(
+          isMovie
+            ? { action: 'movie_watch_providers', movieId: tmdbId }
+            : { action: 'watch_providers', tvId: tmdbId }
+        ),
       });
       const data = await r.json();
       const jpProviders = data.results?.JP;
@@ -1063,6 +1079,81 @@ async function fetchSeasonInfoFromTMDb(title) {
   }
 }
 
+// TMDb で映画を検索して英語タイトル等を取得する
+async function fetchMovieInfoFromTMDb(title) {
+  try {
+    const r = await fetch(`${API_BASE}/api/tmdb`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'search_movie', query: title })
+    });
+    const data  = await r.json();
+    const movie = data.results?.[0];
+    if (!movie) return null;
+    const englishTitle = movie.title || movie.original_title || title;
+    const imgPath      = movie.backdrop_path || movie.poster_path;
+    const posterPath   = imgPath ? `https://image.tmdb.org/t/p/w780${imgPath}` : null;
+    return { englishTitle, tmdbId: movie.id, posterPath };
+  } catch {
+    return null;
+  }
+}
+
+// タイトルが TV か映画かを判定しつつメタ情報を返す。
+// /search/multi で映画・TVを横断検索し、関連度/人気が最上位の候補で判定する。
+// （TV優先だと映画が同名TV項目に誤吸着するため）
+async function fetchTitleInfoFromTMDb(title) {
+  const posterOf = (x) => {
+    const p = x.backdrop_path || x.poster_path;
+    return p ? `https://image.tmdb.org/t/p/w780${p}` : null;
+  };
+  try {
+    const r = await fetch(`${API_BASE}/api/tmdb`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'search_multi', query: title })
+    });
+    const data = await r.json();
+    const top = (data.results || [])
+      .filter(x => x.media_type === 'movie' || x.media_type === 'tv')[0];
+
+    if (top?.media_type === 'movie') {
+      return {
+        type: 'movie',
+        englishTitle: top.title || top.original_title || title,
+        tmdbId: top.id,
+        posterPath: posterOf(top),
+      };
+    }
+    if (top?.media_type === 'tv') {
+      // シーズン詳細を取得
+      const detailRes = await fetch(`${API_BASE}/api/tmdb`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'seasons', tvId: top.id })
+      });
+      const detail  = await detailRes.json();
+      const seasons = (detail.seasons || [])
+        .filter(s => s.season_number > 0 && s.episode_count > 0)
+        .map(s => ({ season: s.season_number, episodes: s.episode_count }));
+      return {
+        type: 'tv',
+        seasons: seasons.length ? seasons : [{ season: 1, episodes: 10 }],
+        englishTitle: detail.name || top.name || top.original_name || title,
+        tmdbId: top.id,
+        posterPath: posterOf(top),
+      };
+    }
+  } catch { /* フォールバックへ */ }
+
+  // フォールバック：従来の TV → 映画 個別検索
+  const tv = await fetchSeasonInfoFromTMDb(title);
+  if (tv) return { type: 'tv', ...tv };
+  const movie = await fetchMovieInfoFromTMDb(title);
+  if (movie) return { type: 'movie', ...movie };
+  return null;
+}
+
 async function callClaude(prompt, maxTokens = 2000, onRetry = null) {
   const delays = [3000, 6000, 12000];
   for (let attempt = 0; attempt <= delays.length; attempt++) {
@@ -1087,11 +1178,20 @@ async function callClaude(prompt, maxTokens = 2000, onRetry = null) {
 }
 
 // Open Subtitles APIで字幕を検索する（Netlify Function プロキシ経由）
-async function searchSubtitles(title, season, episode) {
+// type='movie' の場合は season/episode を送らず、tmdbId があればそれで厳密検索する
+async function searchSubtitles(title, season, episode, type = 'tv', tmdbId = null) {
+  const body = { action: 'search', query: title };
+  if (type === 'movie') {
+    body.type = 'movie';
+    if (tmdbId) body.tmdbId = tmdbId;
+  } else {
+    body.season = season;
+    body.episode = episode;
+  }
   const res = await fetch(`${API_BASE}/api/subtitles`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'search', query: title, season, episode })
+    body: JSON.stringify(body)
   });
   if (!res.ok) throw new Error('字幕の検索に失敗しました');
   const data = await res.json();
@@ -1317,26 +1417,95 @@ function findWordTimestampInSrt(srtText, word) {
   return null;
 }
 
-// 全 cl_sub_raw_* キャッシュから単語のタイムスタンプを検索
-function findWordTimestamp(word) {
-  // 現在ロード済みの生SRTを優先
-  if (cachedRawSrt) {
-    const t = findWordTimestampInSrt(cachedRawSrt, word);
-    if (t) return t;
-  }
-  // localStorage の全 cl_sub_raw_* を検索
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (!key?.startsWith('cl_sub_raw_')) continue;
-    const srt = localStorage.getItem(key);
-    if (!srt) continue;
-    const t = findWordTimestampInSrt(srt, word);
-    if (t) return t;
-  }
+// 現在のエピソードの生SRTを取得（メモリ優先→該当回のlocalStorageキャッシュ）
+function getCurrentRawSrt() {
+  const title     = selectedDrama?.englishTitle || selectedDrama?.title;
+  const expectKey = subtitleCacheKey(title, selectedSeason, selectedEpisode);
+  if (cachedRawSrt && cachedSubtitleKey === expectKey) return cachedRawSrt;
+  return localStorage.getItem(subtitleRawCacheKey(title, selectedSeason, selectedEpisode)) || '';
+}
+
+// 生SRTを {sec, text} のキュー配列にして「時刻昇順」で返す。
+// 一部の字幕はブロックが時刻順に並んでいない（連結ファイル等）ため、必ず時刻でソートし直す。
+// 同一エピソードの間はキャッシュして毎回パースしない。
+let _cueCacheSig = '';
+let _cueCacheArr = [];
+function getSubtitleCues() {
+  const title = selectedDrama?.englishTitle || selectedDrama?.title;
+  const raw   = getCurrentRawSrt();
+  const sig   = subtitleRawCacheKey(title, selectedSeason, selectedEpisode) + ':' + raw.length;
+  if (_cueCacheSig === sig) return _cueCacheArr;
+
+  const cues = [];
+  raw.split(/\r?\n\r?\n/).forEach(block => {
+    const lines = block.split(/\r?\n/);
+    const tIdx  = lines.findIndex(l => /-->/.test(l));
+    if (tIdx === -1) return;
+    const mt = lines[tIdx].match(/(\d{2}):(\d{2}):(\d{2})/);
+    if (!mt) return;
+    const sec  = (+mt[1]) * 3600 + (+mt[2]) * 60 + (+mt[3]);
+    const text = lines.slice(tIdx + 1).join(' ')
+      .replace(/<[^>]+>/g, '').replace(/[♪♫]/g, '')
+      .replace(/[’'`]/g, "'").replace(/\s+/g, ' ')
+      .trim().toLowerCase();
+    if (text) cues.push({ sec, text });
+  });
+  cues.sort((a, b) => a.sec - b.sec); // 時刻順に整える（順序の乱れを補正）
+
+  _cueCacheSig = sig;
+  _cueCacheArr = cues;
+  return cues;
+}
+
+function secToTimeLabel(sec) {
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+// 単語が最初に登場する秒数。見つからなければ null。
+// 単語（フレーズは全トークン）のバリアントが同一キューに揃う最初の時刻を返す。
+// ※以前は example（例文）一致を優先していたが、例文先頭が別の早い行に偶然一致して
+//   時刻が早くズレる不具合があったため、単語ベースのマッチのみにする。
+function findWordCueSec(word) {
+  const cues = getSubtitleCues();
+  if (!cues.length) return null;
+  const res = word.toLowerCase().trim().split(/\s+/).map(tok => {
+    const variants = [...getWordVariants(tok)].map(v => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    return new RegExp(`\\b(${variants.join('|')})\\b`, 'i');
+  });
+  for (const c of cues) if (res.every(re => re.test(c.text))) return c.sec;
   return null;
 }
 
+// 表示用タイムスタンプ "分:秒"（見つからなければ null）
+function findWordTimestamp(word) {
+  const sec = findWordCueSec(word);
+  return sec == null ? null : secToTimeLabel(sec);
+}
+
+// 並べ替え用の秒数（時刻なしは末尾に回すため Infinity）
+function wordSortSeconds(word) {
+  const sec = findWordCueSec(word);
+  return sec == null ? Infinity : sec;
+}
+
 // シーズン・エピソード選択肢を動的に構築する
+// 映画/ドラマで シーズン・エピソード セレクターの表示を切り替える
+function setEpisodeSelectorMode(isMovie) {
+  const fields = document.getElementById('seasonEpisodeFields');
+  const label  = document.getElementById('episodeSelectorLabel');
+  if (fields) fields.style.display = isMovie ? 'none' : 'contents';
+  if (label)  label.textContent = isMovie
+    ? '🎬 映画（字幕から単語を予習）'
+    : '視聴するエピソードを選択';
+}
+
+// 表示用の S/E ラベル（映画は空文字）
+function episodeLabelText() {
+  return selectedDrama?.type === 'movie'
+    ? '' : ` S${selectedSeason}E${selectedEpisode}`;
+}
+
 function buildSeasonEpisodeSelectors(seasons) {
   const seasonSelect = document.getElementById('seasonSelect');
   seasonSelect.innerHTML = '';
@@ -1584,7 +1753,7 @@ function buildExtWordHTML(w) {
                  : isReviewed ? reviewedBadge : '';
   const nextReview = nextReviewLabel(w.word);
   const nextLabel  = nextReview ? `<span class="srs-next-review">📅 次回: ${nextReview}</span>` : '';
-  const timestamp  = findWordTimestamp(w.word);
+  const timestamp  = findWordTimestamp(w.word, w.example);
   const tsLabel    = timestamp ? `<span class="word-timestamp" data-time="${timestamp}">📍 ${timestamp}</span>` : '';
   const tier = w.tier || 'core';
   const tierBadge = tier === 'context'  ? '<span class="tier-pill tier-context">Context</span>'
@@ -1688,6 +1857,10 @@ async function renderExtWordsSection(existingWords = []) {
     tier:       w.tier       || 'core',
     source:     'ext',
   }));
+  // 登場時刻順に並べ替え（時刻なしは末尾）
+  extNormalized.sort((a, b) =>
+    wordSortSeconds(a.word, a.example) - wordSortSeconds(b.word, b.example)
+  );
 
   const div = document.createElement('div');
   div.id = 'ext-words-section';
@@ -1783,9 +1956,11 @@ async function checkAndShowSavedVocab() {
     quizData         = entry.quiz || [];
     currentHistoryId = entry.id;
     document.getElementById('episodeSelected').textContent =
-      `Season ${selectedSeason} Episode ${selectedEpisode} ✓ 保存済み`;
+      selectedDrama?.type === 'movie'
+        ? '✓ 保存済み'
+        : `Season ${selectedSeason} Episode ${selectedEpisode} ✓ 保存済み`;
     document.getElementById('vocabGenBtn').style.display = 'none';
-    renderVocab(words, `${selectedDrama.title} S${selectedSeason}E${selectedEpisode}`, true);
+    renderVocab(words, `${selectedDrama.title}${episodeLabelText()}`, true);
     return true;
   }
 
@@ -1795,7 +1970,9 @@ async function checkAndShowSavedVocab() {
 
   // 拡張機能単語のみの場合：生成ボタンを表示しつつ追加単語セクションを表示
   document.getElementById('episodeSelected').textContent =
-    `Season ${selectedSeason} Episode ${selectedEpisode}`;
+    selectedDrama?.type === 'movie'
+      ? '🎬 映画'
+      : `Season ${selectedSeason} Episode ${selectedEpisode}`;
   document.getElementById('vocabSection').innerHTML =
     '<div class="empty-state" style="padding:20px">「単語を生成」でAIの単語リストを追加できます</div>';
   document.getElementById('vocabGenBtn').style.display = '';
@@ -1810,21 +1987,40 @@ async function checkAndShowSavedVocab() {
 let cachedSubtitleText   = '';
 let cachedSubtitleSource = '';
 let cachedRawSrt         = ''; // タイムスタンプ検索用の生SRT
+let cachedSubtitleKey    = ''; // cachedSubtitleText がどのエピソードの字幕かを示すキー
 
 async function preloadSubtitle() {
   cachedSubtitleText = '';
   cachedSubtitleSource = '';
+  cachedSubtitleKey = '';
 
 
   try {
     const searchTitle = selectedDrama.englishTitle || selectedDrama.title;
+    const isMovie = selectedDrama.type === 'movie';
     const subtitles = await searchSubtitles(
       searchTitle,
       selectedSeason,
-      selectedEpisode
+      selectedEpisode,
+      isMovie ? 'movie' : 'tv',
+      isMovie ? selectedDrama.tmdbId : null
     );
 
-    if (subtitles && subtitles.length > 0) {
+    // TVは feature_details のシーズン・エピソードが「両方」一致する候補だけに絞る。
+    // OpenSubtitles が別シーズン/別エピソードを混ぜて返しても誤選択を防ぐ。
+    // （feature_details が欠落して一致0件のときのみ、従来通り全候補にフォールバック）
+    let candidates = subtitles;
+    if (!isMovie && subtitles) {
+      const matched = subtitles.filter(s => {
+        const f = s.attributes.feature_details || {};
+        return Number(f.season_number)  === Number(selectedSeason) &&
+               Number(f.episode_number) === Number(selectedEpisode);
+      });
+      if (matched.length) candidates = matched;
+      else console.warn('[subtitle] S/E一致候補が0件のため全候補から選択します');
+    }
+
+    if (candidates && candidates.length > 0) {
       // 字幕候補をスコアリングして最適なものを選ぶ
       // 音楽ファイル（♪が多い）やHI字幕（聴覚障害者向け、効果音記述が多い）を低評価
       function scoreSubtitle(sub) {
@@ -1835,12 +2031,22 @@ async function preloadSubtitle() {
         // ファイル名に "hi", "hearing", "sdh", "forced" が含まれる場合も減点
         const name = (attr.release || attr.files?.[0]?.file_name || '').toLowerCase();
         if (/\b(hi|hearing|sdh|forced)\b/.test(name)) score -= 30000;
+        // メイキング/特典/予告編/インタビュー等の本編以外を強く減点
+        const featTitle = (attr.feature_details?.title || attr.feature_details?.movie_name || '').toLowerCase();
+        if (/(making|behind.the.scenes|featurette|trailer|interview|documentary|deleted|bonus|extra|commentary|bloopers?|gag\s*reel|sample)/.test(name + ' ' + featTitle)) {
+          score -= 100000;
+        }
+        // 本編の feature_type が Movie 以外（Episode/Tvshow 等）は映画検索では減点
+        if (isMovie && attr.feature_details?.feature_type &&
+            attr.feature_details.feature_type !== 'Movie') {
+          score -= 80000;
+        }
         return score;
       }
-      const sorted = [...subtitles].sort((a, b) => scoreSubtitle(b) - scoreSubtitle(a));
+      const sorted = [...candidates].sort((a, b) => scoreSubtitle(b) - scoreSubtitle(a));
 
       // 上位3候補を試して、♪が少ないものを採用
-      let fileId = null, fileName = null, srtText = null;
+      let fileId = null, fileName = null, srtText = null, chosen = null;
       for (const cand of sorted.slice(0, 3)) {
         const fid   = cand.attributes.files[0].file_id;
         const fname = cand.attributes.release || cand.attributes.files[0]?.file_name || fid;
@@ -1849,14 +2055,17 @@ async function preloadSubtitle() {
         // ♪記号の割合が5%超 → 音楽字幕として却下
         const musicRatio = (text.match(/♪/g) || []).length / (text.length / 100);
         if (musicRatio > 5) { console.log(`[subtitle] skip music file: ${fname}`); continue; }
-        fileId = fid; fileName = fname; srtText = text;
+        fileId = fid; fileName = fname; srtText = text; chosen = cand;
         break;
       }
-      if (!fileId) { fileId = sorted[0].attributes.files[0].file_id; fileName = '(fallback)'; srtText = await downloadSubtitle(fileId); }
+      if (!fileId) { chosen = sorted[0]; fileId = sorted[0].attributes.files[0].file_id; fileName = '(fallback)'; srtText = await downloadSubtitle(fileId); }
       cachedSubtitleText = parseSrt(srtText);
       cachedRawSrt       = srtText; // タイムスタンプ検索用に生SRTを保持
       cachedSubtitleSource = '実際の字幕データから';
-      console.log(`[subtitle] S${selectedSeason}E${selectedEpisode} → file: ${fileName} (id:${fileId})`);
+      // 選んだ字幕の「実際の」シーズン・エピソードも併記（検証用）
+      const cf = chosen?.attributes?.feature_details || {};
+      const actualSE = isMovie ? 'movie' : `S${cf.season_number}E${cf.episode_number}`;
+      console.log(`[subtitle] 要求 S${selectedSeason}E${selectedEpisode} / 実際 ${actualSE} → file: ${fileName} (id:${fileId})`);
       // 字幕テキストを永続キャッシュに保存（未割当単語のエピソード解決に使用）
       try {
         const title = selectedDrama.englishTitle || selectedDrama.title;
@@ -1864,9 +2073,11 @@ async function preloadSubtitle() {
         const rawKey = subtitleRawCacheKey(title, selectedSeason, selectedEpisode);
         localStorage.setItem(key, cachedSubtitleText);
         localStorage.setItem(rawKey, srtText); // 生SRTも保存
+        cachedSubtitleKey = key; // メモリの字幕がどのエピソードか記録
       } catch { /* QuotaExceeded は無視 */ }
       document.getElementById('episodeSelected').textContent =
-        `Season ${selectedSeason} Episode ${selectedEpisode} ✓ 字幕取得済み`;
+        isMovie ? '✓ 字幕取得済み'
+                : `Season ${selectedSeason} Episode ${selectedEpisode} ✓ 字幕取得済み`;
       const btn = document.getElementById('vocabGenBtn');
       if (btn) { btn.style.display = ''; btn.disabled = false; btn.textContent = '単語を生成'; }
       document.getElementById('vocabSection').innerHTML =
@@ -1877,15 +2088,18 @@ async function preloadSubtitle() {
         .catch(() => {});
     } else {
       document.getElementById('episodeSelected').textContent =
-        `Season ${selectedSeason} Episode ${selectedEpisode} ⚠ 字幕なし`;
+        isMovie ? '⚠ 字幕なし'
+                : `Season ${selectedSeason} Episode ${selectedEpisode} ⚠ 字幕なし`;
       document.getElementById('vocabSection').innerHTML =
-        '<div class="empty-state" style="color:var(--text-muted)">このエピソードの字幕が見つかりませんでした。<br>別のエピソードを選択してください。</div>';
+        `<div class="empty-state" style="color:var(--text-muted)">${isMovie ? 'この映画' : 'このエピソード'}の字幕が見つかりませんでした。<br>${isMovie ? '別の作品を選択してください。' : '別のエピソードを選択してください。'}</div>`;
       const btn = document.getElementById('vocabGenBtn');
       if (btn) { btn.style.display = 'none'; }
     }
   } catch (e) {
+    const isMovie = selectedDrama?.type === 'movie';
     document.getElementById('episodeSelected').textContent =
-      `Season ${selectedSeason} Episode ${selectedEpisode} ⚠ 字幕エラー`;
+      isMovie ? '⚠ 字幕エラー'
+              : `Season ${selectedSeason} Episode ${selectedEpisode} ⚠ 字幕エラー`;
     document.getElementById('vocabSection').innerHTML =
       '<div class="empty-state" style="color:var(--text-muted)">字幕の取得に失敗しました。<br>別のエピソードを選択してください。</div>';
     const btn = document.getElementById('vocabGenBtn');
@@ -1897,16 +2111,40 @@ async function preloadSubtitle() {
 async function preloadSubtitleSilent(cacheKey) {
   try {
     const searchTitle = selectedDrama.englishTitle || selectedDrama.title;
-    const subtitles = await searchSubtitles(searchTitle, selectedSeason, selectedEpisode);
+    const isMovie = selectedDrama.type === 'movie';
+    const subtitles = await searchSubtitles(
+      searchTitle, selectedSeason, selectedEpisode,
+      isMovie ? 'movie' : 'tv',
+      isMovie ? selectedDrama.tmdbId : null
+    );
     if (!subtitles?.length) return;
-    const best = subtitles.reduce((a, b) =>
+    // TVはシーズン・エピソード両方一致の候補だけに絞る（別回の混入防止）
+    let pool = subtitles;
+    if (!isMovie) {
+      const matched = subtitles.filter(s => {
+        const f = s.attributes.feature_details || {};
+        return Number(f.season_number)  === Number(selectedSeason) &&
+               Number(f.episode_number) === Number(selectedEpisode);
+      });
+      if (matched.length) pool = matched;
+    }
+    const best = pool.reduce((a, b) =>
       (b.attributes.download_count || 0) > (a.attributes.download_count || 0) ? b : a
     );
     const srtText = await downloadSubtitle(best.attributes.files[0].file_id);
     const text = parseSrt(srtText);
     if (!text) return;
     cachedSubtitleText = text;
-    try { localStorage.setItem(cacheKey, text); } catch {}
+    cachedRawSrt       = srtText;     // タイムスタンプ検索用に生SRTも保持
+    cachedSubtitleKey  = cacheKey;
+    try {
+      localStorage.setItem(cacheKey, text);
+      // 生SRTも該当回のキーで保存（タイムスタンプ検索に使用）
+      localStorage.setItem(subtitleRawCacheKey(
+        selectedDrama.englishTitle || selectedDrama.title,
+        selectedSeason, selectedEpisode
+      ), srtText);
+    } catch {}
     // キャッシュ取得後に拡張機能単語セクションを再描画
     await renderExtWordsSection(vocabWords || []);
     await resolveUnassignedWords();
@@ -1926,15 +2164,34 @@ async function generateVocabFromEpisode() {
   document.getElementById('vocabNextBtn').style.display = 'none'; document.getElementById('vocabDeleteBtn').style.display = 'none';
 
   try {
-    if (!cachedSubtitleText) {
-      btn.textContent = '字幕を読み込み中...';
-      document.getElementById('vocabSection').innerHTML =
-        '<div class="loading"><div class="spinner"></div>字幕を読み込み中...</div>';
-      await preloadSubtitle();
-      if (!cachedSubtitleText) {
-        btn.disabled = false;
-        btn.textContent = '単語を生成';
-        return;
+    // メモリ上の字幕が「現在のエピソード」のものか検証する。
+    // エピソードを切り替えてもメモリ(cachedSubtitleText)が前の回のまま残ることがあり、
+    // そのまま生成すると別エピソードの字幕で単語を作ってしまうため必ず突き合わせる。
+    const expectKey = subtitleCacheKey(
+      selectedDrama.englishTitle || selectedDrama.title,
+      selectedSeason, selectedEpisode
+    );
+    if (!cachedSubtitleText || cachedSubtitleKey !== expectKey) {
+      // まず該当エピソードの永続キャッシュ(localStorage)を見る
+      const cached = localStorage.getItem(expectKey);
+      if (cached) {
+        cachedSubtitleText = cached;
+        cachedSubtitleKey  = expectKey;
+        cachedRawSrt       = localStorage.getItem(subtitleRawCacheKey(
+          selectedDrama.englishTitle || selectedDrama.title,
+          selectedSeason, selectedEpisode
+        )) || '';
+      } else {
+        // キャッシュも無ければ取得
+        btn.textContent = '字幕を読み込み中...';
+        document.getElementById('vocabSection').innerHTML =
+          '<div class="loading"><div class="spinner"></div>字幕を読み込み中...</div>';
+        await preloadSubtitle();
+        if (!cachedSubtitleText) {
+          btn.disabled = false;
+          btn.textContent = '単語を生成';
+          return;
+        }
       }
       btn.disabled = true;
       btn.textContent = '生成中...';
@@ -1962,7 +2219,10 @@ async function generateVocabFromEpisode() {
 - "advanced"：${Math.min(cur + 100, upper)}〜${upper}点帯。目標達成に向けて習得すべき語
 - "context" ：このドラマ・エピソード特有の専門語・固有表現（スコア帯不問）`;
 
-    const prompt = `以下は「${selectedDrama.title}」Season ${selectedSeason} Episode ${selectedEpisode} の実際の英語字幕テキストです。
+    const workLabel = selectedDrama.type === 'movie'
+      ? `「${selectedDrama.title}」（映画）`
+      : `「${selectedDrama.title}」Season ${selectedSeason} Episode ${selectedEpisode}`;
+    const prompt = `以下は${workLabel} の実際の英語字幕テキストです。
 
 ---字幕テキスト---
 ${cachedSubtitleText}
@@ -2129,6 +2389,16 @@ async function renderVocab(words, sourceLabel, skipHistory = false) {
     seen.add(k);
     return true;
   });
+
+  // 単語をエピソード内の登場時刻順に並べ替える。
+  // 各単語の秒数は一度だけ計算してキャッシュする。
+  const secCache = new Map();
+  const secOf = (w) => {
+    if (!secCache.has(w.word)) secCache.set(w.word, wordSortSeconds(w.word, w.example));
+    return secCache.get(w.word);
+  };
+  words = [...words].sort((a, b) => secOf(a) - secOf(b));
+
   currentVocabWords = words;
 
   const buildWordHTML = (w) => {
@@ -2161,7 +2431,7 @@ async function renderVocab(words, sourceLabel, skipHistory = false) {
     const notInTest  = !testTiers.includes(tier);
     const nextReview = nextReviewLabel(w.word);
     const nextLabel  = nextReview ? `<span class="srs-next-review">📅 次回: ${nextReview}</span>` : '';
-    const timestamp  = findWordTimestamp(w.word);
+    const timestamp  = findWordTimestamp(w.word, w.example);
     const tsLabel    = timestamp
       ? `<span class="word-timestamp" data-time="${timestamp}" title="タップしてコピー">📍 ${timestamp}</span>`
       : '';
@@ -2347,7 +2617,7 @@ async function fetchRawSrtIfMissing(words, sourceLabel) {
     try { localStorage.setItem(rawKey, srtText); } catch {}
 
     // タイムスタンプが取得できた単語があれば再描画
-    const hasTimestamp = words.some(w => findWordTimestamp(w.word));
+    const hasTimestamp = words.some(w => findWordTimestamp(w.word, w.example));
     if (hasTimestamp) renderVocab(words, sourceLabel, true);
   } catch { /* 取得失敗は無視 */ }
 }
@@ -2607,6 +2877,7 @@ function selectDrama(drama, card) {
   card.classList.add('selected');
   cachedSubtitleText = '';
   cachedSubtitleSource = '';
+  cachedSubtitleKey = '';
   selectedViewingService = null;
   dramaSeasonInfo = [];
   closeAddDrama();
@@ -2629,30 +2900,44 @@ async function selectViewingService(service, drama) {
     '<div class="loading"><div class="spinner"></div>シーズン情報を取得中...</div>';
 
   try {
-    // TMDb でシーズン情報を取得（Claude より正確）
-    const tmdbResult = await fetchSeasonInfoFromTMDb(drama.title);
-    if (tmdbResult) {
+    // TMDb でタイトル情報を取得（TV/映画を判定。Claude より正確）
+    const tmdbResult = await fetchTitleInfoFromTMDb(drama.title);
+    if (tmdbResult?.type === 'movie') {
+      // 映画：シーズン・エピソードの概念なし
+      selectedDrama.type = 'movie';
+      if (tmdbResult.englishTitle) selectedDrama.englishTitle = tmdbResult.englishTitle;
+      if (tmdbResult.tmdbId)       selectedDrama.tmdbId       = tmdbResult.tmdbId;
+      if (tmdbResult.posterPath)   selectedDrama.posterPath   = tmdbResult.posterPath;
+      dramaSeasonInfo = [];
+      setEpisodeSelectorMode(true);
+    } else if (tmdbResult) {
+      selectedDrama.type = 'tv';
       const { seasons: tmdbSeasons, englishTitle, tmdbId, posterPath } = tmdbResult;
       if (englishTitle) selectedDrama.englishTitle = englishTitle;
       if (tmdbId)       selectedDrama.tmdbId       = tmdbId;
       if (posterPath)   selectedDrama.posterPath   = posterPath;
       dramaSeasonInfo = tmdbSeasons;
+      setEpisodeSelectorMode(false);
       buildSeasonEpisodeSelectors(tmdbSeasons);
     } else {
-      // TMDb で見つからない場合は Claude にフォールバック
+      // TMDb で見つからない場合は Claude にフォールバック（TVとして扱う）
+      selectedDrama.type = 'tv';
       const prompt = `「${drama.title}」のシーズンとエピソード数をJSON形式のみで返答してください。
 { "seasons": [{ "season": 1, "episodes": 10 }] }`;
       const text = await callClaude(prompt);
       const json = JSON.parse(text.match(/\{[\s\S]*\}/)[0]);
       dramaSeasonInfo = json.seasons;
+      setEpisodeSelectorMode(false);
       buildSeasonEpisodeSelectors(json.seasons);
     }
   } catch (e) {
+    selectedDrama.type = 'tv';
     dramaSeasonInfo = [
       { season: 1, episodes: 10 },
       { season: 2, episodes: 10 },
       { season: 3, episodes: 10 }
     ];
+    setEpisodeSelectorMode(false);
     buildSeasonEpisodeSelectors(dramaSeasonInfo);
   }
 
@@ -2687,8 +2972,11 @@ async function generateQuiz(drama, words) {
   const testableWords = words.filter(w => testTiers.includes(w.tier || 'core'));
   words = testableWords.length > 0 ? testableWords : words; // フィルター後が空なら全単語
   const wordList = words.map(w => w.word).join(', ');
+  const workLabel = selectedDrama?.type === 'movie'
+    ? `「${drama.title}」（映画）`
+    : `「${drama.title}」Season ${selectedSeason} Episode ${selectedEpisode}`;
   const prompt = `英語学習クイズを作成してください。
-作品：「${drama.title}」Season ${selectedSeason} Episode ${selectedEpisode}
+作品：${workLabel}
 単語リスト：${wordList}
 
 上記の単語から5問の4択穴埋め問題を作成してください。
