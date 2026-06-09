@@ -1,6 +1,11 @@
+import { isAllowedOrigin } from './_origin.js';
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).end('Method Not Allowed');
+  }
+  if (!isAllowedOrigin(req)) {
+    return res.status(403).json({ error: 'Forbidden' });
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;

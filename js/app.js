@@ -25,6 +25,14 @@ const HISTORY_KEY = 'cl_history';
 // 現在操作中の履歴エントリID（保存・スコア更新に使う）
 let currentHistoryId = null;
 
+// HTMLエスケープ（XSS対策）。innerHTML に外部・AI・ユーザー由来のテキストを
+// 埋め込む箇所は必ずこれを通す（字幕やドラマ名にHTMLが混ざっても無害化する）。
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])
+  );
+}
+
 // ─────────────────────────────────────────
 // SRS（間隔反復システム）
 // ─────────────────────────────────────────
@@ -468,6 +476,25 @@ function getVocabCount(score) {
   return 50; // 800点以上（C1目標）
 }
 
+// TOEICスコア → CEFRレベル（語彙難易度の指定に使う。CEFRの方がLLMの判定が正確）
+function toeicToCefr(score) {
+  if (!score || score <= 0) return null;
+  if (score < 225) return 'A1';
+  if (score < 550) return 'A2';
+  if (score < 785) return 'B1';
+  if (score < 945) return 'B2';
+  return 'C1';
+}
+// 目標帯（現在帯＋1つ上をねらい目にする）
+function cefrTargetBand(cur, tgt) {
+  const order = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+  const c = toeicToCefr(cur) || 'A2';
+  const t = toeicToCefr(tgt) || order[Math.min(order.indexOf(c) + 1, order.length - 1)];
+  const lo = order.indexOf(c);
+  const hi = Math.max(order.indexOf(t), lo + 1);
+  return `${order[lo]}〜${order[Math.min(hi, order.length - 1)]}`;
+}
+
 // TOEICスコア入力時の処理
 function onToeicInput() {
   const val = parseInt(document.getElementById('toeicScore').value);
@@ -681,7 +708,7 @@ function buildLibraryCard({ drama, episodes, bestScore, lastDate }) {
       <button class="library-card-delete" title="削除">✕</button>
     </div>
     <div class="library-card-body">
-      <div class="library-card-title">${drama.title}</div>
+      <div class="library-card-title">${esc(drama.title)}</div>
       <div class="library-card-meta">
         <span class="history-score score-none" style="font-size:11px">${drama.platform}</span>
         ${scoreHtml}
@@ -1764,22 +1791,22 @@ function buildExtWordHTML(w) {
       <div style="flex:1">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
           ${srsBadge}
-          <div class="vocab-word">${w.word}</div>
+          <div class="vocab-word">${esc(w.word)}</div>
           ${tierBadge}
           ${nextLabel}
           ${reviewCountLabel}
           ${tsLabel}
         </div>
         ${w.example ? `<div class="word-example-wrap">
-          <span class="word-example-en">${w.example}</span>
-          ${w.example_ja ? `<span class="word-example-ja">${w.example_ja}</span>` : ''}
+          <span class="word-example-en">${esc(w.example)}</span>
+          ${w.example_ja ? `<span class="word-example-ja">${esc(w.example_ja)}</span>` : ''}
         </div>` : ''}
       </div>
-      <div class="vocab-pos">${w.pos || ''}</div>
-      <div class="vocab-def">${w.definition || ''}</div>
+      <div class="vocab-pos">${esc(w.pos || '')}</div>
+      <div class="vocab-def">${esc(w.definition || '')}</div>
       <div class="vocab-card-actions">
-        <button class="btn-speak" data-word="${w.word}">🔊</button>
-        <button class="btn-srs-skip${isSkip ? ' btn-srs-resume' : ''}" data-word="${w.word}">${isSkip ? 'Resume' : 'Skip'}</button>
+        <button class="btn-speak" data-word="${esc(w.word)}">🔊</button>
+        <button class="btn-srs-skip${isSkip ? ' btn-srs-resume' : ''}" data-word="${esc(w.word)}">${isSkip ? 'Resume' : 'Skip'}</button>
       </div>
     </div>`;
 }
@@ -2205,19 +2232,50 @@ async function generateVocabFromEpisode() {
     const lower = Math.max(0, cur - 200); // 現在スコアより200点下まで（復習帯）
     const upper = tgt;                    // 目標スコアが上限
 
+    // 生成単語数：映画は尺が長いため増量（レベルに応じてスケールし最大150）。
+    // ドラマ（TV）は従来通り vocabCount（20〜50）。
+    const isMovieGen   = selectedDrama.type === 'movie';
+    const genVocabCount = isMovieGen ? Math.min(150, vocabCount * 3) : vocabCount;
+
+    // ① TOEIC → CEFR に翻訳して指示（LLMは語彙難易度をCEFRで判断する方が正確）
+    const curCefr    = toeicToCefr(cur);
+    const targetBand = cefrTargetBand(cur, upper);
+
+    // ②③ アンカー単語の例示＋簡単すぎる語の除外を明示
+    const cefrAnchors = `語彙難易度の目安（CEFR）:
+- A2: buy, start, happy, problem, important
+- B1: decision, available, manage, schedule, suggest
+- B2: negotiate, inevitable, comprehensive, deliberately, acknowledge
+- C1: tenacity, scrutiny, paramount, ambivalent, meticulous
+- C2: ineffable, perfunctory, recalcitrant`;
+
+    const excludeList = `除外（ほぼ全ての学習者が既知のため絶対に選ばない）:
+get, go, make, take, come, give, thing, good, bad, very, people, time, day, year,
+know, want, like, need, look, see, say, tell, big, small, new, old, man, woman など中学英語レベルの基礎語`;
+
     const levelSpec = cur > 0
       ? `【学習者レベル】
-- 現在のTOEICスコア: 約${cur}点
-- 目標TOEICスコア: 約${upper}点
-- 選択範囲: TOEIC ${lower}〜${upper}点レベルの語彙
-- 優先度: ${cur}〜${upper}点帯の単語を全体の約70%、${lower}〜${cur}点帯の復習語を約30%
-- 除外: ${upper}点を大きく超える語（学習者には早すぎる）および${lower}点未満の超基礎語`
-      : '【学習者レベル】スコア未設定のため全レベルから選択';
+- 現在のCEFR: ${curCefr}（TOEIC約${cur}点） / 目標: TOEIC約${upper}点
+- ねらい目の難易度帯（最優先）: CEFR ${targetBand}
+- 配分: ${targetBand} の上側の帯を約70%、復習として1つ下の帯を約30%
+- 制約: ${targetBand} を大きく超える超難語は避け、A2未満の超基礎語は選ばない
 
-    const tierGuide = `各単語に以下のtierを付けてください：
-- "core"    ：${cur}点前後〜${Math.min(cur + 100, upper)}点帯。このエピソードで必須の語
-- "advanced"：${Math.min(cur + 100, upper)}〜${upper}点帯。目標達成に向けて習得すべき語
-- "context" ：このドラマ・エピソード特有の専門語・固有表現（スコア帯不問）`;
+${cefrAnchors}
+
+${excludeList}`
+      : `【学習者レベル】スコア未設定。中級〜中上級（CEFR B1〜B2）を中心に選ぶ。
+
+${cefrAnchors}
+
+${excludeList}`;
+
+    // ④ 各単語に CEFR レベルを判定させて自己フィルタ（一貫性が上がる）
+    const tierGuide = `各単語に必ず "level"（CEFR: A2/B1/B2/C1/C2 のいずれか）を付け、
+ねらい目帯（${targetBand}）に該当する語だけを出力すること（帯外は出さない）。
+さらに "tier" を付ける：
+- "core"    ：このエピソードの理解に必須の頻出語
+- "advanced"：目標達成に向けて習得したい一段上の語
+- "context" ：このドラマ・映画特有の専門語・固有表現`;
 
     const workLabel = selectedDrama.type === 'movie'
       ? `「${selectedDrama.title}」（映画）`
@@ -2242,17 +2300,20 @@ ${tierGuide}
 
 {
   "drama": [
-    この字幕に実際に登場する単語を${vocabCount}個。必ず字幕内に存在する単語のみ。スコア範囲（${lower}〜${upper}点）に合った難易度で選ぶ。
-    { "word": "英単語（原形）", "pos": "品詞（名詞/動詞/形容詞/副詞）", "definition": "日本語の意味（簡潔に）", "example": "字幕からそのままコピーした文（必ずwordの活用形を含む。見つからなければ空文字。ダブルクォートは使わず、シングルクォートに置換すること）", "example_ja": "exampleの自然な日本語訳（exampleが空なら空文字）", "tier": "core"|"advanced"|"context" }
+    この字幕に実際に登場する単語を${genVocabCount}個。必ず字幕内に存在する単語のみ。
+    難易度は CEFR ${targetBand} の帯に該当する語だけを選ぶ（帯外・除外語は出さない）。
+    内容語（名詞・動詞・形容詞・句動詞・イディオム）を優先し、機能語や固有名詞は避ける。
+    重要：字幕の冒頭だけに偏らず、最初から最後まで全体を通して均等に選ぶこと。特に映画など長い字幕では、中盤・終盤に登場する単語も必ず含めること。
+    { "word": "英単語（原形）", "level": "A2|B1|B2|C1|C2", "pos": "品詞（名詞/動詞/形容詞/副詞）", "definition": "日本語の意味（簡潔に）", "example": "字幕からそのままコピーした文（必ずwordの活用形を含む。見つからなければ空文字。ダブルクォートは使わず、シングルクォートに置換すること）", "example_ja": "exampleの自然な日本語訳（exampleが空なら空文字）", "tier": "core"|"advanced"|"context" }
   ],
   "plus": [
-    このエピソードのテーマ・文脈に関連するが字幕外の推奨単語を5〜8個。同じスコア範囲（${lower}〜${upper}点）で選ぶ。
-    { "word": "英単語（原形）", "pos": "品詞（名詞/動詞/形容詞/副詞）", "definition": "日本語の意味（簡潔に）", "example": "必ずwordを含む自然な英文（作文可）", "example_ja": "exampleの自然な日本語訳", "tier": "core"|"advanced"|"context" }
+    この作品のテーマ・文脈に関連するが字幕外の推奨単語を5〜8個。同じ CEFR ${targetBand} の帯で選ぶ。
+    { "word": "英単語（原形）", "level": "A2|B1|B2|C1|C2", "pos": "品詞（名詞/動詞/形容詞/副詞）", "definition": "日本語の意味（簡潔に）", "example": "必ずwordを含む自然な英文（作文可）", "example_ja": "exampleの自然な日本語訳", "tier": "core"|"advanced"|"context" }
   ]
 }`;
 
-    // 50単語のJSONは約4000トークン必要なため余裕を持たせる
-    const text = await callClaude(prompt, Math.max(2000, vocabCount * 80), (attempt, waitSec) => {
+    // 1単語あたり約80トークン。映画(最大150語)でも収まるよう余裕を持たせる
+    const text = await callClaude(prompt, Math.max(2000, genVocabCount * 80), (attempt, waitSec) => {
       document.getElementById('vocabSection').innerHTML =
         `<div class="loading"><div class="spinner"></div>混雑中... ${waitSec}秒後に再試行 (${attempt}/3)</div>`;
     });
@@ -2357,6 +2418,25 @@ ${tierGuide}
       }
     }
 
+    // CEFRバンド外フィルター：AIが付けた level を使い、目標帯から外れすぎる語を除去
+    // （目標帯の1つ下＝復習帯までは許容。level未指定の語は残す）
+    if (cur > 0) {
+      const order = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+      const band  = targetBand.split('〜');
+      const loIdx = Math.max(0, order.indexOf(band[0]) - 1);
+      const hiIdx = order.indexOf(band[band.length - 1]);
+      if (hiIdx >= 0) {
+        const before = json.length;
+        json = json.filter(w => {
+          const li = order.indexOf(String(w.level || '').toUpperCase());
+          return li === -1 ? true : (li >= loIdx && li <= hiIdx);
+        });
+        if (json.length < before) {
+          console.log(`[CineLearn] CEFRバンド外フィルター: ${before - json.length}語を除去 (目標 ${targetBand})`);
+        }
+      }
+    }
+
     vocabWords = json;
     renderVocab(json, cachedSubtitleSource);
 
@@ -2440,22 +2520,22 @@ async function renderVocab(words, sourceLabel, skipHistory = false) {
         <div style="flex:1">
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
             ${srsBadge}
-            <div class="vocab-word">${w.word}</div>
+            <div class="vocab-word">${esc(w.word)}</div>
             ${tierBadge}
             ${nextLabel}
             ${reviewCountLabel}
             ${tsLabel}
           </div>
           ${w.example ? `<div class="word-example-wrap">
-            <span class="word-example-en">${w.example}</span>
-            ${w.example_ja ? `<span class="word-example-ja">${w.example_ja}</span>` : ''}
+            <span class="word-example-en">${esc(w.example)}</span>
+            ${w.example_ja ? `<span class="word-example-ja">${esc(w.example_ja)}</span>` : ''}
           </div>` : ''}
         </div>
-        <div class="vocab-pos">${w.pos || ''}</div>
-        <div class="vocab-def">${w.definition || ''}</div>
+        <div class="vocab-pos">${esc(w.pos || '')}</div>
+        <div class="vocab-def">${esc(w.definition || '')}</div>
         <div class="vocab-card-actions">
-          <button class="btn-speak" data-word="${w.word}" title="発音を聞く">🔊</button>
-          <button class="btn-srs-skip${isSkip ? ' btn-srs-resume' : ''}" data-word="${w.word}">${isSkip ? 'Resume' : 'Skip'}</button>
+          <button class="btn-speak" data-word="${esc(w.word)}" title="発音を聞く">🔊</button>
+          <button class="btn-srs-skip${isSkip ? ' btn-srs-resume' : ''}" data-word="${esc(w.word)}">${isSkip ? 'Resume' : 'Skip'}</button>
         </div>
       </div>`;
   };
@@ -2687,8 +2767,8 @@ function renderReviewCard() {
           <div class="review-summary-label ${cls}">${icon} ${label}（${words.length}単語）</div>
           ${words.map(w => `
             <div class="review-summary-item">
-              <span class="review-summary-word">${w.word}</span>
-              <span class="review-summary-def">${w.definition || ''}</span>
+              <span class="review-summary-word">${esc(w.word)}</span>
+              <span class="review-summary-def">${esc(w.definition || '')}</span>
             </div>`).join('')}
         </div>`;
     };
@@ -2763,14 +2843,14 @@ function renderReviewCard() {
   content.innerHTML = `
     <div class="review-card">
       <div class="review-counter">${reviewQIdx + 1} / ${reviewQueue.length}</div>
-      <div class="review-word-big">${w.word}</div>
-      ${w.pos ? `<div class="review-pos-tag">${w.pos}</div>` : ''}
+      <div class="review-word-big">${esc(w.word)}</div>
+      ${w.pos ? `<div class="review-pos-tag">${esc(w.pos)}</div>` : ''}
       <button class="review-flip" id="reviewFlip">タップして意味を確認 →</button>
       <div class="review-answer" id="reviewAnswer" style="display:none">
-        <div class="review-def-text">${w.definition || ''}</div>
+        <div class="review-def-text">${esc(w.definition || '')}</div>
         ${w.example ? `<div class="review-example-text">
-          <div>"${w.example}"</div>
-          ${w.example_ja ? `<div class="review-example-ja">${w.example_ja}</div>` : ''}
+          <div>"${esc(w.example)}"</div>
+          ${w.example_ja ? `<div class="review-example-ja">${esc(w.example_ja)}</div>` : ''}
         </div>` : ''}
         <div class="review-rate-btns">
           <button class="btn-rate btn-rate-fail" data-q="0">😰<br><span>知らなかった</span></button>
@@ -2855,15 +2935,15 @@ function renderDramas(dramas, containerId = 'dramaList') {
     card.className = 'drama-card';
     card.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-        <div class="drama-title">${d.title}</div>
-        <span class="level-pill level-${d.level}">${d.level}</span>
+        <div class="drama-title">${esc(d.title)}</div>
+        <span class="level-pill level-${esc(d.level)}">${esc(d.level)}</span>
       </div>
       <div class="drama-meta">
-        <span>${d.platform}</span>
-        <span>${d.genre}</span>
-        <span>${d.speech_feature}</span>
+        <span>${esc(d.platform)}</span>
+        <span>${esc(d.genre)}</span>
+        <span>${esc(d.speech_feature)}</span>
       </div>
-      <div class="drama-reason">${d.reason}</div>
+      <div class="drama-reason">${esc(d.reason)}</div>
     `;
     card.addEventListener('click', () => selectDrama(d, card));
     list.appendChild(card);
@@ -3044,7 +3124,7 @@ function renderQuiz() {
   document.getElementById('quizSection').innerHTML = `
     <div class="quiz-card">
       <div class="quiz-q">
-        ${q.question.replace('____', '<span class="quiz-blank">____</span>')}
+        ${esc(q.question).replace('____', '<span class="quiz-blank">____</span>')}
       </div>
       <div class="quiz-choices" id="quizChoices"></div>
       <div class="quiz-nav">
@@ -3302,7 +3382,7 @@ function renderHistoryList() {
       <div class="history-card">
         <div class="history-card-top">
           <div class="history-card-info">
-            <div class="history-drama">${h.drama.title}</div>
+            <div class="history-drama">${esc(h.drama.title)}</div>
             <div class="history-ep">S${h.season} E${h.episode} · ${h.date}</div>
           </div>
           ${scoreHtml}
@@ -3310,7 +3390,7 @@ function renderHistoryList() {
         <div class="history-meta">
           <span>${levelRange}</span>
           <span>${h.words.length}単語</span>
-          <span>${h.drama.platform}</span>
+          <span>${esc(h.drama.platform)}</span>
         </div>
         <div class="history-actions">
           <button class="btn-history-action" data-action="vocab" data-id="${h.id}">単語を見る</button>
@@ -3354,14 +3434,14 @@ function showHistoryVocab(id) {
       ${entry.words.map(w => `
         <div class="vocab-item">
           <div style="flex:1">
-            <div class="vocab-word">${w.word}</div>
+            <div class="vocab-word">${esc(w.word)}</div>
             ${w.example ? `<div class="word-example-wrap">
-              <span class="word-example-en">${w.example}</span>
-              ${w.example_ja ? `<span class="word-example-ja">${w.example_ja}</span>` : ''}
+              <span class="word-example-en">${esc(w.example)}</span>
+              ${w.example_ja ? `<span class="word-example-ja">${esc(w.example_ja)}</span>` : ''}
             </div>` : ''}
           </div>
-          <div class="vocab-pos">${w.pos}</div>
-          <div class="vocab-def">${w.definition}</div>
+          <div class="vocab-pos">${esc(w.pos)}</div>
+          <div class="vocab-def">${esc(w.definition)}</div>
         </div>
       `).join('')}
     </div>
