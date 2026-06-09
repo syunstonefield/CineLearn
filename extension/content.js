@@ -394,6 +394,45 @@ function getEpisodeContext() {
 }
 
 // ─────────────────────────────────────────────────────────────────
+// VOD実時刻アンカーの記録（タイムスタンプ補正用）
+//   字幕が画面に出た瞬間の { 字幕テキスト, video.currentTime } を間引いて保存。
+//   Webアプリ側で OpenSubtitles の時刻を VOD の時間軸に補正するのに使う。
+//   30秒に1回・最大300個まで。全字幕は取らず最小限のアンカーだけ。
+// ─────────────────────────────────────────────────────────────────
+const VOD_ANCHOR_MIN_GAP = 30;  // 秒（この間隔より密には取らない）
+const VOD_ANCHOR_MAX     = 300; // 1作品あたり最大アンカー数
+let   _vodAnchorKey      = '';
+let   _vodLastAnchorTime = -999;
+
+function captureVodAnchor(rawText) {
+  try {
+    const video = Array.from(document.querySelectorAll('video')).find(v => v.currentTime > 0);
+    if (!video) return;
+    const t = video.currentTime;
+    if (!isFinite(t) || t < 2) return;             // 再生直後は除外
+    const text = (rawText || '').replace(/\s+/g, ' ').trim();
+    if (text.length < 8) return;                   // 短い行はアンカーに不向き
+
+    const ctx = getEpisodeContext();
+    const titleKey = (ctx.dramaTitle || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
+    const key = `cl_vodsync_${titleKey}_s${ctx.season || 1}e${ctx.episode || 1}`;
+
+    // エピソードが変わったら間引きタイマーをリセット
+    if (key !== _vodAnchorKey) { _vodAnchorKey = key; _vodLastAnchorTime = -999; }
+    if (t - _vodLastAnchorTime < VOD_ANCHOR_MIN_GAP) return; // 間引き
+    _vodLastAnchorTime = t;
+
+    // 読み込み→追記→保存を storage コールバック内で原子的に行う
+    chrome.storage.local.get([key], r => {
+      let list = r[key] || [];
+      list.push({ text, t: Math.round(t) });
+      if (list.length > VOD_ANCHOR_MAX) list = list.filter((_, i) => i % 2 === 0);
+      chrome.storage.local.set({ [key]: list });
+    });
+  } catch { /* 取得失敗は無視 */ }
+}
+
+// ─────────────────────────────────────────────────────────────────
 // 単語保存（chrome.storage.local）
 // ─────────────────────────────────────────────────────────────────
 function saveWord(entry) {
@@ -497,6 +536,7 @@ function wrapWordsInElement(el) {
   // テキストが変化した場合は既存の cl-word を解除して再ラップする
   const currentText = el.textContent.trim();
   if (el.dataset.clWrapped === currentText) return; // 同じ内容なら何もしない
+  captureVodAnchor(currentText); // VOD実時刻アンカーを記録（Netflix/YouTube）
 
   // 既存の cl-word span を元のテキストノードに戻す
   el.querySelectorAll?.('.cl-word').forEach(span => {
@@ -598,6 +638,7 @@ function updateAmazonOverlay() {
   if (text !== lastOverlayText) {
     lastOverlayText = text;
     buildOverlayWords(text);
+    captureVodAnchor(text); // VOD実時刻アンカーを記録（Amazon）
   }
 
   // 元字幕の位置・サイズに追従

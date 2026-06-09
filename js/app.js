@@ -1504,16 +1504,108 @@ function findWordCueSec(word) {
   return null;
 }
 
-// 表示用タイムスタンプ "分:秒"（見つからなければ null）
-function findWordTimestamp(word) {
-  const sec = findWordCueSec(word);
-  return sec == null ? null : secToTimeLabel(sec);
+// ── VOD実時刻によるタイムスタンプ補正（ハイブリッド）──────────────────────
+// 拡張機能が視聴中に記録した「字幕テキスト ↔ VODの実時刻」のアンカーを使い、
+// OpenSubtitles の時刻を VOD の時間軸に補正する。
+//   vod ≈ a × os + b   （a=傾き：フレームレート差、b=オフセット：あらすじ尺差）
+// アンカー1点 → オフセットのみ(a=1)。2点以上が時間軸に散れば傾きも推定。
+function fitVodSync(pairs) {
+  if (!pairs.length) return null;
+  const offsets = pairs.map(p => p.vod - p.os).sort((x, y) => x - y);
+  const medianOffset = { a: 1, b: offsets[Math.floor(offsets.length / 2)] };
+  if (pairs.length < 2) return medianOffset;
+
+  const xs   = pairs.map(p => p.os);
+  const span = Math.max(...xs) - Math.min(...xs);
+  if (span < 120) return medianOffset; // 散らばりが2分未満なら傾き推定は不安定
+
+  // 最小二乗で a,b を推定
+  const n   = pairs.length;
+  const sx  = xs.reduce((s, x) => s + x, 0);
+  const sy  = pairs.reduce((s, p) => s + p.vod, 0);
+  const sxx = pairs.reduce((s, p) => s + p.os * p.os, 0);
+  const sxy = pairs.reduce((s, p) => s + p.os * p.vod, 0);
+  const a   = (n * sxy - sx * sy) / (n * sxx - sx * sx);
+  const b   = (sy - a * sx) / n;
+  // 異常な傾きは信頼せずオフセットのみにフォールバック
+  if (!isFinite(a) || a < 0.8 || a > 1.25) return medianOffset;
+  return { a, b };
 }
 
-// 並べ替え用の秒数（時刻なしは末尾に回すため Infinity）
+let _syncFitSig = '';
+let _syncFit    = null;
+function getVodSyncFit() {
+  const cues = getSubtitleCues();
+  const sig  = `${selectedDrama?.englishTitle || selectedDrama?.title}_s${selectedSeason}e${selectedEpisode}_${cues.length}`;
+  if (_syncFitSig === sig) return _syncFit;
+  _syncFitSig = sig;
+  _syncFit    = null;
+  if (!cues.length) return null;
+
+  // 該当S/Eの cl_vodsync_* アンカーを集める（タイトル表記差に強くするため
+  // キーは S/E で絞り、実際の対応付けは字幕テキスト一致で行う）
+  const suffix = `_s${selectedSeason}e${selectedEpisode}`;
+  const anchors = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (!k || !k.startsWith('cl_vodsync_') || !k.endsWith(suffix)) continue;
+    try { (JSON.parse(localStorage.getItem(k)) || []).forEach(a => anchors.push(a)); } catch {}
+  }
+  if (!anchors.length) return null;
+
+  // 文字列を「英数字＋スペース」だけに正規化（話者ダッシュ・記号・改行を除去）
+  const norm = (s) => String(s || '').toLowerCase()
+    .replace(/[’'`]/g, "'").replace(/[^a-z0-9' ]/g, ' ').replace(/\s+/g, ' ').trim();
+
+  // アンカーの字幕を OpenSubtitles cue に照合 → (os, vod) ペア
+  // VOD字幕は話者ダッシュや複数行連結で表記が揺れるため、記号を落として
+  // 「先頭の数語」で照合する（前半5語→無理なら3語）。
+  const pairs = [];
+  for (const a of anchors) {
+    const words = norm(a.text).split(' ').filter(w => w.length > 1);
+    if (words.length < 3) continue;
+    const key5 = words.slice(0, 5).join(' ');
+    const key3 = words.slice(0, 3).join(' ');
+    const c = cues.find(c => norm(c.text).includes(key5))
+           || cues.find(c => norm(c.text).includes(key3));
+    if (c) pairs.push({ os: c.sec, vod: a.t });
+  }
+  // 偏りガード：アンカーが時間軸の一部に固まっていると、傾き推定が不安定で
+  // 範囲外（特に冒頭）に外挿すると時刻が壊れる。前半と後半の両方をカバー、
+  // または全体の50%以上にまたがる場合のみ補正を信頼する。
+  if (pairs.length) {
+    const total  = cues[cues.length - 1].sec || 1;
+    const osv    = pairs.map(p => p.os);
+    const minOs  = Math.min(...osv), maxOs = Math.max(...osv);
+    const spread = (maxOs - minOs) / total;
+    const trustworthy = (minOs < total * 0.35 && maxOs > total * 0.65) || spread > 0.5;
+    if (!trustworthy) {
+      console.log(`[vodsync] アンカーが時間軸の一部（約${Math.round(minOs/60)}〜${Math.round(maxOs/60)}分）に偏っているため補正を見送り、原時刻を使います。前半と後半の両方を視聴すると補正できます。`);
+      return null; // 補正せず OpenSubtitles 原時刻を使う
+    }
+  }
+
+  _syncFit = fitVodSync(pairs);
+  if (_syncFit) {
+    console.log(`[vodsync] 補正 a=${_syncFit.a.toFixed(3)} b=${Math.round(_syncFit.b)}秒 (照合${pairs.length}点)`);
+  }
+  return _syncFit;
+}
+function applyVodSync(sec) {
+  const f = getVodSyncFit();
+  return f ? Math.max(0, Math.round(f.a * sec + f.b)) : sec;
+}
+
+// 表示用タイムスタンプ "分:秒"（見つからなければ null。VOD補正を適用）
+function findWordTimestamp(word) {
+  const sec = findWordCueSec(word);
+  return sec == null ? null : secToTimeLabel(applyVodSync(sec));
+}
+
+// 並べ替え用の秒数（時刻なしは末尾に回すため Infinity。VOD補正を適用）
 function wordSortSeconds(word) {
   const sec = findWordCueSec(word);
-  return sec == null ? Infinity : sec;
+  return sec == null ? Infinity : applyVodSync(sec);
 }
 
 // シーズン・エピソード選択肢を動的に構築する

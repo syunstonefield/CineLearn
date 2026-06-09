@@ -2,14 +2,21 @@
 /**
  * CineLearn Bridge - cine-learn.vercel.app 専用コンテンツスクリプト
  *
- * chrome.storage.local の cl_my_words_* 変化を localStorage にコピーし、
- * storage イベントを発火させて app.js に即時通知する。
+ * chrome.storage.local の対象キー（cl_my_words_* / cl_vodsync_*）の変化を
+ * localStorage にコピーし、app.js に即時通知する。
+ *   - cl_my_words_*  : マイ単語帳
+ *   - cl_vodsync_*   : VOD実時刻アンカー（タイムスタンプ補正用）
  */
+
+// 同期対象のキーか判定
+function isBridgedKey(key) {
+  return key.startsWith('cl_my_words') || key.startsWith('cl_vodsync_');
+}
 
 // 初回起動時：chrome.storage の現在値を localStorage に同期
 chrome.storage.local.get(null, (items) => {
   Object.entries(items).forEach(([key, value]) => {
-    if (!key.startsWith('cl_my_words')) return;
+    if (!isBridgedKey(key)) return;
     try {
       const json = JSON.stringify(value);
       if (localStorage.getItem(key) !== json) {
@@ -23,7 +30,7 @@ chrome.storage.local.get(null, (items) => {
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local') return;
   Object.entries(changes).forEach(([key, { newValue }]) => {
-    if (!key.startsWith('cl_my_words')) return;
+    if (!isBridgedKey(key)) return;
     try {
       if (newValue === undefined) {
         localStorage.removeItem(key);
