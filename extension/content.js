@@ -507,7 +507,7 @@ async function showWordPopup(word, sentence, rect) {
       phonetic:   dict?.phonetic || '',
       pos:        dict?.pos || '',
       definition: dict?.definition || '',
-      savedAt:    new Date().toLocaleDateString('ja-JP'),
+      savedAt:    new Date().toISOString().slice(0, 10), // ISO（アプリ側で表示変換）
       source:     document.title.split(/[|\-–—]/)[0].trim(),
       dramaTitle: ctx.dramaTitle,
       season:     ctx.season,

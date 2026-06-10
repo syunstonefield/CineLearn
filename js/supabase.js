@@ -158,23 +158,59 @@ const cloudSync = {
     await sbFetch(`/rest/v1/my_words?user_id=eq.${uid}`, { method: 'DELETE' });
   },
 
+  // 差分同期：upsert ＋ ローカルに無い単語だけ個別削除。
+  // 旧方式（全削除→再挿入）は DELETE と INSERT の間で失敗すると単語帳が
+  // 全損するため廃止。差分方式なら途中で失敗してもクラウドに前回データが残る
+  // （最悪「余分な単語が残る」だけで、次回同期時に掃除される）。
+  // ※ upsert には my_words の UNIQUE (user_id, word) 制約が必要。
+  //    制約が無い環境では旧方式にフォールバックする（コンソールに警告）。
   async myWords(words) {
     const uid = getCurrentUser()?.id;
     if (!uid) return;
-    // 全削除してから現在のリストを挿入（置き換え戦略）
-    // → 削除した単語が Supabase に残らないことを保証する
-    await sbFetch(`/rest/v1/my_words?user_id=eq.${uid}`, { method: 'DELETE' });
-    if (!words?.length) return;
-    await sbFetch('/rest/v1/my_words', {
-      method: 'POST',
-      headers: { 'Prefer': 'resolution=merge-duplicates' },
-      body: JSON.stringify(words.map(w => ({
-        user_id: uid, word: w.word, sentence: w.sentence,
-        phonetic: w.phonetic, pos: w.pos, definition: w.definition,
-        saved_at: w.savedAt, source: w.source,
-        drama_title: w.dramaTitle, season: w.season, episode: w.episode
-      })))
+    words = words || [];
+
+    const toRow = (w) => ({
+      user_id: uid, word: w.word, sentence: w.sentence,
+      phonetic: w.phonetic, pos: w.pos, definition: w.definition,
+      saved_at: w.savedAt, source: w.source,
+      drama_title: w.dramaTitle, season: w.season, episode: w.episode
     });
+
+    // ① クラウドの現状（word列のみ）。取得失敗時は削除をスキップ（次回に持ち越し）
+    const cloud = await sbFetch(`/rest/v1/my_words?user_id=eq.${uid}&select=word`);
+    const cloudWords = Array.isArray(cloud) ? cloud.map(r => r.word) : [];
+    const localSet   = new Set(words.map(w => w.word.toLowerCase()));
+
+    // ② ローカル全件を upsert（追加・更新のみ。クラウドは消さない）
+    if (words.length) {
+      const res = await sbFetch('/rest/v1/my_words?on_conflict=user_id,word', {
+        method: 'POST',
+        headers: { 'Prefer': 'resolution=merge-duplicates' },
+        body: JSON.stringify(words.map(toRow))
+      });
+      // sbFetch は成功時 null・PostgRESTエラー時 {code, message} を返す
+      if (res && (res.code || res.message)) {
+        // UNIQUE制約が無い等で upsert 不可 → 旧方式（全置換）にフォールバック
+        console.warn('[cloudSync] upsert失敗のため全置換にフォールバック。Supabaseで UNIQUE (user_id, word) 制約の追加を推奨:', res.message || res.code);
+        await sbFetch(`/rest/v1/my_words?user_id=eq.${uid}`, { method: 'DELETE' });
+        await sbFetch('/rest/v1/my_words', {
+          method: 'POST',
+          headers: { 'Prefer': 'resolution=merge-duplicates' },
+          body: JSON.stringify(words.map(toRow))
+        });
+        return;
+      }
+    }
+
+    // ③ クラウドにあってローカルに無い単語だけ個別削除
+    //   （単語に記号が含まれてもよいよう encodeURIComponent で1件ずつ）
+    const toDelete = cloudWords.filter(w => !localSet.has(w.toLowerCase()));
+    for (const w of toDelete) {
+      await sbFetch(
+        `/rest/v1/my_words?user_id=eq.${uid}&word=eq.${encodeURIComponent(w)}`,
+        { method: 'DELETE' }
+      );
+    }
   }
 };
 

@@ -45,22 +45,59 @@ function saveSrs(d) {
 }
 function todayStr() { return new Date().toISOString().slice(0, 10); }
 
+// ── 日付形式の統一 ──────────────────────────────────────────
+// 保存は常に ISO（YYYY-MM-DD）、表示時だけ日本語形式に変換する。
+// 過去データには ja-JP 形式（2026/6/11）が混在するため、両形式を扱う。
+
+// どちらの形式でも ISO に正規化する（不明な形式はそのまま返す）
+function toIsoDate(s) {
+  if (!s) return s;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s; // 既にISO
+  const m = String(s).match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/); // 旧 ja-JP形式
+  if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+  return s;
+}
+// 表示用：ISO → 2026/6/11（タイムゾーンに依存しないよう文字列で組み立てる）
+function formatDateJa(s) {
+  const iso = toIsoDate(s);
+  const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return s || '';
+  return `${m[1]}/${parseInt(m[2])}/${parseInt(m[3])}`;
+}
+
+// 2段階の習得システム
+//   レベル1「覚えた」(isLearned)  : 2回以上成功（早期の達成感）
+//   レベル2「マスター」(isMastered): 3回以上 + 間隔21日 + 易しさ2.0（長期定着）
 function isMastered(e)  { return !!e && !e.skipped && e.repetitions >= 3 && e.interval >= 21 && e.easeFactor >= 2.0; }
+function isLearned(e)   { return !!e && !e.skipped && e.repetitions >= 2; } // マスターも包含
 function isDue(e)       { if (!e || e.skipped || isMastered(e)) return false; return !e.dueDate || e.dueDate <= todayStr(); }
 
-function getWordStatus(word) {
-  const e = loadSrs()[word.toLowerCase()];
-  if (!e)                              return 'new';
+// srs はループ内で繰り返し呼ぶ場合に loadSrs() の結果を渡す（毎回のJSON.parseを避ける）
+function getWordStatus(word, srs = loadSrs()) {
+  const e = srs[word.toLowerCase()];
+  if (!e)                              return 'new';        // 🌱 未学習
   if (e.skipped)                       return 'skipped';
-  if (isMastered(e))                   return 'mastered';
-  if (isDue(e))                        return 'due';
+  if (isMastered(e))                   return 'mastered';   // ⭐ マスター
+  if (isLearned(e))                    return 'learned';    // ✅ 覚えた
+  if (isDue(e))                        return 'due';        // 🔄 学習中（要復習）
   if (e.lastReview === todayStr())     return 'reviewed_today';
-  return 'scheduled';
+  return 'scheduled';                                       // 🔄 学習中（予定）
+}
+
+// ステータスバッジ（優先順位: ⭐マスター > ✅覚えた > 🔄学習中 > 🌱未学習）
+function statusBadgeHTML(status) {
+  switch (status) {
+    case 'mastered': return '<span class="srs-badge badge-mastered">⭐ マスター</span>';
+    case 'learned':  return '<span class="srs-badge badge-learned">✅ 覚えた</span>';
+    case 'skipped':  return ''; // スキップは vocab-skipped クラスで表現
+    case 'new':      return '<span class="srs-badge badge-new">🌱 未学習</span>';
+    default:         return '<span class="srs-badge badge-learning">🔄 学習中</span>'; // due/scheduled/reviewed_today
+  }
 }
 
 // 次回復習日を人間が読みやすい文字列で返す
-function nextReviewLabel(word) {
-  const e = loadSrs()[word.toLowerCase()];
+function nextReviewLabel(word, srs = loadSrs()) {
+  const e = srs[word.toLowerCase()];
   if (!e || !e.dueDate || e.skipped || isMastered(e)) return null;
   const diff = Math.round(
     (new Date(e.dueDate) - new Date(todayStr())) / (1000 * 60 * 60 * 24)
@@ -107,21 +144,148 @@ function reviewWord(word, quality) {
 
 function episodeStats(words) {
   const srs = loadSrs();
-  let mastered = 0, due = 0, skipped = 0, reviewedToday = 0;
+  let mastered = 0, learned = 0, due = 0, skipped = 0, reviewedToday = 0;
   (words || []).forEach(w => {
     const e = srs[w.word.toLowerCase()];
-    if (!e)                          { due++;           return; }
-    if (e.skipped)                   { skipped++;       return; }
-    if (isMastered(e))               { mastered++;      return; }
-    if (isDue(e))                    { due++;           return; }
-    if (e.lastReview === todayStr()) { reviewedToday++; return; }
+    if (isMastered(e)) mastered++;   // マスターは「覚えた」も兼ねる
+    if (isLearned(e))  learned++;    // ← マスター済みも learned に含む
+    if (e?.skipped)    skipped++;
+    // 復習対象（未学習 or 期日到来）。startReview と同基準。
+    if (!e || isDue(e))                   due++;
+    else if (e.lastReview === todayStr()) reviewedToday++;
   });
-  return { total: (words || []).length, mastered, due, skipped, reviewedToday };
+  return { total: (words || []).length, mastered, learned, due, skipped, reviewedToday };
+}
+
+// ─────────────────────────────────────────
+// ダッシュボード（今日の復習・ストリーク・週次）
+// ─────────────────────────────────────────
+const ACTIVITY_KEY      = 'cl_activity_dates';
+const DAILY_REVIEW_CAP  = 20; // 1日の復習はこの数までに抑える（負担を減らす）
+
+function loadActivityDates() {
+  try { return JSON.parse(localStorage.getItem(ACTIVITY_KEY) || '[]'); } catch { return []; }
+}
+// 今日を「学習した日」として記録（復習完了・単語生成時に呼ぶ）
+function markActivityToday() {
+  const arr = loadActivityDates();
+  const d = todayStr();
+  if (!arr.includes(d)) { arr.push(d); localStorage.setItem(ACTIVITY_KEY, JSON.stringify(arr)); }
+}
+// 既存ユーザー向け：復習ログの日付を活動日に取り込む（初回のみ）
+function backfillActivityDates() {
+  const set = new Set(loadActivityDates());
+  let changed = false;
+  loadReviewLog().forEach(s => { if (s.date && !set.has(s.date)) { set.add(s.date); changed = true; } });
+  if (changed) localStorage.setItem(ACTIVITY_KEY, JSON.stringify([...set]));
+}
+// 連続学習日数（今日 or 昨日を起点に遡る。今日未実施でも昨日まで連続なら維持）
+function getStreak() {
+  const set = new Set(loadActivityDates());
+  if (!set.size) return 0;
+  const iso = x => x.toISOString().slice(0, 10);
+  let d = new Date();
+  if (!set.has(iso(d))) {
+    d.setDate(d.getDate() - 1);
+    if (!set.has(iso(d))) return 0; // 昨日も無ければ途切れ
+  }
+  let n = 0;
+  while (set.has(iso(d))) { n++; d.setDate(d.getDate() - 1); }
+  return n;
+}
+
+// 全履歴の単語を重複排除して集約
+function getAllVocabWords() {
+  const map = new Map();
+  loadHistory().forEach(h => (h.words || []).forEach(w => {
+    const k = w.word?.toLowerCase();
+    if (k && !map.has(k)) map.set(k, w);
+  }));
+  return [...map.values()];
+}
+// 今日復習すべき単語（startReview と同基準：未学習 or 期日到来）。
+// 期日到来(scheduled)を未学習(new)より優先して並べる。
+function getDueReviewWords() {
+  const srs = loadSrs();
+  const eligible = getAllVocabWords().filter(w => {
+    const e = srs[w.word.toLowerCase()];
+    return !e || isDue(e);
+  });
+  eligible.sort((a, b) => {
+    const pa = srs[a.word.toLowerCase()] ? 0 : 1;
+    const pb = srs[b.word.toLowerCase()] ? 0 : 1;
+    return pa - pb;
+  });
+  return eligible;
+}
+// 今週の進捗（今日含む直近7日に復習した単語数・累計の習得語数）
+function getWeekStats() {
+  const srs = loadSrs();
+  const wa = new Date(); wa.setDate(wa.getDate() - 6);
+  const wk = wa.toISOString().slice(0, 10);
+  let reviewedThisWeek = 0, mastered = 0;
+  Object.values(srs).forEach(e => {
+    if (e?.lastReview && e.lastReview >= wk) reviewedThisWeek++;
+    if (isMastered(e)) mastered++;
+  });
+  return { reviewedThisWeek, mastered };
+}
+
+// 横断復習（特定エピソードに紐づかない）を開始
+function startGlobalReview(words) {
+  currentHistoryId = null;
+  startReview(words);
+}
+
+// ダッシュボード上部の「今日パネル」を描画
+function renderTodayPanel() {
+  const el = document.getElementById('todayPanel');
+  if (!el) return;
+
+  const streak     = getStreak();
+  const hasAnyWord = getAllVocabWords().length > 0;
+  const due        = getDueReviewWords();
+  const todayCount = Math.min(due.length, DAILY_REVIEW_CAP);
+  const { reviewedThisWeek, mastered } = getWeekStats();
+
+  const streakHTML = streak > 0
+    ? `<div class="today-streak">🔥 <b>${streak}</b>日連続</div>`
+    : `<div class="today-streak today-streak-zero">今日から連続記録をはじめよう</div>`;
+
+  let reviewHTML;
+  if (!hasAnyWord) {
+    // まだ単語が無い新規ユーザー → 予習へ誘導
+    reviewHTML = `<div class="today-review-card done-review">
+         <div class="today-review-title">👋 さっそく始めよう</div>
+         <div class="today-review-sub">ドラマのエピソードを選んで単語を予習しましょう</div>
+       </div>`;
+  } else if (todayCount > 0) {
+    reviewHTML = `<div class="today-review-card has-review">
+         <div class="today-review-title">📖 今日の復習 <b>${todayCount}</b>単語</div>
+         <button class="btn-today-review" id="btnTodayReview">復習をはじめる →</button>
+       </div>`;
+  } else {
+    reviewHTML = `<div class="today-review-card done-review">
+         <div class="today-review-title">✅ 今日の復習は完了！</div>
+         <div class="today-review-sub">新しいエピソードを予習してみましょう</div>
+       </div>`;
+  }
+
+  // 統計は単語がある場合のみ表示
+  const statsHTML = hasAnyWord
+    ? `<div class="today-stats">今週 <b>${reviewedThisWeek}</b>単語復習 · 習得 <b>${mastered}</b>語</div>`
+    : '';
+
+  el.innerHTML = streakHTML + reviewHTML + statsHTML;
+
+  const btn = document.getElementById('btnTodayReview');
+  if (btn) btn.addEventListener('click', () => startGlobalReview(due.slice(0, DAILY_REVIEW_CAP)));
 }
 
 function buildProgressHTML(words) {
-  const { total, mastered, due, skipped, reviewedToday } = episodeStats(words);
-  const pct = total === 0 ? 0 : Math.round(mastered / total * 100);
+  const { total, mastered, learned, due, skipped, reviewedToday } = episodeStats(words);
+  // 進捗バーは「覚えた」ベース（達成感を早く出すため）
+  const pct = total === 0 ? 0 : Math.round(learned / total * 100);
   const barColor = pct === 100 ? '#f5c518'
     : pct > 60  ? '#4fc3f7'
     : pct > 30  ? 'var(--accent)'
@@ -129,17 +293,24 @@ function buildProgressHTML(words) {
   const epLabel = selectedDrama
     ? `${selectedDrama.title} S${selectedSeason}E${selectedEpisode} の単語リスト`
     : '単語リスト';
-  const completeMsg = pct === 100
-    ? '<div class="srs-complete">✨ このエピソードをコンプリート！</div>' : '';
+  const completeMsg = (total > 0 && learned === total)
+    ? (mastered === total
+        ? '<div class="srs-complete">🌟 全単語マスター達成！</div>'
+        : '<div class="srs-complete">✨ 全単語「覚えた」達成！</div>')
+    : '';
   const reviewedPart = reviewedToday > 0 ? ` / 今日復習済み：${reviewedToday}単語` : '';
   return `
     <div class="srs-progress-wrap">
       <div class="srs-progress-header">
         <span class="srs-ep-label">${epLabel}</span>
-        <span class="srs-pct" style="color:${barColor}">${pct}% 習得</span>
+        <span class="srs-pct" style="color:${barColor}">${pct}% 覚えた</span>
       </div>
       <div class="srs-bar"><div class="srs-bar-fill" style="width:${pct}%;background:${barColor}"></div></div>
-      <div class="srs-stats">${total}単語中 ${mastered}単語習得済み（復習対象：${due}単語 / スキップ：${skipped}単語${reviewedPart}）</div>
+      <div class="srs-counts">
+        <span class="srs-count-learned">✅ 覚えた: <b>${learned}</b>/${total}</span>
+        <span class="srs-count-mastered">⭐ マスター: <b>${mastered}</b>/${total}</span>
+      </div>
+      <div class="srs-stats">復習対象：${due}単語 / スキップ：${skipped}単語${reviewedPart}</div>
       ${completeMsg}
     </div>
   `;
@@ -585,7 +756,7 @@ function goToStep(step) {
   const el = document.getElementById(id);
   if (el) el.classList.add('active');
   window.scrollTo(0, 0);
-  if (step === 'main') renderDramaLibrary();
+  if (step === 'main') { renderTodayPanel(); renderDramaLibrary(); }
   // screen-4（単語リスト）ではポーリング開始、それ以外では停止
   if (step === 4) startExtPoll(); else stopExtPoll();
 }
@@ -716,7 +887,7 @@ function buildLibraryCard({ drama, episodes, bestScore, lastDate }) {
       ${recent ? `<div class="library-card-episodes">📚 ${recent}</div>` : '<div class="library-card-episodes" style="color:var(--text-muted)">未学習</div>'}
     </div>
     <div class="library-card-footer">
-      <span class="library-card-date">${lastDate || ''}</span>
+      <span class="library-card-date">${lastDate ? formatDateJa(lastDate) : ''}</span>
       <button class="library-card-action">${episodes.length > 0 ? '続きを学習 →' : '学習を始める →'}</button>
     </div>`;
 
@@ -1850,36 +2021,28 @@ async function resolveUnassignedWords() {
 
 // 「追加した単語」セクションを vocabSection の末尾に追加する
 // buildWordHTML の外部版（拡張機能単語・マイ単語帳など renderVocab 外で使用）
-function buildExtWordHTML(w) {
-  const status     = getWordStatus(w.word);
+// srs: ループで呼ぶ場合は loadSrs() の結果を渡す（毎回のJSON.parseを避ける）
+function buildExtWordHTML(w, srs = loadSrs()) {
+  const status     = getWordStatus(w.word, srs);
   const isMast     = status === 'mastered';
-  const isDueNow   = status === 'due' || status === 'new';
   const isSkip     = status === 'skipped';
-  const isReviewed = status === 'reviewed_today';
-  const srsEntry   = loadSrs()[w.word.toLowerCase()];
-  const lastQ      = isReviewed ? (srsEntry?.lastQuality ?? null) : null;
+  const srsEntry   = srs[w.word.toLowerCase()];
   const reviewCount = srsEntry?.reviewCount || 0;
   const hasReviewed = !!srsEntry?.lastReview;
   const reviewCountLabel = reviewCount > 0
     ? `<span class="review-count-label">${reviewCount}回復習済み</span>`
     : hasReviewed ? `<span class="review-count-label">復習済み</span>` : '';
-  const reviewedBadge = lastQ === 5 ? '<span class="srs-badge badge-reviewed badge-q-easy">✅ 知ってた</span>'
-                      : lastQ === 3 ? '<span class="srs-badge badge-reviewed badge-q-hard">🤔 うろ覚え</span>'
-                      : lastQ === 0 ? '<span class="srs-badge badge-reviewed badge-q-fail">😰 知らなかった</span>'
-                      : '<span class="srs-badge badge-reviewed">✓ 復習済み</span>';
-  const srsBadge = isMast    ? '<span class="srs-badge badge-mastered">⭐</span>'
-                 : isDueNow  ? '<span class="srs-badge badge-due">🔴</span>'
-                 : isReviewed ? reviewedBadge : '';
-  const nextReview = nextReviewLabel(w.word);
+  const srsBadge = statusBadgeHTML(status);
+  const nextReview = nextReviewLabel(w.word, srs);
   const nextLabel  = nextReview ? `<span class="srs-next-review">📅 次回: ${nextReview}</span>` : '';
-  const timestamp  = findWordTimestamp(w.word, w.example);
+  const timestamp  = findWordTimestamp(w.word);
   const tsLabel    = timestamp ? `<span class="word-timestamp" data-time="${timestamp}">📍 ${timestamp}</span>` : '';
   const tier = w.tier || 'core';
   const tierBadge = tier === 'context'  ? '<span class="tier-pill tier-context">Context</span>'
                   : tier === 'advanced' ? '<span class="tier-pill tier-advanced">Advanced</span>'
                   :                      '<span class="tier-pill tier-core">Core</span>';
   return `
-    <div class="vocab-item${isMast ? ' vocab-mastered' : ''}${isSkip ? ' vocab-skipped' : ''}">
+    <div class="vocab-item${isMast ? ' vocab-mastered' : ''}${status === 'learned' ? ' vocab-learned' : ''}${isSkip ? ' vocab-skipped' : ''}">
       <div style="flex:1">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
           ${srsBadge}
@@ -1978,7 +2141,7 @@ async function renderExtWordsSection(existingWords = []) {
   }));
   // 登場時刻順に並べ替え（時刻なしは末尾）
   extNormalized.sort((a, b) =>
-    wordSortSeconds(a.word, a.example) - wordSortSeconds(b.word, b.example)
+    wordSortSeconds(a.word) - wordSortSeconds(b.word)
   );
 
   const div = document.createElement('div');
@@ -1992,7 +2155,9 @@ async function renderExtWordsSection(existingWords = []) {
   const listDiv = document.createElement('div');
   listDiv.className = 'vocab-list';
   // buildWordHTML を呼ぶために一時的に words コンテキストを利用
-  extNormalized.forEach(w => { listDiv.innerHTML += buildExtWordHTML(w); });
+  // SRSを1回だけロードして全カードで共有し、HTMLは join で一括挿入する
+  const extSrs = loadSrs();
+  listDiv.innerHTML = extNormalized.map(w => buildExtWordHTML(w, extSrs)).join('');
   div.appendChild(listDiv);
   sect.appendChild(div);
 
@@ -2562,25 +2727,31 @@ async function renderVocab(words, sourceLabel, skipHistory = false) {
     return true;
   });
 
-  // 単語をエピソード内の登場時刻順に並べ替える。
-  // 各単語の秒数は一度だけ計算してキャッシュする。
-  const secCache = new Map();
-  const secOf = (w) => {
-    if (!secCache.has(w.word)) secCache.set(w.word, wordSortSeconds(w.word, w.example));
-    return secCache.get(w.word);
+  // 単語ごとの登場時刻を一度だけ計算（並べ替えと📍表示で共用する。
+  // 字幕全文のスキャンは単語あたり1回に抑える）。
+  const tsCache = new Map(); // word → { sec(ソート用・補正済), label(📍表示) }
+  const tsOf = (w) => {
+    if (!tsCache.has(w.word)) {
+      const raw = findWordCueSec(w.word);
+      tsCache.set(w.word, raw == null
+        ? { sec: Infinity, label: null }
+        : { sec: applyVodSync(raw), label: secToTimeLabel(applyVodSync(raw)) });
+    }
+    return tsCache.get(w.word);
   };
-  words = [...words].sort((a, b) => secOf(a) - secOf(b));
+  words = [...words].sort((a, b) => tsOf(a).sec - tsOf(b).sec);
 
   currentVocabWords = words;
 
+  // SRSは一度だけロードして全カードで共有する（単語ごとのJSON.parseを避ける）
+  const srs = loadSrs();
+
   const buildWordHTML = (w) => {
-    const status     = getWordStatus(w.word);
+    const status     = getWordStatus(w.word, srs);
     const isMast     = status === 'mastered';
-    const isDueNow   = status === 'due' || status === 'new';
+    const isLrn      = status === 'learned';
     const isSkip     = status === 'skipped';
-    const isReviewed = status === 'reviewed_today';
-    const srsEntry = loadSrs()[w.word.toLowerCase()];
-    const lastQ = isReviewed ? (srsEntry?.lastQuality ?? null) : null;
+    const srsEntry = srs[w.word.toLowerCase()];
     const reviewCount = srsEntry?.reviewCount || 0;
     const hasReviewed = !!srsEntry?.lastReview;
     const reviewCountLabel = reviewCount > 0
@@ -2588,27 +2759,20 @@ async function renderVocab(words, sourceLabel, skipHistory = false) {
       : hasReviewed
         ? `<span class="review-count-label">復習済み</span>`
         : '';
-    const reviewedBadge = lastQ === 5 ? '<span class="srs-badge badge-reviewed badge-q-easy">✅ 知ってた</span>'
-                        : lastQ === 3 ? '<span class="srs-badge badge-reviewed badge-q-hard">🤔 うろ覚え</span>'
-                        : lastQ === 0 ? '<span class="srs-badge badge-reviewed badge-q-fail">😰 知らなかった</span>'
-                        : '<span class="srs-badge badge-reviewed">✓ 復習済み</span>';
-    const srsBadge = isMast      ? '<span class="srs-badge badge-mastered">⭐</span>'
-                   : isDueNow    ? '<span class="srs-badge badge-due">🔴</span>'
-                   : isReviewed  ? reviewedBadge
-                   : '';
+    const srsBadge = statusBadgeHTML(status);
     const tier = w.tier || 'core';
     const tierBadge = tier === 'context'  ? '<span class="tier-pill tier-context">Context</span>'
                     : tier === 'advanced' ? '<span class="tier-pill tier-advanced">Advanced</span>'
                     :                      '<span class="tier-pill tier-core">Core</span>';
     const notInTest  = !testTiers.includes(tier);
-    const nextReview = nextReviewLabel(w.word);
+    const nextReview = nextReviewLabel(w.word, srs);
     const nextLabel  = nextReview ? `<span class="srs-next-review">📅 次回: ${nextReview}</span>` : '';
-    const timestamp  = findWordTimestamp(w.word, w.example);
+    const timestamp  = tsOf(w).label;
     const tsLabel    = timestamp
       ? `<span class="word-timestamp" data-time="${timestamp}" title="タップしてコピー">📍 ${timestamp}</span>`
       : '';
     return `
-      <div class="vocab-item${isMast ? ' vocab-mastered' : ''}${isSkip ? ' vocab-skipped' : ''}${notInTest ? ' vocab-no-test' : ''}">
+      <div class="vocab-item${isMast ? ' vocab-mastered' : ''}${isLrn ? ' vocab-learned' : ''}${isSkip ? ' vocab-skipped' : ''}${notInTest ? ' vocab-no-test' : ''}">
         <div style="flex:1">
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
             ${srsBadge}
@@ -2789,7 +2953,7 @@ async function fetchRawSrtIfMissing(words, sourceLabel) {
     try { localStorage.setItem(rawKey, srtText); } catch {}
 
     // タイムスタンプが取得できた単語があれば再描画
-    const hasTimestamp = words.some(w => findWordTimestamp(w.word, w.example));
+    const hasTimestamp = words.some(w => findWordTimestamp(w.word));
     if (hasTimestamp) renderVocab(words, sourceLabel, true);
   } catch { /* 取得失敗は無視 */ }
 }
@@ -2802,6 +2966,7 @@ let reviewQueue      = [];
 let reviewQIdx       = 0;
 let reviewRatings    = {}; // word → quality (0/3/5)
 let currentSessionNum = 0; // 今日の何回目か
+let reviewPromotions = { learned: [], mastered: [] }; // このセッションでの昇格単語
 
 function loadReviewLog() {
   try { return JSON.parse(localStorage.getItem(REVIEW_LOG_KEY) || '[]'); } catch { return []; }
@@ -2819,6 +2984,8 @@ function recordReviewSession(historyId, easy, hard, fail) {
   const todayCount = log.filter(s => s.date === today && s.historyId === historyId).length;
   log.push({ date: today, historyId, sessionNum: todayCount + 1, easy, hard, fail, total: easy + hard + fail });
   saveReviewLog(log);
+  markActivityToday();        // ストリーク用に今日を学習日として記録
+  renderTodayPanel();         // ダッシュボードの今日パネルを更新
   return todayCount + 1;
 }
 
@@ -2834,6 +3001,7 @@ function startReview(words) {
     .sort(() => Math.random() - 0.5);
   reviewQIdx    = 0;
   reviewRatings = {};
+  reviewPromotions = { learned: [], mastered: [] };
   currentSessionNum = todaySessionCount(currentHistoryId) + 1;
   document.getElementById('reviewModal').style.display = 'flex';
   renderReviewCard();
@@ -2890,11 +3058,21 @@ function renderReviewCard() {
     };
 
     const allPerfect = failed.length === 0 && hard.length === 0;
+    const gotMaster  = reviewPromotions.mastered.length > 0;
+    const gotLearned = reviewPromotions.learned.length > 0;
+    // 演出：マスター到達=金色の特別演出 / 「覚えた」到達=🎉 / それ以外は従来通り
+    const heroEmoji = gotMaster ? '⭐' : (gotLearned || !allPerfect ? '🎉' : '🌟');
+    const promoHTML = (gotLearned || gotMaster) ? `
+      <div class="review-promotions">
+        ${gotLearned ? `<div class="review-promo learned">✅ ${reviewPromotions.learned.length}単語が「覚えた」に昇格！</div>` : ''}
+        ${gotMaster  ? `<div class="review-promo mastered">⭐ ${reviewPromotions.mastered.length}単語がマスターに到達！</div>` : ''}
+      </div>` : '';
     content.innerHTML = `
-      <div class="review-done">
-        <div style="font-size:48px;margin-bottom:8px">${allPerfect ? '🌟' : '🎉'}</div>
+      <div class="review-done${gotMaster ? ' review-done-gold' : ''}">
+        <div class="review-hero-emoji" style="font-size:48px;margin-bottom:8px">${heroEmoji}</div>
         <div style="font-size:19px;font-weight:600;margin-bottom:4px">復習完了！（今日${sessionNum}回目）</div>
         <div style="color:var(--text-muted);font-size:13px;margin-bottom:8px">${reviewQueue.length}単語を復習しました</div>
+        ${promoHTML}
         <div class="review-session-badges" style="display:flex;gap:8px;justify-content:center;margin-bottom:16px">
           <span class="badge-easy">✅ 知ってた ${easy.length}</span>
           <span class="badge-hard">🤔 うろ覚え ${hard.length}</span>
@@ -2959,8 +3137,16 @@ function renderReviewCard() {
   content.querySelectorAll('.btn-rate').forEach(btn => {
     btn.addEventListener('click', () => {
       const q = parseInt(btn.dataset.q);
+      // 昇格判定のため評価前の状態を記録
+      const before    = loadSrs()[w.word.toLowerCase()];
+      const wasLearned  = isLearned(before);
+      const wasMastered = isMastered(before);
       reviewRatings[w.word] = q;
       reviewWord(w.word, q);
+      // 評価後に新しく到達したら昇格として記録
+      const after = loadSrs()[w.word.toLowerCase()];
+      if (!wasLearned  && isLearned(after))  reviewPromotions.learned.push(w.word);
+      if (!wasMastered && isMastered(after)) reviewPromotions.mastered.push(w.word);
       reviewQIdx++;
       renderReviewCard();
     });
@@ -3314,9 +3500,16 @@ async function onSeasonChange() {
 // ─────────────────────────────────────────
 
 // localStorage から履歴を読み込む
+// 日付は読み込み時に必ず ISO へ正規化する（過去データ・クラウド由来の
+// ja-JP 形式が混在しても、利用側は常に ISO 前提で比較・表示できる）
 function loadHistory() {
   try {
-    return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+    const h = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+    h.forEach(e => {
+      if (e.date)     e.date     = toIsoDate(e.date);
+      if (e.quizDate) e.quizDate = toIsoDate(e.quizDate);
+    });
+    return h;
   } catch {
     return [];
   }
@@ -3330,7 +3523,7 @@ function saveToHistory() {
   const newId = Date.now().toString();
   const entry = {
     id: newId,
-    date: new Date().toLocaleDateString('ja-JP'),
+    date: todayStr(), // ISO（表示時に formatDateJa で変換）
     drama: {
       title: selectedDrama.title,
       genre: selectedDrama.genre,
@@ -3371,6 +3564,7 @@ function saveToHistory() {
   localStorage.setItem(HISTORY_KEY, JSON.stringify(saved));
   if (typeof cloudSync !== 'undefined' && isLoggedIn()) cloudSync.history(saved);
   updateHistoryBadge();
+  markActivityToday(); // 単語生成も学習活動としてストリークに記録
 }
 
 // クイズ生成完了後に履歴のクイズデータを更新する
@@ -3403,7 +3597,7 @@ function updateHistoryScore(id, pct) {
   const idx = history.findIndex(h => h.id === id);
   if (idx >= 0) {
     history[idx].quizScore = pct;
-    history[idx].quizDate = new Date().toLocaleDateString('ja-JP');
+    history[idx].quizDate = todayStr(); // ISO（表示時に formatDateJa で変換）
     localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
     if (typeof cloudSync !== 'undefined' && isLoggedIn()) cloudSync.history(history);
   }
@@ -3475,7 +3669,7 @@ function renderHistoryList() {
         <div class="history-card-top">
           <div class="history-card-info">
             <div class="history-drama">${esc(h.drama.title)}</div>
-            <div class="history-ep">S${h.season} E${h.episode} · ${h.date}</div>
+            <div class="history-ep">S${h.season} E${h.episode} · ${formatDateJa(h.date)}</div>
           </div>
           ${scoreHtml}
         </div>
@@ -3520,7 +3714,7 @@ function showHistoryVocab(id) {
   historyContent.querySelector('#btnHistoryBack').addEventListener('click', renderHistoryList);
   historyContent.insertAdjacentHTML('beforeend', `
     <div class="source-label" style="margin:0 16px 8px">
-      📅 ${entry.date} · ${entry.words.length}単語
+      📅 ${formatDateJa(entry.date)} · ${entry.words.length}単語
     </div>
     <div class="vocab-list" style="padding:0 16px 16px">
       ${entry.words.map(w => `
@@ -3600,6 +3794,16 @@ document.getElementById('vocabDeleteBtn').addEventListener('click', async () => 
 
 // 起動時にバッジを初期化する
 updateHistoryBadge();
+// 既存ユーザーのストリークを復習ログから補完
+backfillActivityDates();
+// 旧 ja-JP 形式の日付を ISO へ移行（loadHistory が正規化した結果を書き戻す。
+// 次回の履歴保存時にクラウド側も ISO に揃う）
+try {
+  const rawHist = localStorage.getItem(HISTORY_KEY);
+  if (rawHist && rawHist.includes('/')) {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(loadHistory()));
+  }
+} catch { /* 移行失敗時は読み込み時の正規化で吸収される */ }
 
 // ─────────────────────────────────────────
 // ストレージ抽象化
@@ -3726,21 +3930,21 @@ async function renderWordbook() {
     item.innerHTML = `
       <div style="flex:1">
         <div style="display:flex;align-items:baseline;gap:8px">
-          <div class="vocab-word">${w.word}</div>
-          ${w.phonetic ? `<span style="font-size:11px;color:var(--text-muted)">${w.phonetic}</span>` : ''}
+          <div class="vocab-word">${esc(w.word)}</div>
+          ${w.phonetic ? `<span style="font-size:11px;color:var(--text-muted)">${esc(w.phonetic)}</span>` : ''}
         </div>
         ${w.sentence ? `
-          <div class="wordbook-sentence">"${w.sentence}"</div>` : ''}
+          <div class="wordbook-sentence">"${esc(w.sentence)}"</div>` : ''}
         <div class="wordbook-meta">
           ${w.dramaTitle
-            ? `<span>📺 ${w.dramaTitle}${w.season != null ? ` S${w.season}` : ''}${w.episode != null ? `E${w.episode}` : ''}</span>`
-            : (w.source ? `<span>${w.source}</span>` : '')}
-          <span>${w.savedAt}</span>
+            ? `<span>📺 ${esc(w.dramaTitle)}${w.season != null ? ` S${esc(w.season)}` : ''}${w.episode != null ? `E${esc(w.episode)}` : ''}</span>`
+            : (w.source ? `<span>${esc(w.source)}</span>` : '')}
+          <span>${esc(formatDateJa(w.savedAt))}</span>
         </div>
       </div>
-      ${w.pos ? `<div class="vocab-pos">${w.pos}</div>` : ''}
-      <div class="vocab-def">${w.definition || '（定義なし）'}</div>
-      <button class="btn-word-delete" data-word="${w.word}" title="削除">×</button>`;
+      ${w.pos ? `<div class="vocab-pos">${esc(w.pos)}</div>` : ''}
+      <div class="vocab-def">${esc(w.definition || '（定義なし）')}</div>
+      <button class="btn-word-delete" data-word="${esc(w.word)}" title="削除">×</button>`;
 
     // 削除ボタンに addEventListener（特殊文字があっても安全）
     item.querySelector('.btn-word-delete').addEventListener('click', (e) => {

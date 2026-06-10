@@ -2131,3 +2131,180 @@ header {
   padding: 8px;
 }
 .btn-text-link:hover { color: var(--text); }
+
+/* ─────────────────────────────────────────
+   ダッシュボード「今日パネル」（継続率施策）
+   ───────────────────────────────────────── */
+.today-panel {
+  margin: 4px 0 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.today-panel:empty { display: none; }
+
+.today-streak {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.today-streak b { font-size: 20px; color: var(--accent); }
+.today-streak-zero {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.today-review-card {
+  border-radius: 16px;
+  padding: 18px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.today-review-card.has-review {
+  background: linear-gradient(135deg, rgba(193,127,59,0.12), rgba(91,79,212,0.10));
+  border: 1px solid rgba(193,127,59,0.25);
+}
+.today-review-card.done-review {
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.today-review-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+.today-review-title b { color: var(--accent); font-size: 20px; }
+.today-review-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.btn-today-review {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  padding: 12px 20px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 0.1s ease, filter 0.1s ease;
+}
+.btn-today-review:hover { filter: brightness(1.05); }
+.btn-today-review:active { transform: scale(0.97); }
+
+.today-stats {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding-left: 2px;
+}
+.today-stats b { color: var(--text); font-weight: 700; }
+
+/* ─────────────────────────────────────────
+   2段階習得システム（覚えた / マスター）
+   ───────────────────────────────────────── */
+/* ステータスバッジ（ピル型） */
+.srs-badge.badge-mastered,
+.srs-badge.badge-learned,
+.srs-badge.badge-learning,
+.srs-badge.badge-new {
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 3px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.badge-mastered {
+  background: linear-gradient(135deg, #f5c518, #e0a000);
+  color: #4a3500;
+  filter: drop-shadow(0 0 3px rgba(245,197,24,0.45));
+}
+.badge-learned {
+  background: rgba(46,168,122,0.15);
+  color: var(--green);
+  border: 1px solid rgba(46,168,122,0.35);
+}
+.badge-learning {
+  background: rgba(91,79,212,0.10);
+  color: var(--accent2);
+  border: 1px solid rgba(91,79,212,0.25);
+}
+.badge-new {
+  background: rgba(0,0,0,0.04);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+
+/* エピソード進捗：覚えた / マスター 2カウント表示 */
+.srs-counts {
+  display: flex;
+  gap: 14px;
+  font-size: 12px;
+  margin: 6px 0 2px;
+  flex-wrap: wrap;
+}
+.srs-count-learned  { color: var(--green); }
+.srs-count-mastered { color: #b8921a; }
+.srs-counts b { font-weight: 700; }
+
+/* 覚えた単語カードの軽い装飾 */
+.vocab-learned .vocab-word { color: var(--green); }
+
+/* 復習完了画面：昇格情報 */
+.review-promotions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 4px 0 14px;
+}
+.review-promo {
+  font-size: 14px;
+  font-weight: 700;
+  padding: 8px 12px;
+  border-radius: 12px;
+}
+.review-promo.learned {
+  background: rgba(46,168,122,0.12);
+  color: var(--green);
+}
+.review-promo.mastered {
+  background: linear-gradient(135deg, rgba(245,197,24,0.22), rgba(224,160,0,0.18));
+  color: #8a6a00;
+  border: 1px solid rgba(245,197,24,0.5);
+}
+
+/* マスター到達時の金色特別演出 */
+.review-done-gold {
+  position: relative;
+}
+.review-done-gold::before {
+  content: '';
+  position: absolute;
+  inset: -20px;
+  background: radial-gradient(circle at 50% 30%, rgba(245,197,24,0.30), transparent 60%);
+  pointer-events: none;
+  animation: goldGlow 1.6s ease-out;
+}
+.review-done-gold .review-hero-emoji {
+  animation: masterPop 0.7s cubic-bezier(0.2, 1.4, 0.4, 1);
+  filter: drop-shadow(0 0 10px rgba(245,197,24,0.7));
+}
+@keyframes goldGlow {
+  0%   { opacity: 0; transform: scale(0.8); }
+  40%  { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.15); }
+}
+@keyframes masterPop {
+  0%   { transform: scale(0.3) rotate(-15deg); opacity: 0; }
+  60%  { transform: scale(1.25) rotate(8deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0); }
+}
