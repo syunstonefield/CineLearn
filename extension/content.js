@@ -447,7 +447,8 @@ function saveWord(entry) {
       } else {
         words.unshift(entry);
       }
-      chrome.storage.local.set({ [key]: words.slice(0, 500) });
+      // 1語≈300Bと軽量なため2000語まで保持（≈600KB。旧上限500は過剰に保守的だった）
+      chrome.storage.local.set({ [key]: words.slice(0, 2000) });
     });
   });
 }

@@ -258,7 +258,7 @@ async function pullFromCloud() {
 
   // my_words（空配列でも必ず更新してローカルの削除済み単語を消す）
   const words = await sbFetch(
-    `/rest/v1/my_words?user_id=eq.${uid}&select=*&order=created_at.desc&limit=500`
+    `/rest/v1/my_words?user_id=eq.${uid}&select=*&order=created_at.desc&limit=2000`
   );
   if (Array.isArray(words)) {
     const wordsList = JSON.stringify(

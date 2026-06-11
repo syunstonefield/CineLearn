@@ -1634,7 +1634,10 @@ function getCurrentRawSrt() {
   const title     = selectedDrama?.englishTitle || selectedDrama?.title;
   const expectKey = subtitleCacheKey(title, selectedSeason, selectedEpisode);
   if (cachedRawSrt && cachedSubtitleKey === expectKey) return cachedRawSrt;
-  return localStorage.getItem(subtitleRawCacheKey(title, selectedSeason, selectedEpisode)) || '';
+  const rawKey = subtitleRawCacheKey(title, selectedSeason, selectedEpisode);
+  const raw = localStorage.getItem(rawKey) || '';
+  if (raw) touchSubCache(rawKey); // よく見る回はLRUで残す
+  return raw;
 }
 
 // 生SRTを {sec, text} のキュー配列にして「時刻昇順」で返す。
@@ -1878,6 +1881,48 @@ function subtitleCacheKey(title, season, episode) {
 function subtitleRawCacheKey(title, season, episode) {
   const safe = (title || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
   return `cl_sub_raw_${safe}_s${season}e${episode}`;
+}
+
+// ── 字幕キャッシュのLRU上限 ─────────────────────────────────────
+// 字幕は1話≈100KB（生SRT70KB＋パース済30KB）と重く、無制限に貯まると
+// localStorage（≈5MB）を圧迫して QuotaExceeded で保存が壊れる。
+// 最終利用時刻を cl_sub_lru に記録し、古いものから自動削除する。
+const SUB_LRU_KEY     = 'cl_sub_lru';
+const SUB_RAW_MAX     = 10; // 生SRT（重い）は直近10話分
+const SUB_PARSED_MAX  = 20; // パース済は直近20話分
+
+function touchSubCache(...keys) {
+  try {
+    const lru = JSON.parse(localStorage.getItem(SUB_LRU_KEY) || '{}');
+    keys.forEach(k => { if (k) lru[k] = Date.now(); });
+    localStorage.setItem(SUB_LRU_KEY, JSON.stringify(lru));
+  } catch { /* LRU記録の失敗は無視（次回touchで回復） */ }
+}
+
+function evictSubCaches() {
+  try {
+    const lru = JSON.parse(localStorage.getItem(SUB_LRU_KEY) || '{}');
+    const rawKeys = [], parsedKeys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || k === SUB_LRU_KEY) continue;
+      if (k.startsWith('cl_sub_raw_'))   rawKeys.push(k);
+      else if (k.startsWith('cl_sub_'))  parsedKeys.push(k);
+    }
+    // 最終利用が古い順に並べ、上限超過分を削除（LRU未記録は最古扱い）
+    const evict = (keys, max) => {
+      if (keys.length <= max) return;
+      keys.sort((a, b) => (lru[a] || 0) - (lru[b] || 0));
+      keys.slice(0, keys.length - max).forEach(k => {
+        localStorage.removeItem(k);
+        delete lru[k];
+        console.log('[subCache] LRU削除:', k);
+      });
+    };
+    evict(rawKeys, SUB_RAW_MAX);
+    evict(parsedKeys, SUB_PARSED_MAX);
+    localStorage.setItem(SUB_LRU_KEY, JSON.stringify(lru));
+  } catch { /* 失敗しても致命的ではない */ }
 }
 
 // 拡張機能で保存した単語のうち、現ドラマ・エピソードに一致するものを返す
@@ -2372,6 +2417,8 @@ async function preloadSubtitle() {
         localStorage.setItem(key, cachedSubtitleText);
         localStorage.setItem(rawKey, srtText); // 生SRTも保存
         cachedSubtitleKey = key; // メモリの字幕がどのエピソードか記録
+        touchSubCache(key, rawKey);
+        evictSubCaches(); // 上限超過分を古い順に削除
       } catch { /* QuotaExceeded は無視 */ }
       document.getElementById('episodeSelected').textContent =
         isMovie ? '✓ 字幕取得済み'
@@ -2438,10 +2485,13 @@ async function preloadSubtitleSilent(cacheKey) {
     try {
       localStorage.setItem(cacheKey, text);
       // 生SRTも該当回のキーで保存（タイムスタンプ検索に使用）
-      localStorage.setItem(subtitleRawCacheKey(
+      const rawK = subtitleRawCacheKey(
         selectedDrama.englishTitle || selectedDrama.title,
         selectedSeason, selectedEpisode
-      ), srtText);
+      );
+      localStorage.setItem(rawK, srtText);
+      touchSubCache(cacheKey, rawK);
+      evictSubCaches();
     } catch {}
     // キャッシュ取得後に拡張機能単語セクションを再描画
     await renderExtWordsSection(vocabWords || []);
@@ -2964,7 +3014,7 @@ async function fetchRawSrtIfMissing(words, sourceLabel) {
 
     // 生SRTを保存
     cachedRawSrt = srtText;
-    try { localStorage.setItem(rawKey, srtText); } catch {}
+    try { localStorage.setItem(rawKey, srtText); touchSubCache(rawKey); evictSubCaches(); } catch {}
 
     // タイムスタンプが取得できた単語があれば再描画
     const hasTimestamp = words.some(w => findWordTimestamp(w.word));
@@ -3646,6 +3696,51 @@ function closeHistoryOnOverlay(e) {
 // ─── 履歴一覧の表示 ───
 
 // 履歴一覧をモーダル内に描画する
+// クラウドから追加読み込みした古い履歴（閲覧用・ローカルには保存しない）
+// ローカルは最新50件のキャッシュ、クラウドが全件を保持する「本棚」という役割分担。
+let cloudOnlyHistory = [];
+
+function buildHistoryCardHTML(h, cloudOnly = false) {
+  const levelLabels = { 'A2': 'A2', 'B1': 'B1', 'B2': 'B2', 'C1': 'C1' };
+  const scoreHtml = h.quizScore !== null
+    ? `<span class="history-score ${
+        h.quizScore >= 80 ? 'score-high' : h.quizScore >= 60 ? 'score-mid' : 'score-low'
+      }">${h.quizScore}%</span>`
+    : `<span class="history-score score-none">未受験</span>`;
+
+  const levelRange = h.targetLevel && h.targetLevel !== h.level
+    ? `${levelLabels[h.level]} → ${levelLabels[h.targetLevel]}`
+    : levelLabels[h.level] || h.level;
+
+  // クラウド閲覧分は「単語を見る」のみ（クイズ・削除はローカル保存分だけ）
+  const actions = cloudOnly
+    ? `<button class="btn-history-action" data-action="vocab" data-id="${h.id}">単語を見る</button>
+       <span class="history-quiz-pending">☁️ クラウド保存分</span>`
+    : `<button class="btn-history-action" data-action="vocab" data-id="${h.id}">単語を見る</button>
+       ${(h.quiz || []).length > 0
+         ? `<button class="btn-history-action btn-history-quiz"
+              data-action="quiz" data-id="${h.id}">テストを受ける</button>`
+         : `<span class="history-quiz-pending">クイズ準備中</span>`}
+       <button class="btn-history-delete" data-action="delete" data-id="${h.id}">削除</button>`;
+
+  return `
+    <div class="history-card">
+      <div class="history-card-top">
+        <div class="history-card-info">
+          <div class="history-drama">${esc(h.drama?.title || '')}</div>
+          <div class="history-ep">S${h.season} E${h.episode} · ${formatDateJa(h.date)}</div>
+        </div>
+        ${scoreHtml}
+      </div>
+      <div class="history-meta">
+        <span>${levelRange}</span>
+        <span>${(h.words || []).length}単語</span>
+        <span>${esc(h.drama?.platform || '')}</span>
+      </div>
+      <div class="history-actions">${actions}</div>
+    </div>`;
+}
+
 function renderHistoryList() {
   const history = loadHistory();
   const container = document.getElementById('historyContent');
@@ -3659,63 +3754,83 @@ function renderHistoryList() {
     return;
   }
 
-  const levelLabels = { 'A2': 'A2', 'B1': 'B1', 'B2': 'B2', 'C1': 'C1' };
+  // フッター：ローカル上限（50件）に達している場合の案内
+  //  - ログイン済み → クラウドの続きを読み込むボタン
+  //  - 未ログイン  → 古い履歴が消える旨＋ログイン誘導
+  let footer = '';
+  if (history.length >= 50) {
+    footer = (typeof isLoggedIn === 'function' && isLoggedIn())
+      ? `<button class="btn-secondary" data-action="loadmore" style="width:100%;margin-top:8px">
+           ☁️ さらに古い履歴を読み込む
+         </button>`
+      : `<div class="empty-state" style="margin:12px;font-size:12px">
+           ⚠️ 履歴はこの端末に最新50件まで保存されます。<br>
+           ログインすると古い履歴もクラウドに残ります。
+         </div>`;
+  }
 
-  // data-action + data-id でイベント委譲（onclick 属性を使わない）
-  container.innerHTML = history.map(h => {
-    const scoreHtml = h.quizScore !== null
-      ? `<span class="history-score ${
-          h.quizScore >= 80 ? 'score-high' : h.quizScore >= 60 ? 'score-mid' : 'score-low'
-        }">${h.quizScore}%</span>`
-      : `<span class="history-score score-none">未受験</span>`;
+  container.innerHTML =
+    history.map(h => buildHistoryCardHTML(h)).join('') +
+    cloudOnlyHistory.map(h => buildHistoryCardHTML(h, true)).join('') +
+    footer;
 
-    const levelRange = h.targetLevel && h.targetLevel !== h.level
-      ? `${levelLabels[h.level]} → ${levelLabels[h.targetLevel]}`
-      : levelLabels[h.level] || h.level;
+  // イベント委譲：リスナーは1度だけ登録する（再描画のたびに増える重複バグを修正）
+  if (!container.dataset.historyBound) {
+    container.dataset.historyBound = '1';
+    container.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-action]');
+      if (!btn) return;
+      const { action, id } = btn.dataset;
+      if (action === 'vocab')    showHistoryVocab(id);
+      if (action === 'quiz')     retakeHistoryQuiz(id);
+      if (action === 'delete')   deleteHistoryItem(id);
+      if (action === 'loadmore') loadOlderHistory(btn);
+    });
+  }
+}
 
-    const quizBtn = h.quiz.length > 0
-      ? `<button class="btn-history-action btn-history-quiz"
-           data-action="quiz" data-id="${h.id}">テストを受ける</button>`
-      : `<span class="history-quiz-pending">クイズ準備中</span>`;
-
-    return `
-      <div class="history-card">
-        <div class="history-card-top">
-          <div class="history-card-info">
-            <div class="history-drama">${esc(h.drama.title)}</div>
-            <div class="history-ep">S${h.season} E${h.episode} · ${formatDateJa(h.date)}</div>
-          </div>
-          ${scoreHtml}
-        </div>
-        <div class="history-meta">
-          <span>${levelRange}</span>
-          <span>${h.words.length}単語</span>
-          <span>${esc(h.drama.platform)}</span>
-        </div>
-        <div class="history-actions">
-          <button class="btn-history-action" data-action="vocab" data-id="${h.id}">単語を見る</button>
-          ${quizBtn}
-          <button class="btn-history-delete" data-action="delete" data-id="${h.id}">削除</button>
-        </div>
-      </div>`;
-  }).join('');
-
-  // イベント委譲：コンテナ全体で1つのリスナーが全ボタンを処理する
-  container.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-action]');
-    if (!btn) return;
-    const { action, id } = btn.dataset;
-    if (action === 'vocab')  showHistoryVocab(id);
-    if (action === 'quiz')   retakeHistoryQuiz(id);
-    if (action === 'delete') deleteHistoryItem(id);
-  }, { once: false });
+// クラウドから次の50件を取得して一覧に追記する（表示のみ・ローカル未保存）
+async function loadOlderHistory(btn) {
+  if (typeof sbFetch === 'undefined' || !isLoggedIn()) return;
+  btn.disabled = true;
+  btn.textContent = '読み込み中...';
+  try {
+    const uid    = getCurrentUser()?.id;
+    const offset = loadHistory().length + cloudOnlyHistory.length;
+    const rows = await sbFetch(
+      `/rest/v1/history?user_id=eq.${uid}&select=*&order=updated_at.desc&offset=${offset}&limit=50`
+    );
+    const seen = new Set([
+      ...loadHistory().map(h => String(h.id)),
+      ...cloudOnlyHistory.map(h => String(h.id)),
+    ]);
+    const older = (Array.isArray(rows) ? rows : [])
+      .filter(r => !seen.has(String(r.id)))
+      .map(r => ({
+        id: r.id, date: toIsoDate(r.date), drama: r.drama,
+        season: r.season, episode: r.episode, level: r.level,
+        targetLevel: r.target_level, words: r.words || [], quiz: r.quiz || [],
+        quizScore: r.quiz_score, quizDate: r.quiz_date,
+      }));
+    if (older.length === 0) {
+      btn.textContent = 'これ以上古い履歴はありません';
+      return; // disabled のまま
+    }
+    cloudOnlyHistory.push(...older);
+    renderHistoryList(); // 追記分を含めて再描画
+  } catch {
+    btn.disabled = false;
+    btn.textContent = '☁️ さらに古い履歴を読み込む（再試行）';
+  }
 }
 
 // ─── サブ画面：単語リスト表示 ───
 
 // 履歴から単語リストをモーダル内に表示する
 function showHistoryVocab(id) {
-  const entry = loadHistory().find(h => h.id === id);
+  // ローカル → クラウド閲覧分の順で検索（IDは文字列比較で統一）
+  const entry = loadHistory().find(h => String(h.id) === String(id))
+             || cloudOnlyHistory.find(h => String(h.id) === String(id));
   if (!entry) return;
 
   document.getElementById('modalTitle').textContent =
