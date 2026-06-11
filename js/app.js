@@ -123,6 +123,20 @@ function unskipWord(word) {
 function reviewWord(word, quality) {
   const all = loadSrs(), k = word.toLowerCase();
   let e = all[k] || { interval: 1, repetitions: 0, easeFactor: 2.5, skipped: false };
+
+  // 同日ガード（Ankiのlearning steps相当）:
+  // 間隔反復の核心は「時間を置いて思い出せたか」なので、同じ日の2回目以降の
+  // 成功は「練習」扱いにし、スケジュール（repetitions/interval/dueDate）を
+  // 進めない（数分前に見た答えを思い出せても長期記憶の証拠にならないため）。
+  // 失敗（quality<3）は「忘れていた」事実として同日でも常に反映する。
+  if (e.lastReview === todayStr() && quality >= 3) {
+    e.lastQuality = quality;
+    e.reviewCount = (e.reviewCount || 0) + 1;
+    all[k] = e;
+    saveSrs(all);
+    return;
+  }
+
   if (quality < 3) {
     e.repetitions = 0;
     e.interval    = 1;
