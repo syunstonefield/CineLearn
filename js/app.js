@@ -2332,6 +2332,47 @@ let cachedSubtitleSource = '';
 let cachedRawSrt         = ''; // タイムスタンプ検索用の生SRT
 let cachedSubtitleKey    = ''; // cachedSubtitleText がどのエピソードの字幕かを示すキー
 
+// 字幕候補の選別（全取得経路で共通）。
+// TVは feature_details のシーズン・エピソードが「両方」一致する候補だけに絞り、
+// HI字幕・メイキング/予告編などを減点したスコア降順で返す。
+// 取得経路ごとに選別ロジックが分かれていると、再取得時に別品質・別エピソードの
+// ファイルを掴む事故が起きるため、必ずこの関数を通すこと。
+function selectSubtitleCandidates(subtitles, isMovie) {
+  if (!Array.isArray(subtitles) || !subtitles.length) return [];
+
+  let candidates = subtitles;
+  if (!isMovie) {
+    const matched = subtitles.filter(s => {
+      const f = s.attributes.feature_details || {};
+      return Number(f.season_number)  === Number(selectedSeason) &&
+             Number(f.episode_number) === Number(selectedEpisode);
+    });
+    if (matched.length) candidates = matched;
+    else console.warn('[subtitle] S/E一致候補が0件のため全候補から選択します');
+  }
+
+  // ランク方式：減点方式だとダウンロード数が大きいHI字幕等が通常字幕に勝って
+  // しまうため、まず品質ランクで分類し、同ランク内だけDL数で順位付けする。
+  //   rank 0: 本編のクリーンな字幕
+  //   rank 1: HI字幕（聴覚障害者向け・効果音記述が多く学習に不向き）/ forced
+  //   rank 2: メイキング・予告編等の本編以外 / 映画検索でのTV項目
+  const rank = (sub) => {
+    const attr = sub.attributes;
+    const name = (attr.release || attr.files?.[0]?.file_name || '').toLowerCase();
+    const featTitle = (attr.feature_details?.title || attr.feature_details?.movie_name || '').toLowerCase();
+    if (/(making|behind.the.scenes|featurette|trailer|interview|documentary|deleted|bonus|extra|commentary|bloopers?|gag\s*reel|sample)/.test(name + ' ' + featTitle)) return 2;
+    if (isMovie && attr.feature_details?.feature_type &&
+        attr.feature_details.feature_type !== 'Movie') return 2;
+    if (attr.hearing_impaired) return 1;
+    if (/\b(hi|hearing|sdh|forced)\b/.test(name)) return 1;
+    return 0;
+  };
+  return [...candidates].sort((a, b) =>
+    rank(a) - rank(b) ||
+    (b.attributes.download_count || 0) - (a.attributes.download_count || 0)
+  );
+}
+
 async function preloadSubtitle() {
   cachedSubtitleText = '';
   cachedSubtitleSource = '';
@@ -2349,44 +2390,10 @@ async function preloadSubtitle() {
       isMovie ? selectedDrama.tmdbId : null
     );
 
-    // TVは feature_details のシーズン・エピソードが「両方」一致する候補だけに絞る。
-    // OpenSubtitles が別シーズン/別エピソードを混ぜて返しても誤選択を防ぐ。
-    // （feature_details が欠落して一致0件のときのみ、従来通り全候補にフォールバック）
-    let candidates = subtitles;
-    if (!isMovie && subtitles) {
-      const matched = subtitles.filter(s => {
-        const f = s.attributes.feature_details || {};
-        return Number(f.season_number)  === Number(selectedSeason) &&
-               Number(f.episode_number) === Number(selectedEpisode);
-      });
-      if (matched.length) candidates = matched;
-      else console.warn('[subtitle] S/E一致候補が0件のため全候補から選択します');
-    }
+    // S/E一致フィルタ＋品質スコアリング（全経路共通ヘルパー）
+    const sorted = selectSubtitleCandidates(subtitles, isMovie);
 
-    if (candidates && candidates.length > 0) {
-      // 字幕候補をスコアリングして最適なものを選ぶ
-      // 音楽ファイル（♪が多い）やHI字幕（聴覚障害者向け、効果音記述が多い）を低評価
-      function scoreSubtitle(sub) {
-        const attr = sub.attributes;
-        let score = attr.download_count || 0;
-        // HI（hearing impaired）字幕は効果音記述が多く学習に不向き
-        if (attr.hearing_impaired) score -= 50000;
-        // ファイル名に "hi", "hearing", "sdh", "forced" が含まれる場合も減点
-        const name = (attr.release || attr.files?.[0]?.file_name || '').toLowerCase();
-        if (/\b(hi|hearing|sdh|forced)\b/.test(name)) score -= 30000;
-        // メイキング/特典/予告編/インタビュー等の本編以外を強く減点
-        const featTitle = (attr.feature_details?.title || attr.feature_details?.movie_name || '').toLowerCase();
-        if (/(making|behind.the.scenes|featurette|trailer|interview|documentary|deleted|bonus|extra|commentary|bloopers?|gag\s*reel|sample)/.test(name + ' ' + featTitle)) {
-          score -= 100000;
-        }
-        // 本編の feature_type が Movie 以外（Episode/Tvshow 等）は映画検索では減点
-        if (isMovie && attr.feature_details?.feature_type &&
-            attr.feature_details.feature_type !== 'Movie') {
-          score -= 80000;
-        }
-        return score;
-      }
-      const sorted = [...candidates].sort((a, b) => scoreSubtitle(b) - scoreSubtitle(a));
+    if (sorted.length > 0) {
 
       // 上位3候補を試して、♪が少ないものを採用
       let fileId = null, fileName = null, srtText = null, chosen = null;
@@ -2462,20 +2469,11 @@ async function preloadSubtitleSilent(cacheKey) {
       isMovie ? 'movie' : 'tv',
       isMovie ? selectedDrama.tmdbId : null
     );
-    if (!subtitles?.length) return;
-    // TVはシーズン・エピソード両方一致の候補だけに絞る（別回の混入防止）
-    let pool = subtitles;
-    if (!isMovie) {
-      const matched = subtitles.filter(s => {
-        const f = s.attributes.feature_details || {};
-        return Number(f.season_number)  === Number(selectedSeason) &&
-               Number(f.episode_number) === Number(selectedEpisode);
-      });
-      if (matched.length) pool = matched;
-    }
-    const best = pool.reduce((a, b) =>
-      (b.attributes.download_count || 0) > (a.attributes.download_count || 0) ? b : a
-    );
+    // S/E一致フィルタ＋品質スコアリング（全経路共通ヘルパー。
+    // 従来はダウンロード数のみで選んでおりHI字幕等を掴む可能性があった）
+    const sorted = selectSubtitleCandidates(subtitles, isMovie);
+    if (!sorted.length) return;
+    const best = sorted[0];
     const srtText = await downloadSubtitle(best.attributes.files[0].file_id);
     const text = parseSrt(srtText);
     if (!text) return;
@@ -3005,11 +3003,18 @@ async function fetchRawSrtIfMissing(words, sourceLabel) {
   if (localStorage.getItem(rawKey)) return; // すでにキャッシュ済み
 
   try {
-    const subtitles = await searchSubtitles(title, selectedSeason, selectedEpisode);
-    if (!subtitles?.length) return;
-    const best   = subtitles.reduce((a, b) =>
-      (b.attributes.download_count || 0) > (a.attributes.download_count || 0) ? b : a);
-    const srtText = await downloadSubtitle(best.attributes.files[0].file_id);
+    // 映画/TVの区別と候補選別を本取得（preloadSubtitle）と同一にする。
+    // 従来はダウンロード数最大を無条件選択しており、再取得時に
+    // 別エピソード・HI字幕・メイキング等を掴む事故の原因だった。
+    const isMovie = selectedDrama.type === 'movie';
+    const subtitles = await searchSubtitles(
+      title, selectedSeason, selectedEpisode,
+      isMovie ? 'movie' : 'tv',
+      isMovie ? selectedDrama.tmdbId : null
+    );
+    const sorted = selectSubtitleCandidates(subtitles, isMovie);
+    if (!sorted.length) return;
+    const srtText = await downloadSubtitle(sorted[0].attributes.files[0].file_id);
     if (!srtText) return;
 
     // 生SRTを保存
