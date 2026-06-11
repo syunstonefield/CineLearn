@@ -2308,3 +2308,41 @@ header {
   60%  { transform: scale(1.25) rotate(8deg); opacity: 1; }
   100% { transform: scale(1) rotate(0); }
 }
+
+/* ─────────────────────────────────────────
+   メディアタイプ選択（ドラマ版/映画版の両方がある作品）
+   ───────────────────────────────────────── */
+.media-type-choice {
+  padding: 20px 4px;
+}
+.media-type-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 14px;
+  color: var(--text);
+}
+.media-type-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.media-type-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 18px 12px;
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: 14px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.15s, transform 0.1s;
+}
+.media-type-btn:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+.media-type-icon  { font-size: 28px; }
+.media-type-label { font-size: 14px; font-weight: 700; color: var(--text); }
+.media-type-name  { font-size: 11px; color: var(--text-muted); text-align: center; line-height: 1.4; }

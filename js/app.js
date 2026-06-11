@@ -1314,58 +1314,109 @@ async function fetchMovieInfoFromTMDb(title) {
   }
 }
 
-// タイトルが TV か映画かを判定しつつメタ情報を返す。
-// /search/multi で映画・TVを横断検索し、関連度/人気が最上位の候補で判定する。
-// （TV優先だと映画が同名TV項目に誤吸着するため）
-async function fetchTitleInfoFromTMDb(title) {
+// /search/multi で TVと映画の最上位候補をそれぞれ取得する
+async function fetchTitleCandidatesFromTMDb(title) {
   const posterOf = (x) => {
     const p = x.backdrop_path || x.poster_path;
     return p ? `https://image.tmdb.org/t/p/w780${p}` : null;
   };
+  const yearOf = (x) => (x.first_air_date || x.release_date || '').slice(0, 4);
   try {
     const r = await fetch(`${API_BASE}/api/tmdb`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'search_multi', query: title })
     });
-    const data = await r.json();
-    const top = (data.results || [])
-      .filter(x => x.media_type === 'movie' || x.media_type === 'tv')[0];
+    const data    = await r.json();
+    const results = (data.results || []).filter(x => x.media_type === 'movie' || x.media_type === 'tv');
+    const shape = (x) => x && {
+      type: x.media_type,
+      tmdbId: x.id,
+      englishTitle: x.title || x.name || x.original_title || x.original_name || title,
+      year: yearOf(x),
+      posterPath: posterOf(x),
+    };
+    return {
+      tv:    shape(results.find(x => x.media_type === 'tv')),
+      movie: shape(results.find(x => x.media_type === 'movie')),
+    };
+  } catch { return { tv: null, movie: null }; }
+}
 
-    if (top?.media_type === 'movie') {
-      return {
-        type: 'movie',
-        englishTitle: top.title || top.original_title || title,
-        tmdbId: top.id,
-        posterPath: posterOf(top),
-      };
-    }
-    if (top?.media_type === 'tv') {
-      // シーズン詳細を取得
-      const detailRes = await fetch(`${API_BASE}/api/tmdb`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'seasons', tvId: top.id })
-      });
-      const detail  = await detailRes.json();
-      const seasons = (detail.seasons || [])
-        .filter(s => s.season_number > 0 && s.episode_count > 0)
-        .map(s => ({ season: s.season_number, episodes: s.episode_count }));
-      return {
-        type: 'tv',
-        seasons: seasons.length ? seasons : [{ season: 1, episodes: 10 }],
-        englishTitle: detail.name || top.name || top.original_name || title,
-        tmdbId: top.id,
-        posterPath: posterOf(top),
-      };
-    }
-  } catch { /* フォールバックへ */ }
+// ドラマ版・映画版の両方が見つかった場合にユーザーに選ばせる
+// （例：The Mandalorian にはドラマ版と映画版 The Mandalorian & Grogu がある。
+//   人気順の自動判定だと新作映画がドラマを上書きしてしまう）
+function askMediaTypeChoice(tvC, mvC) {
+  return new Promise(resolve => {
+    const sect = document.getElementById('vocabSection');
+    document.getElementById('episodeSelected').textContent = 'どちらの作品か選んでください';
+    sect.innerHTML = `
+      <div class="media-type-choice">
+        <div class="media-type-title">この作品にはドラマ版と映画版があります。どちらを学習しますか？</div>
+        <div class="media-type-options">
+          <button class="media-type-btn" data-pick="tv">
+            <span class="media-type-icon">📺</span>
+            <span class="media-type-label">ドラマ</span>
+            <span class="media-type-name">${esc(tvC.englishTitle)}${tvC.year ? `（${esc(tvC.year)}）` : ''}</span>
+          </button>
+          <button class="media-type-btn" data-pick="movie">
+            <span class="media-type-icon">🎬</span>
+            <span class="media-type-label">映画</span>
+            <span class="media-type-name">${esc(mvC.englishTitle)}${mvC.year ? `（${esc(mvC.year)}）` : ''}</span>
+          </button>
+        </div>
+      </div>`;
+    sect.querySelectorAll('.media-type-btn').forEach(b =>
+      b.addEventListener('click', () => {
+        sect.innerHTML = '<div class="loading"><div class="spinner"></div>シーズン情報を取得中...</div>';
+        resolve(b.dataset.pick === 'tv' ? tvC : mvC);
+      })
+    );
+  });
+}
+
+// 候補からメタ情報を解決する（TVはシーズン詳細を追加取得）
+async function resolveTitleCandidate(cand, title) {
+  if (!cand) return null;
+  if (cand.type === 'movie') return cand;
+  try {
+    const detailRes = await fetch(`${API_BASE}/api/tmdb`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'seasons', tvId: cand.tmdbId })
+    });
+    const detail  = await detailRes.json();
+    const seasons = (detail.seasons || [])
+      .filter(s => s.season_number > 0 && s.episode_count > 0)
+      .map(s => ({ season: s.season_number, episodes: s.episode_count }));
+    return {
+      ...cand,
+      englishTitle: detail.name || cand.englishTitle || title,
+      seasons: seasons.length ? seasons : [{ season: 1, episodes: 10 }],
+    };
+  } catch { return null; }
+}
+
+// タイトルが TV か映画かを判定しつつメタ情報を返す。
+// mediaTypeHint（過去の選択 'tv'/'movie'）があればそれを優先し、
+// なければ両タイプ存在時にユーザーへ選択UIを出す。
+async function fetchTitleInfoFromTMDb(title, mediaTypeHint = null) {
+  const { tv, movie } = await fetchTitleCandidatesFromTMDb(title);
+
+  let pick = null;
+  if (mediaTypeHint === 'tv')         pick = tv || movie;
+  else if (mediaTypeHint === 'movie') pick = movie || tv;
+  else if (tv && movie)               pick = await askMediaTypeChoice(tv, movie);
+  else                                pick = tv || movie;
+
+  const resolved = await resolveTitleCandidate(pick, title);
+  if (resolved) return resolved;
 
   // フォールバック：従来の TV → 映画 個別検索
-  const tv = await fetchSeasonInfoFromTMDb(title);
-  if (tv) return { type: 'tv', ...tv };
-  const movie = await fetchMovieInfoFromTMDb(title);
-  if (movie) return { type: 'movie', ...movie };
+  const tvFb = await fetchSeasonInfoFromTMDb(title);
+  if (tvFb) return { type: 'tv', ...tvFb };
+  const mvFb = await fetchMovieInfoFromTMDb(title);
+  if (mvFb) return { type: 'movie', ...mvFb };
   return null;
 }
 
@@ -3330,8 +3381,14 @@ async function selectViewingService(service, drama) {
     '<div class="loading"><div class="spinner"></div>シーズン情報を取得中...</div>';
 
   try {
-    // TMDb でタイトル情報を取得（TV/映画を判定。Claude より正確）
-    const tmdbResult = await fetchTitleInfoFromTMDb(drama.title);
+    // TMDb でタイトル情報を取得（TV/映画を判定。Claude より正確）。
+    // 過去にユーザーが選んだ mediaType があれば再質問せずそれを使う。
+    const tmdbResult = await fetchTitleInfoFromTMDb(drama.title, drama.mediaType);
+    if (tmdbResult) {
+      // 判定/選択の結果を記憶（次回から選択UIをスキップ）
+      drama.mediaType = tmdbResult.type;
+      selectedDrama.mediaType = tmdbResult.type;
+    }
     if (tmdbResult?.type === 'movie') {
       // 映画：シーズン・エピソードの概念なし
       selectedDrama.type = 'movie';
