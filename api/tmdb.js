@@ -15,7 +15,25 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'TMDB_API_KEY not configured' });
   }
 
-  const { action, query, tvId, movieId } = req.body;
+  const { action, query, tvId, movieId, season, episode } = req.body;
+
+  // エピソード/映画のあらすじ（日本語優先・無ければ英語にフォールバック）
+  if (action === 'episode_overview') {
+    const path = movieId
+      ? `/movie/${movieId}`
+      : `/tv/${tvId}/season/${season}/episode/${episode}`;
+    let r = await fetch(`${TMDB_BASE}${path}?api_key=${apiKey}&language=ja-JP`);
+    let data = await r.json();
+    if (!data.overview) {
+      r = await fetch(`${TMDB_BASE}${path}?api_key=${apiKey}&language=en-US`);
+      const en = await r.json();
+      if (en.overview) data = en;
+    }
+    return res.status(200).json({
+      overview: data.overview || '',
+      name: data.name || data.title || '',
+    });
+  }
 
   if (action === 'search') {
     const r = await fetch(`${TMDB_BASE}/search/tv?api_key=${apiKey}&query=${encodeURIComponent(query)}&language=ja-JP`);

@@ -2551,6 +2551,81 @@ async function preloadSubtitleSilent(cacheKey) {
   } catch {}
 }
 
+// ── 生成中ローディング画面（あらすじ＋学習Tips で待ち時間を体感させない） ──
+const LEARNING_TIPS = [
+  '復習はドラマを見た翌日の朝が最も定着します',
+  '「わからない」が続いても大丈夫。最適なタイミングで再出題されます',
+  '単語の🔊をタップすると発音が聞けます',
+  '3週間後も思い出せたら⭐マスターです',
+  '連続学習でストリークを伸ばしましょう🔥',
+  '📍タイムスタンプはその単語が登場する時間です',
+];
+let _genTipTimer    = null;
+let _synopsisCache  = {}; // tmdbId+S/E → あらすじ（再取得を防ぐ）
+
+// あらすじをTMDBから取得（日本語優先はサーバー側で処理。失敗時は null）
+async function fetchEpisodeSynopsis() {
+  if (!selectedDrama?.tmdbId) return null;
+  const isMovie = selectedDrama.type === 'movie';
+  const key = `${selectedDrama.tmdbId}_${isMovie ? 'movie' : 's' + selectedSeason + 'e' + selectedEpisode}`;
+  if (key in _synopsisCache) return _synopsisCache[key];
+  try {
+    const r = await fetch(`${API_BASE}/api/tmdb`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(isMovie
+        ? { action: 'episode_overview', movieId: selectedDrama.tmdbId }
+        : { action: 'episode_overview', tvId: selectedDrama.tmdbId, season: selectedSeason, episode: selectedEpisode })
+    });
+    const d = await r.json();
+    _synopsisCache[key] = d?.overview || null;
+  } catch { _synopsisCache[key] = null; }
+  return _synopsisCache[key];
+}
+
+// 生成中のリッチローディングを表示する。
+// 既に表示中ならステータス文言だけ更新する（あらすじ・Tipsは維持）。
+function showGenerationLoading(status) {
+  const existing = document.getElementById('genLoadingStatus');
+  if (existing) { existing.textContent = status; return; }
+
+  document.getElementById('vocabSection').innerHTML = `
+    <div class="gen-loading">
+      <div class="loading"><div class="spinner"></div><span id="genLoadingStatus">${esc(status)}</span></div>
+      <div id="genSynopsis"></div>
+      <div class="gen-tip" id="genTip"></div>
+    </div>`;
+
+  // Tips：ランダム開始で4秒ごとにローテーション。
+  // ローディング画面が消えたら（#genTip が無くなったら）自動停止する。
+  let tipIdx = Math.floor(Math.random() * LEARNING_TIPS.length);
+  const showTip = () => {
+    const el = document.getElementById('genTip');
+    if (!el) { clearInterval(_genTipTimer); _genTipTimer = null; return; }
+    el.classList.remove('gen-tip-show');
+    void el.offsetWidth; // フェードアニメーションを再トリガー
+    el.textContent = '💡 ' + LEARNING_TIPS[tipIdx % LEARNING_TIPS.length];
+    el.classList.add('gen-tip-show');
+    tipIdx++;
+  };
+  clearInterval(_genTipTimer);
+  showTip();
+  _genTipTimer = setInterval(showTip, 4000);
+
+  // あらすじをAI生成と並行取得して即表示（取得失敗しても生成は止めない）
+  fetchEpisodeSynopsis().then(ov => {
+    const el = document.getElementById('genSynopsis');
+    if (!el || !ov) return;
+    const heading = selectedDrama?.type === 'movie'
+      ? 'この映画のあらすじ' : 'このエピソードのあらすじ';
+    el.innerHTML = `
+      <div class="gen-synopsis">
+        <div class="gen-synopsis-title">📖 ${heading}</div>
+        <div class="gen-synopsis-text">${esc(ov)}</div>
+      </div>`;
+  }).catch(() => {});
+}
+
 // 単語を生成する（字幕はキャッシュ済み）
 async function generateVocabFromEpisode() {
   if (!selectedDrama) return;
@@ -2559,8 +2634,7 @@ async function generateVocabFromEpisode() {
   btn.disabled = true;
   btn.textContent = '生成中...';
 
-  document.getElementById('vocabSection').innerHTML =
-    '<div class="loading"><div class="spinner"></div>単語を分析中...</div>';
+  showGenerationLoading('単語を分析中...');
   document.getElementById('vocabNextBtn').style.display = 'none'; document.getElementById('vocabDeleteBtn').style.display = 'none';
 
   try {
@@ -2584,8 +2658,7 @@ async function generateVocabFromEpisode() {
       } else {
         // キャッシュも無ければ取得
         btn.textContent = '字幕を読み込み中...';
-        document.getElementById('vocabSection').innerHTML =
-          '<div class="loading"><div class="spinner"></div>字幕を読み込み中...</div>';
+        showGenerationLoading('字幕を読み込み中...');
         await preloadSubtitle();
         if (!cachedSubtitleText) {
           btn.disabled = false;
@@ -2595,8 +2668,8 @@ async function generateVocabFromEpisode() {
       }
       btn.disabled = true;
       btn.textContent = '生成中...';
-      document.getElementById('vocabSection').innerHTML =
-        '<div class="loading"><div class="spinner"></div>単語を分析中...</div>';
+      // preloadSubtitle が vocabSection を書き換えるため、ローディングを再表示
+      showGenerationLoading('単語を分析中...');
     }
 
     // TOEICスコア帯に基づく選択範囲を計算
@@ -2687,8 +2760,8 @@ ${tierGuide}
 
     // 1単語あたり約80トークン。映画(最大150語)でも収まるよう余裕を持たせる
     const text = await callClaude(prompt, Math.max(2000, genVocabCount * 80), (attempt, waitSec) => {
-      document.getElementById('vocabSection').innerHTML =
-        `<div class="loading"><div class="spinner"></div>混雑中... ${waitSec}秒後に再試行 (${attempt}/3)</div>`;
+      // ステータス行だけ更新（あらすじ・Tipsの表示は維持する）
+      showGenerationLoading(`混雑中... ${waitSec}秒後に再試行 (${attempt}/3)`);
     });
     // JSON文字列内の不正クォート・制御文字を修正してからパース
     const rawJson = text.match(/\{[\s\S]*\}/)?.[0] || '{}';
