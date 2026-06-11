@@ -865,7 +865,8 @@ async function fetchMissingPosters(entries) {
       );
       if (banner) {
         banner.style.background = `url('${p}') center/cover no-repeat`;
-        banner.textContent = '';
+        // 頭文字のspanだけ消す（textContent='' だと✕削除ボタンまで消えるバグがあった）
+        banner.querySelector('.library-card-letter')?.remove();
       }
     } catch { /* 取得失敗は無視 */ }
   }
@@ -884,8 +885,10 @@ function buildLibraryCard({ drama, episodes, bestScore, lastDate }) {
   const bannerStyle = drama.posterPath
     ? `background:url('${drama.posterPath}') center/cover no-repeat;`
     : `background:${platformColor(drama.platform)};`;
+  // 頭文字は span に包む（ポスター取得時にこの span だけを消すため。
+  // バナー直下のテキストにすると textContent='' で✕ボタンまで消えてしまう）
   const bannerInner = drama.posterPath
-    ? '' : drama.title.charAt(0);
+    ? '' : `<span class="library-card-letter">${esc(drama.title.charAt(0))}</span>`;
 
   card.innerHTML = `
     <div class="library-card-banner" style="${bannerStyle}" data-title="${drama.title.replace(/"/g, '&quot;')}">
