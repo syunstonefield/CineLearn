@@ -81,13 +81,21 @@ async function supaSignOut() {
   clearSession();
 }
 
-async function supaRefreshSession() {
+// セッションを有効な状態に保つ（オートログインの核）。
+// アクセストークンは約1時間で失効するが、refresh_token で更新できる。
+// 期限まで10分以上あれば何もしない。失効していても refresh_token があれば
+// 自動更新してログイン状態を復活させる。戻り値: ログイン状態を維持できたか。
+async function ensureFreshSession() {
   const s = getSession();
-  if (!s?.refresh_token) return;
+  if (!s?.access_token) return false;
+  const now = Date.now() / 1000;
+  if (s.expires_at && s.expires_at - now > 600) return true; // まだ新鮮
+  if (!s.refresh_token) return false;
   const d = await sbFetch('/auth/v1/token?grant_type=refresh_token', {
     method: 'POST', body: JSON.stringify({ refresh_token: s.refresh_token })
   });
-  if (d?.access_token) setSession(d);
+  if (d?.access_token) { setSession(d); return true; }
+  return false; // refresh_token も失効 → 再ログインが必要
 }
 
 // ─── クラウド同期（バックグラウンド・エラーは無視） ───────────────────────────
@@ -415,13 +423,21 @@ async function initSupabase() {
 
   initAuthModal();
 
-  if (!isLoggedIn()) {
+  // オートログイン：トークンが失効していても refresh_token があれば
+  // 先に自動更新を試み、復活できた場合はログイン画面を出さない。
+  // （従来は失効＝即ログイン画面で、毎回の再ログインが必要だった）
+  const ok = isLoggedIn() || await ensureFreshSession();
+  if (!ok) {
     showAuthModal();
     return;
   }
 
-  // セッション更新（バックグラウンド）
-  supaRefreshSession().catch(() => {});
+  // ログイン済みUIを反映（初期表示時は失効中で非表示だった場合に備える）
+  const signOutBtn = document.getElementById('btnSignOut');
+  if (signOutBtn) signOutBtn.style.display = 'inline-flex';
+
+  // タブを開いている間は期限が近づいたら自動更新（約1時間で失効するため）
+  setInterval(() => { ensureFreshSession().catch(() => {}); }, 10 * 60 * 1000);
 
   // クラウドから最新データを引き下ろして localStorage を更新
   await pullFromCloud();
