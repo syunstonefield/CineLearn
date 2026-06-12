@@ -3484,6 +3484,13 @@ async function selectViewingService(service, drama) {
   document.getElementById('vocabSection').innerHTML =
     '<div class="loading"><div class="spinner"></div>シーズン情報を取得中...</div>';
 
+  // ドラマ/映画の判定・シーズン構築が終わるまでエピソード選択枠ごと隠す。
+  // 確定前にエピソードを操作されると、未確定のドラマ状態（englishTitle/type
+  // 未設定）で字幕取得が走って壊れるため。
+  // 流れ：サービス選択 → ドラマ/映画選択 → シーズン選択
+  const epSelector = document.querySelector('.episode-selector');
+  if (epSelector) epSelector.style.display = 'none';
+
   try {
     // TMDb でタイトル情報を取得（TV/映画を判定。Claude より正確）。
     // 過去にユーザーが選んだ mediaType があれば再質問せずそれを使う。
@@ -3531,6 +3538,9 @@ async function selectViewingService(service, drama) {
     setEpisodeSelectorMode(false);
     buildSeasonEpisodeSelectors(dramaSeasonInfo);
   }
+
+  // タイプ確定・シーズン構築が済んだのでエピソード選択枠を表示する
+  if (epSelector) epSelector.style.display = '';
 
   selectedSeason = 1;
   selectedEpisode = 1;
