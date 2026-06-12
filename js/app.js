@@ -2560,8 +2560,17 @@ const LEARNING_TIPS = [
   '連続学習でストリークを伸ばしましょう🔥',
   '📍タイムスタンプはその単語が登場する時間です',
 ];
-let _genTipTimer    = null;
-let _synopsisCache  = {}; // tmdbId+S/E → あらすじ（再取得を防ぐ）
+let _genTipTimer      = null;
+let _genProgressTimer = null;
+let _genPhaseFloor    = 5;   // 進捗バーの下限%（フェーズ進行で引き上げる）
+let _synopsisCache    = {}; // tmdbId+S/E → あらすじ（再取得を防ぐ）
+
+// ステータス文言から進捗バーの下限を決める（フェーズの目安）
+function genPhaseFloorOf(status) {
+  if (status.includes('字幕')) return 8;
+  if (status.includes('分析') || status.includes('混雑')) return 30;
+  return 5;
+}
 
 // あらすじをTMDBから取得（日本語優先はサーバー側で処理。失敗時は null）
 async function fetchEpisodeSynopsis() {
@@ -2584,17 +2593,39 @@ async function fetchEpisodeSynopsis() {
 }
 
 // 生成中のリッチローディングを表示する。
-// 既に表示中ならステータス文言だけ更新する（あらすじ・Tipsは維持）。
+// 既に表示中ならステータス文言と進捗フェーズだけ更新する（あらすじ・Tipsは維持）。
 function showGenerationLoading(status) {
   const existing = document.getElementById('genLoadingStatus');
-  if (existing) { existing.textContent = status; return; }
+  if (existing) {
+    existing.textContent = status;
+    _genPhaseFloor = Math.max(_genPhaseFloor, genPhaseFloorOf(status));
+    return;
+  }
 
   document.getElementById('vocabSection').innerHTML = `
     <div class="gen-loading">
       <div class="loading"><div class="spinner"></div><span id="genLoadingStatus">${esc(status)}</span></div>
+      <div class="gen-progress"><div class="gen-progress-fill" id="genProgressFill"></div></div>
       <div id="genSynopsis"></div>
-      <div class="gen-tip" id="genTip"></div>
+      <div class="gen-tip-card">
+        <div class="gen-tip-title">💡 学習Tips</div>
+        <div class="gen-tip" id="genTip"></div>
+      </div>
     </div>`;
+
+  // 進捗バー：実際の進捗は取得できない（AIの1リクエスト待ち）ため、
+  // 経過時間で95%まで漸近させる。完了時は画面ごと単語リストに置き換わる。
+  // フェーズ変化（字幕→分析）で下限を引き上げて段階感を出す。
+  _genPhaseFloor = genPhaseFloorOf(status);
+  const startedAt = Date.now();
+  clearInterval(_genProgressTimer);
+  _genProgressTimer = setInterval(() => {
+    const bar = document.getElementById('genProgressFill');
+    if (!bar) { clearInterval(_genProgressTimer); _genProgressTimer = null; return; }
+    const t   = (Date.now() - startedAt) / 1000;
+    const pct = Math.min(95, _genPhaseFloor + (95 - _genPhaseFloor) * (1 - Math.exp(-t / 12)));
+    bar.style.width = pct.toFixed(1) + '%';
+  }, 250);
 
   // Tips：ランダム開始で4秒ごとにローテーション。
   // ローディング画面が消えたら（#genTip が無くなったら）自動停止する。
@@ -2604,7 +2635,7 @@ function showGenerationLoading(status) {
     if (!el) { clearInterval(_genTipTimer); _genTipTimer = null; return; }
     el.classList.remove('gen-tip-show');
     void el.offsetWidth; // フェードアニメーションを再トリガー
-    el.textContent = '💡 ' + LEARNING_TIPS[tipIdx % LEARNING_TIPS.length];
+    el.textContent = LEARNING_TIPS[tipIdx % LEARNING_TIPS.length];
     el.classList.add('gen-tip-show');
     tipIdx++;
   };

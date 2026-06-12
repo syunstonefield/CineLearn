@@ -2394,3 +2394,35 @@ header {
   85%  { opacity: 1; }
   100% { opacity: 0; }
 }
+
+/* 生成中の進捗バーと学習Tipsカード */
+.gen-progress {
+  height: 6px;
+  background: var(--surface2);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.gen-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+.gen-tip-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px 18px;
+}
+.gen-tip-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.gen-tip-card .gen-tip {
+  text-align: left;
+  font-size: 13px;
+  line-height: 1.6;
+}
