@@ -2426,3 +2426,21 @@ header {
   font-size: 13px;
   line-height: 1.6;
 }
+
+/* ─────────────────────────────────────────
+   スマホ：縦方向の余白圧縮（本文の文字サイズは変えない）
+   .screen-header 系は全画面共通のため、視聴前の準備・サービス選択・
+   テスト画面などすべてが同じルールで統一される。
+   ───────────────────────────────────────── */
+@media (max-width: 768px) {
+  .screen-inner    { padding: 16px 16px 56px; gap: 14px; }
+  .screen-header   { gap: 10px; padding-bottom: 8px; }
+  .screen-title    { font-size: 19px; }
+  .screen-desc     { font-size: 12px; margin-top: 2px; line-height: 1.5; }
+  .btn-back        { font-size: 12px; margin-bottom: 2px; }
+  .episode-selector { padding: 14px; gap: 10px; }
+  .loading         { padding: 8px 0; }
+  .gen-loading     { gap: 12px; padding: 0 0 10px; }
+  .gen-synopsis    { padding: 13px 15px; }
+  .gen-tip-card    { padding: 12px 15px; }
+}
