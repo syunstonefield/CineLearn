@@ -21,6 +21,16 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       .catch(() => sendResponse({ ok: false }));
     return true; // 非同期レスポンスを使うため必須
   }
+  // Netflix 字幕(WebVTT)の取得。content.js から fetch すると別オリジン
+  // (*.nflxvideo.net) で CORS に阻まれるため、host_permissions を持つ
+  // background が代理取得してテキストを返す。
+  if (msg.type === 'CL_FETCH_VTT') {
+    fetch(msg.url)
+      .then(r => (r.ok ? r.text() : Promise.reject(new Error('HTTP ' + r.status))))
+      .then(text => sendResponse({ ok: true, text }))
+      .catch(err => sendResponse({ ok: false, error: String(err) }));
+    return true; // 非同期レスポンス
+  }
 });
 
 // セッションを有効な状態に保つ（js/supabase.js の ensureFreshSession と同等）。

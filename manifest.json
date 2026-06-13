@@ -12,10 +12,28 @@
     "https://www.netflix.com/*",
     "https://www.youtube.com/*",
     "https://www.amazon.co.jp/*",
-    "https://www.primevideo.com/*"
+    "https://www.primevideo.com/*",
+    "https://*.nflxvideo.net/*"
   ],
 
   "content_scripts": [
+    {
+      "matches": ["https://www.netflix.com/watch/*"],
+      "js": ["extension/netflix-inject.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://www.amazon.co.jp/gp/video/detail/*",
+        "https://www.amazon.co.jp/*/dp/*",
+        "https://www.primevideo.com/detail/*",
+        "https://www.primevideo.com/*/dp/*"
+      ],
+      "js": ["extension/amazon-inject.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
     {
       "matches": [
         "https://www.netflix.com/watch/*",
