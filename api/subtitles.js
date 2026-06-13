@@ -2,6 +2,44 @@ import { isAllowedOrigin } from './_origin.js';
 
 const OS_BASE = 'https://api.opensubtitles.com/api/v1';
 
+// ── OpenSubtitles ログイン（ダウンロード枠を 5/日 → 20/日 に拡大）──────────
+// 環境変数 OPENSUBTITLES_USERNAME / _PASSWORD が設定されていればログインし、
+// JWT トークンを Authorization ヘッダで download に付与する。
+// トークンは約24時間有効。Vercel の温かいインスタンス間でモジュール変数として
+// 使い回し（ログイン自体はダウンロード枠を消費しないが、無駄打ちは避ける）。
+// 認証情報が未設定・ログイン失敗時は従来どおり匿名（5/日）にフォールバックする。
+let cachedToken = null;
+let tokenExpiry = 0;
+
+async function getAuthToken(apiKey) {
+  const username = process.env.OPENSUBTITLES_USERNAME;
+  const password = process.env.OPENSUBTITLES_PASSWORD;
+  if (!username || !password) return null; // 未設定 → 匿名動作
+
+  if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
+
+  try {
+    const r = await fetch(`${OS_BASE}/login`, {
+      method: 'POST',
+      headers: { 'Api-Key': apiKey, 'Content-Type': 'application/json', 'User-Agent': 'CineLearn v1.0' },
+      body: JSON.stringify({ username, password }),
+    });
+    if (!r.ok) {
+      cachedToken = null;
+      return null;
+    }
+    const data = await r.json();
+    if (data.token) {
+      cachedToken = data.token;
+      tokenExpiry = Date.now() + 23 * 60 * 60 * 1000; // 23h（24h失効の手前で更新）
+      return cachedToken;
+    }
+  } catch {
+    /* ログイン失敗は匿名フォールバック */
+  }
+  return null;
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).end('Method Not Allowed');
@@ -43,10 +81,25 @@ export default async function handler(req, res) {
   }
 
   if (action === 'download') {
-    const r = await fetch(`${OS_BASE}/download`, {
-      method: 'POST', headers,
-      body: JSON.stringify({ file_id: fileId }),
-    });
+    // ログイン済みなら Authorization を付けて 20/日 枠を使う（未設定なら匿名 5/日）
+    const token = await getAuthToken(apiKey);
+    const dl = async (tok) => {
+      const h = tok ? { ...headers, Authorization: `Bearer ${tok}` } : headers;
+      return fetch(`${OS_BASE}/download`, {
+        method: 'POST',
+        headers: h,
+        body: JSON.stringify({ file_id: fileId }),
+      });
+    };
+
+    let r = await dl(token);
+    // トークン失効（401）時は1回だけ再ログインしてリトライ
+    if (r.status === 401 && token) {
+      cachedToken = null;
+      const fresh = await getAuthToken(apiKey);
+      if (fresh) r = await dl(fresh);
+    }
+
     const data = await r.json();
     if (data.link) {
       const srtRes = await fetch(data.link);

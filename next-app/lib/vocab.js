@@ -1,0 +1,414 @@
+// 単語生成オーケストレーション（字幕→Claude→パース→フィルター）。
+// js/app.js: generateVocabFromEpisode / generateQuiz から移植。
+import { callClaude } from './api';
+import { exampleContainsWord } from './subtitles';
+import { getExcludeSet } from './wordlist';
+
+// ── TOEIC/CEFR ヘルパー（app.js から移植）──────────────────
+export function getToeicLevel(score) {
+  if (score < 400) return 'A2';
+  if (score < 600) return 'B1';
+  if (score < 800) return 'B2';
+  return 'C1';
+}
+export function getVocabCount(score) {
+  if (!score || score <= 0) return 30;
+  if (score <= 400) return 20;
+  if (score <= 600) return 30;
+  if (score <= 800) return 40;
+  return 50;
+}
+function toeicToCefr(score) {
+  if (!score || score <= 0) return null;
+  if (score < 225) return 'A1';
+  if (score < 550) return 'A2';
+  if (score < 785) return 'B1';
+  if (score < 945) return 'B2';
+  return 'C1';
+}
+function cefrTargetBand(cur, tgt) {
+  const order = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+  const c = toeicToCefr(cur) || 'A2';
+  const t = toeicToCefr(tgt) || order[Math.min(order.indexOf(c) + 1, order.length - 1)];
+  const lo = order.indexOf(c);
+  const hi = Math.max(order.indexOf(t), lo + 1);
+  return `${order[lo]}〜${order[Math.min(hi, order.length - 1)]}`;
+}
+
+// ── JSON 修復・抽出（app.js の repairJson / extractWords）────
+export function repairJson(str) {
+  let out = '';
+  let inStr = false;
+  let escaped = false;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i];
+    if (escaped) {
+      out += ch;
+      escaped = false;
+      continue;
+    }
+    if (ch === '\\') {
+      out += ch;
+      escaped = true;
+      continue;
+    }
+    if (ch === '"') {
+      if (!inStr) {
+        inStr = true;
+        out += ch;
+        continue;
+      }
+      let j = i + 1;
+      while (j < str.length && ' \t\r\n'.includes(str[j])) j++;
+      const next = str[j];
+      if (!next || ':,}]'.includes(next)) {
+        inStr = false;
+        out += ch;
+      } else {
+        out += '\\"';
+      }
+      continue;
+    }
+    if (inStr && (ch === '\n' || ch === '\r')) {
+      out += ' ';
+      continue;
+    }
+    if (inStr && ch === '\t') {
+      out += ' ';
+      continue;
+    }
+    out += ch;
+  }
+  return out;
+}
+
+function extractWords(raw) {
+  try {
+    const p = JSON.parse(repairJson(raw));
+    if (p.drama || p.plus) return p;
+  } catch {
+    /* fall through */
+  }
+
+  const drama = [];
+  const plus = [];
+  const dramaMatch = raw.match(/"drama"\s*:\s*\[/);
+  const plusMatch = raw.match(/"plus"\s*:\s*\[/);
+  const dramaStart = dramaMatch ? dramaMatch.index + dramaMatch[0].length : -1;
+  const plusStart = plusMatch ? plusMatch.index + plusMatch[0].length : -1;
+
+  function extractObjects(str, from, to) {
+    const slice = str.slice(from, to > 0 ? to : undefined);
+    const results = [];
+    let depth = 0;
+    let objStart = -1;
+    for (let i = 0; i < slice.length; i++) {
+      if (slice[i] === '{') {
+        if (depth === 0) objStart = i;
+        depth++;
+      } else if (slice[i] === '}') {
+        depth--;
+        if (depth === 0 && objStart >= 0) {
+          try {
+            const obj = JSON.parse(repairJson(slice.slice(objStart, i + 1)));
+            if (obj.word) results.push(obj);
+          } catch {
+            /* skip */
+          }
+          objStart = -1;
+        }
+      }
+    }
+    return results;
+  }
+
+  if (dramaStart >= 0) drama.push(...extractObjects(raw, dramaStart, plusStart));
+  if (plusStart >= 0) plus.push(...extractObjects(raw, plusStart));
+  return { drama, plus };
+}
+
+// ── 単語生成（preload 済み字幕テキストを渡す）───────────────
+// ctx = { drama, season, episode, subtitleText, toeicScore, targetToeicScore, vocabCount }
+// onRetry(attempt, waitSec) は混雑リトライ時のUI更新用
+export async function generateVocab(ctx, onRetry) {
+  const { drama, season, episode, subtitleText, toeicScore, targetToeicScore, vocabCount } = ctx;
+
+  const cur = toeicScore > 0 ? toeicScore : 0;
+  const tgt = targetToeicScore > 0 ? targetToeicScore : cur + 200;
+  const upper = tgt;
+
+  const isMovieGen = drama.type === 'movie';
+  const genVocabCount = isMovieGen ? Math.min(150, vocabCount * 3) : vocabCount;
+  // 最低総数（drama＋plus）。目標スコア由来の vocabCount を 30〜50 にクランプ。
+  // drama が少ないエピソードでも plus で補ってこの数以上にする。
+  const minTotal = Math.min(50, Math.max(30, vocabCount));
+
+  const curCefr = toeicToCefr(cur);
+  const targetBand = cefrTargetBand(cur, upper);
+
+  const cefrAnchors = `語彙難易度の目安（CEFR）:
+- A2: buy, start, happy, problem, important
+- B1: decision, available, manage, schedule, suggest
+- B2: negotiate, inevitable, comprehensive, deliberately, acknowledge
+- C1: tenacity, scrutiny, paramount, ambivalent, meticulous
+- C2: ineffable, perfunctory, recalcitrant`;
+
+  const excludeList = `除外（ほぼ全ての学習者が既知のため絶対に選ばない）:
+get, go, make, take, come, give, thing, good, bad, very, people, time, day, year,
+know, want, like, need, look, see, say, tell, big, small, new, old, man, woman など中学英語レベルの基礎語`;
+
+  const levelSpec =
+    cur > 0
+      ? `【学習者レベル】
+- 現在のCEFR: ${curCefr}（TOEIC約${cur}点） / 目標: TOEIC約${upper}点
+- ねらい目の難易度帯（最優先）: CEFR ${targetBand}
+- 配分: ${targetBand} の上側の帯を約70%、復習として1つ下の帯を約30%
+- 制約: ${targetBand} を大きく超える超難語は避け、A2未満の超基礎語は選ばない
+
+${cefrAnchors}
+
+${excludeList}`
+      : `【学習者レベル】スコア未設定。中級〜中上級（CEFR B1〜B2）を中心に選ぶ。
+
+${cefrAnchors}
+
+${excludeList}`;
+
+  const tierGuide = `各単語に必ず "level"（CEFR: A2/B1/B2/C1/C2 のいずれか）を付ける。
+ねらい目帯（${targetBand}）を中心に選ぶ。ただし句動詞・イディオム・口語の比喩的用法・
+ジャンル専門語は、単語の表層的な難易度に関わらず学習者がつまずきやすいので帯外でも含めてよい。
+さらに "tier" を付ける：
+- "core"    ：このエピソードの理解に必須の頻出語
+- "advanced"：目標達成に向けて習得したい一段上の語
+- "context" ：このドラマ・映画特有の専門語・固有表現・句動詞・イディオム`;
+
+  const workLabel =
+    drama.type === 'movie'
+      ? `「${drama.title}」（映画）`
+      : `「${drama.title}」Season ${season} Episode ${episode}`;
+
+  const prompt = `以下は${workLabel} の実際の英語字幕テキストです。
+
+---字幕テキスト---
+${subtitleText}
+---ここまで---
+
+上記の字幕テキストを使って、以下のJSON形式のみで返答してください（説明不要）。
+
+${levelSpec}
+
+${tierGuide}
+
+【重要ルール】
+- drama の example は必ず字幕テキストから一字一句そのまま抜き出すこと（要約・言い換え禁止）
+- example には必ず "word" に指定した単語（または活用形）が含まれていること
+- example が見つからない場合は example を空文字 "" にすること（作文禁止）
+- plus の example のみ自由に作文してよいが、必ず "word" を含めること
+
+{
+  "drama": [
+    この字幕に実際に登場する単語を【最大${genVocabCount}個】。必ず字幕内に存在する単語のみ。
+    数が足りなければ少なくてよく、数合わせのために字幕に無い単語をここ(drama)へ絶対に入れないこと（字幕に出てこない語をdramaに入れるのは禁止）。
+    難易度は CEFR ${targetBand} を中心に選ぶ。内容語（名詞・動詞・形容詞・句動詞・イディオム）を優先し、機能語や固有名詞は避ける。
+    特に次を積極的に拾うこと（字面の難易度が低くても学習者が調べたくなる）：
+    句動詞・イディオム（例 pull off, get away with）、口語・スラング・比喩的な特殊用法（例 'shark'＝敏腕弁護士 のように、単語自体は平易でも文脈での意味を知らないと誤解する語を最優先）、この作品のジャンル特有の専門用語（法律・医療など）。
+    重要：字幕の冒頭だけに偏らず、最初から最後まで全体を通して均等に選ぶこと。特に映画など長い字幕では、中盤・終盤に登場する単語も必ず含めること。
+    { "word": "英単語（原形）", "level": "A2|B1|B2|C1|C2", "pos": "品詞（名詞/動詞/形容詞/副詞）", "definition": "日本語の意味（簡潔に）", "example": "字幕からそのままコピーした文（必ずwordの活用形を含む。見つからなければ空文字。ダブルクォートは使わず、シングルクォートに置換すること）", "example_ja": "exampleの自然な日本語訳（exampleが空なら空文字）", "tier": "core"|"advanced"|"context" }
+  ],
+  "plus": [
+    この作品のテーマ・文脈に関連する字幕外の推奨単語。dramaの語数と合わせて【合計が最低${minTotal}語】になるように補うこと（dramaが少ない回ほど多めに。最低でも5個は出す・最大20個）。同じ CEFR ${targetBand} を中心に選ぶ。
+    { "word": "英単語（原形）", "level": "A2|B1|B2|C1|C2", "pos": "品詞（名詞/動詞/形容詞/副詞）", "definition": "日本語の意味（簡潔に）", "example": "必ずwordを含む自然な英文を作文する（空にしないこと）", "example_ja": "exampleの自然な日本語訳（必須・空にしない）", "tier": "core"|"advanced"|"context" }
+  ]
+}`;
+
+  // 出力トークン上限。実測：実際の字幕（長い例文を逐語抽出）では
+  // 1単語あたり≈110〜120トークン必要（40語＋plus8で約4900トークン）。
+  // 旧来の値（*80→3200, *100→5000）は過小で、drama を出し切ると末尾の
+  // plus や各語の example が切り捨てられた（stop_reason=max_tokens）。
+  // 変動に耐える余裕を持たせ、モデル上限手前の 8000 で頭打ちにする。
+  // plus が最大20語まで増えるぶんも見込む。max_tokens は「天井」なので
+  // 大きくしても実出力ぶんしか課金されない。
+  const maxTokens = Math.min(8000, (genVocabCount + 25) * 120);
+  const text = await callClaude(prompt, maxTokens, onRetry);
+  const rawJson = text.match(/\{[\s\S]*\}/)?.[0] || '{}';
+
+  const parsed = extractWords(rawJson);
+  const dramaWords = (parsed.drama || []).map((w) => ({ ...w, source: 'drama', example_ja_ok: !!w.example_ja }));
+  const plusWords = (parsed.plus || []).map((w) => ({ ...w, source: 'plus', example_ja_ok: !!w.example_ja }));
+  let json = [...dramaWords, ...plusWords];
+
+  // 例文に単語が含まれていなければ example を削除
+  json = json.map((w) => {
+    if (!w.example) return w;
+    return exampleContainsWord(w.example, w.word) ? w : { ...w, example: '' };
+  });
+
+  // 除外語フィルター
+  if (toeicScore > 0) {
+    const excluded = getExcludeSet(toeicScore);
+    json = json.filter((w) => !excluded.has(w.word.toLowerCase()));
+  }
+
+  // CEFRバンド外フィルター
+  if (cur > 0) {
+    const order = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+    const band = targetBand.split('〜');
+    const loIdx = Math.max(0, order.indexOf(band[0]) - 1);
+    const hiIdx = order.indexOf(band[band.length - 1]);
+    if (hiIdx >= 0) {
+      json = json.filter((w) => {
+        // 句動詞・イディオム（複数語）と context（ジャンル専門語）は帯フィルター免除。
+        // 単語頻度では測れず、学習者が最も調べる対象なので残す（再現率＝予習の的中率重視）。
+        if (/\s/.test(w.word) || w.tier === 'context') return true;
+        const li = order.indexOf(String(w.level || '').toUpperCase());
+        return li === -1 ? true : li >= loIdx && li <= hiIdx;
+      });
+    }
+  }
+
+  // ★柱1の確実な担保★ drama 語をコード側で字幕と突き合わせて精査する。
+  // Haiku はプロンプトで「字幕内のみ」と指示しても字幕外の語を混ぜることがあるため、
+  // 「字幕に実在しない drama 語を除外」し「example が空/不正な語は字幕から補完」する。
+  // 字幕外の推奨語は plus が担当（drama は必ず字幕語＝必ず例文が付く）。
+  json = refineDramaWords(json, subtitleText);
+
+  // 字幕内(drama)だけで最低総数 minTotal に達していれば字幕外(plus)は足さない。
+  // 足りない場合のみ不足分だけ plus を残す（drama が minTotal を超えるのは許容）。
+  const dramaCount = json.filter((w) => w.source === 'drama').length;
+  const needPlus = Math.max(0, minTotal - dramaCount);
+  let keptPlus = 0;
+  json = json.filter((w) => {
+    if (w.source !== 'plus') return true;
+    if (keptPlus < needPlus) {
+      keptPlus++;
+      return true;
+    }
+    return false; // 余剰 plus を除外
+  });
+
+  return json;
+}
+
+// drama/plus を字幕本文で検証・再分類する：
+//  - drama なのに字幕に実在しない語 → 除外（水増し排除）
+//  - plus なのに字幕に実在する語     → drama に再分類し、例文を字幕の逐語文へ
+//  - drama で example が空/不正       → 字幕文で補完
+// 「字幕内＝drama＝逐語例文＋📍」「字幕外＝plus＝AI作例」を実態に一致させる。
+function refineDramaWords(words, subtitleText) {
+  if (!subtitleText) return words;
+  // 例文候補：文末(.!?)か台詞区切りで分割した短〜中尺の文。
+  const sentences = subtitleText
+    .split(/(?<=[.!?])\s+|(?:\s+-\s+)/)
+    .map((s) => s.trim())
+    .filter((s) => s.length >= 4 && s.length <= 200);
+  const setSubExample = (w) => {
+    const hit = sentences.find((s) => exampleContainsWord(s, w.word));
+    if (hit) {
+      w.example = hit;
+      w.example_ja = ''; // 未訳 → fillMissingExampleJa が後で翻訳補完
+      w.example_ja_ok = false;
+    }
+    return !!hit;
+  };
+  const out = [];
+  for (const w of words) {
+    const inSub = exampleContainsWord(subtitleText, w.word);
+    if (w.source === 'drama' && !inSub) continue; // 字幕に無い drama 語＝水増し → 除外
+    if (w.source === 'plus' && inSub) {
+      // plus だが実際は字幕に存在 → drama に直して例文を字幕の逐語文に差し替える
+      w.source = 'drama';
+      setSubExample(w); // 見つからなければ既存（作例）を残す
+    } else if (w.source === 'drama') {
+      // 既存 drama 語：example が空/単語不含なら字幕文で補完
+      if (!w.example || !w.example.trim() || !exampleContainsWord(w.example, w.word)) {
+        if (!setSubExample(w)) {
+          w.example = '';
+          w.example_ja = '';
+          w.example_ja_ok = false;
+        }
+      }
+    }
+    out.push(w);
+  }
+  return out;
+}
+
+// ── クイズ生成（バックグラウンド）──────────────────────────
+// testTiers に含まれる単語のみ対象。戻り値: { quizData, rawQuiz }
+export async function generateQuiz(drama, words, season, episode, testTiers) {
+  const testableWords = words.filter((w) => testTiers.includes(w.tier || 'core'));
+  const useWords = testableWords.length > 0 ? testableWords : words;
+  const wordList = useWords.map((w) => w.word).join(', ');
+  const workLabel =
+    drama?.type === 'movie'
+      ? `「${drama.title}」（映画）`
+      : `「${drama.title}」Season ${season} Episode ${episode}`;
+  const prompt = `英語学習クイズを作成してください。
+作品：${workLabel}
+単語リスト：${wordList}
+
+上記の単語から5問の4択穴埋め問題を作成してください。
+
+以下のJSON形式のみで返答（説明不要）:
+[
+  {
+    "question": "穴埋め問題の文（____を使う）",
+    "answer": "正解の単語",
+    "choices": ["正解", "不正解1", "不正解2", "不正解3"],
+    "explanation": "正解の解説（日本語・1文）"
+  }
+]`;
+
+  try {
+    const text = await callClaude(prompt);
+    const rawQuiz = JSON.parse(text.match(/\[[\s\S]*\]/)[0]);
+    const quizData = rawQuiz.map((q) => ({ ...q, choices: q.choices.sort(() => Math.random() - 0.5) }));
+    return { quizData, rawQuiz };
+  } catch {
+    return { quizData: [], rawQuiz: [] };
+  }
+}
+
+// ── example_ja のバックグラウンド補完（既存 fillMissingExampleJa）──────────
+// example_ja_ok フラグがない単語をAIで翻訳して補完する。
+// words の要素を直接更新し、変更があれば true を返す（履歴保存・再描画は呼び出し側）。
+export async function fillMissingExampleJa(words) {
+  const missing = words.filter((w) => w.example && !w.example_ja_ok);
+  if (!missing.length) return false;
+
+  const BATCH = 10; // 一度に送る単語数（トークン制限対策）
+  let changed = false;
+
+  for (let i = 0; i < missing.length; i += BATCH) {
+    const batch = missing.slice(i, i + BATCH);
+    const inputArr = batch.map((w) => ({ word: w.word, example: w.example, example_ja: '' }));
+    const prompt = `以下のJSON配列の各要素について、example（ドラマの字幕の英文）を自然な日本語に翻訳してexample_jaに入れてください。
+- example の文全体を翻訳すること（単語の意味説明は不要）
+- JSON配列のみ返答（説明不要）
+
+${JSON.stringify(inputArr)}`;
+
+    try {
+      const text = await callClaude(prompt, 1500);
+      const rawArr = text.match(/\[[\s\S]*\]/)?.[0] || '[]';
+      let arr = [];
+      try {
+        arr = JSON.parse(rawArr);
+      } catch {
+        arr = JSON.parse(repairJson(rawArr));
+      }
+
+      arr.forEach((item) => {
+        if (!item?.word || !item?.example_ja?.trim()) return;
+        const w = words.find((x) => x.word.toLowerCase() === item.word.toLowerCase());
+        if (!w) return;
+        w.example_ja = item.example_ja.trim();
+        w.example_ja_ok = true;
+        changed = true;
+      });
+    } catch {
+      /* バッチ失敗は無視して次へ */
+    }
+  }
+  return changed;
+}

@@ -32,6 +32,8 @@ export default async function handler(req, res) {
     return res.status(200).json({
       overview: data.overview || '',
       name: data.name || data.title || '',
+      // エピソードのスチル画像（映画は backdrop）。利用側が無視しても無害な追加フィールド
+      still_path: data.still_path || data.backdrop_path || null,
     });
   }
 

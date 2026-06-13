@@ -2713,6 +2713,9 @@ async function generateVocabFromEpisode() {
     // ドラマ（TV）は従来通り vocabCount（20〜50）。
     const isMovieGen   = selectedDrama.type === 'movie';
     const genVocabCount = isMovieGen ? Math.min(150, vocabCount * 3) : vocabCount;
+    // 最低総数（drama＋plus）。vocabCount を 30〜50 にクランプ。
+    // drama が少ない回でも plus で補ってこの数以上にする。
+    const minTotal = Math.min(50, Math.max(30, vocabCount));
 
     // ① TOEIC → CEFR に翻訳して指示（LLMは語彙難易度をCEFRで判断する方が正確）
     const curCefr    = toeicToCefr(cur);
@@ -2747,12 +2750,13 @@ ${cefrAnchors}
 ${excludeList}`;
 
     // ④ 各単語に CEFR レベルを判定させて自己フィルタ（一貫性が上がる）
-    const tierGuide = `各単語に必ず "level"（CEFR: A2/B1/B2/C1/C2 のいずれか）を付け、
-ねらい目帯（${targetBand}）に該当する語だけを出力すること（帯外は出さない）。
+    const tierGuide = `各単語に必ず "level"（CEFR: A2/B1/B2/C1/C2 のいずれか）を付ける。
+ねらい目帯（${targetBand}）を中心に選ぶ。ただし句動詞・イディオム・口語の比喩的用法・
+ジャンル専門語は、単語の表層的な難易度に関わらず学習者がつまずきやすいので帯外でも含めてよい。
 さらに "tier" を付ける：
 - "core"    ：このエピソードの理解に必須の頻出語
 - "advanced"：目標達成に向けて習得したい一段上の語
-- "context" ：このドラマ・映画特有の専門語・固有表現`;
+- "context" ：このドラマ・映画特有の専門語・固有表現・句動詞・イディオム`;
 
     const workLabel = selectedDrama.type === 'movie'
       ? `「${selectedDrama.title}」（映画）`
@@ -2777,20 +2781,28 @@ ${tierGuide}
 
 {
   "drama": [
-    この字幕に実際に登場する単語を${genVocabCount}個。必ず字幕内に存在する単語のみ。
-    難易度は CEFR ${targetBand} の帯に該当する語だけを選ぶ（帯外・除外語は出さない）。
-    内容語（名詞・動詞・形容詞・句動詞・イディオム）を優先し、機能語や固有名詞は避ける。
+    この字幕に実際に登場する単語を【最大${genVocabCount}個】。必ず字幕内に存在する単語のみ。
+    数が足りなければ少なくてよく、数合わせのために字幕に無い単語をここ(drama)へ絶対に入れないこと（字幕に出てこない語をdramaに入れるのは禁止）。
+    難易度は CEFR ${targetBand} を中心に選ぶ。内容語（名詞・動詞・形容詞・句動詞・イディオム）を優先し、機能語や固有名詞は避ける。
+    特に次を積極的に拾うこと（字面の難易度が低くても学習者が調べたくなる）：
+    句動詞・イディオム（例 pull off, get away with）、口語・スラング・比喩的な特殊用法（例 'shark'＝敏腕弁護士 のように、単語自体は平易でも文脈での意味を知らないと誤解する語を最優先）、この作品のジャンル特有の専門用語（法律・医療など）。
     重要：字幕の冒頭だけに偏らず、最初から最後まで全体を通して均等に選ぶこと。特に映画など長い字幕では、中盤・終盤に登場する単語も必ず含めること。
     { "word": "英単語（原形）", "level": "A2|B1|B2|C1|C2", "pos": "品詞（名詞/動詞/形容詞/副詞）", "definition": "日本語の意味（簡潔に）", "example": "字幕からそのままコピーした文（必ずwordの活用形を含む。見つからなければ空文字。ダブルクォートは使わず、シングルクォートに置換すること）", "example_ja": "exampleの自然な日本語訳（exampleが空なら空文字）", "tier": "core"|"advanced"|"context" }
   ],
   "plus": [
-    この作品のテーマ・文脈に関連するが字幕外の推奨単語を5〜8個。同じ CEFR ${targetBand} の帯で選ぶ。
-    { "word": "英単語（原形）", "level": "A2|B1|B2|C1|C2", "pos": "品詞（名詞/動詞/形容詞/副詞）", "definition": "日本語の意味（簡潔に）", "example": "必ずwordを含む自然な英文（作文可）", "example_ja": "exampleの自然な日本語訳", "tier": "core"|"advanced"|"context" }
+    この作品のテーマ・文脈に関連する字幕外の推奨単語。dramaの語数と合わせて【合計が最低${minTotal}語】になるように補うこと（dramaが少ない回ほど多めに。最低でも5個は出す・最大20個）。同じ CEFR ${targetBand} を中心に選ぶ。
+    { "word": "英単語（原形）", "level": "A2|B1|B2|C1|C2", "pos": "品詞（名詞/動詞/形容詞/副詞）", "definition": "日本語の意味（簡潔に）", "example": "必ずwordを含む自然な英文を作文する（空にしないこと）", "example_ja": "exampleの自然な日本語訳（必須・空にしない）", "tier": "core"|"advanced"|"context" }
   ]
 }`;
 
-    // 1単語あたり約80トークン。映画(最大150語)でも収まるよう余裕を持たせる
-    const text = await callClaude(prompt, Math.max(2000, genVocabCount * 80), (attempt, waitSec) => {
+    // 出力トークン上限。実測：実際の字幕（長い例文を逐語抽出）では1単語あたり
+    // ≈110〜120トークン必要（40語＋plus8で約4900トークン）。旧来の値（*80→3200,
+    // *100→5000）は過小で、drama を出し切ると末尾の plus や各語の example が
+    // 切り捨てられた（stop_reason=max_tokens）。変動に耐える余裕を持たせ、
+    // モデル上限手前の 8000 で頭打ちにする。plus が最大20語まで増えるぶんも見込む。
+    // 天井なので上げても実出力ぶんしか課金されない。
+    const maxTokens = Math.min(8000, (genVocabCount + 25) * 120);
+    const text = await callClaude(prompt, maxTokens, (attempt, waitSec) => {
       // ステータス行だけ更新（あらすじ・Tipsの表示は維持する）
       showGenerationLoading(`混雑中... ${waitSec}秒後に再試行 (${attempt}/3)`);
     });
@@ -2905,6 +2917,9 @@ ${tierGuide}
       if (hiIdx >= 0) {
         const before = json.length;
         json = json.filter(w => {
+          // 句動詞・イディオム（複数語）と context（ジャンル専門語）は帯フィルター免除。
+          // 単語頻度では測れず、学習者が最も調べる対象なので残す（予習の的中率重視）。
+          if (/\s/.test(w.word) || w.tier === 'context') return true;
           const li = order.indexOf(String(w.level || '').toUpperCase());
           return li === -1 ? true : (li >= loIdx && li <= hiIdx);
         });
@@ -2912,6 +2927,59 @@ ${tierGuide}
           console.log(`[CineLearn] CEFRバンド外フィルター: ${before - json.length}語を除去 (目標 ${targetBand})`);
         }
       }
+    }
+
+    // ★柱1の確実な担保★ drama 語を字幕と突き合わせて精査する。
+    // Haiku は「字幕内のみ」と指示しても字幕外の語を混ぜることがあるため、
+    // 「字幕に実在しない drama 語を除外」「example が空/不正な語は字幕文で補完」する。
+    // 字幕外の推奨語は plus が担当（drama は必ず字幕語＝必ず例文が付く）。
+    const containsWordIn = (text, word) => {
+      const tl = text.toLowerCase();
+      return word.toLowerCase().trim().split(/\s+/).every(tok => {
+        const variants = getWordVariants(tok);
+        return [...variants].some(v =>
+          new RegExp(`\\b${v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(tl)
+        );
+      });
+    };
+    if (cachedSubtitleText) {
+      const sentences = cachedSubtitleText
+        .split(/(?<=[.!?])\s+|(?:\s+-\s+)/)
+        .map(s => s.trim())
+        .filter(s => s.length >= 4 && s.length <= 200);
+      const setSubExample = (w) => {
+        const hit = sentences.find(s => containsWordIn(s, w.word));
+        if (hit) { w.example = hit; w.example_ja = ''; w.example_ja_ok = false; }
+        return !!hit;
+      };
+      json = json.filter(w => {
+        const inSub = containsWordIn(cachedSubtitleText, w.word);
+        if (w.source === 'drama' && !inSub) return false; // 字幕に無いdrama語＝水増し → 除外
+        if (w.source === 'plus' && inSub) {
+          // plus だが実際は字幕に存在 → drama に直し例文を字幕の逐語文に差し替える
+          w.source = 'drama';
+          setSubExample(w); // 見つからなければ既存（作例）を残す
+        } else if (w.source === 'drama') {
+          // 既存drama語：example が空/単語不含なら字幕文で補完
+          if (!w.example || !w.example.trim() || !containsWordIn(w.example, w.word)) {
+            if (!setSubExample(w)) { w.example = ''; w.example_ja = ''; w.example_ja_ok = false; }
+          }
+        }
+        return true;
+      });
+    }
+
+    // 字幕内(drama)だけで最低総数 minTotal に達していれば字幕外(plus)は足さない。
+    // 足りない場合のみ不足分だけ plus を残す（drama が minTotal を超えるのは許容）。
+    {
+      const dramaCount = json.filter(w => w.source === 'drama').length;
+      const needPlus = Math.max(0, minTotal - dramaCount);
+      let keptPlus = 0;
+      json = json.filter(w => {
+        if (w.source !== 'plus') return true;
+        if (keptPlus < needPlus) { keptPlus++; return true; }
+        return false; // 余剰 plus を除外
+      });
     }
 
     vocabWords = json;

@@ -1,0 +1,4 @@
+# 本番デプロイに含めないもの（Next.js試作・素材置き場）
+next-app
+promotion
+CineLearn-extension.zip

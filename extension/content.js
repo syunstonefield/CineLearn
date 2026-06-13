@@ -405,6 +405,9 @@ let   _vodAnchorKey      = '';
 let   _vodLastAnchorTime = -999;
 
 function captureVodAnchor(rawText) {
+  // 拡張機能のリロード後、開きっぱなしのタブでは chrome.* が切断される
+  // （Extension context invalidated）。記録を黙ってスキップしてエラーを防ぐ。
+  if (!chrome.runtime?.id) return;
   try {
     const video = Array.from(document.querySelectorAll('video')).find(v => v.currentTime > 0);
     if (!video) return;
@@ -436,6 +439,7 @@ function captureVodAnchor(rawText) {
 // 単語保存（chrome.storage.local）
 // ─────────────────────────────────────────────────────────────────
 function saveWord(entry) {
+  if (!chrome.runtime?.id) return; // 接続切れ（リロード後の残留タブ）では何もしない
   chrome.storage.local.get(['cl_active_profile'], (profileResult) => {
     const profileId = profileResult['cl_active_profile'];
     const key = profileId ? `${CL_WORDS_KEY_BASE}_${profileId}` : CL_WORDS_KEY_BASE;
@@ -502,6 +506,13 @@ async function showWordPopup(word, sentence, rect) {
   document.getElementById('cl-save-btn').addEventListener('click', (e) => {
     e.stopImmediatePropagation();
     e.preventDefault();
+    // 拡張機能のリロード後は古いタブとの接続が切れ保存できない。
+    // 黙って失敗する代わりに、再読み込みの案内を出す。
+    if (!chrome.runtime?.id) {
+      closePopupAndResume();
+      showToast('拡張機能が更新されました。ページを再読み込み（F5）してください');
+      return;
+    }
     const entry = {
       word,
       sentence:   sentence || '',

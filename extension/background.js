@@ -23,9 +23,47 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
 });
 
-async function syncWordToSupabase(word) {
+// セッションを有効な状態に保つ（js/supabase.js の ensureFreshSession と同等）。
+// アクセストークンは約1時間で失効するため、期限が近ければ refresh_token で
+// 自動更新して chrome.storage に書き戻す。これが無いと失効後の単語保存が
+// 黙ってクラウド同期されなくなる（単語帳には残るが他端末に届かない）。
+let _refreshPromise = null; // 並行リフレッシュ防止（refresh_token は使い捨てのため）
+
+async function getFreshSession() {
   const result  = await chrome.storage.local.get([SB_SESSION_KEY]);
   const session = result[SB_SESSION_KEY];
+  if (!session?.access_token) return null;
+
+  const now = Date.now() / 1000;
+  if (session.expires_at && session.expires_at - now > 600) return session; // まだ新鮮
+  if (!session.refresh_token) return null;
+
+  if (!_refreshPromise) {
+    _refreshPromise = (async () => {
+      try {
+        const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY },
+          body: JSON.stringify({ refresh_token: session.refresh_token }),
+        });
+        const d = await res.json();
+        if (!d?.access_token) return null;
+        if (!d.expires_at) d.expires_at = Math.floor(Date.now() / 1000) + (d.expires_in || 3600);
+        if (!d.user) d.user = session.user; // 応答に user が無い場合は引き継ぐ
+        await chrome.storage.local.set({ [SB_SESSION_KEY]: d });
+        return d;
+      } catch {
+        return null;
+      } finally {
+        _refreshPromise = null;
+      }
+    })();
+  }
+  return _refreshPromise;
+}
+
+async function syncWordToSupabase(word) {
+  const session = await getFreshSession();
   if (!session?.access_token || !session?.user?.id) return;
 
   await fetch(`${SUPABASE_URL}/rest/v1/my_words`, {
