@@ -127,22 +127,17 @@ function extractWords(raw) {
   return { drama, plus };
 }
 
-// ── 単語生成（preload 済み字幕テキストを渡す）───────────────
-// ctx = { drama, season, episode, subtitleText, toeicScore, targetToeicScore, vocabCount }
-// onRetry(attempt, waitSec) は混雑リトライ時のUI更新用
-export async function generateVocab(ctx, onRetry) {
-  const { drama, season, episode, subtitleText, toeicScore, targetToeicScore, vocabCount } = ctx;
+// ── 単語生成（共有キャッシュ・スーパーセット方式）─────────────────
+// 設計（docs/shared-cache-design.md §8.3）:
+//   generateSuperset … レベル非依存に CEFR A2〜C2 を広く生成する（シード/共有キャッシュ用）。
+//   personalizeWords … 生成済みスーパーセットを学習者レベルで絞る（読み取り時・AI呼び出しなし）。
+//   generateVocab    … 従来の都度生成（クライアントfallback）。targeted生成 → personalizeWords。
+//                      ※ 既存挙動を維持（targetedプロンプト＋同一フィルタ）。フィルタ順は
+//                        除外/帯フィルタが refineDramaWords の後段に移ったが、各述語は source 非依存
+//                        （帯フィルタは複数語/context免除）のため最終集合は従来と等価。
 
-  const cur = toeicScore > 0 ? toeicScore : 0;
-  const tgt = targetToeicScore > 0 ? targetToeicScore : cur + 200;
-  const upper = tgt;
-
-  const isMovieGen = drama.type === 'movie';
-  const genVocabCount = isMovieGen ? Math.min(150, vocabCount * 3) : vocabCount;
-  // 最低総数（drama＋plus）。目標スコア由来の vocabCount を 30〜50 にクランプ。
-  // drama が少ないエピソードでも plus で補ってこの数以上にする。
-  const minTotal = Math.min(50, Math.max(30, vocabCount));
-
+// targeted/superset 共通のプロンプト生成。mode で「学習者レベル狙い撃ち」と「A2〜C2を広く」を切替。
+function buildVocabPrompt({ drama, season, episode, subtitleText, mode, cur, upper, genVocabCount, minTotal }) {
   const curCefr = toeicToCefr(cur);
   const targetBand = cefrTargetBand(cur, upper);
 
@@ -158,7 +153,18 @@ get, go, make, take, come, give, thing, good, bad, very, people, time, day, year
 know, want, like, need, look, see, say, tell, big, small, new, old, man, woman など中学英語レベルの基礎語`;
 
   const levelSpec =
-    cur > 0
+    mode === 'superset'
+      ? `【語彙カバレッジ】学習者レベルに依存せず、CEFR A2〜C2 を幅広く網羅する（読み取り時に学習者レベルで絞り込むため、ここでは絞らない）。
+- どのレベルの学習者にも十分な語数が渡るよう各帯をまんべんなく拾う。特に上級者向けに B2・C1 を厚めに（C2 は少数でよい）。A2 を多くしすぎない。
+- level は「一般的な使用頻度・学習者にとっての難しさ」で正直に判定する。法務・医療・ビジネス等の専門語や文脈特有の比喩的用法は一般頻度が低く難しいため、安易に B2 以下へ下げず C1（必要なら C2）として正しく評価すること。
+- 中学英語レベルの超基礎語は選ばない（下記除外）。
+- 句動詞・イディオム・口語の比喩的用法・ジャンル専門語は、表層的な難易度に関わらず学習者がつまずきやすいので積極的に拾う。
+
+${cefrAnchors}
+（専門語の目安：litigation / deposition / injunction / liability / subpoena ＝法務、prognosis / malignant / diagnosis ＝医療、leverage / acquisition / liquidity ＝ビジネス などは C1 以上として扱う）
+
+${excludeList}`
+      : cur > 0
       ? `【学習者レベル】
 - 現在のCEFR: ${curCefr}（TOEIC約${cur}点） / 目標: TOEIC約${upper}点
 - ねらい目の難易度帯（最優先）: CEFR ${targetBand}
@@ -174,13 +180,31 @@ ${cefrAnchors}
 
 ${excludeList}`;
 
-  const tierGuide = `各単語に必ず "level"（CEFR: A2/B1/B2/C1/C2 のいずれか）を付ける。
+  const tierGuide =
+    mode === 'superset'
+      ? `各単語に必ず "level"（CEFR: A2/B1/B2/C1/C2 のいずれか）を正しく付ける（後で読み取り時にこの level で絞り込む）。
+特定の帯に偏らせず A2〜C2 を広く拾う。句動詞・イディオム・口語の比喩的用法・ジャンル専門語は帯に関わらず含めてよい。
+さらに "tier" を付ける：
+- "core"    ：このエピソードの理解に必須の頻出語
+- "advanced"：一段上の習得目標になる語
+- "context" ：このドラマ・映画特有の専門語・固有表現・句動詞・イディオム`
+      : `各単語に必ず "level"（CEFR: A2/B1/B2/C1/C2 のいずれか）を付ける。
 ねらい目帯（${targetBand}）を中心に選ぶ。ただし句動詞・イディオム・口語の比喩的用法・
 ジャンル専門語は、単語の表層的な難易度に関わらず学習者がつまずきやすいので帯外でも含めてよい。
 さらに "tier" を付ける：
 - "core"    ：このエピソードの理解に必須の頻出語
 - "advanced"：目標達成に向けて習得したい一段上の語
 - "context" ：このドラマ・映画特有の専門語・固有表現・句動詞・イディオム`;
+
+  // drama / plus の難易度指定。superset はバンドを絞らない。
+  const dramaBandLine =
+    mode === 'superset'
+      ? 'CEFR A2〜C2 を幅広く選ぶ（特定の帯に偏らせず、各帯から拾う）。'
+      : `難易度は CEFR ${targetBand} を中心に選ぶ。`;
+  const plusInstruction =
+    mode === 'superset'
+      ? 'plus（字幕外の推奨語）は、字幕に出にくい上位帯を補うため必ず 18〜20 語出す。B2〜C1（一部 C2）の専門語・抽象語・ビジネス/法務/医療語を中心に、上級者の底上げになる語を選ぶ（数合わせではなく上級者に十分な難語を渡すのが目的。各語に正しい level を付ける）。'
+      : `この作品のテーマ・文脈に関連する字幕外の推奨単語。dramaの語数と合わせて【合計が最低${minTotal}語】になるように補うこと（dramaが少ない回ほど多めに。最低でも5個は出す・最大20個）。同じ CEFR ${targetBand} を中心に選ぶ。`;
 
   const workLabel =
     drama.type === 'movie'
@@ -209,39 +233,58 @@ ${tierGuide}
   "drama": [
     この字幕に実際に登場する単語を【最大${genVocabCount}個】。必ず字幕内に存在する単語のみ。
     数が足りなければ少なくてよく、数合わせのために字幕に無い単語をここ(drama)へ絶対に入れないこと（字幕に出てこない語をdramaに入れるのは禁止）。
-    難易度は CEFR ${targetBand} を中心に選ぶ。内容語（名詞・動詞・形容詞・句動詞・イディオム）を優先し、機能語や固有名詞は避ける。
+    ${dramaBandLine}内容語（名詞・動詞・形容詞・句動詞・イディオム）を優先し、機能語や固有名詞は避ける。
     特に次を積極的に拾うこと（字面の難易度が低くても学習者が調べたくなる）：
     句動詞・イディオム（例 pull off, get away with）、口語・スラング・比喩的な特殊用法（例 'shark'＝敏腕弁護士 のように、単語自体は平易でも文脈での意味を知らないと誤解する語を最優先）、この作品のジャンル特有の専門用語（法律・医療など）。
     重要：字幕の冒頭だけに偏らず、最初から最後まで全体を通して均等に選ぶこと。特に映画など長い字幕では、中盤・終盤に登場する単語も必ず含めること。
     { "word": "英単語（原形）", "level": "A2|B1|B2|C1|C2", "pos": "品詞（名詞/動詞/形容詞/副詞）", "definition": "日本語の意味（簡潔に）", "example": "字幕からそのままコピーした文（必ずwordの活用形を含む。見つからなければ空文字。ダブルクォートは使わず、シングルクォートに置換すること）", "example_ja": "exampleの自然な日本語訳（exampleが空なら空文字）", "tier": "core"|"advanced"|"context" }
   ],
   "plus": [
-    この作品のテーマ・文脈に関連する字幕外の推奨単語。dramaの語数と合わせて【合計が最低${minTotal}語】になるように補うこと（dramaが少ない回ほど多めに。最低でも5個は出す・最大20個）。同じ CEFR ${targetBand} を中心に選ぶ。
+    ${plusInstruction}
     { "word": "英単語（原形）", "level": "A2|B1|B2|C1|C2", "pos": "品詞（名詞/動詞/形容詞/副詞）", "definition": "日本語の意味（簡潔に）", "example": "必ずwordを含む自然な英文を作文する（空にしないこと）", "example_ja": "exampleの自然な日本語訳（必須・空にしない）", "tier": "core"|"advanced"|"context" }
   ]
 }`;
 
-  // 出力トークン上限。実測：実際の字幕（長い例文を逐語抽出）では
-  // 1単語あたり≈110〜120トークン必要（40語＋plus8で約4900トークン）。
-  // 旧来の値（*80→3200, *100→5000）は過小で、drama を出し切ると末尾の
-  // plus や各語の example が切り捨てられた（stop_reason=max_tokens）。
-  // 変動に耐える余裕を持たせ、モデル上限手前の 8000 で頭打ちにする。
-  // plus が最大20語まで増えるぶんも見込む。max_tokens は「天井」なので
+  // 出力トークン上限。実測：実際の字幕（長い例文を逐語抽出）では 1単語あたり≈110〜120トークン。
+  // Haiku 4.5 のモデル上限は 64K だが、api/claude.js は非ストリーミング＝Vercel関数の
+  // タイムアウトが実際の制約。現状 8000 は本番で稼働実績あり。スーパーセット(~90語)を
+  // 切り捨てずに出すため 12000 まで引き上げる（~100語相当）。万一タイムアウトするなら
+  // vercel.json の maxDuration 引き上げか生成2分割で対処。max_tokens は天井なので
   // 大きくしても実出力ぶんしか課金されない。
-  const maxTokens = Math.min(8000, (genVocabCount + 25) * 120);
-  const text = await callClaude(prompt, maxTokens, onRetry);
-  const rawJson = text.match(/\{[\s\S]*\}/)?.[0] || '{}';
+  const maxTokens = Math.min(12000, (genVocabCount + 25) * 120);
+  return { prompt, maxTokens };
+}
 
+// Claude の生出力をパースし、字幕と突き合わせて精査する（レベル絞りはしない）。
+//  - 例文に単語が含まれなければ example を空に
+//  - ★柱1★ refineDramaWords：字幕に実在しない drama 語を除外・空exampleを字幕文で補完・
+//    実在する plus を drama へ再分類（Haikuが字幕外語を混ぜるのを決定的に排除）
+function parseAndRefineWords(text, subtitleText) {
+  const rawJson = text.match(/\{[\s\S]*\}/)?.[0] || '{}';
   const parsed = extractWords(rawJson);
   const dramaWords = (parsed.drama || []).map((w) => ({ ...w, source: 'drama', example_ja_ok: !!w.example_ja }));
   const plusWords = (parsed.plus || []).map((w) => ({ ...w, source: 'plus', example_ja_ok: !!w.example_ja }));
   let json = [...dramaWords, ...plusWords];
 
-  // 例文に単語が含まれていなければ example を削除
   json = json.map((w) => {
     if (!w.example) return w;
     return exampleContainsWord(w.example, w.word) ? w : { ...w, example: '' };
   });
+
+  return refineDramaWords(json, subtitleText);
+}
+
+// 生成済みスーパーセットを学習者レベルで絞る（読み取り時・AI呼び出しなし）。
+//  - 既知語の除外（getExcludeSet, スコア依存）
+//  - CEFRバンド外フィルタ（複数語/context tier は免除）
+//  - 字幕内(drama)で minTotal に達していれば余剰 plus を落とす
+export function personalizeWords(words, { toeicScore = 0, targetToeicScore = 0, vocabCount = 30 } = {}) {
+  const cur = toeicScore > 0 ? toeicScore : 0;
+  const upper = targetToeicScore > 0 ? targetToeicScore : cur + 200;
+  const targetBand = cefrTargetBand(cur, upper);
+  const minTotal = Math.min(50, Math.max(30, vocabCount));
+
+  let json = Array.isArray(words) ? words.slice() : [];
 
   // 除外語フィルター
   if (toeicScore > 0) {
@@ -266,12 +309,6 @@ ${tierGuide}
     }
   }
 
-  // ★柱1の確実な担保★ drama 語をコード側で字幕と突き合わせて精査する。
-  // Haiku はプロンプトで「字幕内のみ」と指示しても字幕外の語を混ぜることがあるため、
-  // 「字幕に実在しない drama 語を除外」し「example が空/不正な語は字幕から補完」する。
-  // 字幕外の推奨語は plus が担当（drama は必ず字幕語＝必ず例文が付く）。
-  json = refineDramaWords(json, subtitleText);
-
   // 字幕内(drama)だけで最低総数 minTotal に達していれば字幕外(plus)は足さない。
   // 足りない場合のみ不足分だけ plus を残す（drama が minTotal を超えるのは許容）。
   const dramaCount = json.filter((w) => w.source === 'drama').length;
@@ -287,6 +324,45 @@ ${tierGuide}
   });
 
   return json;
+}
+
+// レベル非依存に CEFR A2〜C2 を広く生成（シード/共有キャッシュ用）。
+// personalizeWords で読み取り時に学習者レベルへ絞る前提なので、ここでは
+// 除外/帯/plus間引きをしない（各語に level/tier タグだけ付けて広く保存する）。
+// ctx = { drama, season, episode, subtitleText, vocabCount? }
+export async function generateSuperset(ctx, onRetry) {
+  const { drama, season, episode, subtitleText, vocabCount } = ctx;
+  const isMovieGen = drama.type === 'movie';
+  const baseCount = vocabCount || 40;
+  // 各帯(A2〜C2)を網羅し、上級者の帯(B2〜C1)でも floor(最大50)に届くよう多めに採る。
+  // drama ~70 + plus 18〜20 で合計 ~90。cap 12000(≈100語)に収まる。
+  const genVocabCount = isMovieGen ? Math.min(150, baseCount * 3) : 70;
+  const minTotal = isMovieGen ? Math.min(80, genVocabCount) : 50;
+
+  // superset は levelSpec が A2〜C2 固定のため cur/upper（バンド絞り用）は使わない。
+  const { prompt, maxTokens } = buildVocabPrompt({
+    drama, season, episode, subtitleText, mode: 'superset', cur: 0, upper: 0, genVocabCount, minTotal,
+  });
+  const text = await callClaude(prompt, maxTokens, onRetry);
+  return parseAndRefineWords(text, subtitleText);
+}
+
+// 従来の都度生成（クライアントfallback）。targeted生成 → 学習者レベルで絞る。
+export async function generateVocab(ctx, onRetry) {
+  const { drama, season, episode, subtitleText, toeicScore, targetToeicScore, vocabCount } = ctx;
+  const cur = toeicScore > 0 ? toeicScore : 0;
+  const upper = targetToeicScore > 0 ? targetToeicScore : cur + 200;
+
+  const isMovieGen = drama.type === 'movie';
+  const genVocabCount = isMovieGen ? Math.min(150, vocabCount * 3) : vocabCount;
+  const minTotal = Math.min(50, Math.max(30, vocabCount));
+
+  const { prompt, maxTokens } = buildVocabPrompt({
+    drama, season, episode, subtitleText, mode: 'targeted', cur, upper, genVocabCount, minTotal,
+  });
+  const text = await callClaude(prompt, maxTokens, onRetry);
+  const refined = parseAndRefineWords(text, subtitleText);
+  return personalizeWords(refined, { toeicScore, targetToeicScore, vocabCount });
 }
 
 // drama/plus を字幕本文で検証・再分類する：

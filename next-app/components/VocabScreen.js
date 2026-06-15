@@ -27,7 +27,8 @@ import {
   subtitleCacheKey,
   computeTimestamps,
 } from '@/lib/subtitles';
-import { generateVocab, fillMissingExampleJa } from '@/lib/vocab';
+import { generateVocab, personalizeWords, fillMissingExampleJa } from '@/lib/vocab';
+import { fetchSharedVocab } from '@/lib/api';
 import { getMyWordsForEpisode, resolveUnassignedWords, translateExtWordDefinitions } from '@/lib/words';
 
 function speak(word) {
@@ -440,6 +441,8 @@ export default function VocabScreen() {
   }, [drama?.title]);
 
   // ── 単語生成（generateVocabFromEpisode 相当）──
+  // まず共有キャッシュ（/api/vocab）を参照し、ヒットすれば生成せず personalizeWords で表示する。
+  // カタログ外（ゲート有効時）は「近日対応」。ミス/失敗は従来フロー（字幕取得→generateVocab）へフォールバック。
   const onGenerate = useCallbackSafe(async () => {
     if (!drama) return;
     const myReq = reqId.current;
@@ -448,44 +451,73 @@ export default function VocabScreen() {
     setGenStatus('単語を分析中...');
     setRetryMsg('');
 
+    const personalizeOpts = {
+      toeicScore: settings.toeicScore || 0,
+      targetToeicScore: settings.targetToeicScore || 0,
+      vocabCount: settings.vocabCount || 30,
+    };
+
     try {
-      const key = subtitleCacheKey(drama.englishTitle || drama.title, season, episode);
-      let subText = subMem.current.key === key ? subMem.current.text : localStorage.getItem(key) || '';
-      if (!subText) {
-        setGenBtn({ text: '字幕を読み込み中...', disabled: true, hidden: false });
-        setGenStatus('字幕を読み込み中...');
-        await preload(season, episode, myReq);
-        subText = subMem.current.key === key ? subMem.current.text : '';
-        if (!subText) {
-          setGenBtn({ text: '単語を生成', disabled: false, hidden: false });
-          return;
-        }
-        // preload が phase を書き換えるためローディングを再表示（既存と同じ）
-        setPhase('generating');
-        setGenStatus('単語を分析中...');
+      let words;
+      let srcLabel;
+
+      // 1) 共有キャッシュ参照（読み取り専用・失敗は miss 扱い）
+      const cached = await fetchSharedVocab({
+        tmdbId: drama.tmdbId,
+        season,
+        episode,
+        type: drama.type,
+      });
+
+      if (cached?.blocked) {
+        // カタログ外 → 近日対応（生成しない）
+        setSubRaw('');
+        setVocab([]);
+        setSource('');
+        setMessage('🚧 この作品は近日対応予定です（カタログを順次拡大中）');
+        setPhase('soon');
+        setGenBtn({ text: '単語を生成', disabled: true, hidden: true });
+        return;
       }
 
-      const words = await generateVocab(
-        {
-          drama,
-          season,
-          episode,
-          subtitleText: subText,
-          toeicScore: settings.toeicScore || 0,
-          targetToeicScore: settings.targetToeicScore || 0,
-          vocabCount: settings.vocabCount || 30,
-        },
-        (attempt, waitSec) => setRetryMsg(`混雑中... ${waitSec}秒後に再試行 (${attempt}/3)`)
-      );
+      if (Array.isArray(cached?.words) && cached.words.length) {
+        // キャッシュヒット：生成せず学習者レベルで絞るだけ（字幕取得・Claude 不要）。
+        // 注：生 SRT が無いためタイムスタンプは付かない（既知の割り切り・将来シードで埋める）。
+        setSubRaw('');
+        words = personalizeWords(cached.words, personalizeOpts);
+        srcLabel = '共有キャッシュ（生成済み）';
+      } else {
+        // 2) ミス → 従来フロー（字幕取得→都度生成）
+        const key = subtitleCacheKey(drama.englishTitle || drama.title, season, episode);
+        let subText = subMem.current.key === key ? subMem.current.text : localStorage.getItem(key) || '';
+        if (!subText) {
+          setGenBtn({ text: '字幕を読み込み中...', disabled: true, hidden: false });
+          setGenStatus('字幕を読み込み中...');
+          await preload(season, episode, myReq);
+          subText = subMem.current.key === key ? subMem.current.text : '';
+          if (!subText) {
+            setGenBtn({ text: '単語を生成', disabled: false, hidden: false });
+            return;
+          }
+          // preload が phase を書き換えるためローディングを再表示（既存と同じ）
+          setPhase('generating');
+          setGenStatus('単語を分析中...');
+        }
 
-      // 工程表示を「仕上げ」へ（履歴保存・拡張単語の統合が完了するまでの短い間）
+        words = await generateVocab(
+          { drama, season, episode, subtitleText: subText, ...personalizeOpts },
+          (attempt, waitSec) => setRetryMsg(`混雑中... ${waitSec}秒後に再試行 (${attempt}/3)`)
+        );
+        srcLabel = source || '実際の字幕データから';
+      }
+
+      // 3) 共通：仕上げ・表示・保存
       setGenStatus('仕上げ中...');
       setRetryMsg('');
 
       setVocab(words);
-      setSource(source || '実際の字幕データから');
+      setSource(srcLabel);
       setPhase('vocab');
-      setRetryMsg('');
       setGenBtn({ text: '単語を再生成', disabled: false, hidden: true });
 
       // 履歴に保存
