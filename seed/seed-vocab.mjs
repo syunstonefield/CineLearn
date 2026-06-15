@@ -19,7 +19,7 @@
 
 import { generateSuperset, fillMissingExampleJa } from '../next-app/lib/vocab.js';
 import { searchSubtitles, downloadSubtitle } from '../next-app/lib/api.js';
-import { selectSubtitleCandidates, parseSrt } from '../next-app/lib/subtitles.js';
+import { selectSubtitleCandidates, parseSrt, attachBaseTimestamps } from '../next-app/lib/subtitles.js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://mndyexwdevkpdssglwpl.supabase.co';
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -93,11 +93,11 @@ async function fetchSubtitleText(drama, season, episode) {
     if (!text) continue;
     const musicRatio = (text.match(/♪/g) || []).length / (text.length / 100);
     if (musicRatio > 5) continue; // 歌詞ばかりの字幕は除外（本取得と同基準）
-    return parseSrt(text);
+    return { parsed: parseSrt(text), raw: text };
   }
   const fid = sorted[0].attributes.files[0].file_id;
   const text = await downloadSubtitle(fid);
-  return text ? parseSrt(text) : null;
+  return text ? { parsed: parseSrt(text), raw: text } : null;
 }
 
 async function seedEpisode(t, season, episode) {
@@ -107,17 +107,20 @@ async function seedEpisode(t, season, episode) {
   const cacheKey = `v${CACHE_VERSION}:tmdb${t.tmdbId}:s${s}e${e}`;
   console.log(`\n▶ ${t.display} S${season}E${episode}  (${cacheKey})`);
 
-  const subtitleText = await fetchSubtitleText(drama, season, episode);
-  if (!subtitleText || subtitleText.length < 200) {
+  const sub = await fetchSubtitleText(drama, season, episode);
+  if (!sub || !sub.parsed || sub.parsed.length < 200) {
     console.warn('  ⚠ 字幕が取得できない/短すぎ → スキップ');
     return;
   }
+  const subtitleText = sub.parsed;
   console.log(`  字幕 ${subtitleText.length} 文字`);
 
-  const raw = await generateSuperset({ drama, season, episode, subtitleText, vocabCount: 40 });
-  await fillMissingExampleJa(raw); // example_ja を補完（in-place）
+  const gen = await generateSuperset({ drama, season, episode, subtitleText, vocabCount: 40 });
+  await fillMissingExampleJa(gen); // example_ja を補完（in-place）
+  // ベース字幕時刻（📍）を各語へ付与（生SRTから・VOD補正なし）
+  attachBaseTimestamps(gen, { title: drama.englishTitle || drama.title, season, episode, rawSrt: sub.raw });
   // 保存用に transient フラグを落とす
-  const words = raw.map(({ example_ja_ok, ...w }) => w);
+  const words = gen.map(({ example_ja_ok, ...w }) => w);
 
   const dramaCount = words.filter((w) => w.source === 'drama').length;
   if (words.length < MIN_WORDS) {

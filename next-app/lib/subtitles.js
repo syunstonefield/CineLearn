@@ -308,6 +308,7 @@ function fitVodSync(pairs) {
 }
 
 function computeVodSyncFit(cues, season, episode) {
+  if (typeof localStorage === 'undefined') return null; // サーバー/Node には VOD アンカーが無い
   if (!cues.length) return null;
   const suffix = `_s${season}e${episode}`;
   const anchors = [];
@@ -364,7 +365,9 @@ function buildTsContext(ctx) {
   const sig = subtitleRawCacheKey(ctx.title, ctx.season, ctx.episode) + ':' + (ctx.rawSrt || '').length;
   const cues = parseCues(ctx.rawSrt || '', sig);
   let fit;
-  if (_fitCacheSig === sig) {
+  if (ctx.noVodSync) {
+    fit = null; // ベース時刻のみ（保存用・サーバー用）
+  } else if (_fitCacheSig === sig) {
     fit = _fitCache;
   } else {
     fit = cues.length ? computeVodSyncFit(cues, ctx.season, ctx.episode) : null;
@@ -392,6 +395,18 @@ function findWordCueSec(cues, word) {
     });
   for (const c of cues) if (res.every((re) => re.test(c.text))) return c.sec;
   return null;
+}
+
+// 各単語に「ベース字幕時刻」を tsSec(数値|null)/tsLabel(文字列|null) として付与する（in-place）。
+// VOD補正は per-user なので付けない（保存・サーバー用）。シード／フェーズ1寄与で使う。
+export function attachBaseTimestamps(words, ctx) {
+  const map = computeTimestamps(words, { ...ctx, noVodSync: true });
+  for (const w of words) {
+    const t = map.get(w.word);
+    w.tsSec = t && t.sec !== Infinity ? t.sec : null;
+    w.tsLabel = t ? t.label : null;
+  }
+  return words;
 }
 
 // 単語ごとの { sec(ソート用・補正済), label(📍表示) } を一括計算して Map で返す

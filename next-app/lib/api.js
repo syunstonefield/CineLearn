@@ -103,3 +103,18 @@ export async function fetchSharedVocab({ tmdbId, season, episode, type }) {
     return { miss: true };
   }
 }
+
+// フェーズ1：都度生成したスーパーセットを共有キャッシュへ寄与する（fire-and-forget）。
+// サーバー側（/api/vocab-contribute, service_role）が品質ゲートを通して upsert。
+// 失敗は握りつぶす（表示・学習体験には影響しない）。
+export async function contributeVocab({ tmdbId, season, episode, type, displayTitle, words }) {
+  try {
+    await fetch(`${API_BASE}/api/vocab-contribute`, {
+      method: 'POST',
+      headers: apiHeaders(),
+      body: JSON.stringify({ tmdbId, season, episode, type, displayTitle, words }),
+    });
+  } catch {
+    /* 寄与失敗は無視 */
+  }
+}

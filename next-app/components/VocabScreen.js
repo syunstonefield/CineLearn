@@ -26,9 +26,10 @@ import {
   getCachedRawSrt,
   subtitleCacheKey,
   computeTimestamps,
+  attachBaseTimestamps,
 } from '@/lib/subtitles';
-import { generateVocab, personalizeWords, fillMissingExampleJa } from '@/lib/vocab';
-import { fetchSharedVocab } from '@/lib/api';
+import { generateSuperset, personalizeWords, fillMissingExampleJa } from '@/lib/vocab';
+import { fetchSharedVocab, contributeVocab } from '@/lib/api';
 import { getMyWordsForEpisode, resolveUnassignedWords, translateExtWordDefinitions } from '@/lib/words';
 
 function speak(word) {
@@ -86,12 +87,19 @@ export default function VocabScreen() {
   // ─ タイムスタンプ（vocab + subRaw から一括計算）─
   const timestamps = useMemo(() => {
     if (!vocab.length) return new Map();
-    return computeTimestamps(vocab, {
-      title: drama?.englishTitle || drama?.title,
-      season,
-      episode,
-      rawSrt: subRaw,
-    });
+    if (subRaw) {
+      // 生SRTあり（生成パス）: VOD補正つきで計算
+      return computeTimestamps(vocab, {
+        title: drama?.englishTitle || drama?.title,
+        season,
+        episode,
+        rawSrt: subRaw,
+      });
+    }
+    // 生SRTなし（キャッシュヒット等）: 保存済みのベース時刻を使う
+    const m = new Map();
+    vocab.forEach((w) => m.set(w.word, { sec: w.tsSec ?? Infinity, label: w.tsLabel ?? null }));
+    return m;
   }, [vocab, subRaw, drama, season, episode]);
 
   // 重複除去＋タイムスタンプ順ソート（renderVocab 準拠）
@@ -482,12 +490,12 @@ export default function VocabScreen() {
 
       if (Array.isArray(cached?.words) && cached.words.length) {
         // キャッシュヒット：生成せず学習者レベルで絞るだけ（字幕取得・Claude 不要）。
-        // 注：生 SRT が無いためタイムスタンプは付かない（既知の割り切り・将来シードで埋める）。
+        // タイムスタンプ📍は各語の保存済みベース時刻(tsSec/tsLabel)を使う。
         setSubRaw('');
         words = personalizeWords(cached.words, personalizeOpts);
         srcLabel = '共有キャッシュ（生成済み）';
       } else {
-        // 2) ミス → 従来フロー（字幕取得→都度生成）
+        // 2) ミス → 字幕取得 → スーパーセット生成（全レベル分）→ レベル絞りで表示
         const key = subtitleCacheKey(drama.englishTitle || drama.title, season, episode);
         let subText = subMem.current.key === key ? subMem.current.text : localStorage.getItem(key) || '';
         if (!subText) {
@@ -504,11 +512,32 @@ export default function VocabScreen() {
           setGenStatus('単語を分析中...');
         }
 
-        words = await generateVocab(
-          { drama, season, episode, subtitleText: subText, ...personalizeOpts },
+        const superset = await generateSuperset(
+          { drama, season, episode, subtitleText: subText, vocabCount: settings.vocabCount || 30 },
           (attempt, waitSec) => setRetryMsg(`混雑中... ${waitSec}秒後に再試行 (${attempt}/3)`)
         );
+        words = personalizeWords(superset, personalizeOpts);
         srcLabel = source || '実際の字幕データから';
+
+        // フェーズ1: スーパーセットを共有キャッシュへ寄与（fire-and-forget・サーバー側で品質ゲート）
+        try {
+          attachBaseTimestamps(superset, {
+            title: drama.englishTitle || drama.title,
+            season,
+            episode,
+            rawSrt: subMem.current.raw || '',
+          });
+          contributeVocab({
+            tmdbId: drama.tmdbId,
+            season,
+            episode,
+            type: drama.type,
+            displayTitle: drama.englishTitle || drama.title,
+            words: superset.map(({ example_ja_ok, ...w }) => w),
+          });
+        } catch {
+          /* 寄与失敗は無視（表示に影響しない） */
+        }
       }
 
       // 3) 共通：仕上げ・表示・保存
