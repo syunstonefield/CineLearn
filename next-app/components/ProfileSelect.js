@@ -26,6 +26,7 @@ export default function ProfileSelect() {
     <div className="screen active" id="screen-0">
       <div className="screen-inner center">
         <h1 className="welcome-title">だれが観ますか？</h1>
+        <p className="welcome-sub">プロフィールを選んで学習を始めましょう。家族や用途ごとに分けられます。</p>
         <div className="profile-grid" id="profileGrid">
           {profiles.map((p) => (
             <div key={p.id} className="profile-card" onClick={() => selectProfile(p.id)}>

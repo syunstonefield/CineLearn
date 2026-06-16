@@ -155,14 +155,16 @@ export const PROVIDER_MAP = {
   3: 'YouTube',
 };
 
+// OS依存の絵文字をやめ、ブランド色＋頭文字の中立レターマークで統一する。
+// （実ロゴは「非提携」方針に反する恐れがあるため使わない / mark は単なる頭文字）
 export const ALL_SERVICES = [
-  { name: 'Netflix', icon: '🔴' },
-  { name: 'Amazon Prime', icon: '🔵' },
-  { name: 'Disney+', icon: '🔷' },
-  { name: 'Apple TV+', icon: '🍎' },
-  { name: 'Hulu', icon: '🟢' },
-  { name: 'U-NEXT', icon: '🟣' },
-  { name: 'YouTube', icon: '▶️' },
+  { name: 'Netflix', mark: 'N', color: '#E50914' },
+  { name: 'Amazon Prime', mark: 'P', color: '#00A8E0' },
+  { name: 'Disney+', mark: 'D', color: '#1A4BC4' },
+  { name: 'Apple TV+', mark: '', color: '#333333' },
+  { name: 'Hulu', mark: 'H', color: '#17B85F' },
+  { name: 'U-NEXT', mark: 'U', color: '#6B4FD4' },
+  { name: 'YouTube', mark: '▶', color: '#FF0000' },
 ];
 
 // 視聴可能サービス名の集合を取得する（loadDramaFromLibrary 内の providers 部分）

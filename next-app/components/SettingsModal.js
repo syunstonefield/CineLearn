@@ -273,6 +273,48 @@ export default function SettingsModal({ onClose }) {
           <button className="btn-primary" style={{ marginTop: 8, width: '100%' }} onClick={save}>
             設定を保存して始める
           </button>
+
+          {/* クレジット / Credits（TMDB の帰属表示は API 規約上の必須要件） */}
+          <div
+            className="settings-section"
+            style={{ marginTop: 24, borderTop: '1px solid var(--border)', paddingTop: 16 }}
+          >
+            <div className="settings-section-title">ℹ️ クレジット</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+              <a
+                href="https://www.themoviedb.org/"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ flexShrink: 0 }}
+              >
+                <img src="/tmdb-logo.svg" alt="TMDB" width={72} style={{ display: 'block' }} />
+              </a>
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6, margin: 0 }}>
+                This product uses the TMDB API but is not endorsed or certified by TMDB.
+              </p>
+            </div>
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.7, margin: 0 }}>
+              作品情報・画像は{' '}
+              <a
+                href="https://www.themoviedb.org/"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: 'var(--accent)' }}
+              >
+                TMDB
+              </a>{' '}
+              、字幕データは{' '}
+              <a
+                href="https://www.opensubtitles.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: 'var(--accent)' }}
+              >
+                OpenSubtitles
+              </a>{' '}
+              を利用しています。
+            </p>
+          </div>
         </div>
       </div>
     </div>

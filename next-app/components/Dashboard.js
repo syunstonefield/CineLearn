@@ -37,6 +37,7 @@ export default function Dashboard() {
     setPendingAddDrama,
     cloudVersion,
     startFromRecommend,
+    openRecommend,
   } = useApp();
   const [tick, setTick] = useState(0); // 再読込トリガ
   // ポスター取得を試みたタイトル（重複fetch防止）。取得結果は overrides に保持し、
@@ -177,6 +178,21 @@ export default function Dashboard() {
             🔍
           </button>
         </div>
+        {/* PC: 「ジャンル別検索」(=AI推薦) と「おすすめ」(=RecommendScreen) の2導線。
+            モバイルでは下の「＋ドラマを追加」に集約（display制御は style.css）。 */}
+        <button
+          className="toolbar-btn toolbar-btn-genre toolbar-pc-entry"
+          onClick={() => setAddModal({ tab: 'recommend', query: '' })}
+        >
+          ジャンル別検索
+        </button>
+        <button
+          className="toolbar-btn toolbar-btn-reco toolbar-pc-entry"
+          onClick={openRecommend}
+        >
+          ✨ おすすめ
+        </button>
+        {/* モバイル専用：両導線を含むモーダルを開く単一ボタン */}
         <button
           className="btn-primary btn-add-drama"
           onClick={() => setAddModal({ tab: 'recommend', query: '' })}

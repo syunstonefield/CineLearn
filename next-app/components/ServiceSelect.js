@@ -61,7 +61,9 @@ export default function ServiceSelect() {
         style={style}
         onClick={() => chooseService(svc.name)}
       >
-        <div className="vs-icon">{svc.icon}</div>
+        <div className="vs-mark" style={{ background: svc.color }}>
+          {svc.mark || svc.name.charAt(0)}
+        </div>
         <div className="vs-name">{svc.name}</div>
         {sub}
       </div>

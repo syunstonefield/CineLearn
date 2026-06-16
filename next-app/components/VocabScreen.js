@@ -686,7 +686,7 @@ export default function VocabScreen() {
               </button>
             )}
             {(phase === 'vocab' || phase === 'saved') && (
-              <button className="btn-episode" onClick={onDelete}>
+              <button className="btn-episode btn-episode-danger" onClick={onDelete}>
                 リストを削除
               </button>
             )}
@@ -821,7 +821,7 @@ export default function VocabScreen() {
                     )
                   }
                 >
-                  🔴 今日の復習 {stats.due}単語を始める
+                  今日の復習 {stats.due}単語を始める
                   {doneToday > 0 && <span className="review-done-count">（今日{doneToday}回済み）</span>}
                 </button>
               ) : (

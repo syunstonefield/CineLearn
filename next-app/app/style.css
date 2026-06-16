@@ -9,6 +9,11 @@
   --text-muted: #8a8a8a;
   --red: #d94f6a;
   --green: #2ea87a;
+  /* 共通コンテンツ幅トークン（全画面の横幅を揃える）
+     --content-max  : グリッド系（ダッシュボードのライブラリ）の最大幅
+     --content-narrow: 読み物・フォーム系（screen-inner）の最大幅 */
+  --content-max: 1040px;
+  --content-narrow: 800px;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -173,7 +178,7 @@ header {
 }
 
 .screen-inner {
-  max-width: 680px;
+  max-width: var(--content-narrow);
   margin: 0 auto;
   padding: 48px 24px;
   display: flex;
@@ -185,6 +190,18 @@ header {
   text-align: center;
   align-items: center;
   padding-top: 100px;
+}
+
+/* プロフィール選択：上部100px固定だと下方向が空いて間延びするため、
+   ビューポート中央付近に寄せてバランスを取る。 */
+#screen-0 .screen-inner.center {
+  min-height: calc(100vh - 64px);
+  justify-content: center;
+  padding-top: 24px;
+  padding-bottom: 48px;
+}
+#screen-0 .welcome-sub {
+  margin-top: -8px;
 }
 
 /* スタート画面 */
@@ -278,6 +295,20 @@ header {
 }
 
 .viewing-service-card .vs-icon { font-size: 28px; margin-bottom: 10px; }
+/* ブランド色＋頭文字の中立レターマーク（OS依存の絵文字を置換） */
+.viewing-service-card .vs-mark {
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  margin: 0 auto 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+}
 .viewing-service-card .vs-name { font-size: 15px; font-weight: 600; color: var(--text); }
 
 .service-card {
@@ -609,8 +640,10 @@ header {
   inset: 0;
   background: rgba(0,0,0,0.45);
   display: flex;
+  /* 右上隅ピン留めだと特に認証・設定モーダルが不自然。上寄せ＋水平中央に統一
+     （上アンカーは縦長の設定モーダルのオーバーフロー対策で維持）。 */
   align-items: flex-start;
-  justify-content: flex-end;
+  justify-content: center;
   z-index: 1000;
   padding: 72px 24px 24px;
 }
@@ -904,6 +937,21 @@ header {
 
 .btn-episode:hover:not(:disabled) { opacity: 0.85; }
 .btn-episode:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* 破壊的操作（リスト削除）は主要ボタンと同色だと誤操作を招くため、
+   控えめなゴーストにして hover 時だけ赤を出す。 */
+.btn-episode-danger {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  font-weight: 400;
+}
+.btn-episode-danger:hover:not(:disabled) {
+  opacity: 1;
+  border-color: var(--red);
+  color: var(--red);
+  background: rgba(217, 79, 106, 0.06);
+}
 
 .episode-selected { font-size: 12px; color: var(--accent); font-weight: 500; }
 
@@ -1224,13 +1272,18 @@ header {
   background: none;
   border: none;
   font-size: 20px;
+  /* SVGラインアイコンは currentColor。既定はミュート、hoverで濃くする。 */
+  color: var(--text-muted);
   cursor: pointer;
-  padding: 4px 8px;
+  padding: 6px 8px;
   border-radius: 8px;
-  transition: background 0.15s;
+  transition: background 0.15s, color 0.15s;
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
-.btn-header-icon:hover { background: var(--surface2); }
+.btn-header-icon:hover { background: var(--surface2); color: var(--text); }
 .header-badge {
   position: absolute;
   top: 2px; right: 2px;
@@ -1259,7 +1312,9 @@ header {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 20px 40px 16px;
+  /* 背景・境界線は全幅のまま、中身だけ --content-max に収めて中央寄せ。
+     max() で「最低40px / それ以上は左右余白で中央化」を両立する。 */
+  padding: 20px max(40px, calc((100% - var(--content-max)) / 2)) 16px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   position: sticky;
@@ -1312,9 +1367,46 @@ header {
   font-size: 14px;
 }
 
+/* PC用ツールバー導線：「ジャンル別検索」「おすすめ」 */
+.toolbar-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+  padding: 9px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+  transition: all 0.15s;
+}
+/* ジャンル別検索：副次（アウトライン） */
+.toolbar-btn-genre {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+.toolbar-btn-genre:hover { border-color: var(--accent); color: var(--accent); }
+/* おすすめ：主要（アクセント） */
+.toolbar-btn-reco {
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: #fff;
+}
+.toolbar-btn-reco:hover { opacity: 0.9; }
+
+/* PC（>=769px）では「＋ドラマを追加」を隠し、上の2導線を表示。 */
+@media (min-width: 769px) {
+  .btn-add-drama { display: none; }
+}
+/* モバイル（<=768px）では2導線を隠し、「＋ドラマを追加」に集約。 */
+@media (max-width: 768px) {
+  .toolbar-pc-entry { display: none; }
+}
+
 /* ドラマライブラリ */
 .drama-library {
-  padding: 28px 40px;
+  /* ツールバーと同じく中身を --content-max に収めて中央寄せ（左右最低40px） */
+  padding: 28px max(40px, calc((100% - var(--content-max)) / 2));
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 16px;
@@ -1839,7 +1931,8 @@ header {
   width: 100%;
   margin-top: 16px;
   padding: 13px 20px;
-  background: var(--red);
+  /* 肯定アクションなので警告色の赤ではなくアクセント色に */
+  background: var(--accent);
   color: #fff;
   border: none;
   border-radius: 8px;
@@ -2155,7 +2248,9 @@ header {
    ダッシュボード「今日パネル」（継続率施策）
    ───────────────────────────────────────── */
 .today-panel {
-  margin: 4px 0 18px;
+  margin: 0 0 18px;
+  /* ツールバー・ライブラリと左右の基準線を揃える（中身は --content-max 内に中央寄せ） */
+  padding: 20px max(40px, calc((100% - var(--content-max)) / 2)) 0;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -2178,6 +2273,9 @@ header {
 }
 
 .today-review-card {
+  /* 全幅(1040px)だと見出しとボタンが両端に離れて間延びするため、
+     CTAバーとして適度な幅に収める。 */
+  max-width: 620px;
   border-radius: 16px;
   padding: 18px 18px;
   display: flex;
@@ -2185,6 +2283,12 @@ header {
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
+}
+/* 見出し＋サブ文（ボタン無し状態）は左右に割れず縦に積む */
+.today-review-card.done-review {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
 }
 .today-review-card.has-review {
   background: linear-gradient(135deg, rgba(193,127,59,0.12), rgba(91,79,212,0.10));
@@ -2462,6 +2566,12 @@ header {
   .gen-loading     { gap: 12px; padding: 0 0 10px; }
   .gen-synopsis    { padding: 13px 15px; }
   .gen-tip-card    { padding: 12px 15px; }
+
+  /* ダッシュボード3ブロックは base 定義の max() 下限が40pxのままスマホでも残る。
+     base 定義より後方の本ブロックで上書きし、左右16pxまで詰める。 */
+  .today-panel  { padding: 14px 16px 0; }
+  .main-toolbar { padding: 14px 16px 12px; }
+  .drama-library { padding: 20px 16px; gap: 12px; }
 
   /* 単語カード：横並び4カラムのままだと和訳カラムが潰れて
      「交/渉/を/…」と1文字ずつ縦書きに崩れる。
