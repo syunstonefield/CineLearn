@@ -40,6 +40,8 @@ nav {
 }
 .logo { font-family: 'Playfair Display', serif; font-size: 20px; font-weight: 700; color: var(--text); }
 .logo span { color: var(--gold); }
+.logo-mark { width: 26px; height: 26px; border-radius: 6px; vertical-align: middle; margin-right: 8px; display: inline-block; }
+.hero-logo { display: block; width: 280px; max-width: 64%; height: auto; margin: 4px auto 22px; }
 .nav-btn {
   background: var(--gold); color: #fff;
   padding: 9px 22px; border-radius: 100px;

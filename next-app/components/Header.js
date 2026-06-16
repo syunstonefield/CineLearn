@@ -74,6 +74,7 @@ export default function Header({
   return (
     <header>
       <div className="logo" style={{ cursor: 'pointer' }} onClick={onLogoClick}>
+        <img className="logo-mark" src="/icon-192.png" alt="" />
         Cine<span>Learn</span>
       </div>
       <div className="header-right">

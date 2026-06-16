@@ -9,12 +9,13 @@ import { useEffect, useRef } from 'react';
 const MARKUP = `
 <!-- NAV -->
 <nav>
-  <div class="logo">Cine<span>Learn</span></div>
+  <div class="logo"><img class="logo-mark" src="/icon-192.png" alt="">Cine<span>Learn</span></div>
   <a href="/app" class="nav-btn">今すぐ始める →</a>
 </nav>
 
 <!-- HERO -->
 <section class="hero">
+  <img class="hero-logo" src="/logo-hero.png" alt="CineLearn — 映画やドラマで英語をまなぶ">
   <div class="hero-eyebrow">⭐ TOEIC 900点の壁を越えるために生まれた</div>
   <h1>ドラマを観るだけで<br><em>生きた英語</em>が身につく</h1>
   <p class="hero-sub">

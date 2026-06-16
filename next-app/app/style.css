@@ -44,6 +44,15 @@ header {
 
 .logo span { color: var(--text); }
 
+.logo-mark {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  vertical-align: middle;
+  margin-right: 8px;
+  display: inline-block;
+}
+
 .header-right {
   display: flex;
   align-items: center;
