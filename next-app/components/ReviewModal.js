@@ -69,9 +69,11 @@ export default function ReviewModal() {
   };
 
   const done = idx >= queue.length;
+  // 進捗バー：消化済み（idx）/ 全体。完了画面では満タン表示。
+  const pct = queue.length ? Math.round(((done ? queue.length : idx) / queue.length) * 100) : 0;
 
   return (
-    <div className="modal-overlay" style={{ display: 'flex' }} onClick={overlayClick}>
+    <div className="modal-overlay review-overlay" style={{ display: 'flex' }} onClick={overlayClick}>
       <div className="modal-panel review-modal-panel">
         <div className="modal-header">
           <span className="modal-title">🃏 復習</span>
@@ -79,6 +81,11 @@ export default function ReviewModal() {
             ✕
           </button>
         </div>
+        {!done && (
+          <div className="review-progress" aria-hidden="true">
+            <span className="review-progress-fill" style={{ width: `${pct}%` }} />
+          </div>
+        )}
         <div className="review-content">
           {done ? (
             <ReviewDone
@@ -113,8 +120,24 @@ export default function ReviewModal() {
 }
 
 function ReviewCard({ word: w, idx, total, flipped, onFlip, onRate }) {
+  // スワイプ加速（任意）：右=知ってた(5) / 左=知らなかった(0)。
+  // うろ覚え(3)は3択ボタンで常時選べる（中間はSM-2の肝なのでジェスチャーに潰さない）。
+  // 判定は意味を表示（flipped）してから有効。
+  const touch = useRef({ x: 0, y: 0 });
+  const onTouchStart = (e) => {
+    const t = e.changedTouches[0];
+    touch.current = { x: t.clientX, y: t.clientY };
+  };
+  const onTouchEnd = (e) => {
+    if (!flipped) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touch.current.x;
+    const dy = t.clientY - touch.current.y;
+    if (Math.abs(dx) > 64 && Math.abs(dx) > Math.abs(dy)) onRate(dx > 0 ? 5 : 0);
+  };
+
   return (
-    <div className="review-card">
+    <div className="review-card" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
       <div className="review-counter">
         {idx + 1} / {total}
       </div>
@@ -148,6 +171,9 @@ function ReviewCard({ word: w, idx, total, flipped, onFlip, onRate }) {
               ✅<br />
               <span>知ってた！</span>
             </button>
+          </div>
+          <div className="review-swipe-hint" aria-hidden="true">
+            ← 知らなかった　｜　知ってた →
           </div>
         </div>
       )}

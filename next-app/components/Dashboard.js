@@ -38,8 +38,27 @@ export default function Dashboard() {
     cloudVersion,
     startFromRecommend,
     openRecommend,
+    openGuide,
   } = useApp();
   const [tick, setTick] = useState(0); // 再読込トリガ
+  // 拡張機能の導入バナー（最初の関門対策で常設）。拡張未検出の判定はできないため、
+  // インストール済みの人向けに×で消せる（消去は端末ローカルに記憶）。
+  const [extBannerDismissed, setExtBannerDismissed] = useState(true); // SSR/初回は隠す
+  useEffect(() => {
+    try {
+      setExtBannerDismissed(localStorage.getItem('cl_ext_banner_dismissed') === '1');
+    } catch {
+      setExtBannerDismissed(false);
+    }
+  }, []);
+  const dismissExtBanner = () => {
+    try {
+      localStorage.setItem('cl_ext_banner_dismissed', '1');
+    } catch {
+      /* ignore */
+    }
+    setExtBannerDismissed(true);
+  };
   // ポスター取得を試みたタイトル（重複fetch防止）。取得結果は overrides に保持し、
   // 履歴由来のカード（posterPathが永続化されない）でも表示が消えないようにする。
   const attemptedPosters = useRef(new Set());
@@ -145,6 +164,21 @@ export default function Dashboard() {
 
   return (
     <div className="screen active" id="screen-main">
+      {!extBannerDismissed && (
+        <div className="ext-banner">
+          <span className="ext-banner-icon" aria-hidden="true">🧩</span>
+          <span className="ext-banner-text">
+            Netflixなどで単語を集めるには、無料の拡張機能が必要です
+          </span>
+          <button className="ext-banner-btn" onClick={openGuide}>
+            入れ方を見る →
+          </button>
+          <button className="ext-banner-close" onClick={dismissExtBanner} aria-label="バナーを閉じる">
+            ✕
+          </button>
+        </div>
+      )}
+
       <TodayPanel
         streak={data.streak}
         hasAnyWord={data.hasAnyWord}

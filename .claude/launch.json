@@ -14,6 +14,13 @@
       "runtimeArgs": ["run", "dev"],
       "port": 3000,
       "autoPort": true
+    },
+    {
+      "name": "next-app-prod",
+      "cwd": "next-app",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "start", "--", "-p", "3001", "-H", "0.0.0.0"],
+      "port": 3001
     }
   ]
 }

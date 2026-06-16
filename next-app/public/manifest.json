@@ -1,0 +1,17 @@
+{
+  "name": "CineLearn — ドラマで英語を学ぶ",
+  "short_name": "CineLearn",
+  "description": "ドラマの字幕で英単語を予習・復習する語学学習アプリ",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f8f7f4",
+  "theme_color": "#c8a96e",
+  "lang": "ja",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" },
+    { "src": "/favicon.ico", "sizes": "48x48 32x32 16x16", "type": "image/x-icon" }
+  ]
+}

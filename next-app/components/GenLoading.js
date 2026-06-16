@@ -36,6 +36,11 @@ export default function GenLoading({ status, drama, season, episode }) {
   const floorRef = useRef(genPhaseFloorOf(status));
   const startedAtRef = useRef(Date.now());
 
+  // あらすじカードが画面外（折り返しの下）にある場合だけ、そっと見える位置までスクロール。
+  // block:'nearest' なので既に見えていれば何もしない（保険）。
+  const cardRef = useRef(null);
+  const scrolledRef = useRef(false);
+
   useEffect(() => {
     floorRef.current = Math.max(floorRef.current, genPhaseFloorOf(status));
   }, [status]);
@@ -53,6 +58,13 @@ export default function GenLoading({ status, drama, season, episode }) {
     const timer = setInterval(() => setTipIdx((i) => i + 1), 4000);
     return () => clearInterval(timer);
   }, []);
+
+  // カードが出たら一度だけ、見えていなければ視界内へスクロール
+  useEffect(() => {
+    if (scrolledRef.current || !cardRef.current) return;
+    scrolledRef.current = true;
+    cardRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [synopsis]);
 
   // あらすじ＋エピソードスチルをAI生成と並行取得して即表示（取得失敗しても生成は止めない）
   useEffect(() => {
@@ -105,7 +117,7 @@ export default function GenLoading({ status, drama, season, episode }) {
       {/* あらすじカード：16:9サムネイル（エピソードスチル優先→作品画像）＋本文の横並び。
           画像は比率を保ったまま縮小表示（切り抜きなし）。無ければテキストのみ */}
       {(synopsis || drama?.posterPath) && (
-        <div className="gen-synopsis-card">
+        <div className="gen-synopsis-card" ref={cardRef}>
           <div className="gen-synopsis-row">
             {(synopsis?.still || drama?.posterPath) && (
               <img className="gen-cover-thumb" src={synopsis?.still || drama.posterPath} alt="" />

@@ -14,7 +14,10 @@ import WordbookModal from '@/components/WordbookModal';
 import AuthModal from '@/components/AuthModal';
 import Onboarding from '@/components/Onboarding';
 import RecommendScreen from '@/components/RecommendScreen';
-import { getActiveWordCount } from '@/lib/storage';
+import BottomNav from '@/components/BottomNav';
+import WelcomeTutorial from '@/components/WelcomeTutorial';
+import ExtensionGuide from '@/components/ExtensionGuide';
+import { getActiveWordCount, getDueReviewWords, DAILY_REVIEW_CAP } from '@/lib/storage';
 
 // まだ移植していない画面の仮ハンドラ
 function notYet(name) {
@@ -28,6 +31,7 @@ function AppShell() {
     goHome,
     mounted,
     reviewWords,
+    reviewVersion,
     settingsOpen,
     openSettings,
     closeSettings,
@@ -41,6 +45,9 @@ function AppShell() {
     loggedIn,
     signOut,
     cloudVersion,
+    tutorial,
+    openTutorial,
+    guideOpen,
   } = useApp();
   // localStorage 依存はマウント後のみ（SSR/初回レンダーは 0 で統一）。
   // getActiveWordCount は最大2000語をJSON.parseするので、毎レンダーではなく
@@ -49,6 +56,15 @@ function AppShell() {
     () => (mounted ? getActiveWordCount(profile?.id) : 0),
     [mounted, profile, wordbookVersion, cloudVersion]
   );
+  // ボトムナビ「復習」バッジ用の未消化件数（今日の上限まで）。
+  // 復習完了（reviewVersion）・クラウド取込・単語帳更新で再計算する。
+  const dueCount = useMemo(
+    () => (mounted ? Math.min(getDueReviewWords().length, DAILY_REVIEW_CAP) : 0),
+    [mounted, profile, reviewVersion, cloudVersion, wordbookVersion]
+  );
+  // ボトムナビはアプリ内（プロフィール選択済み）でのみ表示。
+  // プロフィール選択・オンボーディング中は出さない。
+  const showBottomNav = !!profile && screen !== 'profile-select' && screen !== 'onboarding';
   // プロフィール選択画面ではヘッダーのプロフィールチップを隠す（既存挙動）
   const headerProfile = screen === 'profile-select' ? null : profile;
 
@@ -61,6 +77,7 @@ function AppShell() {
         onSwitchProfile={switchProfile}
         onWordbook={openWordbook}
         onSettings={openSettings}
+        onHelp={openTutorial}
         loggedIn={loggedIn}
         onAuth={openAuth}
         onSignOut={signOut}
@@ -80,6 +97,8 @@ function AppShell() {
       {settingsOpen && <SettingsModal onClose={closeSettings} />}
       {wordbookOpen && <WordbookModal />}
       {authOpen && <AuthModal />}
+      {tutorial && <WelcomeTutorial />}
+      {guideOpen && <ExtensionGuide />}
 
       <div
         style={{
@@ -97,6 +116,10 @@ function AppShell() {
         </a>
         .
       </div>
+
+      {/* 固定ボトムナビの高さ分、最下部に余白を確保（モバイルのみ・CSSで高さ制御） */}
+      {showBottomNav && <div className="bottom-nav-spacer" aria-hidden="true" />}
+      {showBottomNav && <BottomNav dueCount={dueCount} wordCount={wordCount} />}
     </>
   );
 }

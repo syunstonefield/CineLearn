@@ -29,6 +29,16 @@ function IconSettings() {
   );
 }
 
+function IconHelp() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" {...ICON} aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.2 9.2a2.8 2.8 0 0 1 5.4 1c0 1.9-2.8 2.5-2.8 2.5" />
+      <line x1="12" y1="17" x2="12" y2="17" />
+    </svg>
+  );
+}
+
 function IconLogin() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" {...ICON} aria-hidden="true">
@@ -56,6 +66,7 @@ export default function Header({
   onSwitchProfile,
   onWordbook,
   onSettings,
+  onHelp,
   loggedIn,
   onAuth,
   onSignOut,
@@ -80,13 +91,20 @@ export default function Header({
             <span>{profile.name}</span>
           </button>
         )}
-        <button className="btn-header-icon" title="単語帳" onClick={onWordbook}>
+        {/* 単語帳・設定はモバイルではボトムナビと重複するため隠す（PCのみ表示） */}
+        <button className="btn-header-icon header-only-desktop" title="単語帳" onClick={onWordbook}>
           <IconBook />
           <span className="header-badge">{wordCount > 0 ? wordCount : ''}</span>
         </button>
-        <button className="btn-header-icon" title="設定" onClick={onSettings}>
+        <button className="btn-header-icon header-only-desktop" title="設定" onClick={onSettings}>
           <IconSettings />
         </button>
+        {/* 使い方ガイド再表示。モバイルでもボトムナビに枠が無いのでヘッダーに常設する */}
+        {profile && onHelp && (
+          <button className="btn-header-icon" title="使い方ガイド" onClick={onHelp}>
+            <IconHelp />
+          </button>
+        )}
         {loggedIn ? (
           <button className="btn-header-icon" title="ログアウト" onClick={onSignOut}>
             <IconLogout />

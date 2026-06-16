@@ -587,8 +587,7 @@ export default function VocabScreen() {
     setEpisode(1);
     loadEpisode(se, 1);
   };
-  const onEpisodeChange = (e) => {
-    const ep = parseInt(e.target.value);
+  const pickEpisode = (ep) => {
     setEpisode(ep);
     loadEpisode(season, ep);
   };
@@ -649,37 +648,44 @@ export default function VocabScreen() {
           </div>
         </div>
 
-        {/* タイプ確定・シーズン構築まで選択枠ごと非表示（操作の競合を防止・546da24準拠） */}
-        {selectorReady && (
+        {/* タイプ確定・シーズン構築まで選択枠ごと非表示（操作の競合を防止・546da24準拠）。
+            生成中は選択UIを畳んで縦スペースを空け、ローディングのあらすじを画面内に収める。 */}
+        {selectorReady && phase !== 'generating' && (
         <div className="episode-selector">
           <div className="episode-label">
             {isMovie ? '🎬 映画（字幕から単語を予習）' : '視聴するエピソードを選択'}
           </div>
-          <div className="episode-row">
-            {!isMovie && (
-              <div style={{ display: 'contents' }}>
-                <div className="episode-field">
-                  <label className="episode-field-label">シーズン</label>
-                  <select className="episode-select" value={season} onChange={onSeasonChange}>
-                    {seasons.map((s) => (
-                      <option key={s.season} value={s.season}>
-                        Season {s.season}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="episode-field">
-                  <label className="episode-field-label">エピソード</label>
-                  <select className="episode-select" value={episode} onChange={onEpisodeChange}>
-                    {Array.from({ length: epCount }, (_, i) => i + 1).map((i) => (
-                      <option key={i} value={i}>
-                        Episode {i}
-                      </option>
-                    ))}
-                  </select>
+          {!isMovie && (
+            <div className="episode-picker">
+              <div className="episode-field">
+                <label className="episode-field-label">シーズン</label>
+                <select className="episode-select" value={season} onChange={onSeasonChange}>
+                  {seasons.map((s) => (
+                    <option key={s.season} value={s.season}>
+                      Season {s.season}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="episode-field episode-field-grow">
+                <label className="episode-field-label">エピソード</label>
+                <div className="episode-chips">
+                  {Array.from({ length: epCount }, (_, i) => i + 1).map((i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      className={'episode-chip' + (i === episode ? ' is-active' : '')}
+                      onClick={() => pickEpisode(i)}
+                      aria-pressed={i === episode}
+                    >
+                      {i}
+                    </button>
+                  ))}
                 </div>
               </div>
-            )}
+            </div>
+          )}
+          <div className="episode-row">
             {!genBtn.hidden && (
               <button className="btn-episode" disabled={genBtn.disabled} onClick={onGenerate}>
                 {genBtn.text}
@@ -865,7 +871,7 @@ export default function VocabScreen() {
         </div>
 
         {showVocab && sortedVocab.length > 0 && (
-          <button className="btn-primary" onClick={() => goToQuiz()}>
+          <button className="btn-primary vocab-cta-sticky" onClick={() => goToQuiz()}>
             テストを受ける →
           </button>
         )}

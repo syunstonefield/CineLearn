@@ -1157,6 +1157,10 @@ header {
   max-width: 640px;
 }
 
+/* タップ対象はネイティブ button（iOS の div クリック取りこぼし対策）。
+   button の既定スタイルを打ち消してカード見た目に戻す。 */
+.profile-card-wrap { position: relative; width: 110px; }
+
 .profile-card {
   display: flex;
   flex-direction: column;
@@ -1165,6 +1169,15 @@ header {
   cursor: pointer;
   position: relative;
   width: 110px;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  appearance: none;
+  -webkit-appearance: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .profile-avatar {
@@ -1233,7 +1246,11 @@ header {
   line-height: 1;
 }
 
-.profile-card:hover .profile-delete-btn { opacity: 1; }
+.profile-card-wrap:hover .profile-delete-btn { opacity: 1; }
+/* タッチ端末はホバーが無いので削除ボタンを常時表示（タップで削除できるように） */
+@media (hover: none) {
+  .profile-delete-btn { opacity: 0.9; }
+}
 
 /* ヘッダー：プロフィール切り替えボタン */
 .btn-profile-switch {
@@ -2245,6 +2262,250 @@ header {
 .btn-text-link:hover { color: var(--text); }
 
 /* ─────────────────────────────────────────
+   初回ウェルカム・チュートリアル（スライド型モーダル）
+   ───────────────────────────────────────── */
+.tutorial-overlay {
+  align-items: center;          /* 設定モーダルと違い縦中央に置く（短いカード） */
+  padding: 24px;
+}
+.tutorial-panel {
+  position: relative;
+  max-width: 430px;
+}
+.tutorial-skip-x {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  z-index: 2;
+  font-size: 15px;
+}
+.tutorial-body {
+  padding: 40px 28px 4px;
+  text-align: center;
+}
+.tutorial-body .onboarding-steps {
+  margin-bottom: 26px;
+}
+.tutorial-slide {
+  animation: fadeIn 0.28s ease;
+}
+.tutorial-badge {
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  margin: 2px auto 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  background: linear-gradient(135deg, rgba(193, 127, 59, 0.16), rgba(91, 79, 212, 0.14));
+}
+.tutorial-desc {
+  font-size: 14.5px;
+  line-height: 1.75;
+  color: var(--text-muted);
+  max-width: 330px;
+  margin: 0 auto;
+}
+.tutorial-footer {
+  padding: 16px 28px 22px;
+}
+.tutorial-subnav {
+  display: flex;
+  justify-content: center;
+  gap: 22px;
+  margin-top: 6px;
+  min-height: 34px;             /* 戻る/スキップの有無で高さがブレないよう確保 */
+}
+/* スライド内の補助CTA（拡張機能の入れ方へ）。主ボタンと差をつけてアウトライン調に */
+.tutorial-cta {
+  margin: 16px auto 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.tutorial-cta:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* ─────────────────────────────────────────
+   拡張機能の導入ガイド（モーダル）
+   ───────────────────────────────────────── */
+.ext-guide-panel {
+  max-width: 480px;
+}
+.ext-guide-body {
+  padding: 20px;
+}
+.ext-guide-lead {
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--text-muted);
+  margin: 0 0 20px;
+}
+.ext-guide-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.ext-guide-step {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.ext-guide-num {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ext-guide-step-text {
+  flex: 1;
+  min-width: 0;
+}
+.ext-guide-step-title {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 3px;
+}
+.ext-guide-step-text p {
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--text-muted);
+  margin: 0;
+}
+.ext-guide-dl {
+  display: inline-block;
+  margin-top: 10px;
+  text-decoration: none;
+  font-size: 13px;
+  padding: 8px 16px;
+}
+.ext-guide-code {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 6px 10px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.ext-guide-code code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+  color: var(--text);
+}
+.ext-guide-copy {
+  font-size: 11px;
+  color: var(--accent);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.ext-guide-note {
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  margin: 20px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.ext-guide-footer {
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+/* ─────────────────────────────────────────
+   ダッシュボードの拡張機能バナー（常設・×で消去可）
+   ───────────────────────────────────────── */
+.ext-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 11px 14px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(193, 127, 59, 0.12), rgba(91, 79, 212, 0.10));
+  border: 1px solid rgba(193, 127, 59, 0.28);
+}
+.ext-banner-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+.ext-banner-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.4;
+}
+.ext-banner-btn {
+  flex-shrink: 0;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 7px;
+  padding: 7px 13px;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ext-banner-btn:hover {
+  filter: brightness(0.95);
+}
+.ext-banner-close {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+  line-height: 1;
+}
+.ext-banner-close:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--text);
+}
+@media (max-width: 560px) {
+  .ext-banner {
+    flex-wrap: wrap;
+  }
+  .ext-banner-text {
+    flex: 1 1 100%;
+    order: -1;
+  }
+}
+
+/* ─────────────────────────────────────────
    ダッシュボード「今日パネル」（継続率施策）
    ───────────────────────────────────────── */
 .today-panel {
@@ -2572,15 +2833,7 @@ header {
   .today-panel  { padding: 14px 16px 0; }
   .main-toolbar { padding: 14px 16px 12px; }
   .drama-library { padding: 20px 16px; gap: 12px; }
-
-  /* 単語カード：横並び4カラムのままだと和訳カラムが潰れて
-     「交/渉/を/…」と1文字ずつ縦書きに崩れる。
-     1行目=語ブロック＋操作ボタン / 2行目=品詞＋和訳全幅 に折り返す。 */
-  .vocab-item { flex-wrap: wrap; column-gap: 8px; row-gap: 6px; }
-  .vocab-item > div:first-child { flex: 1 1 auto; min-width: 0; order: 1; }
-  .vocab-item .vocab-card-actions { order: 2; flex-shrink: 0; margin-left: auto; }
-  .vocab-item .vocab-pos { order: 3; margin-top: 0; }
-  .vocab-item .vocab-def { order: 4; flex: 1 1 200px; min-width: 0; }
+  /* 単語カードの折りたたみ化は redesign セクション（③）で定義 */
 }
 /* ════════════════════════════════════════════════════════════════
    ▼▼ next-app 独自オーバーライド ▼▼
@@ -2696,8 +2949,11 @@ header {
 .gen-tip-dots span.on { background: var(--accent); }
 
 @media (max-width: 560px) {
-  .gen-synopsis-row { flex-direction: column; gap: 10px; padding: 12px 14px 14px; }
-  .gen-cover-thumb { width: 100%; }
+  /* 画像を全幅16:9で縦積みにすると本文が画面外へ押し出される。
+     左に小さいサムネ＋右に本文の横並びを維持して、本文を初期表示に収める。 */
+  .gen-synopsis-row { flex-direction: row; align-items: flex-start; gap: 12px; padding: 12px 14px; }
+  .gen-cover-thumb { width: 110px; }
+  .gen-synopsis-body { font-size: 13px; line-height: 1.7; }
 }
 
 /* ── おすすめ作品サジェスト（Phase A） ───────────────────────── */
@@ -2832,3 +3088,374 @@ header {
   .recommend-reason { font-size: 10px; }
 }
 /* ▲▲ next-app 独自オーバーライド ここまで ▲▲ */
+
+/* ════════════════════════════════════════════════════════════════
+   ▼▼ スマホ版UI改修（2026-06-16）▼▼
+   モバイル起点の導線（ボトムナビ）・可読性・没入感の改善。
+   PC（>=769px）の見た目は原則維持し、<=768px でのみ上書きする。
+════════════════════════════════════════════════════════════════ */
+
+/* ── ① ボトムタブナビ（モバイルのみ） ───────────────────────── */
+.bottom-nav { display: none; }
+.bottom-nav-spacer { display: none; }
+
+@media (max-width: 768px) {
+  /* 単語帳・設定はボトムナビへ集約 → ヘッダーからは隠す */
+  .header-only-desktop { display: none !important; }
+
+  .bottom-nav {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 900;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding-bottom: env(safe-area-inset-bottom);
+    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.05);
+  }
+  /* 固定ナビの高さ分、本文末尾に余白（フッターがナビ裏に隠れないように） */
+  .bottom-nav-spacer {
+    display: block;
+    height: calc(56px + env(safe-area-inset-bottom));
+  }
+
+  .bottom-nav-tab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 8px 0 7px;
+    min-height: 56px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    font-family: 'DM Sans', sans-serif;
+    transition: color 0.15s, transform 0.1s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .bottom-nav-tab.is-active { color: var(--accent); }
+  .bottom-nav-tab:active { transform: scale(0.94); }
+
+  .bottom-nav-icon { position: relative; line-height: 0; }
+  .bottom-nav-label { font-size: 10px; font-weight: 500; }
+
+  /* 復習＝要対応（赤）。視線を引いて毎日の復習に戻す導線。 */
+  .bottom-nav-badge {
+    position: absolute;
+    top: -5px;
+    right: -9px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 8px;
+    background: var(--red);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 16px;
+    text-align: center;
+    box-sizing: border-box;
+  }
+  /* 単語帳＝在庫表示（中立色）。要対応の赤と区別する。 */
+  .bottom-nav-badge.is-count {
+    background: var(--surface2);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    line-height: 14px;
+  }
+}
+
+/* ── ② ホームのヒーローカード ─────────────────────────────── */
+.today-hero {
+  max-width: 620px;
+  border-radius: 18px;
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.today-hero.is-due {
+  background: linear-gradient(135deg, rgba(193, 127, 59, 0.14), rgba(91, 79, 212, 0.10));
+  border: 1px solid rgba(193, 127, 59, 0.28);
+}
+.today-hero.is-done,
+.today-hero.is-start {
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+/* 円形カウント：達成率ではなく「今日やる数」の提示（誤誘導しない素直な数字） */
+.today-hero-count {
+  flex-shrink: 0;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+.today-hero-count-num {
+  font-family: 'Playfair Display', serif;
+  font-size: 26px;
+  font-weight: 700;
+}
+.today-hero-count-unit { font-size: 11px; opacity: 0.85; margin-top: 1px; }
+
+.today-hero-check {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(46, 168, 122, 0.14);
+  color: var(--green);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.today-hero-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.today-hero-title { font-size: 17px; font-weight: 700; color: var(--text); }
+.today-hero-sub { font-size: 13px; color: var(--text-muted); line-height: 1.5; }
+.today-hero-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
+
+.today-streak-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+  background: rgba(193, 127, 59, 0.10);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+.today-streak-chip.is-zero { color: var(--text-muted); background: var(--surface2); font-weight: 500; }
+
+.today-hero-week { font-size: 12px; color: var(--text-muted); }
+.today-hero-week b { color: var(--text); font-weight: 700; }
+
+@media (max-width: 768px) {
+  .today-hero { flex-wrap: wrap; padding: 16px; gap: 12px 14px; }
+  .today-hero .btn-today-review { width: 100%; order: 3; }
+  .today-hero-count { width: 56px; height: 56px; }
+  .today-hero-count-num { font-size: 23px; }
+  .today-hero-title { font-size: 16px; }
+}
+
+/* ── ③ 単語カード（折りたたみ式） ─────────────────────────── */
+/* 既存 .vocab-item（flex行）を縦積みカードに作り替える。詳細は常時DOMに置き
+   表示は .is-expanded で切替（PCはメディアクエリで常時展開）。 */
+.vocab-item {
+  display: block;
+  padding: 0;
+  overflow: hidden;
+}
+
+.vocab-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  min-height: 48px;
+  background: none;
+  border: none;
+  text-align: left;
+  font-family: 'DM Sans', sans-serif;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.vocab-dot {
+  flex-shrink: 0;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: transparent;
+  border: 2px solid var(--text-muted);
+  opacity: 0.6;
+}
+
+.vocab-row .vocab-word {
+  min-width: 0;
+  flex-shrink: 0;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--accent);
+}
+
+.vocab-meaning {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vocab-item.is-expanded .vocab-meaning { white-space: normal; overflow: visible; }
+
+.vocab-chevron {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  line-height: 0;
+  transition: transform 0.2s ease;
+}
+.vocab-item.is-expanded .vocab-chevron { transform: rotate(180deg); }
+
+.vocab-detail {
+  display: none;
+  flex-direction: column;
+  gap: 10px;
+  padding: 2px 14px 14px;
+}
+.vocab-item.is-expanded .vocab-detail { display: flex; }
+
+.vocab-detail-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+/* 行内ではみ出していた .vocab-pos の上マージンをタグ列ではリセット */
+.vocab-detail-tags .vocab-pos { margin-top: 0; }
+
+.vocab-detail-actions {
+  display: flex;
+  gap: 8px;
+}
+.vocab-detail-actions .btn-speak { font-size: 12px; padding: 6px 12px; }
+.vocab-detail-actions .btn-srs-skip { padding: 6px 14px; }
+
+/* PC（>=769px）は常時展開。開閉シェブロンは不要・行クリックも無効化。 */
+@media (min-width: 769px) {
+  .vocab-detail { display: flex; }
+  .vocab-chevron { display: none; }
+  .vocab-row { cursor: default; }
+  .vocab-meaning { white-space: normal; overflow: visible; }
+}
+
+/* ── ④ 復習：フルスクリーン＋進捗バー＋スワイプ ─────────────── */
+.review-progress {
+  height: 4px;
+  background: var(--surface2);
+  flex-shrink: 0;
+}
+.review-progress-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 0 2px 2px 0;
+  transition: width 0.3s ease;
+}
+/* スワイプ操作のヒント（モバイルのみ表示） */
+.review-swipe-hint {
+  display: none;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 10px;
+}
+
+@media (max-width: 768px) {
+  /* 復習はフルスクリーンで没入させる */
+  .review-overlay { padding: 0; align-items: stretch; }
+  .review-overlay .review-modal-panel {
+    width: 100%;
+    max-width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    max-height: none;
+    border-radius: 0;
+  }
+  .review-overlay .review-content {
+    flex: 1;
+    justify-content: center;
+    overflow-y: auto;
+    padding: 24px 20px calc(24px + env(safe-area-inset-bottom));
+  }
+  .review-word-big { font-size: 46px; }
+  .btn-rate { padding: 16px 8px; font-size: 12px; }
+  .review-swipe-hint { display: block; }
+}
+
+/* ── ⑤ エピソード選択チップ＋下部固定CTA ──────────────────── */
+.episode-picker { display: flex; align-items: flex-end; gap: 12px; }
+.episode-field-grow { flex: 1; min-width: 0; }
+
+.episode-chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+.episode-chips::-webkit-scrollbar { display: none; }
+
+.episode-chip {
+  flex: 0 0 auto;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  font-size: 13px;
+  font-family: 'DM Sans', sans-serif;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.episode-chip:hover { border-color: var(--accent); }
+.episode-chip.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 700;
+}
+
+@media (max-width: 768px) {
+  .episode-picker { flex-direction: column; align-items: stretch; gap: 10px; }
+  /* 主アクションは下部に固定（ボトムナビの上）。長い単語リストでも常に届く。 */
+  .vocab-cta-sticky {
+    position: sticky;
+    bottom: calc(56px + env(safe-area-inset-bottom) + 10px);
+    z-index: 50;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14);
+  }
+}
+
+/* ── ⑥ 可読性＋safe-area ─────────────────────────────────── */
+@media (max-width: 768px) {
+  /* 例文（学習の中身）は最小フォントを上げて読みやすく */
+  .word-example-en { font-size: 13px; line-height: 1.6; }
+  .word-example-ja { font-size: 12px; line-height: 1.5; }
+  /* 左右ノッチのある端末でヘッダーが切れないように */
+  header { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+}
+
+/* ── プロフィール選択：クラウド復元リンク（非ブロッキング導線） ── */
+.profile-login-link {
+  margin-top: 28px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-family: 'DM Sans', sans-serif;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.profile-login-link:hover { color: var(--accent); }

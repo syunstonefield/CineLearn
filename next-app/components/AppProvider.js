@@ -51,6 +51,11 @@ export default function AppProvider({ children }) {
   const [currentHistoryId, setCurrentHistoryId] = useState(null);
   const [reviewWords, setReviewWords] = useState(null); // null=モーダル閉
   const [reviewVersion, setReviewVersion] = useState(0); // 復習完了後の再集計トリガ
+  // 初回ウェルカム・チュートリアル：null=閉 / 'onboarding'（設定完了直後→閉じると作品追加へ）/ 'help'（？ボタン再表示）。
+  // 「見た」フラグは cl_tutorial_seen（端末ローカル・クラウド同期に左右されない）に保存する。
+  const [tutorial, setTutorial] = useState(null);
+  // 拡張機能の導入ガイド（モーダル）。チュートリアルのスライド・ダッシュボードの常設バナーから開く。
+  const [guideOpen, setGuideOpen] = useState(false);
   // localStorage はクライアントのマウント後にしか読めない。
   // SSR/初回クライアントレンダーは mounted=false で統一し、ハイドレーション不一致を防ぐ。
   const [mounted, setMounted] = useState(false);
@@ -58,7 +63,6 @@ export default function AppProvider({ children }) {
   useEffect(() => {
     setMounted(true);
     // オートログイン：有効なセッションがあればクラウドから読み込む（読み取り専用）。
-    // 復活できなければ既存アプリ同様、起動時にログインモーダルを出す（スキップ可）。
     (async () => {
       try {
         if (await ensureFreshSession()) {
@@ -67,9 +71,12 @@ export default function AppProvider({ children }) {
           setCloudVersion((v) => v + 1);
         } else if (isLoggedIn()) {
           setLoggedIn(true);
-        } else {
-          setAuthOpen(true);
         }
+        // 起動時にログインモーダルは自動表示しない。
+        // 全画面モーダル(modal-overlay)がプロフィール選択のカード／追加ボタンに
+        // 重なってタップを奪い「ボタンが反応しない」状態になるため。
+        // クラウド復元は ProfileSelect の「ログインして復元」リンク、
+        // またはヘッダーのログインアイコンから明示的に行う。
       } catch {
         /* オートログイン失敗は無視 */
       }
@@ -198,7 +205,11 @@ export default function AppProvider({ children }) {
   const finishOnboarding = useCallback((patch) => {
     setSettings((prev) => ({ ...prev, ...patch }));
     setScreen('main');
-    setPendingAddDrama({ tab: 'search', query: '' });
+    // 初回はまず使い方ガイドを見せ、閉じたときに作品追加へ進む（closeTutorial が担当）。
+    // すでにガイドを見た端末（2人目のプロフィール作成など）は従来どおり直接作品追加へ。
+    const seen = typeof window !== 'undefined' && localStorage.getItem('cl_tutorial_seen') === '1';
+    if (seen) setPendingAddDrama({ tab: 'search', query: '' });
+    else setTutorial('onboarding');
   }, []);
 
   const deleteProfile = useCallback((id) => {
@@ -306,6 +317,35 @@ export default function AppProvider({ children }) {
     setReviewVersion((v) => v + 1); // ダッシュボード/単語リストの再集計を促す
   }, []);
 
+  // 拡張機能の導入ガイドの開閉
+  const openGuide = useCallback(() => setGuideOpen(true), []);
+  const closeGuide = useCallback(() => setGuideOpen(false), []);
+
+  // ウェルカム・チュートリアル（ヘッダーの「?」から再表示・常に help モード）
+  const openTutorial = useCallback(() => setTutorial('help'), []);
+  const closeTutorial = useCallback(() => {
+    try {
+      localStorage.setItem('cl_tutorial_seen', '1');
+    } catch {
+      /* ignore */
+    }
+    // オンボーディング流入時のみ、閉じたら作品追加モーダルへ橋渡しする。
+    if (tutorial === 'onboarding') setPendingAddDrama({ tab: 'search', query: '' });
+    setTutorial(null);
+  }, [tutorial]);
+
+  // 既存ユーザーが初めてダッシュボードに来たときの自動表示（端末ごとに一度だけ）。
+  // オンボーディング直後は finishOnboarding が 'onboarding' を立てるので、ここはスキップされる。
+  useEffect(() => {
+    if (!mounted || !profile || screen !== 'main' || settingsOpen || tutorial) return;
+    try {
+      if (localStorage.getItem('cl_tutorial_seen') === '1') return;
+    } catch {
+      return;
+    }
+    setTutorial('help');
+  }, [mounted, profile, screen, settingsOpen, tutorial]);
+
   const value = {
     profile,
     settings,
@@ -357,6 +397,12 @@ export default function AppProvider({ children }) {
     closeReview,
     reviewVersion,
     goToQuiz,
+    tutorial,
+    openTutorial,
+    closeTutorial,
+    guideOpen,
+    openGuide,
+    closeGuide,
   };
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>;
