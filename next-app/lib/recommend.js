@@ -48,3 +48,20 @@ export async function searchDramaByTitle(title, { userLevel, selectedServices })
   const text = await callClaude(prompt);
   return JSON.parse(text.match(/\[[\s\S]*\]/)[0]);
 }
+
+// 曖昧・日本語・うろ覚え・タイポの検索語を、実在作品の「英語原題」候補(最大5件)に解釈する。
+// Enter押下時のAI支援検索で使う（結果は各タイトルをTMDBで実在確認してから表示する）。
+export async function aiResolveTitles(query, onRetry) {
+  const prompt = `ユーザーが英語学習用に海外ドラマ・映画を探しています。
+検索語: "${query}"
+
+この検索語に該当しそうな「実在する作品の英語原題」を、関連度・人気順に最大5件挙げてください。
+- 日本語入力・うろ覚え・スペルミス・あいまいな説明（例:「あの弁護士ドラマ」「医療系のやつ」）も解釈する
+- 実在しない作品は含めない
+- 余計な説明やコメントは不要。JSON配列のみで返答:
+
+["English Title 1", "English Title 2"]`;
+  const text = await callClaude(prompt, 500, onRetry);
+  const arr = JSON.parse(text.match(/\[[\s\S]*\]/)[0]);
+  return Array.isArray(arr) ? arr.filter((t) => typeof t === 'string' && t.trim()).slice(0, 5) : [];
+}

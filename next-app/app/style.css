@@ -1379,6 +1379,14 @@ header {
   font-size: 13px;
   color: var(--text-muted);
 }
+.search-suggest-aihint {
+  padding: 8px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent2);
+  background: rgba(91, 79, 212, 0.06);
+  border-bottom: 1px solid var(--border);
+}
 .search-suggest-item {
   display: flex;
   align-items: center;
@@ -1409,13 +1417,42 @@ header {
   justify-content: center;
   font-size: 18px;
 }
-.search-suggest-title {
+.search-suggest-text {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.search-suggest-title {
   font-size: 14px;
   color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.search-suggest-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.search-suggest-type {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  line-height: 1.6;
+}
+.search-suggest-type.is-movie {
+  background: rgba(91, 79, 212, 0.12);
+  color: var(--accent2);
+}
+.search-suggest-type.is-tv {
+  background: rgba(193, 127, 59, 0.12);
+  color: var(--accent);
 }
 .search-suggest-year {
   font-size: 12px;
