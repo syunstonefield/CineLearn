@@ -71,6 +71,85 @@ export default function Dashboard() {
   // ドラマ追加モーダル（null=閉、{tab, query}=開）
   const [addModal, setAddModal] = useState(null);
 
+  // ── タイトル検索のインライン候補（オートコンプリート） ──
+  const [searchQuery, setSearchQuery] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
+  const [suggestLoading, setSuggestLoading] = useState(false);
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const searchBoxRef = useRef(null);
+
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (q.length < 2) {
+      setSuggestions([]);
+      setSuggestLoading(false);
+      return;
+    }
+    setSuggestLoading(true);
+    let alive = true;
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/tmdb', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'search', query: q }),
+        });
+        const json = await res.json();
+        if (!alive) return;
+        const items = (json.results || [])
+          .filter((r) => r.name)
+          .slice(0, 6)
+          .map((r) => ({
+            tmdbId: r.id,
+            title: r.name,
+            englishTitle: r.original_name || r.name,
+            year: (r.first_air_date || '').slice(0, 4),
+            posterPath: r.poster_path ? `https://image.tmdb.org/t/p/w185${r.poster_path}` : null,
+          }));
+        setSuggestions(items);
+      } catch {
+        if (alive) setSuggestions([]);
+      } finally {
+        if (alive) setSuggestLoading(false);
+      }
+    }, 250);
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, [searchQuery]);
+
+  const pickSuggestion = (s) => {
+    setSuggestOpen(false);
+    setSearchQuery('');
+    setSuggestions([]);
+    openDrama(
+      {
+        title: s.title,
+        englishTitle: s.englishTitle,
+        tmdbId: s.tmdbId,
+        posterPath: s.posterPath ? s.posterPath.replace('/w185', '/w780') : null,
+        mediaType: 'tv',
+        level: settings.userLevel || 'B1',
+        platform: '',
+        genre: '',
+        reason: '',
+      },
+      true
+    );
+  };
+
+  useEffect(() => {
+    if (!suggestOpen) return;
+    const onDoc = (e) => {
+      if (searchBoxRef.current && !searchBoxRef.current.contains(e.target)) {
+        setSuggestOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [suggestOpen]);
+
   // オンボーディング完了直後はドラマ追加モーダルを検索タブで開く（既存 finishOnboarding 相当）
   useEffect(() => {
     if (pendingAddDrama) {
@@ -213,31 +292,61 @@ export default function Dashboard() {
       />
 
       <div className="main-toolbar">
-        <div className="toolbar-search">
-          <input
-            type="text"
-            id="mainSearchInput"
-            placeholder="ドラマのタイトルで検索..."
-            onKeyDown={(e) => {
-              const q = e.currentTarget.value.trim();
-              if (e.key === 'Enter' && q) setAddModal({ tab: 'search', query: q });
-            }}
-          />
-          <button
-            className="btn-icon-search"
-            onClick={() => {
-              const q = document.getElementById('mainSearchInput')?.value.trim();
-              if (q) setAddModal({ tab: 'search', query: q });
-            }}
-          >
-            🔍
-          </button>
+        <div className="toolbar-search-wrap" ref={searchBoxRef}>
+          <div className="toolbar-search">
+            <input
+              type="text"
+              id="mainSearchInput"
+              placeholder="ドラマのタイトルで検索..."
+              autoComplete="off"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setSuggestOpen(true);
+              }}
+              onFocus={() => {
+                if (suggestions.length) setSuggestOpen(true);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && suggestions.length) pickSuggestion(suggestions[0]);
+                if (e.key === 'Escape') setSuggestOpen(false);
+              }}
+            />
+            <button type="button" className="btn-icon-search" aria-label="検索">
+              🔍
+            </button>
+          </div>
+          {suggestOpen && searchQuery.trim().length >= 2 && (
+            <div className="search-suggest">
+              {suggestLoading && <div className="search-suggest-msg">検索中…</div>}
+              {!suggestLoading && suggestions.length === 0 && (
+                <div className="search-suggest-msg">候補が見つかりません</div>
+              )}
+              {suggestions.map((s) => (
+                <button
+                  key={s.tmdbId}
+                  type="button"
+                  className="search-suggest-item"
+                  onClick={() => pickSuggestion(s)}
+                >
+                  {s.posterPath ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img className="search-suggest-thumb" src={s.posterPath} alt="" />
+                  ) : (
+                    <span className="search-suggest-thumb search-suggest-thumb-empty">🎬</span>
+                  )}
+                  <span className="search-suggest-title">{s.title}</span>
+                  {s.year && <span className="search-suggest-year">{s.year}</span>}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         {/* PC: 「ジャンル別検索」(=AI推薦) と「おすすめ」(=RecommendScreen) の2導線。
             モバイルでは下の「＋ドラマを追加」に集約（display制御は style.css）。 */}
         <button
           className="toolbar-btn toolbar-btn-genre toolbar-pc-entry"
-          onClick={() => setAddModal({ tab: 'recommend', query: '' })}
+          onClick={() => setAddModal({ tab: 'recommend', query: '', variant: 'genre' })}
         >
           ジャンル別検索
         </button>
@@ -279,6 +388,7 @@ export default function Dashboard() {
         <AddDramaModal
           initialTab={addModal.tab}
           initialQuery={addModal.query}
+          variant={addModal.variant || 'full'}
           onClose={() => setAddModal(null)}
         />
       )}

@@ -6,7 +6,8 @@
   --accent: #c17f3b;
   --accent2: #5b4fd4;
   --text: #1a1a1a;
-  --text-muted: #8a8a8a;
+  --text-muted: #707070; /* 薄すぎて読みにくかったため #8a8a8a から少し濃く */
+  --text-soft: #4d4d4d; /* 単語の意味・例文など「読ませる二次テキスト」用（mutedより濃い） */
   --red: #d94f6a;
   --green: #2ea87a;
   /* 共通コンテンツ幅トークン（全画面の横幅を揃える）
@@ -454,7 +455,7 @@ header {
   color: var(--accent);
 }
 
-.vocab-def { font-size: 13px; color: var(--text-muted); line-height: 1.5; flex: 1; }
+.vocab-def { font-size: 13px; color: var(--text-soft); line-height: 1.5; flex: 1; }
 
 .vocab-pos {
   font-size: 10px;
@@ -991,7 +992,7 @@ header {
 
 .wordbook-sentence {
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--text-soft);
   margin-top: 3px;
   line-height: 1.5;
   font-style: italic;
@@ -1339,11 +1340,18 @@ header {
   z-index: 10;
 }
 
+/* 検索ボックス＋候補ドロップダウンのラッパー（候補の位置基準・幅制御を担う） */
+.toolbar-search-wrap {
+  position: relative;
+  flex: 1;
+  max-width: 480px;
+  min-width: 0;
+}
+
 .toolbar-search {
   display: flex;
   align-items: center;
-  flex: 1;
-  max-width: 480px;
+  width: 100%;
   background: var(--surface2);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -1351,6 +1359,69 @@ header {
   transition: border-color 0.15s;
 }
 .toolbar-search:focus-within { border-color: var(--accent); }
+
+/* タイトル検索のオートコンプリート候補 */
+.search-suggest {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.12);
+  overflow: hidden auto;
+  max-height: 360px;
+  z-index: 50;
+}
+.search-suggest-msg {
+  padding: 14px 16px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.search-suggest-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 14px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  text-align: left;
+  font-family: 'DM Sans', sans-serif;
+  transition: background 0.12s;
+}
+.search-suggest-item:last-child { border-bottom: none; }
+.search-suggest-item:hover { background: var(--surface2); }
+.search-suggest-thumb {
+  width: 36px;
+  height: 52px;
+  border-radius: 5px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--surface2);
+}
+.search-suggest-thumb-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+.search-suggest-title {
+  flex: 1;
+  font-size: 14px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.search-suggest-year {
+  font-size: 12px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
 
 .toolbar-search input {
   flex: 1;
@@ -2046,7 +2117,7 @@ header {
 
 .review-example-text {
   font-size: 13px;
-  color: var(--text-muted);
+  color: var(--text-soft);
   font-style: italic;
   text-align: center;
   line-height: 1.6;
@@ -2056,8 +2127,8 @@ header {
 .review-example-ja {
   font-style: normal;
   font-size: 12px;
-  color: var(--text-muted);
-  opacity: 0.75;
+  color: var(--text-soft);
+  opacity: 0.9;
   margin-top: 2px;
 }
 
@@ -2070,13 +2141,13 @@ header {
 }
 .word-example-en {
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--text-soft);
   line-height: 1.5;
 }
 .word-example-ja {
   font-size: 11px;
-  color: var(--text-muted);
-  opacity: 0.65;
+  color: var(--text-soft);
+  opacity: 0.9;
   line-height: 1.4;
 }
 /* 出所明示（著作権法48条）：例文＝字幕の逐語引用の出典表記 */
@@ -3309,7 +3380,7 @@ header {
   flex: 1;
   min-width: 0;
   font-size: 13px;
-  color: var(--text-muted);
+  color: var(--text-soft);
   line-height: 1.4;
   white-space: nowrap;
   overflow: hidden;

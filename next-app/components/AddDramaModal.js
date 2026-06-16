@@ -6,9 +6,12 @@ import { GENRES, recommendDramas, searchDramaByTitle } from '@/lib/recommend';
 
 // 既存 addDramaModal（AI推薦 / タイトル検索）の再現。
 // initialTab='recommend'|'search', initialQuery はツールバー検索から開いた時に使う。
-export default function AddDramaModal({ initialTab = 'recommend', initialQuery = '', onClose }) {
+export default function AddDramaModal({ initialTab = 'recommend', initialQuery = '', variant = 'full', onClose }) {
   const { settings, openDrama, toggleGenre, openRecommend } = useApp();
-  const [tab, setTab] = useState(initialTab);
+  // variant='genre'（ツールバーの「ジャンル別検索」）では、おすすめ導線とタイトル検索タブを出さず
+  // ジャンル選択(AI推薦)だけに特化する。'full'（モバイルの＋ドラマを追加）は従来どおり全部出す。
+  const genreOnly = variant === 'genre';
+  const [tab, setTab] = useState(genreOnly ? 'recommend' : initialTab);
 
   // AI推薦タブ（ジャンルは settings を単一の真実として参照）
   const genres = settings.selectedGenres || ['Crime Thriller'];
@@ -76,40 +79,46 @@ export default function AddDramaModal({ initialTab = 'recommend', initialQuery =
     <div className="modal-overlay" style={{ display: 'flex' }} onClick={overlayClick}>
       <div className="modal-panel">
         <div className="modal-header">
-          <span className="modal-title">🎬 ドラマを探す</span>
+          <span className="modal-title">{genreOnly ? '🎭 ジャンル別検索' : '🎬 ドラマを探す'}</span>
           <button className="modal-close" onClick={onClose}>
             ✕
           </button>
         </div>
         <div className="modal-body">
-          {/* ＋追加導線：おすすめから探す（独立画面 screen-recommend へ） */}
-          <button
-            className="btn-recommend-entry"
-            onClick={() => {
-              onClose();
-              openRecommend();
-            }}
-          >
-            ✨ おすすめから探す
-            <span className="btn-recommend-entry-sub">あなたのレベル・契約サービスに合う人気作品</span>
-          </button>
-          <div className="modal-tabs">
+          {/* ＋追加導線：おすすめから探す（独立画面 screen-recommend へ）。
+              ジャンル別検索(genreOnly)では別途「おすすめ」ボタンがあるので出さない。 */}
+          {!genreOnly && (
             <button
-              className={'modal-tab' + (tab === 'recommend' ? ' active' : '')}
-              onClick={() => setTab('recommend')}
+              className="btn-recommend-entry"
+              onClick={() => {
+                onClose();
+                openRecommend();
+              }}
             >
-              AI推薦
+              ✨ おすすめから探す
+              <span className="btn-recommend-entry-sub">あなたのレベル・契約サービスに合う人気作品</span>
             </button>
-            <button
-              className={'modal-tab' + (tab === 'search' ? ' active' : '')}
-              onClick={() => setTab('search')}
-            >
-              タイトルで検索
-            </button>
-          </div>
+          )}
+          {/* タブ切替も genreOnly では不要（ジャンル選択のみ） */}
+          {!genreOnly && (
+            <div className="modal-tabs">
+              <button
+                className={'modal-tab' + (tab === 'recommend' ? ' active' : '')}
+                onClick={() => setTab('recommend')}
+              >
+                AI推薦
+              </button>
+              <button
+                className={'modal-tab' + (tab === 'search' ? ' active' : '')}
+                onClick={() => setTab('search')}
+              >
+                タイトルで検索
+              </button>
+            </div>
+          )}
 
-          {/* AI推薦タブ */}
-          <div className={'tab-pane' + (tab === 'recommend' ? ' active' : '')}>
+          {/* AI推薦（ジャンル選択）タブ。genreOnly のときは常に表示。 */}
+          <div className={'tab-pane' + (genreOnly || tab === 'recommend' ? ' active' : '')}>
             <div className="genre-tags">
               {GENRES.map((g) => (
                 <span
@@ -134,7 +143,8 @@ export default function AddDramaModal({ initialTab = 'recommend', initialQuery =
             </div>
           </div>
 
-          {/* 検索タブ */}
+          {/* 検索タブ（genreOnly では非表示） */}
+          {!genreOnly && (
           <div className={'tab-pane' + (tab === 'search' ? ' active' : '')}>
             <div className="search-row" style={{ marginTop: 12 }}>
               <input
@@ -160,6 +170,7 @@ export default function AddDramaModal({ initialTab = 'recommend', initialQuery =
               <DramaResults state={searchState} emptyMsg="タイトルを入力して検索してください" onPick={pick} />
             </div>
           </div>
+          )}
         </div>
       </div>
     </div>
