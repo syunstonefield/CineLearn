@@ -144,19 +144,19 @@ export async function POST(req) {
   if (!id) return json({ found: false }); // TMDB 未解決 → 拡張は bare のまま
 
   // ── 層1: vocab_cache の語一致（無料）──
+  //   ★ drama 語のみを対象にする。drama の example は字幕の逐語文（= OpenSubtitles 引用/32条）だが、
+  //     plus 語の example は Claude 生成の作例で「引用」ではない。例文補完に plus を使うと
+  //     source:'opensubtitles' の表示が偽りになり #3 の出所明示が崩れるため除外する。
+  //     drama に無ければ層2（生SRT）で実際のセリフを探す。
   const cacheKey = `v${CACHE_VERSION}:tmdb${id}:s${s}e${e}`;
   const cached = await readVocabWords(cacheKey);
   if (cached) {
     const variants = getWordVariants(word);
-    let pick = cached.find(
-      (w) =>
-        w &&
-        w.word &&
-        variants.has(String(w.word).toLowerCase()) &&
-        w.example &&
-        exampleContainsWord(w.example, word)
+    const drama = cached.filter((w) => w && w.source === 'drama' && w.example);
+    let pick = drama.find(
+      (w) => w.word && variants.has(String(w.word).toLowerCase()) && exampleContainsWord(w.example, word)
     );
-    if (!pick) pick = cached.find((w) => w && w.example && exampleContainsWord(w.example, word));
+    if (!pick) pick = drama.find((w) => exampleContainsWord(w.example, word));
     if (pick) {
       return json({
         found: true,
