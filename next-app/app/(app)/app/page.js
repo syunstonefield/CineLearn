@@ -14,6 +14,7 @@ import WordbookModal from '@/components/WordbookModal';
 import AuthModal from '@/components/AuthModal';
 import Onboarding from '@/components/Onboarding';
 import RecommendScreen from '@/components/RecommendScreen';
+import SearchScreen from '@/components/SearchScreen';
 import BottomNav from '@/components/BottomNav';
 import WelcomeTutorial from '@/components/WelcomeTutorial';
 import ExtensionGuide from '@/components/ExtensionGuide';
@@ -88,6 +89,7 @@ function AppShell() {
         {screen === 'onboarding' && <Onboarding />}
         {screen === 'main' && <Dashboard />}
         {screen === 'recommend' && <RecommendScreen />}
+        {screen === 'search' && <SearchScreen />}
         {screen === 'service-select' && <ServiceSelect />}
         {screen === 'vocab' && <VocabScreen />}
         {screen === 'quiz' && <QuizScreen />}

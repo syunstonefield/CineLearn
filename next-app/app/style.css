@@ -1351,7 +1351,9 @@ header {
 .toolbar-search {
   display: flex;
   align-items: center;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
+  max-width: 480px;
   background: var(--surface2);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -2952,7 +2954,43 @@ header {
   .main-toolbar { padding: 14px 16px 12px; }
   .drama-library { padding: 20px 16px; gap: 12px; }
   /* 単語カードの折りたたみ化は redesign セクション（③）で定義 */
+
+  /* 検索欄が潰れないよう、ツールバーを縦積みに（検索＝全幅・追加＝全幅） */
+  .main-toolbar { flex-direction: column; align-items: stretch; gap: 10px; }
+  .main-toolbar .toolbar-search { max-width: none; }
+  .main-toolbar .btn-add-drama { width: 100%; }
 }
+
+/* ── タイトル検索 結果画面（screen-search） ─────────────────── */
+.search-page-box {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.search-page-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 11px 14px;
+  font-size: 15px;
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  outline: none;
+}
+.search-page-input:focus { border-color: var(--accent); }
+.search-page-input::placeholder { color: var(--text-muted); }
+.search-page-btn { width: auto; flex-shrink: 0; white-space: nowrap; padding: 11px 22px; }
+
+.search-results {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.search-ai-btn { margin-top: 4px; }
 /* ════════════════════════════════════════════════════════════════
    ▼▼ next-app 独自オーバーライド ▼▼
    元の css/style.css を再同期（コピー）した場合は、このブロックを

@@ -7,7 +7,6 @@ import LibraryCard from './LibraryCard';
 import AddDramaModal from './AddDramaModal';
 import RecommendGrid from './RecommendGrid';
 import { getRecommendations } from '@/lib/recommended';
-import { aiResolveTitles } from '@/lib/recommend';
 import { isMobileDevice } from '@/lib/device';
 import {
   DAILY_REVIEW_CAP,
@@ -25,43 +24,6 @@ function notYet(name) {
   alert(`「${name}」は次のステップで移植予定です（Next.js版 試作中）`);
 }
 
-// ── タイトル検索（TMDB search_multi）の共通ユーティリティ ──
-const tmdbImg = (p, size) => (p ? `https://image.tmdb.org/t/p/${size}${p}` : null);
-
-// TMDBの1結果（映画/TV）を候補オブジェクトに正規化
-function mapTmdbResult(r) {
-  const isMovie = r.media_type === 'movie';
-  const en = isMovie ? r.original_title || r.title : r.original_name || r.name;
-  const loc = isMovie ? r.title : r.name;
-  const date = isMovie ? r.release_date : r.first_air_date;
-  return {
-    tmdbId: r.id,
-    mediaType: r.media_type, // 'movie' | 'tv'
-    title: en,
-    englishTitle: en,
-    localizedTitle: loc,
-    year: (date || '').slice(0, 4),
-    posterPath: tmdbImg(r.poster_path, 'w185'),
-  };
-}
-
-// 関連度スコア：人気×投票数を基礎に、タイトル一致とポスター有無で補正してノイズを後ろへ
-function scoreTmdbResult(r, ql) {
-  const isMovie = r.media_type === 'movie';
-  const en = (isMovie ? r.original_title || r.title : r.original_name || r.name || '').toLowerCase();
-  let s = (r.popularity || 0) * Math.log10((r.vote_count || 0) + 10);
-  if (en === ql) s *= 6;
-  else if (en.startsWith(ql)) s *= 2.5;
-  else if (en.includes(ql)) s *= 1.3;
-  s *= r.poster_path ? 1.5 : 0.5;
-  return s;
-}
-
-// 映画/TVのみ＆アダルト除外
-function isWantedResult(r) {
-  return (r.media_type === 'movie' || r.media_type === 'tv') && !r.adult && !r.softcore;
-}
-
 export default function Dashboard() {
   const {
     profile,
@@ -77,6 +39,7 @@ export default function Dashboard() {
     cloudVersion,
     startFromRecommend,
     openRecommend,
+    openSearch,
     openGuide,
   } = useApp();
   const [tick, setTick] = useState(0); // 再読込トリガ
@@ -109,135 +72,12 @@ export default function Dashboard() {
   // ドラマ追加モーダル（null=閉、{tab, query}=開）
   const [addModal, setAddModal] = useState(null);
 
-  // ── タイトル検索のインライン候補（オートコンプリート） ──
-  // 入力中: TMDB即時検索（速い）／Enter: AIで検索語を解釈→TMDB確認（賢い）のハイブリッド。
-  const [searchQuery, setSearchQuery] = useState('');
-  const [suggestions, setSuggestions] = useState([]);
-  const [suggestLoading, setSuggestLoading] = useState(false);
-  const [suggestOpen, setSuggestOpen] = useState(false);
-  const [aiMode, setAiMode] = useState(false); // EnterでAI解釈検索を実行中/実行後
-  const searchBoxRef = useRef(null);
-
-  useEffect(() => {
-    const q = searchQuery.trim();
-    if (q.length < 2) {
-      setSuggestions([]);
-      setSuggestLoading(false);
-      return;
-    }
-    setSuggestLoading(true);
-    let alive = true;
-    const timer = setTimeout(async () => {
-      try {
-        // search_multi: 映画＋TVを横断検索（language=en-US で英語タイトルが返る）
-        const res = await fetch('/api/tmdb', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'search_multi', query: q }),
-        });
-        const json = await res.json();
-        if (!alive) return;
-        const ql = q.toLowerCase();
-        // アダルト/映画TV外を除外し、人気×投票数＋タイトル一致＋ポスター有無で関連度順に。
-        const items = (json.results || [])
-          .filter(isWantedResult)
-          .map((r) => ({ r, score: scoreTmdbResult(r, ql) }))
-          .sort((a, b) => b.score - a.score)
-          .slice(0, 8)
-          .map(({ r }) => mapTmdbResult(r));
-        setSuggestions(items);
-      } catch {
-        if (alive) setSuggestions([]);
-      } finally {
-        if (alive) setSuggestLoading(false);
-      }
-    }, 250);
-    return () => {
-      alive = false;
-      clearTimeout(timer);
-    };
-  }, [searchQuery]);
-
-  const pickSuggestion = (s) => {
-    setSuggestOpen(false);
-    setSearchQuery('');
-    setSuggestions([]);
-    const mt = s.mediaType === 'movie' ? 'movie' : 'tv';
-    openDrama(
-      {
-        title: s.title,
-        englishTitle: s.englishTitle,
-        tmdbId: s.tmdbId,
-        posterPath: s.posterPath ? s.posterPath.replace('/w185', '/w780') : null,
-        type: mt, // 下流（字幕キー・VocabScreen）の主判定
-        mediaType: mt, // 映画/ドラマ解決のヒント
-        level: settings.userLevel || 'B1',
-        platform: '',
-        genre: '',
-        reason: '',
-      },
-      true
-    );
+  // タイトル検索：候補をインライン表示せず、おすすめと同じく結果画面（screen-search）へ遷移する。
+  const [q, setQ] = useState('');
+  const submitSearch = () => {
+    const v = q.trim();
+    if (v) openSearch(v);
   };
-
-  // Enter押下時：検索語をAIで解釈→正規の英語タイトル候補を得て、各タイトルをTMDBで実在確認。
-  // 曖昧・日本語・うろ覚え・タイポ入力をここで救う（入力中のTMDB即時検索とは別経路）。
-  const aiSearchSeq = useRef(0);
-  const runAiSearch = async () => {
-    const q = searchQuery.trim();
-    if (q.length < 2) return;
-    const seq = ++aiSearchSeq.current;
-    setAiMode(true);
-    setSuggestOpen(true);
-    setSuggestLoading(true);
-    try {
-      const titles = await aiResolveTitles(q);
-      if (seq !== aiSearchSeq.current) return; // 古い結果は破棄
-      if (!titles.length) {
-        setSuggestions([]);
-        return;
-      }
-      // 各タイトルをTMDBで確認（並列）→ タイトル一致優先で最良の1件を採用
-      const hits = await Promise.all(
-        titles.map(async (t) => {
-          try {
-            const res = await fetch('/api/tmdb', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ action: 'search_multi', query: t }),
-            });
-            const j = await res.json();
-            const tl = t.toLowerCase();
-            const cands = (j.results || []).filter(isWantedResult);
-            if (!cands.length) return null;
-            cands.sort((a, b) => scoreTmdbResult(b, tl) - scoreTmdbResult(a, tl));
-            return mapTmdbResult(cands[0]);
-          } catch {
-            return null;
-          }
-        })
-      );
-      if (seq !== aiSearchSeq.current) return;
-      const seen = new Set();
-      const items = hits.filter((it) => it && !seen.has(it.tmdbId) && seen.add(it.tmdbId));
-      setSuggestions(items);
-    } catch {
-      // AI失敗時は直前のTMDB候補のまま据え置き
-    } finally {
-      if (seq === aiSearchSeq.current) setSuggestLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!suggestOpen) return;
-    const onDoc = (e) => {
-      if (searchBoxRef.current && !searchBoxRef.current.contains(e.target)) {
-        setSuggestOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, [suggestOpen]);
 
   // オンボーディング完了直後はドラマ追加モーダルを検索タブで開く（既存 finishOnboarding 相当）
   useEffect(() => {
@@ -381,80 +221,24 @@ export default function Dashboard() {
       />
 
       <div className="main-toolbar">
-        <div className="toolbar-search-wrap" ref={searchBoxRef}>
-          <div className="toolbar-search">
-            <input
-              type="text"
-              id="mainSearchInput"
-              placeholder="ドラマのタイトルで検索..."
-              autoComplete="off"
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setAiMode(false); // 入力が変わったら即時TMDB検索に戻す
-                setSuggestOpen(true);
-              }}
-              onFocus={() => {
-                if (suggestions.length) setSuggestOpen(true);
-              }}
-              onKeyDown={(e) => {
-                // Enter は「AIで解釈して検索」。作品選択はクリックのみ（自動選択しない）。
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  runAiSearch();
-                }
-                if (e.key === 'Escape') setSuggestOpen(false);
-              }}
-            />
-            <button
-              type="button"
-              className="btn-icon-search"
-              aria-label="検索"
-              onClick={() => runAiSearch()}
-            >
-              🔍
-            </button>
-          </div>
-          {suggestOpen && searchQuery.trim().length >= 2 && (
-            <div className="search-suggest">
-              {suggestLoading && (
-                <div className="search-suggest-msg">{aiMode ? '🤖 AIが候補を考えています…' : '検索中…'}</div>
-              )}
-              {!suggestLoading && aiMode && suggestions.length > 0 && (
-                <div className="search-suggest-aihint">🤖 AIが解釈した候補（Enter検索）</div>
-              )}
-              {!suggestLoading && suggestions.length === 0 && (
-                <div className="search-suggest-msg">
-                  {aiMode ? '該当する作品が見つかりませんでした' : '候補が見つかりません（Enterで詳しく検索）'}
-                </div>
-              )}
-              {suggestions.map((s) => (
-                <button
-                  key={s.tmdbId}
-                  type="button"
-                  className="search-suggest-item"
-                  onClick={() => pickSuggestion(s)}
-                >
-                  {s.posterPath ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img className="search-suggest-thumb" src={s.posterPath} alt="" />
-                  ) : (
-                    <span className="search-suggest-thumb search-suggest-thumb-empty">🎬</span>
-                  )}
-                  <span className="search-suggest-text">
-                    <span className="search-suggest-title">{s.englishTitle}</span>
-                    {s.localizedTitle && s.localizedTitle !== s.englishTitle && (
-                      <span className="search-suggest-sub">{s.localizedTitle}</span>
-                    )}
-                  </span>
-                  <span className={'search-suggest-type ' + (s.mediaType === 'movie' ? 'is-movie' : 'is-tv')}>
-                    {s.mediaType === 'movie' ? '映画' : 'ドラマ'}
-                  </span>
-                  {s.year && <span className="search-suggest-year">{s.year}</span>}
-                </button>
-              ))}
-            </div>
-          )}
+        <div className="toolbar-search">
+          <input
+            type="text"
+            id="mainSearchInput"
+            placeholder="ドラマ・映画のタイトルで検索..."
+            autoComplete="off"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                submitSearch();
+              }
+            }}
+          />
+          <button type="button" className="btn-icon-search" aria-label="検索" onClick={submitSearch}>
+            🔍
+          </button>
         </div>
         {/* PC: 「ジャンル別検索」(=AI推薦) と「おすすめ」(=RecommendScreen) の2導線。
             モバイルでは下の「＋ドラマを追加」に集約（display制御は style.css）。 */}

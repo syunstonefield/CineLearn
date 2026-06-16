@@ -279,6 +279,14 @@ export default function AppProvider({ children }) {
   // 「おすすめから探す」専用画面を開く（履歴あり時の＋追加導線から）
   const openRecommend = useCallback(() => setScreen('recommend'), []);
 
+  // タイトル検索の結果画面を開く（ダッシュボードの検索ボックスから）。
+  // 候補をインライン表示せず、おすすめと同じく独立画面へ遷移する。
+  const [searchQuery, setSearchQuery] = useState('');
+  const openSearch = useCallback((q) => {
+    setSearchQuery(q || '');
+    setScreen('search');
+  }, []);
+
   // おすすめカードのタップ → 最短ルートで既存フローに合流（仕様：クリック後の動作）。
   // - 既存の selectedDrama 形式に変換（recommendedToDrama）して openDrama に渡す
   //   → myDramas への追加・season/episode 初期化・前回サービスのクリアは openDrama が担当
@@ -385,6 +393,8 @@ export default function AppProvider({ children }) {
     openDrama,
     chooseService,
     openRecommend,
+    searchQuery,
+    openSearch,
     startFromRecommend,
     toggleGenre,
     goHome,
