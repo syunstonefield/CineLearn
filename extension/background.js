@@ -4,6 +4,8 @@
 const SUPABASE_URL      = 'https://mndyexwdevkpdssglwpl.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1uZHlleHdkZXZrcGRzc2dsd3BsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0MTcyOTQsImV4cCI6MjA5NTk5MzI5NH0.P6GDNdWAGMPpjc1zltGS9LAFWej5M8knchqTIDDNrE4';
 const SB_SESSION_KEY    = 'cl_sb_session';
+// 共有キャッシュ＋例文補完 API（Next.js 版本番）。/api/example はここに置かれている。
+const CINELEARN_NEXT_URL = 'https://cinelearn-next.vercel.app';
 
 chrome.action.onClicked.addListener(() => {
   chrome.tabs.create({ url: chrome.runtime.getURL('index.html') });
@@ -21,14 +23,18 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       .catch(() => sendResponse({ ok: false }));
     return true; // 非同期レスポンスを使うため必須
   }
-  // Netflix 字幕(WebVTT)の取得。content.js から fetch すると別オリジン
-  // (*.nflxvideo.net) で CORS に阻まれるため、host_permissions を持つ
-  // background が代理取得してテキストを返す。
-  if (msg.type === 'CL_FETCH_VTT') {
-    fetch(msg.url)
-      .then(r => (r.ok ? r.text() : Promise.reject(new Error('HTTP ' + r.status))))
-      .then(text => sendResponse({ ok: true, text }))
-      .catch(err => sendResponse({ ok: false, error: String(err) }));
+  // クリック保存の例文バックフィル（経路②→①畳み込み #3）。
+  // 配信字幕は保存せず、OpenSubtitles 由来の1文を /api/example から取得して返す。
+  // content.js から fetch すると別オリジンの CORS に阻まれるため background が代理する。
+  if (msg.type === 'CL_FETCH_EXAMPLE') {
+    fetch(`${CINELEARN_NEXT_URL}/api/example`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(msg.payload || {}),
+    })
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status))))
+      .then(data => sendResponse(data))
+      .catch(() => sendResponse({ found: false }));
     return true; // 非同期レスポンス
   }
 });

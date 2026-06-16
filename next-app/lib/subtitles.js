@@ -255,6 +255,42 @@ function secToTimeLabel(sec) {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
+// クリック語を含む字幕キューを1つ特定して返す（経路②→①／#3 のサーバー側マッチ）。
+//   生 SRT をキューに切り出し、活用形込み（exampleContainsWord）で語を含む行を探す。
+//   複数一致は nearSec（VOD 再生位置）最近傍を選ぶ＝実際に観ていた行に寄せるベストエフォート。
+//   返す sentence は引用表示用に原文の大小文字を保持する（判定は exampleContainsWord 内で小文字化）。
+//   戻り値: { sentence, sec, label } / 一致なしは null。
+export function findExampleForWord(rawSrt, word, nearSec) {
+  if (!rawSrt || !word) return null;
+  const cues = [];
+  rawSrt.split(/\r?\n\r?\n/).forEach((block) => {
+    const lines = block.split(/\r?\n/);
+    const tIdx = lines.findIndex((l) => /-->/.test(l));
+    if (tIdx === -1) return;
+    const mt = lines[tIdx].match(/(\d{2}):(\d{2}):(\d{2})/);
+    if (!mt) return;
+    const sec = +mt[1] * 3600 + +mt[2] * 60 + +mt[3];
+    const text = lines
+      .slice(tIdx + 1)
+      .join(' ')
+      .replace(/<[^>]+>/g, '')
+      .replace(/[♪♫]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (text) cues.push({ sec, text });
+  });
+  const hits = cues.filter((c) => exampleContainsWord(c.text, word));
+  if (!hits.length) return null;
+  let best = hits[0];
+  if (typeof nearSec === 'number' && isFinite(nearSec)) {
+    best = hits.reduce(
+      (a, b) => (Math.abs(b.sec - nearSec) < Math.abs(a.sec - nearSec) ? b : a),
+      hits[0]
+    );
+  }
+  return { sentence: best.text, sec: best.sec, label: secToTimeLabel(best.sec) };
+}
+
 // 生SRTを {sec, text} のキュー配列にして時刻昇順で返す（同一署名はキャッシュ）
 let _cueCacheSig = '';
 let _cueCacheArr = [];

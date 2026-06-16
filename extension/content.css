@@ -67,3 +67,14 @@
 .cl-ctrl-btn:active {
   transform: scale(0.94) !important;
 }
+
+/* ◀▶ が使えない時（先頭文／未視聴フロンティア）は淡色化して無効を示す */
+.cl-ctrl-btn.cl-ctrl-disabled {
+  opacity: 0.3 !important;
+  cursor: default !important;
+}
+.cl-ctrl-btn.cl-ctrl-disabled:hover {
+  background: rgba(20, 20, 20, 0.45) !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+  transform: none !important;
+}
