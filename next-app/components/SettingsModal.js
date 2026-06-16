@@ -314,6 +314,22 @@ export default function SettingsModal({ onClose }) {
               </a>{' '}
               を利用しています。
             </p>
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.7, margin: '8px 0 0' }}>
+              CineLearn は Netflix・Amazon と提携・公認関係にありません。
+              <br />
+              <a
+                href="/privacy"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: 'var(--accent)' }}
+              >
+                プライバシーポリシー
+              </a>
+              {' ・ '}
+              <a href="mailto:cinelearn.202606@gmail.com" style={{ color: 'var(--accent)' }}>
+                お問い合わせ・削除依頼
+              </a>
+            </p>
           </div>
         </div>
       </div>

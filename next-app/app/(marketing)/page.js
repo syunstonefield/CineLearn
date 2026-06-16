@@ -639,9 +639,16 @@ const MARKUP = `
 <footer>
   <div class="logo">Cine<span>Learn</span></div>
   <small>© 2026 CineLearn. ドラマで学ぶ、究極の英語習得。</small>
-  <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
-    <a href="/app">アプリを開く →</a>
-    <small style="color:#444;font-size:11px">This product uses the TMDB API but is not endorsed or certified by <a href="https://www.themoviedb.org" target="_blank" rel="noopener" style="color:#888">TMDB</a>.</small>
+  <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+    <div style="display:flex;gap:14px;flex-wrap:wrap;justify-content:flex-end">
+      <a href="/app">アプリを開く →</a>
+      <a href="/privacy">プライバシーポリシー</a>
+      <a href="mailto:cinelearn.202606@gmail.com">お問い合わせ</a>
+    </div>
+    <small style="color:#444;font-size:11px;max-width:420px;text-align:right;line-height:1.6">
+      CineLearn は Netflix・Amazon・TMDB・OpenSubtitles と提携・公認関係にありません。各社の商標は各権利者に帰属します。
+      This product uses the TMDB API but is not endorsed or certified by <a href="https://www.themoviedb.org" target="_blank" rel="noopener" style="color:#888">TMDB</a>.
+    </small>
   </div>
 </footer>
 `;
