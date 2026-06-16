@@ -106,9 +106,16 @@ export default function WordbookModal() {
                             📺 {w.dramaTitle}
                             {w.season != null ? ` S${w.season}` : ''}
                             {w.episode != null ? `E${w.episode}` : ''}
+                            {/* 出所明示(48条)：例文があるときだけ字幕の入手元を併記 */}
+                            {w.sentence ? '（字幕：OpenSubtitles）' : ''}
                           </span>
                         ) : w.source ? (
-                          <span>{w.source}</span>
+                          <span>
+                            {w.source}
+                            {w.sentence ? '（字幕：OpenSubtitles）' : ''}
+                          </span>
+                        ) : w.sentence ? (
+                          <span>字幕：OpenSubtitles</span>
                         ) : null}
                         <span>{formatDateJa(w.savedAt)}</span>
                       </div>
