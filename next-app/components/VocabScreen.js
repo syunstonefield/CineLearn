@@ -139,13 +139,15 @@ export default function VocabScreen() {
     (words, hid) => {
       if (fillJaRunning.current) return;
       if (!words.some((w) => w.example && !w.example_ja_ok)) return;
+      // 翻訳完了が遅れ、別エピソードへ切り替えた後に解決しても表示を上書きしないよう
+      // 開始時点の世代を捕捉する（reqId は loadEpisode 等で進む）。
+      const myReq = reqId.current;
       fillJaRunning.current = true;
       fillMissingExampleJa(words)
         .then((changed) => {
-          if (changed) {
-            updateHistoryWords(hid, words);
-            setVocab([...words]); // 翻訳結果を再描画
-          }
+          if (!changed) return;
+          updateHistoryWords(hid, words); // 履歴は hid 基準なので現在の表示に関係なく更新してよい
+          if (myReq === reqId.current) setVocab([...words]); // 表示更新は同一エピソードの時だけ
         })
         .catch(() => {})
         .finally(() => {
@@ -484,6 +486,7 @@ export default function VocabScreen() {
         episode,
         type: drama.type,
       });
+      if (myReq !== reqId.current) return; // 取得中にエピソードが切り替わったら破棄（別話の上書き防止）
 
       if (cached?.blocked) {
         // カタログ外 → 近日対応（生成しない）
@@ -549,6 +552,9 @@ export default function VocabScreen() {
       }
 
       // 3) 共通：仕上げ・表示・保存
+      // 生成/字幕取得の間にエピソードが切り替わっていたら、現在表示中の話を
+      // 別話の単語で上書きしないよう破棄する（E4 に E1 の単語が出るバグの防止）。
+      if (myReq !== reqId.current) return;
       setGenStatus('仕上げ中...');
       setRetryMsg('');
 
