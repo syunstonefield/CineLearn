@@ -7,7 +7,7 @@ export const metadata = {
   title: 'CineLearn — ドラマで学ぶ、究極の英語習得',
   description:
     'Netflix・YouTubeを観ながら英語が身につく。AIと忘却曲線アルゴリズムが、あなたの視聴体験を最強の学習ルーティンに変える。',
-  icons: { icon: '/favicon.ico', apple: '/icon.svg' },
+  icons: { icon: '/favicon.ico', apple: '/apple-touch-icon.png' },
 };
 
 export const viewport = {

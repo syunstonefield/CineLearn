@@ -6,7 +6,7 @@ export const metadata = {
   manifest: '/manifest.json',
   // ホーム画面に追加した時の表示（iOS/Android）
   appleWebApp: { capable: true, statusBarStyle: 'default', title: 'CineLearn' },
-  icons: { icon: '/favicon.ico', apple: '/icon.svg' },
+  icons: { icon: '/favicon.ico', apple: '/apple-touch-icon.png' },
 };
 
 export const viewport = {
