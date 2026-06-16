@@ -191,6 +191,9 @@ function init() {
   // ◀ 📋 ▶ コントロール群を作成
   createSubtitleControls();
 
+  // ◀▶ タイムラインのローカル保持（後日再開時も観た範囲を巻き戻せる）
+  initTimelinePersistence();
+
   // 字幕監視を開始
   if (IS_AMAZON) {
     // アマプラは React 管理 DOM のため直接書き換えると落ちる。
@@ -680,6 +683,81 @@ function recordCaptionBlock(rawText) {
   ttStoreDirty = true; // ローカル保存対象として印を付ける
 }
 
+// 現在のエピソードの保存キー（タイトル+S/E）。タイトル未取得なら null。
+function episodeStorageKey() {
+  try {
+    const ctx = getEpisodeContext();
+    const titleKey = (ctx.dramaTitle || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
+    if (titleKey.replace(/_/g, '').length < 2) return null; // タイトルがまだ取れていない
+    return `cl_timeline_${titleKey}_s${ctx.season || 1}e${ctx.episode || 1}`;
+  } catch { return null; }
+}
+
+// 保存済みブロックを現在の captionTimeline に取り込む（重複は start で除外・昇順整列）
+function mergeIntoTimeline(saved) {
+  if (!Array.isArray(saved) || !saved.length) return;
+  const seen = new Set(captionTimeline.map(b => Math.round(b.start * 10)));
+  for (const b of saved) {
+    if (!b || typeof b.start !== 'number' || !b.text) continue;
+    const k = Math.round(b.start * 10);
+    if (!seen.has(k)) { captionTimeline.push({ text: b.text, start: b.start }); seen.add(k); }
+  }
+  captionTimeline.sort((a, b) => a.start - b.start);
+  if (captionTimeline.length > TIMELINE_MAX) captionTimeline = captionTimeline.slice(-TIMELINE_MAX);
+}
+
+function loadTimelineFor(key) {
+  if (!key || !chrome.runtime?.id) return;
+  try {
+    chrome.storage.local.get([key], (r) => {
+      if (chrome.runtime.lastError) return;
+      mergeIntoTimeline(r[key]);
+    });
+  } catch { /* 接続切れは無視 */ }
+}
+
+// dirty なら現在のタイムラインを保存し、古いエピソードを間引く。
+function saveTimelineNow() {
+  if (!ttStoreDirty || !ttStoreKey || !captionTimeline.length || !chrome.runtime?.id) return;
+  ttStoreDirty = false;
+  const key = ttStoreKey;
+  try {
+    chrome.storage.local.set({ [key]: captionTimeline });
+    chrome.storage.local.get([TT_KEYS_IDX], (r) => {
+      if (chrome.runtime.lastError) return;
+      let list = Array.isArray(r[TT_KEYS_IDX]) ? r[TT_KEYS_IDX] : [];
+      list = [key, ...list.filter(k => k !== key)];          // 最近使った順
+      const remove = list.slice(TT_KEYS_MAX);                // 上限超は破棄対象
+      list = list.slice(0, TT_KEYS_MAX);
+      chrome.storage.local.set({ [TT_KEYS_IDX]: list });
+      if (remove.length) chrome.storage.local.remove(remove);
+    });
+  } catch { /* 接続切れは無視 */ }
+}
+
+// エピソードの確定・切替を監視して復元/保存を回す。
+function initTimelinePersistence() {
+  setInterval(() => {
+    const key = episodeStorageKey();
+    if (key !== ttStoreKey) {
+      if (ttStoreKey) saveTimelineNow();          // 直前のエピソードを保存
+      if (ttStoreKey && key) {                    // 別エピソードへ切替 → 旧データを破棄
+        captionTimeline = [];
+        navStart = -1;
+      }
+      ttStoreKey = key;
+      ttStoreDirty = false;
+      if (key) loadTimelineFor(key);              // 新エピソードを復元（merge）
+    } else {
+      saveTimelineNow();                          // 同一エピソード中は dirty なら保存
+    }
+  }, 10000);
+
+  // タブを閉じる/隠れる時の保険保存
+  document.addEventListener('visibilitychange', () => { if (document.hidden) saveTimelineNow(); });
+  window.addEventListener('pagehide', saveTimelineNow);
+}
+
 // 現在のセリフのブロック index。
 //   まず「画面に今出ている字幕テキスト」に一致するブロックを優先する。
 //   時刻ベースだと DOM 更新の僅かなズレで現在ブロックを1つ多く数え、
@@ -1140,9 +1218,12 @@ let lastUrl = location.href;
 new MutationObserver(() => {
   if (location.href === lastUrl) return;
   lastUrl = location.href;
+  saveTimelineNow();         // 旧エピソードのタイムラインを保存してから
   watchedContainers.clear(); // 古い DOM 要素への参照を破棄
   captionTimeline = [];      // エピソードが変わるので字幕タイムラインもリセット
   navStart = -1;             // ナビカーソルもリセット
+  ttStoreKey = null;         // 次のティックで新エピソードを復元させる
+  ttStoreDirty = false;
   // 少し待ってから新しい字幕コンテナをスキャン
   setTimeout(findAndWatchSubtitles, 1000);
   setTimeout(findAndWatchSubtitles, 3000); // 遅延ロードに備えて2回
