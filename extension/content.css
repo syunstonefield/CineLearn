@@ -78,3 +78,118 @@
   color: rgba(255, 255, 255, 0.85) !important;
   transform: none !important;
 }
+
+/* ── 「CineLearn 起動中」バッジ＋初回ヒント ──────────────────────
+   クリック保存は常時ON（トグル無し）なので、動作中であることを可視化する。
+   ◀📋▶ コントロール（右下）と対になるよう左下へ。数秒で淡色化して邪魔しない。 */
+#cl-badge {
+  position: fixed !important;
+  left: 2.5% !important;
+  bottom: 16% !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 7px !important;
+  padding: 7px 13px !important;
+  background: rgba(20, 20, 20, 0.55) !important;
+  color: rgba(255, 255, 255, 0.92) !important;
+  border-radius: 20px !important;
+  font-family: system-ui, sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.02em !important;
+  cursor: pointer !important;
+  user-select: none !important;
+  z-index: 2147483647 !important;
+  pointer-events: auto !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4) !important;
+  transition: opacity 0.4s, background 0.15s !important;
+}
+#cl-badge:hover { background: rgba(20, 20, 20, 0.82) !important; }
+#cl-badge.cl-badge-dim { opacity: 0.28 !important; }
+
+.cl-badge-dot {
+  width: 8px !important;
+  height: 8px !important;
+  border-radius: 50% !important;
+  background: #c17f3b !important;
+  animation: cl-badge-pulse 2.4s infinite !important;
+}
+@keyframes cl-badge-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(193, 127, 59, 0.55); }
+  70%  { box-shadow: 0 0 0 7px rgba(193, 127, 59, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(193, 127, 59, 0); }
+}
+
+/* ON/OFF 状態バッジ */
+.cl-badge-state {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  padding: 2px 7px !important;
+  border-radius: 10px !important;
+  background: rgba(193, 127, 59, 0.92) !important;
+  color: #fff !important;
+  letter-spacing: 0.04em !important;
+  line-height: 1.4 !important;
+}
+/* OFF 時：ドットの脈動を止めてグレーに、状態を中立色に。バッジ自体は見える(ON復帰の入口) */
+#cl-badge.cl-badge-off .cl-badge-dot {
+  background: rgba(255, 255, 255, 0.45) !important;
+  animation: none !important;
+  box-shadow: none !important;
+}
+#cl-badge.cl-badge-off .cl-badge-state {
+  background: rgba(255, 255, 255, 0.2) !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+/* OFF（休止）時：字幕の単語下線とクリックを無効化し、◀📋▶ も隠す。
+   DOM は触らず CSS だけで休止させ、再 ON で即復帰できるようにする。 */
+html.cl-disabled .cl-word {
+  border-bottom: none !important;
+  background: transparent !important;
+  color: inherit !important;
+  text-shadow: inherit !important;
+  cursor: default !important;
+  pointer-events: none !important;
+}
+html.cl-disabled #cl-controls { display: none !important; }
+
+#cl-hint {
+  position: fixed !important;
+  left: 2.5% !important;
+  bottom: calc(16% + 52px) !important;
+  width: 240px !important;
+  padding: 14px 16px !important;
+  background: #fff !important;
+  color: #1a1a1a !important;
+  border-radius: 14px !important;
+  font-family: system-ui, sans-serif !important;
+  z-index: 2147483647 !important;
+  pointer-events: auto !important;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
+.cl-hint-title {
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  color: #c17f3b !important;
+  margin: 0 0 6px !important;
+}
+.cl-hint-body {
+  font-size: 13px !important;
+  line-height: 1.5 !important;
+  margin: 0 0 12px !important;
+}
+.cl-hint-ok {
+  display: block !important;
+  width: 100% !important;
+  border: none !important;
+  border-radius: 10px !important;
+  background: #c17f3b !important;
+  color: #fff !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  padding: 9px 0 !important;
+  cursor: pointer !important;
+}
+.cl-hint-ok:hover { background: #a96c2f !important; }

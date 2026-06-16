@@ -46,6 +46,10 @@ let popup = null;
 let clControls       = null; // ◀ 📋 ▶ コントロール群
 let clMiniToast      = null; // コピー結果のミニトースト
 let clMiniToastTimer = null;
+let clBadge          = null; // 「CineLearn」ON/OFF バッジ（OFF でも残してON復帰の入口にする）
+let clHint           = null; // 初回のクリック保存ヒントふきだし
+let clBadgeDimTimer  = null; // 数秒後にバッジを淡色化するタイマー
+let clEnabled        = true; // ON/OFF 状態（chrome.storage の cl_enabled で永続化・既定ON）
 
 // ─────────────────────────────────────────────────────────────────
 // ① クリック・長押し検出
@@ -54,12 +58,24 @@ let clMiniToastTimer = null;
 let longPressTimer    = null;
 let longPressTriggered = false;
 
+// CineLearn 自身の UI（バッジ／ヒント／◀📋▶／単語ポップアップ）上のクリックか判定。
+//   単語検出は elementsFromPoint で座標上の全要素から cl-word を探すため、
+//   不透明な自前UIの裏に字幕単語があるとボタン操作を単語クリックと誤検出し、
+//   preventDefault+stopImmediatePropagation でボタン自身の click まで潰してしまう。
+//   最前面（els[0]）が自前UIなら横取りせず通常のクリックとして扱う。
+function isOwnUI(el) {
+  if (!el) return false;
+  return [clBadge, clHint, clControls, popup].some(ui => ui && ui.contains(el));
+}
+
 // mousedown / pointerdown：長押しタイマーをスタートし、プレイヤーへ伝播させない
 function handleDown(e) {
+  if (!clEnabled) return; // OFF 時は単語操作を一切行わない
   const clientX = e.clientX ?? e.touches?.[0]?.clientX;
   const clientY = e.clientY ?? e.touches?.[0]?.clientY;
   if (clientX == null) return;
   const els    = document.elementsFromPoint(clientX, clientY);
+  if (isOwnUI(els[0])) return; // 自前UI上の操作は横取りしない
   const wordEl = els.find(el => el.classList?.contains('cl-word'));
   if (!wordEl) return;
 
@@ -80,10 +96,12 @@ document.addEventListener('mousedown', handleDown, true);
 
 // click / pointerup：プレイヤーの play/pause をブロックし、ポップアップを表示
 function handleClick(e) {
+  if (!clEnabled) return; // OFF 時は単語操作を一切行わない
   const clientX = e.clientX ?? e.changedTouches?.[0]?.clientX;
   const clientY = e.clientY ?? e.changedTouches?.[0]?.clientY;
   if (clientX == null) return;
   const els    = document.elementsFromPoint(clientX, clientY);
+  if (isOwnUI(els[0])) return; // 自前UI上のクリックは横取りしない（OK等のボタンを生かす）
   const wordEl = els.find(el => el.classList?.contains('cl-word'));
   if (!wordEl) return;
 
@@ -120,7 +138,10 @@ document.addEventListener('mousemove', (e) => {
   requestAnimationFrame(() => {
     rafPending = false;
     const els    = document.elementsFromPoint(e.clientX, e.clientY);
-    const wordEl = els.find(el => el.classList?.contains('cl-word')) || null;
+    // OFF 時、または自前UI上にカーソルがある時は裏の単語をハイライト／一時停止しない
+    const wordEl = (!clEnabled || isOwnUI(els[0]))
+      ? null
+      : (els.find(el => el.classList?.contains('cl-word')) || null);
 
     if (wordEl === hoveredWord) return;
 
@@ -190,6 +211,9 @@ function init() {
 
   // ◀ 📋 ▶ コントロール群を作成
   createSubtitleControls();
+
+  // 「CineLearn 起動中」バッジ＋初回ヒントを作成（常時ONの可視化）
+  createStatusBadge();
 
   // ◀▶ タイムラインのローカル保持（後日再開時も観た範囲を巻き戻せる）
   initTimelinePersistence();
@@ -989,6 +1013,8 @@ function relocateControlsForFullscreen() {
   const host = document.fullscreenElement || document.webkitFullscreenElement || document.body;
   if (clControls.parentElement !== host) host.appendChild(clControls);
   if (clMiniToast && clMiniToast.parentElement !== host) host.appendChild(clMiniToast);
+  if (clBadge && clBadge.parentElement !== host) host.appendChild(clBadge);
+  if (clHint && clHint.parentElement !== host) host.appendChild(clHint);
   positionControls();
 }
 
@@ -1037,6 +1063,113 @@ function createSubtitleControls() {
     relocateControlsForFullscreen();
     updateNavButtonsState(); // ◀▶ の淡色化（先頭文・未視聴フロンティア）
   }, 500);
+}
+
+// ── 「CineLearn」ON/OFF バッジ＋初回ヒント ───────────────────────
+//   クリック保存は document_start から常時動くため、ユーザーが任意に止められるよう
+//   バッジ自体を ON/OFF トグルにする。OFF でもバッジは消さず、クリックで ON に戻せる。
+//   状態は chrome.storage の cl_enabled に永続化（既定 ON）。
+//   初回だけクリック保存のヒントを自動表示する（cl_badge_hint_seen で一度きり）。
+const CL_HINT_SEEN_KEY = 'cl_badge_hint_seen';
+const CL_ENABLED_KEY   = 'cl_enabled';
+
+function createStatusBadge() {
+  clBadge = document.createElement('div');
+  clBadge.id = 'cl-badge';
+  clBadge.innerHTML =
+    '<span class="cl-badge-dot"></span>' +
+    '<span class="cl-badge-label">CineLearn</span>' +
+    '<span class="cl-badge-state">ON</span>';
+
+  clHint = document.createElement('div');
+  clHint.id = 'cl-hint';
+  clHint.style.display = 'none';
+  clHint.innerHTML =
+    '<div class="cl-hint-title">CineLearn 起動中</div>' +
+    '<div class="cl-hint-body">字幕の単語をクリックすると単語帳に保存できます。' +
+    'バッジをクリックすると ON / OFF を切り替えられます。</div>' +
+    '<button type="button" class="cl-hint-ok">OK</button>';
+
+  // バッジ／ヒント上の操作は動画プレイヤーやポップアップ閉じ処理へ伝播させない。
+  //   ※ bubble phase で止めるのが肝。capture でコンテナに付けると子（OKボタン等）に
+  //     イベントが届く前に stopPropagation され、ボタン自身の click が発火しなくなる。
+  const stopAll = e => e.stopPropagation();
+  [clBadge, clHint].forEach(el => {
+    ['pointerdown', 'mousedown', 'mouseup', 'pointerup', 'click', 'dblclick'].forEach(ev =>
+      el.addEventListener(ev, stopAll, false));
+  });
+
+  // バッジクリックで ON/OFF を切り替える
+  clBadge.addEventListener('click', () => setEnabled(!clEnabled));
+  clHint.querySelector('.cl-hint-ok').addEventListener('click', hideHint);
+
+  document.body.appendChild(clBadge);
+  document.body.appendChild(clHint);
+
+  // 全画面に追随させる（clControls と同じホストへ移し替え）
+  relocateControlsForFullscreen();
+
+  // ON の時だけ数秒で淡色化（OFF は ON 復帰の入口なので常に見えるまま）。ホバーで戻す。
+  clBadge.addEventListener('pointerenter', () => {
+    clBadge.classList.remove('cl-badge-dim');
+    clearTimeout(clBadgeDimTimer);
+  });
+  clBadge.addEventListener('pointerleave', scheduleBadgeDim);
+
+  // 保存済みの ON/OFF 状態を反映 → 初回ヒント
+  chrome.storage.local.get([CL_ENABLED_KEY, CL_HINT_SEEN_KEY], (r) => {
+    setEnabled(r[CL_ENABLED_KEY] !== false, false); // 未設定（undefined）は ON
+    if (!r[CL_HINT_SEEN_KEY]) showHint();
+  });
+}
+
+// ON/OFF を切り替える。OFF 時は下線・クリック・ホバー一時停止・◀📋▶ を休止する。
+//   下線とコントロールの非表示は html.cl-disabled クラスの CSS で行い、DOM は触らない
+//   （再 ON で即復帰できる）。クリック等の挙動は clEnabled フラグで各ハンドラがゲートする。
+function setEnabled(on, persist = true) {
+  clEnabled = !!on;
+  if (persist) chrome.storage.local.set({ [CL_ENABLED_KEY]: clEnabled });
+  document.documentElement.classList.toggle('cl-disabled', !clEnabled);
+  updateBadgeState();
+
+  if (!clEnabled) {
+    // 休止：ホバー解除・開いている単語ポップアップを閉じる・オーバーレイを隠す
+    if (hoveredWord) { hoveredWord.classList.remove('cl-word-active'); hoveredWord = null; }
+    isSubtitleHovered = false;
+    closePopupAndResume();
+    if (clOverlay) clOverlay.style.display = 'none';
+  }
+  scheduleBadgeDim();
+}
+
+function updateBadgeState() {
+  if (!clBadge) return;
+  clBadge.classList.toggle('cl-badge-off', !clEnabled);
+  const st = clBadge.querySelector('.cl-badge-state');
+  if (st) st.textContent = clEnabled ? 'ON' : 'OFF';
+  clBadge.title = clEnabled
+    ? 'CineLearn 起動中 — クリックでOFF'
+    : 'CineLearn 停止中 — クリックでON';
+}
+
+function scheduleBadgeDim() {
+  clearTimeout(clBadgeDimTimer);
+  if (!clEnabled) { clBadge?.classList.remove('cl-badge-dim'); return; } // OFF は淡色化しない
+  clBadgeDimTimer = setTimeout(() => clBadge?.classList.add('cl-badge-dim'), 4000);
+}
+
+function showHint() {
+  if (!clHint) return;
+  clHint.style.display = 'block';
+  clBadge?.classList.remove('cl-badge-dim');
+  clearTimeout(clBadgeDimTimer);
+}
+
+function hideHint() {
+  if (!clHint) return;
+  clHint.style.display = 'none';
+  chrome.storage.local.set({ [CL_HINT_SEEN_KEY]: true });
+  scheduleBadgeDim();
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -1138,6 +1271,7 @@ function findAmazonCaption() {
 
 function updateAmazonOverlay() {
   if (!clOverlay) return;
+  if (!clEnabled) { clOverlay.style.display = 'none'; return; } // OFF 時はオーバーレイを隠す
   const cap = findAmazonCaption();
   if (!cap) {
     if (clOverlay.style.display !== 'none') {
