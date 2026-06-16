@@ -27,6 +27,7 @@ import {
   subtitleCacheKey,
   computeTimestamps,
   attachBaseTimestamps,
+  secToTimeLabel,
 } from '@/lib/subtitles';
 import { generateSuperset, personalizeWords, fillMissingExampleJa } from '@/lib/vocab';
 import { fetchSharedVocab, contributeVocab } from '@/lib/api';
@@ -96,9 +97,16 @@ export default function VocabScreen() {
         rawSrt: subRaw,
       });
     }
-    // 生SRTなし（キャッシュヒット等）: 保存済みのベース時刻を使う
+    // 生SRTなし（キャッシュヒット等）: 保存済みのベース時刻(tsSec)を使う。
+    // ラベルは保存済み tsLabel ではなく tsSec から都度整形する
+    // （旧フォーマットで保存された "67:30" 等を表示時に H:MM:SS へ正す）。
     const m = new Map();
-    vocab.forEach((w) => m.set(w.word, { sec: w.tsSec ?? Infinity, label: w.tsLabel ?? null }));
+    vocab.forEach((w) =>
+      m.set(w.word, {
+        sec: w.tsSec ?? Infinity,
+        label: w.tsSec != null ? secToTimeLabel(w.tsSec) : null,
+      })
+    );
     return m;
   }, [vocab, subRaw, drama, season, episode]);
 

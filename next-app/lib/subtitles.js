@@ -249,10 +249,15 @@ export function exampleContainsWord(example, word) {
   });
 }
 
-function secToTimeLabel(sec) {
-  const m = Math.floor(sec / 60);
+// 秒数を📍表示用ラベルへ。60分超の作品（映画・パイロット版など）でも
+// 分が60を超えないよう、1時間以上は H:MM:SS に繰り上げる。
+export function secToTimeLabel(sec) {
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
   const s = sec % 60;
-  return `${m}:${String(s).padStart(2, '0')}`;
+  return h > 0
+    ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+    : `${m}:${String(s).padStart(2, '0')}`;
 }
 
 // クリック語を含む字幕キューを1つ特定して返す（経路②→①／#3 のサーバー側マッチ）。
