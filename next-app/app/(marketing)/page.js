@@ -5,12 +5,12 @@ import { useEffect, useRef } from 'react';
 // landing.html を忠実に移植したマーケLP。
 // 静的マークアップは dangerouslySetInnerHTML でそのまま描画し（SSR されるため SEO も維持）、
 // タブ切替とスクロール出現アニメだけ React 側の useEffect で配線する。
-// CTA リンクは外部URLではなく同一デプロイのアプリ（/）へ向ける。
+// CTA リンクは外部URLではなく同一デプロイのアプリ（/app）へ向ける。
 const MARKUP = `
 <!-- NAV -->
 <nav>
   <div class="logo">Cine<span>Learn</span></div>
-  <a href="/" class="nav-btn">今すぐ始める →</a>
+  <a href="/app" class="nav-btn">今すぐ始める →</a>
 </nav>
 
 <!-- HERO -->
@@ -30,7 +30,7 @@ const MARKUP = `
   </div>
 
   <div class="hero-btns">
-    <a href="/" class="btn-primary">🎬 無料で始める</a>
+    <a href="/app" class="btn-primary">🎬 無料で始める</a>
     <a href="#how" class="btn-outline">仕組みを見る</a>
   </div>
 
@@ -389,12 +389,12 @@ const MARKUP = `
           <span class="step-badge">STEP 1</span>
           <h3>URLをブラウザで開く</h3>
           <p>インストール不要。下のURLをChromeやSafariで開くだけで、すぐに使い始められます。スマホにも対応しています。</p>
-          <div class="note"><strong>URL：</strong> cine-learn.vercel.app</div>
+          <div class="note"><strong>URL：</strong> cinelearn-next.vercel.app</div>
         </div>
         <div class="illus">
           <div class="illus-bar">
             <div class="illus-dot"></div><div class="illus-dot"></div><div class="illus-dot"></div>
-            <div class="illus-url">🔒 cine-learn.vercel.app</div>
+            <div class="illus-url">🔒 cinelearn-next.vercel.app</div>
           </div>
           <div class="illus-body" style="text-align:center;padding:28px 20px">
             <div style="font-family:'Playfair Display',serif;font-size:28px;font-weight:700;color:#1a1a1a;margin-bottom:6px">Cine<span style="color:#b8923a">Learn</span></div>
@@ -631,16 +631,16 @@ const MARKUP = `
       学習の準備はすべてシステムに任せてください。
       あなたはただ、お気に入りのドラマを楽しむだけです。
     </p>
-    <a href="/" class="btn-primary">🎬 無料で始める</a>
+    <a href="/app" class="btn-primary">🎬 無料で始める</a>
   </div>
 </section>
 
 <!-- FOOTER -->
 <footer>
   <div class="logo">Cine<span>Learn</span></div>
-  <small>© 2025 CineLearn. ドラマで学ぶ、究極の英語習得。</small>
+  <small>© 2026 CineLearn. ドラマで学ぶ、究極の英語習得。</small>
   <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
-    <a href="/">アプリを開く →</a>
+    <a href="/app">アプリを開く →</a>
     <small style="color:#444;font-size:11px">This product uses the TMDB API but is not endorsed or certified by <a href="https://www.themoviedb.org" target="_blank" rel="noopener" style="color:#888">TMDB</a>.</small>
   </div>
 </footer>
