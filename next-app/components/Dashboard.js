@@ -113,7 +113,10 @@ export default function Dashboard() {
   useEffect(() => {
     const missing = data.entries.filter(
       (d) =>
-        (!d.drama.posterPath || d.drama.posterPath.includes('/w500')) &&
+        // 縦長カード化に伴い、未設定/旧縦長(w500)に加えて横長(w780)も縦ポスター(w342)へ取り直す
+        (!d.drama.posterPath ||
+          d.drama.posterPath.includes('/w500') ||
+          d.drama.posterPath.includes('/w780')) &&
         !attemptedPosters.current.has(d.drama.title)
     );
     if (!missing.length) return;
@@ -134,8 +137,9 @@ export default function Dashboard() {
           const hit = json.results?.[0];
           if (!hit?.backdrop_path && !hit?.poster_path) continue;
 
-          const imgPath = hit.backdrop_path || hit.poster_path;
-          const p = `https://image.tmdb.org/t/p/w780${imgPath}`;
+          // 縦長カード用に縦ポスター(poster_path)を優先。無ければ横長で代替。
+          const imgPath = hit.poster_path || hit.backdrop_path;
+          const p = `https://image.tmdb.org/t/p/w342${imgPath}`;
           found[drama.title] = p;
 
           const m = md.find((d) => d.title === drama.title);
@@ -155,9 +159,10 @@ export default function Dashboard() {
   }, [data]);
 
   // 取得済みポスターをカードに適用（履歴由来カードは drama オブジェクトが
-  // 再生成されるため、override で都度補完する）
+  // 再生成されるため、override で都度補完する）。縦ポスターへ取り直した既存カードも
+  // override で上書きして表示を差し替える。
   const entries = data.entries.map((e) =>
-    !e.drama.posterPath && posterOverrides[e.drama.title]
+    posterOverrides[e.drama.title]
       ? { ...e, drama: { ...e.drama, posterPath: posterOverrides[e.drama.title] } }
       : e
   );

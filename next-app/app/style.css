@@ -1535,7 +1535,8 @@ header {
   /* ツールバーと同じく中身を --content-max に収めて中央寄せ（左右最低40px） */
   padding: 28px max(40px, calc((100% - var(--content-max)) / 2));
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  /* おすすめと同様の縦長ポスターカードに合わせて細い列で並べる */
+  grid-template-columns: repeat(auto-fill, minmax(165px, 1fr));
   gap: 16px;
   align-content: start;
   min-height: 300px;
@@ -1566,11 +1567,12 @@ header {
 }
 
 .library-card-banner {
-  height: 160px;
+  /* おすすめカードと同じ縦長ポスター比率（2:3） */
+  aspect-ratio: 2 / 3;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 36px;
+  font-size: 40px;
   font-weight: 700;
   color: rgba(255,255,255,0.9);
   letter-spacing: -1px;
@@ -1609,16 +1611,16 @@ header {
 }
 
 .library-card-body {
-  padding: 14px 16px;
+  padding: 10px 12px;
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
 }
 
 .library-card-title {
-  font-size: 16px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 600;
   color: var(--text);
   white-space: nowrap;
   overflow: hidden;
@@ -1641,13 +1643,15 @@ header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 16px;
+  gap: 4px 8px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
   border-top: 1px solid var(--border);
   background: var(--surface2);
 }
 
 .library-card-date {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-muted);
 }
 
@@ -2956,7 +2960,8 @@ header {
      base 定義より後方の本ブロックで上書きし、左右16pxまで詰める。 */
   .today-panel  { padding: 14px 16px 0; }
   .main-toolbar { padding: 14px 16px 12px; }
-  .drama-library { padding: 20px 16px; gap: 12px; }
+  /* おすすめと同様、スマホでは縦長カードを2列で並べる */
+  .drama-library { padding: 20px 16px; gap: 12px; grid-template-columns: repeat(2, 1fr); }
   /* 単語カードの折りたたみ化は redesign セクション（③）で定義 */
 
   /* 検索欄が潰れないよう、ツールバーを縦積みに（検索＝全幅・追加＝全幅） */
