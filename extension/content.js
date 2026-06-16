@@ -985,9 +985,12 @@ function showMiniToast(msg) {
 //   再生中に位置がブレない。リサイズ／全画面でも動画に対して一定の位置を保つ。
 function positionControls() {
   if (!clControls) return;
+  // 字幕を一度も検出していない間（ブラウズ画面の自動再生トレーラー等）は出さない。
+  // ◀📋▶ は字幕送り/コピー用なので、視聴中に字幕が出てから初めて表示する。
   const v = getActiveVideo();
   const r = v ? v.getBoundingClientRect() : null;
-  if (!r || r.width <= 0 || r.height <= 0 || !isFinite(v.duration) || v.duration <= 0) {
+  if (!clEnabled || captionTimeline.length === 0 ||
+      !r || r.width <= 0 || r.height <= 0 || !isFinite(v.duration) || v.duration <= 0) {
     clControls.style.display = 'none';
     return;
   }
@@ -1077,9 +1080,13 @@ function createStatusBadge() {
   clBadge = document.createElement('div');
   clBadge.id = 'cl-badge';
   clBadge.innerHTML =
-    '<span class="cl-badge-dot"></span>' +
-    '<span class="cl-badge-label">CineLearn</span>' +
+    '<img class="cl-badge-logo" alt="CineLearn">' +
     '<span class="cl-badge-state">ON</span>';
+  // content script から拡張同梱画像を読むには web_accessible_resources 登録が必要。
+  // 接続切れ（リロード後の残留タブ）では getURL が例外を投げるためガードする。
+  try {
+    clBadge.querySelector('.cl-badge-logo').src = chrome.runtime.getURL('icons/icon-192.png');
+  } catch { /* ロゴ無しで続行 */ }
 
   clHint = document.createElement('div');
   clHint.id = 'cl-hint';
@@ -1116,8 +1123,10 @@ function createStatusBadge() {
   });
   clBadge.addEventListener('pointerleave', scheduleBadgeDim);
 
-  // 保存済みの ON/OFF 状態を反映 → 初回ヒント
+  // 保存済みの ON/OFF 状態を反映 → 初回ヒント（接続切れの残留タブでは触らない）
+  if (!chrome.runtime?.id) return;
   chrome.storage.local.get([CL_ENABLED_KEY, CL_HINT_SEEN_KEY], (r) => {
+    if (chrome.runtime.lastError) return;
     setEnabled(r[CL_ENABLED_KEY] !== false, false); // 未設定（undefined）は ON
     if (!r[CL_HINT_SEEN_KEY]) showHint();
   });
@@ -1128,7 +1137,7 @@ function createStatusBadge() {
 //   （再 ON で即復帰できる）。クリック等の挙動は clEnabled フラグで各ハンドラがゲートする。
 function setEnabled(on, persist = true) {
   clEnabled = !!on;
-  if (persist) chrome.storage.local.set({ [CL_ENABLED_KEY]: clEnabled });
+  if (persist && chrome.runtime?.id) chrome.storage.local.set({ [CL_ENABLED_KEY]: clEnabled });
   document.documentElement.classList.toggle('cl-disabled', !clEnabled);
   updateBadgeState();
 
@@ -1146,7 +1155,7 @@ function updateBadgeState() {
   if (!clBadge) return;
   clBadge.classList.toggle('cl-badge-off', !clEnabled);
   const st = clBadge.querySelector('.cl-badge-state');
-  if (st) st.textContent = clEnabled ? 'ON' : 'OFF';
+  if (st) st.textContent = clEnabled ? 'ON' : 'OFF'; // ON/OFF を常時表示＝トグルだと気づける
   clBadge.title = clEnabled
     ? 'CineLearn 起動中 — クリックでOFF'
     : 'CineLearn 停止中 — クリックでON';
@@ -1168,7 +1177,7 @@ function showHint() {
 function hideHint() {
   if (!clHint) return;
   clHint.style.display = 'none';
-  chrome.storage.local.set({ [CL_HINT_SEEN_KEY]: true });
+  if (chrome.runtime?.id) chrome.storage.local.set({ [CL_HINT_SEEN_KEY]: true });
   scheduleBadgeDim();
 }
 

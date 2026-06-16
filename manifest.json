@@ -18,19 +18,18 @@
 
   "content_scripts": [
     {
-      "matches": ["https://www.netflix.com/watch/*"],
+      "matches": ["https://www.netflix.com/*"],
       "js": ["extension/netflix-inject.js"],
       "run_at": "document_start",
       "world": "MAIN"
     },
     {
       "matches": [
-        "https://www.netflix.com/watch/*",
+        "https://www.netflix.com/*",
+        "https://www.primevideo.com/*",
         "https://www.youtube.com/watch*",
         "https://www.amazon.co.jp/gp/video/detail/*",
-        "https://www.amazon.co.jp/*/dp/*",
-        "https://www.primevideo.com/detail/*",
-        "https://www.primevideo.com/*/dp/*"
+        "https://www.amazon.co.jp/*/dp/*"
       ],
       "js": ["extension/content.js"],
       "css": ["extension/content.css"],
@@ -40,6 +39,18 @@
       "matches": ["https://cine-learn.vercel.app/*"],
       "js": ["extension/bridge.js"],
       "run_at": "document_idle"
+    }
+  ],
+
+  "web_accessible_resources": [
+    {
+      "resources": ["icons/icon-192.png"],
+      "matches": [
+        "https://www.netflix.com/*",
+        "https://www.primevideo.com/*",
+        "https://www.youtube.com/*",
+        "https://www.amazon.co.jp/*"
+      ]
     }
   ],
 

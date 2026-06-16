@@ -79,67 +79,57 @@
   transform: none !important;
 }
 
-/* ── 「CineLearn 起動中」バッジ＋初回ヒント ──────────────────────
-   クリック保存は常時ON（トグル無し）なので、動作中であることを可視化する。
-   ◀📋▶ コントロール（右下）と対になるよう左下へ。数秒で淡色化して邪魔しない。 */
+/* ── CineLearn ロゴバッジ（ON/OFF トグル）＋初回ヒント ──────────────
+   ロゴ＋ON/OFF ラベルを常時表示し、トグルだと一目で気づけるようにする。
+   視聴中は少しだけ淡色化して邪魔しない（消さない）。クリックで ON/OFF。
+   ◀📋▶ コントロール（右下）と対になるよう左下へ。 */
 #cl-badge {
   position: fixed !important;
   left: 2.5% !important;
   bottom: 16% !important;
   display: flex !important;
   align-items: center !important;
-  gap: 7px !important;
-  padding: 7px 13px !important;
-  background: rgba(20, 20, 20, 0.55) !important;
-  color: rgba(255, 255, 255, 0.92) !important;
-  border-radius: 20px !important;
-  font-family: system-ui, sans-serif !important;
-  font-size: 13px !important;
-  font-weight: 600 !important;
-  letter-spacing: 0.02em !important;
+  gap: 6px !important;
+  padding: 4px 9px 4px 5px !important;
+  background: rgba(20, 20, 20, 0.5) !important;
+  border-radius: 22px !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4) !important;
   cursor: pointer !important;
   user-select: none !important;
   z-index: 2147483647 !important;
   pointer-events: auto !important;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4) !important;
-  transition: opacity 0.4s, background 0.15s !important;
+  opacity: 0.9 !important;             /* 最初からしっかり見える＝機能に気づける */
+  transition: opacity 0.3s !important;
+  font-family: system-ui, sans-serif !important;
 }
-#cl-badge:hover { background: rgba(20, 20, 20, 0.82) !important; }
-#cl-badge.cl-badge-dim { opacity: 0.28 !important; }
+#cl-badge.cl-badge-dim { opacity: 0.55 !important; }   /* 視聴中は少し淡色化（ラベルは読める） */
+#cl-badge.cl-badge-off { opacity: 0.92 !important; }   /* OFFは戻す入口なのでしっかり見せる */
+#cl-badge:hover { opacity: 1 !important; }             /* ホバーではっきり（最後＝最優先） */
 
-.cl-badge-dot {
-  width: 8px !important;
-  height: 8px !important;
-  border-radius: 50% !important;
-  background: #c17f3b !important;
-  animation: cl-badge-pulse 2.4s infinite !important;
-}
-@keyframes cl-badge-pulse {
-  0%   { box-shadow: 0 0 0 0 rgba(193, 127, 59, 0.55); }
-  70%  { box-shadow: 0 0 0 7px rgba(193, 127, 59, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(193, 127, 59, 0); }
+.cl-badge-logo {
+  display: block !important;
+  width: 24px !important;
+  height: 24px !important;
+  border-radius: 6px !important;
 }
 
-/* ON/OFF 状態バッジ */
+/* 状態タグ：ON/OFF を常時表示。ON はアクセント色で目立たせる */
 .cl-badge-state {
+  display: inline-block !important;
   font-size: 11px !important;
   font-weight: 700 !important;
-  padding: 2px 7px !important;
+  padding: 2px 8px !important;
   border-radius: 10px !important;
-  background: rgba(193, 127, 59, 0.92) !important;
+  background: rgba(193, 127, 59, 0.95) !important;
   color: #fff !important;
   letter-spacing: 0.04em !important;
   line-height: 1.4 !important;
 }
-/* OFF 時：ドットの脈動を止めてグレーに、状態を中立色に。バッジ自体は見える(ON復帰の入口) */
-#cl-badge.cl-badge-off .cl-badge-dot {
-  background: rgba(255, 255, 255, 0.45) !important;
-  animation: none !important;
-  box-shadow: none !important;
-}
+/* OFF 時：ロゴをグレー化し、タグも中立色に */
+#cl-badge.cl-badge-off .cl-badge-logo { filter: grayscale(1) !important; }
 #cl-badge.cl-badge-off .cl-badge-state {
-  background: rgba(255, 255, 255, 0.2) !important;
-  color: rgba(255, 255, 255, 0.85) !important;
+  background: rgba(255, 255, 255, 0.22) !important;
+  color: rgba(255, 255, 255, 0.9) !important;
 }
 
 /* OFF（休止）時：字幕の単語下線とクリックを無効化し、◀📋▶ も隠す。
