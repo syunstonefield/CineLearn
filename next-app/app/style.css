@@ -1303,6 +1303,10 @@ header {
 .btn-icon-search:hover { color: var(--accent); }
 
 .btn-add-drama {
+  /* .btn-primary の width:100% を継承するとツールバー内で全幅化し、
+     隣の .toolbar-search を 2px まで潰してしまう。内容幅に戻す。 */
+  width: auto;
+  flex-shrink: 0;
   white-space: nowrap;
   padding: 9px 18px;
   font-size: 14px;
@@ -1965,6 +1969,21 @@ header {
   opacity: 0.65;
   line-height: 1.4;
 }
+/* 出所明示（著作権法48条）：例文＝字幕の逐語引用の出典表記 */
+.word-example-source {
+  font-size: 10px;
+  color: var(--text-muted);
+  opacity: 0.6;
+  line-height: 1.4;
+  margin-top: 2px;
+}
+.review-example-source {
+  font-style: normal;
+  font-size: 10px;
+  color: var(--text-muted);
+  opacity: 0.6;
+  margin-top: 4px;
+}
 
 .review-rate-btns {
   display: flex;
@@ -2443,6 +2462,15 @@ header {
   .gen-loading     { gap: 12px; padding: 0 0 10px; }
   .gen-synopsis    { padding: 13px 15px; }
   .gen-tip-card    { padding: 12px 15px; }
+
+  /* 単語カード：横並び4カラムのままだと和訳カラムが潰れて
+     「交/渉/を/…」と1文字ずつ縦書きに崩れる。
+     1行目=語ブロック＋操作ボタン / 2行目=品詞＋和訳全幅 に折り返す。 */
+  .vocab-item { flex-wrap: wrap; column-gap: 8px; row-gap: 6px; }
+  .vocab-item > div:first-child { flex: 1 1 auto; min-width: 0; order: 1; }
+  .vocab-item .vocab-card-actions { order: 2; flex-shrink: 0; margin-left: auto; }
+  .vocab-item .vocab-pos { order: 3; margin-top: 0; }
+  .vocab-item .vocab-def { order: 4; flex: 1 1 200px; min-width: 0; }
 }
 /* ════════════════════════════════════════════════════════════════
    ▼▼ next-app 独自オーバーライド ▼▼

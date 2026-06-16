@@ -10,6 +10,7 @@ import {
   reviewWord,
   recordReviewSession,
   getTodaySessions,
+  subtitleCredit,
 } from '@/lib/storage';
 
 // 既存 startReview / renderReviewCard（SRSフラッシュカード）の再現。
@@ -130,6 +131,8 @@ function ReviewCard({ word: w, idx, total, flipped, onFlip, onRate }) {
             <div className="review-example-text">
               <div>&quot;{w.example}&quot;</div>
               {w.example_ja && <div className="review-example-ja">{w.example_ja}</div>}
+              {/* 出所明示（著作権法48条）：例文を引いた作品・話・字幕元 */}
+              {subtitleCredit(w) && <div className="review-example-source">{subtitleCredit(w)}</div>}
             </div>
           )}
           <div className="review-rate-btns">

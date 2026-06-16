@@ -617,6 +617,12 @@ export default function VocabScreen() {
   const testTiers = settings.testTiers || ['core', 'advanced'];
   const showVocab = phase === 'vocab' || phase === 'saved';
 
+  // 出所明示（著作権法48条）：このリストの例文＝字幕の逐語引用の出典。
+  // drama語/ext語（字幕由来）に付け、plus語（Claude作例・字幕外）には付けない。
+  const exampleCredit = isMovie
+    ? `📺 ${drama.title}（字幕：OpenSubtitles）`
+    : `📺 ${drama.title} S${season}E${episode}（字幕：OpenSubtitles）`;
+
   // 進捗バー（buildProgressHTML 準拠）
   const pct = stats.total === 0 ? 0 : Math.round((stats.learned / stats.total) * 100);
   const barColor =
@@ -772,6 +778,7 @@ export default function VocabScreen() {
                     srs={srs}
                     testTiers={testTiers}
                     ts={timestamps.get(w.word)}
+                    exampleSource={exampleCredit}
                     onSpeak={speak}
                     onSkip={handleSkip}
                     onCopyTime={handleCopyTime}
@@ -802,7 +809,18 @@ export default function VocabScreen() {
               )}
 
               {stats.due > 0 ? (
-                <button className="btn-review-start" onClick={() => openReview(sortedVocab)}>
+                <button
+                  className="btn-review-start"
+                  onClick={() =>
+                    // 復習カードの出所明示用に、各語へ作品/話メタ（_src）を付帯（Dashboard経路と同形）
+                    openReview(
+                      sortedVocab.map((w) => ({
+                        ...w,
+                        _src: { title: drama.title, season, episode, type: drama.type },
+                      }))
+                    )
+                  }
+                >
                   🔴 今日の復習 {stats.due}単語を始める
                   {doneToday > 0 && <span className="review-done-count">（今日{doneToday}回済み）</span>}
                 </button>
@@ -826,6 +844,7 @@ export default function VocabScreen() {
                         srs={srs}
                         testTiers={testTiers}
                         ts={timestamps.get(w.word)}
+                        exampleSource={exampleCredit}
                         onSpeak={speak}
                         onSkip={handleSkip}
                         onCopyTime={handleCopyTime}

@@ -4,7 +4,7 @@ import { statusBadge, nextReviewLabel } from '@/lib/storage';
 
 // 既存 buildWordHTML / buildExtWordHTML の再現（1単語カード）。
 // ts = { sec, label } タイムスタンプ, srs = loadSrs() の結果
-export default function VocabItem({ word, srs, testTiers, ts, onSpeak, onSkip, onCopyTime }) {
+export default function VocabItem({ word, srs, testTiers, ts, exampleSource, onSpeak, onSkip, onCopyTime }) {
   const w = word;
   const e = srs[w.word.toLowerCase()];
   const status = (() => {
@@ -59,8 +59,11 @@ export default function VocabItem({ word, srs, testTiers, ts, onSpeak, onSkip, o
         </div>
         {w.example && (
           <div className="word-example-wrap">
-            <span className="word-example-en">{w.example}</span>
+            {/* 出所がある＝字幕の逐語引用なので "…" で明瞭区分（著作権法32条） */}
+            <span className="word-example-en">{exampleSource ? `“${w.example}”` : w.example}</span>
             {w.example_ja && <span className="word-example-ja">{w.example_ja}</span>}
+            {/* 出所明示（著作権法48条）：例文を引いた作品・話・字幕元 */}
+            {exampleSource && <span className="word-example-source">{exampleSource}</span>}
           </div>
         )}
       </div>

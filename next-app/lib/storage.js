@@ -42,6 +42,10 @@ export function toIsoDate(s) {
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
   const m = String(s).match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/);
   if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+  // ISO日時文字列（例: 2026-06-16T06:05:02.573Z、クラウド/シード由来）は
+  // 日付部分(YYYY-MM-DD)だけ取り出す。これが無いと formatDateJa が生文字列を返す。
+  const iso = String(s).match(/^(\d{4}-\d{2}-\d{2})T/);
+  if (iso) return iso[1];
   return s;
 }
 
@@ -122,10 +126,26 @@ export function getAllVocabWords(history = loadHistory()) {
   history.forEach((h) =>
     (h.words || []).forEach((w) => {
       const k = w.word?.toLowerCase();
-      if (k && !map.has(k)) map.set(k, w);
+      // 例文（字幕の逐語引用）の出所明示（著作権法48条）用に、語が属する作品/話を付帯。
+      // _src は集約コピー上のメタで、保存データ自体は変更しない。
+      if (k && !map.has(k))
+        map.set(k, {
+          ...w,
+          _src: { title: h.drama?.title, season: h.season, episode: h.episode, type: h.drama?.type },
+        });
     })
   );
   return [...map.values()];
+}
+
+// 例文（字幕の逐語引用）の出所表示文字列。著作権法48条の出所明示に用いる。
+// plus 語の例文は Claude 生成（字幕外）なので空文字＝出典を出さない。
+export function subtitleCredit(w) {
+  if (!w || w.source === 'plus') return '';
+  const s = w._src || {};
+  if (!s.title) return '';
+  const ep = s.type === 'movie' ? '' : ` S${s.season}E${s.episode}`;
+  return `📺 ${s.title}${ep}（字幕：OpenSubtitles）`;
 }
 
 // 今日復習すべき単語（未学習 or 期日到来）。期日到来を未学習より優先して並べる。
