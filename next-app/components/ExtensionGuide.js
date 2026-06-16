@@ -67,6 +67,9 @@ export default function ExtensionGuide() {
             Netflixなどで字幕の単語を集めるには、無料のChrome拡張機能が必要です。まだストア未公開のため、
             下記の手順で読み込んでください（所要2〜3分・Edgeなど他のChromium系ブラウザも同じ手順です）。
           </p>
+          <p className="ext-guide-note" style={{ marginTop: 0, marginBottom: 14 }}>
+            💻 この手順は<b>PC（Chrome / Edge）専用</b>です。スマホでは拡張機能を入れられないため、お使いのPCで開いて進めてください（スマホは予習・復習・テストに使えます）。
+          </p>
 
           <ol className="ext-guide-steps">
             {STEPS.map((s, i) => (

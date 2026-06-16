@@ -5,8 +5,9 @@
 // 初めてダッシュボードに来たときに自動表示する。いつでもヘッダーの「?」から再表示できる。
 // 役割は「機能紹介＋CineLearnでの学習の流れ」の説明（プロフィール初期設定の Onboarding とは別物）。
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useApp } from './AppProvider';
+import { isMobileDevice } from '@/lib/device';
 
 const ICON = {
   width: 40,
@@ -111,6 +112,11 @@ const SLIDES = [
 export default function WelcomeTutorial() {
   const { tutorial, closeTutorial, openGuide } = useApp();
   const [step, setStep] = useState(0);
+  // モバイルは拡張機能を入れられないので、インストール導線は出さず注記に切り替える。
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    setIsMobile(isMobileDevice());
+  }, []);
 
   const isFirst = step === 0;
   const isLast = step === SLIDES.length - 1;
@@ -137,8 +143,9 @@ export default function WelcomeTutorial() {
             <h2 className="onboarding-title">{slide.title}</h2>
             <p className="tutorial-desc">{slide.desc}</p>
             {slide.cta && (
+              // PC手順への導線は残す。モバイルでは「PC向け」と分かるラベルに変える。
               <button className="tutorial-cta" onClick={openGuide}>
-                {slide.cta}
+                {isMobile ? 'PCへの導入手順はこちら →' : slide.cta}
               </button>
             )}
           </div>

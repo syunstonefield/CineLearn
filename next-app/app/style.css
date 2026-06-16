@@ -2495,6 +2495,16 @@ header {
   background: rgba(0, 0, 0, 0.06);
   color: var(--text);
 }
+/* 案内バナー（モバイル）：×は右上の角に固定し、不要なら消せると分かりやすく */
+.ext-banner-info {
+  position: relative;
+  padding-right: 36px;
+}
+.ext-banner-info .ext-banner-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+}
 @media (max-width: 560px) {
   .ext-banner {
     flex-wrap: wrap;

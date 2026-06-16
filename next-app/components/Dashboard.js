@@ -7,6 +7,7 @@ import LibraryCard from './LibraryCard';
 import AddDramaModal from './AddDramaModal';
 import RecommendGrid from './RecommendGrid';
 import { getRecommendations } from '@/lib/recommended';
+import { isMobileDevice } from '@/lib/device';
 import {
   DAILY_REVIEW_CAP,
   buildLibraryEntries,
@@ -44,7 +45,11 @@ export default function Dashboard() {
   // 拡張機能の導入バナー（最初の関門対策で常設）。拡張未検出の判定はできないため、
   // インストール済みの人向けに×で消せる（消去は端末ローカルに記憶）。
   const [extBannerDismissed, setExtBannerDismissed] = useState(true); // SSR/初回は隠す
+  // モバイル（iOS/Android）では Chrome 拡張を入れられないため、インストール導線ではなく
+  // 「予習・復習用」の説明に切り替える。SSR/初回は false（デスクトップ扱い）で統一。
+  const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
+    setIsMobile(isMobileDevice());
     try {
       setExtBannerDismissed(localStorage.getItem('cl_ext_banner_dismissed') === '1');
     } catch {
@@ -164,20 +169,36 @@ export default function Dashboard() {
 
   return (
     <div className="screen active" id="screen-main">
-      {!extBannerDismissed && (
-        <div className="ext-banner">
-          <span className="ext-banner-icon" aria-hidden="true">🧩</span>
-          <span className="ext-banner-text">
-            Netflixなどで単語を集めるには、無料の拡張機能が必要です
-          </span>
-          <button className="ext-banner-btn" onClick={openGuide}>
-            入れ方を見る →
-          </button>
-          <button className="ext-banner-close" onClick={dismissExtBanner} aria-label="バナーを閉じる">
-            ✕
-          </button>
-        </div>
-      )}
+      {!extBannerDismissed &&
+        (isMobile ? (
+          // モバイルは拡張機能を入れられない → 「今すぐ入れる」ではなく、PC向け手順への
+          // リンクとして残す（あとでPCで導入できるよう案内）。
+          <div className="ext-banner ext-banner-info">
+            <span className="ext-banner-icon" aria-hidden="true">📱</span>
+            <span className="ext-banner-text">
+              ドラマ・映画を視聴中に字幕の単語をクリックして保存するにはPCでChrome拡張導入が必要です。スマホは予習・復習・テストに使えます。
+            </span>
+            <button className="ext-banner-btn" onClick={openGuide}>
+              PCへの導入手順はこちら →
+            </button>
+            <button className="ext-banner-close" onClick={dismissExtBanner} aria-label="バナーを閉じる">
+              ✕
+            </button>
+          </div>
+        ) : (
+          <div className="ext-banner">
+            <span className="ext-banner-icon" aria-hidden="true">🧩</span>
+            <span className="ext-banner-text">
+              Netflixなどで単語を集めるには、無料の拡張機能が必要です
+            </span>
+            <button className="ext-banner-btn" onClick={openGuide}>
+              入れ方を見る →
+            </button>
+            <button className="ext-banner-close" onClick={dismissExtBanner} aria-label="バナーを閉じる">
+              ✕
+            </button>
+          </div>
+        ))}
 
       <TodayPanel
         streak={data.streak}
