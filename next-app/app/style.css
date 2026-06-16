@@ -1691,6 +1691,10 @@ header {
   max-width: 560px;
   width: 90%;
 }
+/* 設定モーダルは本文が縁に密着して窮屈なので、左右に余白を持たせる（設定専用） */
+.modal-panel-wide .modal-body {
+  padding: 4px 24px 24px;
+}
 
 .settings-section {
   margin-bottom: 28px;
