@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import AppProvider, { useApp } from '@/components/AppProvider';
+import AppProvider, { useApp, PROFILE_SELECT_ENABLED } from '@/components/AppProvider';
 import Header from '@/components/Header';
 import Dashboard from '@/components/Dashboard';
 import ServiceSelect from '@/components/ServiceSelect';
@@ -75,7 +75,7 @@ function AppShell() {
         profile={headerProfile}
         wordCount={wordCount}
         onLogoClick={goHome}
-        onSwitchProfile={switchProfile}
+        onSwitchProfile={PROFILE_SELECT_ENABLED ? switchProfile : null}
         onWordbook={openWordbook}
         onSettings={openSettings}
         onHelp={openTutorial}
@@ -85,7 +85,9 @@ function AppShell() {
       />
 
       <main id="mainContent">
-        {screen === 'profile-select' && <ProfileSelect />}
+        {/* 封印中（PROFILE_SELECT_ENABLED=false）は「だれが観ますか？」を描画しない。
+            AppProvider の自動遷移エフェクトが既定プロフィールへ入れるまでの一瞬だけ空になる。 */}
+        {screen === 'profile-select' && PROFILE_SELECT_ENABLED && <ProfileSelect />}
         {screen === 'onboarding' && <Onboarding />}
         {screen === 'main' && <Dashboard />}
         {screen === 'recommend' && <RecommendScreen />}

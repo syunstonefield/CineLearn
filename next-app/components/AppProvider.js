@@ -31,6 +31,25 @@ const AVATAR_COLORS = [
   '#E65100', '#00695C', '#F57F17', '#AD1457',
 ];
 
+// プロフィール選択（「だれが観ますか？」マルチプロフィール）の封印フラグ。
+// 単一ユーザー運用に寄せるため、選択画面を出さず既定プロフィールへ直行する。
+// ★戻したくなったら true にするだけ。ProfileSelect コンポーネントや
+//   addProfile / selectProfile / switchProfile などのロジックは全て残してある。
+export const PROFILE_SELECT_ENABLED = false;
+// 封印時、ローカルにプロフィールが1つも無い新規ユーザー向けに静かに作る既定名。
+const DEFAULT_PROFILE_NAME = 'あなた';
+
+// 使い方ガイドは「自動ポップアップは端末ごとに一度だけ」。閉じる時ではなく
+// “表示した瞬間”に既読化する（閉じずにリロード／タブを閉じても再表示しないため）。
+// 以降は必要な人がヘッダーの「?」から開く。
+function markTutorialSeen() {
+  try {
+    localStorage.setItem('cl_tutorial_seen', '1');
+  } catch {
+    /* ignore */
+  }
+}
+
 export default function AppProvider({ children }) {
   const [profile, setProfile] = useState(null);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
@@ -59,6 +78,9 @@ export default function AppProvider({ children }) {
   // localStorage はクライアントのマウント後にしか読めない。
   // SSR/初回クライアントレンダーは mounted=false で統一し、ハイドレーション不一致を防ぐ。
   const [mounted, setMounted] = useState(false);
+  // 起動時の認証判定（オートログイン or ログインモーダル表示）が終わるまでは
+  // プロフィール自動遷移を待たせるためのフラグ（封印モードでのみ参照）。
+  const [bootstrapping, setBootstrapping] = useState(true);
 
   useEffect(() => {
     setMounted(true);
@@ -80,6 +102,9 @@ export default function AppProvider({ children }) {
         }
       } catch {
         /* オートログイン失敗は無視 */
+      } finally {
+        // 認証判定完了。封印モードの自動遷移エフェクトをここから動かす。
+        setBootstrapping(false);
       }
     })();
     // タブを開いている間は期限が近づいたら自動更新（約1時間で失効するため）
@@ -164,6 +189,9 @@ export default function AppProvider({ children }) {
     setProfile(null);
     setScreen('profile-select');
     setCloudVersion((v) => v + 1);
+    // 封印モードでは profile-select 画面を出さないので、ログアウト後はログイン/ようこそを
+    // 再提示する（skip すれば自動遷移エフェクトが既定プロフィールへ入れる）。
+    if (!PROFILE_SELECT_ENABLED) setAuthOpen(true);
   }, []);
 
   // プロフィールを選択してアプリに入る（既存 selectProfile 相当）
@@ -209,8 +237,12 @@ export default function AppProvider({ children }) {
     // 初回はまず使い方ガイドを見せ、閉じたときに作品追加へ進む（closeTutorial が担当）。
     // すでにガイドを見た端末（2人目のプロフィール作成など）は従来どおり直接作品追加へ。
     const seen = typeof window !== 'undefined' && localStorage.getItem('cl_tutorial_seen') === '1';
-    if (seen) setPendingAddDrama({ tab: 'search', query: '' });
-    else setTutorial('onboarding');
+    if (seen) {
+      setPendingAddDrama({ tab: 'search', query: '' });
+    } else {
+      markTutorialSeen(); // 表示と同時に既読化＝自動表示は一度だけ
+      setTutorial('onboarding');
+    }
   }, []);
 
   const deleteProfile = useCallback((id) => {
@@ -222,6 +254,20 @@ export default function AppProvider({ children }) {
     setProfile(null);
     setScreen('profile-select');
   }, []);
+
+  // プロフィール選択UI封印時の自動遷移。
+  // 「未選択・ログインモーダル無し・起動判定済み」の状態になったら既定プロフィールへ入る。
+  // この1本で startup（ログイン済み）/ skip / login後 / logout後 を全部カバーする。
+  // ログイン済みでクラウドに複数プロフィールがある場合は先頭を採用（単一ユーザー運用の割り切り）。
+  useEffect(() => {
+    if (PROFILE_SELECT_ENABLED) return;
+    if (!mounted || bootstrapping) return; // 認証判定が終わるまで待つ
+    if (profile) return;                   // 既にアプリに入っている
+    if (authOpen) return;                  // ログイン/ようこそ提示中は待つ
+    const profiles = loadProfiles();
+    if (profiles.length) selectProfile(profiles[0].id);
+    else addProfile(DEFAULT_PROFILE_NAME); // 新規ユーザー → 既定プロフィールを作りオンボーディングへ
+  }, [mounted, bootstrapping, profile, authOpen, selectProfile, addProfile]);
 
   // 設定変更を profile に永続化（app.js の saveSettings 相当）。
   // 更新関数（setState）の中で副作用を呼ぶとレンダー中更新になるため、
@@ -333,11 +379,7 @@ export default function AppProvider({ children }) {
   // ウェルカム・チュートリアル（ヘッダーの「?」から再表示・常に help モード）
   const openTutorial = useCallback(() => setTutorial('help'), []);
   const closeTutorial = useCallback(() => {
-    try {
-      localStorage.setItem('cl_tutorial_seen', '1');
-    } catch {
-      /* ignore */
-    }
+    markTutorialSeen(); // 表示時に既読化済みだが念のため
     // オンボーディング流入時のみ、閉じたら作品追加モーダルへ橋渡しする。
     if (tutorial === 'onboarding') setPendingAddDrama({ tab: 'search', query: '' });
     setTutorial(null);
@@ -352,6 +394,7 @@ export default function AppProvider({ children }) {
     } catch {
       return;
     }
+    markTutorialSeen(); // 表示と同時に既読化＝自動表示は一度だけ（以降は「?」から）
     setTutorial('help');
   }, [mounted, profile, screen, settingsOpen, tutorial]);
 

@@ -78,8 +78,9 @@ export default function Header({
         Cine<span>Learn</span>
       </div>
       <div className="header-right">
-        {/* .btn-profile-switch のCSS既定は display:none。既存JSと同様に表示時だけ flex を当てる */}
-        {profile && (
+        {/* .btn-profile-switch のCSS既定は display:none。既存JSと同様に表示時だけ flex を当てる。
+            プロフィール選択を封印中は onSwitchProfile が null で渡るのでチップ自体を出さない。 */}
+        {profile && onSwitchProfile && (
           <button
             className="btn-profile-switch"
             style={{ display: 'flex' }}
