@@ -7,6 +7,8 @@ export const metadata = {
   // ホーム画面に追加した時の表示（iOS/Android）
   appleWebApp: { capable: true, statusBarStyle: 'default', title: 'CineLearn' },
   icons: { icon: '/favicon.ico', apple: '/apple-touch-icon.png' },
+  // ソフトローンチ中は低露出方針で検索インデックスを切る（後述の方針が固まったら解除）。
+  robots: { index: false, follow: false },
 };
 
 export const viewport = {

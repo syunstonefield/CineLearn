@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "CineLearn",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "ドラマで英語を学ぶ — Netflixなどの字幕単語をクリックして単語帳に保存",
 
   "permissions": ["storage", "tabs"],

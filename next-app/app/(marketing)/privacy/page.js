@@ -79,6 +79,10 @@ export default function PrivacyPage() {
           <strong>Anthropic（Claude API）</strong>：単語リストの生成・AIによる文章処理。
           送信したテキストは Anthropic の方針により AI モデルの学習には利用されません。
         </li>
+        <li style={li}>
+          <strong>Microsoft（Azure AI Translator）</strong>：単語の英日翻訳。
+          翻訳のためにクリックした単語のみを送信します（字幕の文は送信しません）。
+        </li>
         <li style={li}><strong>Vercel</strong>：本サービスのホスティング</li>
       </ul>
 

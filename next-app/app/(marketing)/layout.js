@@ -8,6 +8,9 @@ export const metadata = {
   description:
     'Netflix・YouTubeを観ながら英語が身につく。AIと忘却曲線アルゴリズムが、あなたの視聴体験を最強の学習ルーティンに変える。',
   icons: { icon: '/favicon.ico', apple: '/apple-touch-icon.png' },
+  // ソフトローンチ中は低露出方針で検索インデックスを切る（X・直リンク等で配布）。
+  // フィードバックで製品が固まり、法的カバーが進んだ段で index:true に切替。
+  robots: { index: false, follow: false },
 };
 
 export const viewport = {
