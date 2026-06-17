@@ -46,6 +46,7 @@ let popup = null;
 let clControls       = null; // ◀ 📋 ▶ コントロール群
 let clMiniToast      = null; // コピー結果のミニトースト
 let clMiniToastTimer = null;
+let clHoverTip       = null; // ホバーだけで訳を出す小さなツールチップ
 let clBadge          = null; // 「CineLearn」ON/OFF バッジ（OFF でも残してON復帰の入口にする）
 let clHint           = null; // 初回のクリック保存ヒントふきだし
 let clBadgeDimTimer  = null; // 数秒後にバッジを淡色化するタイマー
@@ -130,6 +131,8 @@ document.addEventListener('click', handleClick, true);
 let hoveredWord      = null;
 let isSubtitleHovered = false;
 let rafPending        = false;
+let hoverTipTimer    = null;          // ホバー滞留のデバウンス
+const jaCache        = new Map();     // 単語→英日訳のクライアントキャッシュ（連続ホバーの再取得防止）
 
 document.addEventListener('mousemove', (e) => {
   if (rafPending) return;
@@ -152,9 +155,11 @@ document.addEventListener('mousemove', (e) => {
       wordEl.classList.add('cl-word-active');
       isSubtitleHovered = true;
       pauseVideo();
+      scheduleHoverTip(wordEl); // ホバーだけで訳を出す（クリック不要）
     } else {
       isSubtitleHovered = false;
       resumeVideo();
+      hideHoverTip();
     }
   });
 }, { passive: true });
@@ -200,6 +205,12 @@ function init() {
     overflow: 'hidden', border: '1px solid rgba(0,0,0,0.1)',
   });
   document.body.appendChild(popup);
+
+  // ホバー訳ツールチップ（pointer-events:none＝ホバー検出を邪魔しない）
+  clHoverTip = document.createElement('div');
+  clHoverTip.id = 'cl-hovertip';
+  clHoverTip.style.display = 'none';
+  document.body.appendChild(clHoverTip);
 
   // ポップアップ外クリックで閉じる
   document.addEventListener('click', (e) => {
@@ -324,6 +335,93 @@ async function lookupWord(word) {
   } catch {
     return null;
   }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// 英日訳（公式翻訳API＝DeepL/Azure を background 経由で）
+//   鍵をサーバー側に隠すため content.js からは外部APIを直接叩かず、
+//   background → cinelearn-next /api/translate に中継する（結果はサーバーでキャッシュ）。
+//   英英定義（lookupWord）と並べて日本語の意味も出す。失敗・鍵未設定は null で英語のみ。
+// ─────────────────────────────────────────────────────────────────
+function translateToJa(word) {
+  return new Promise((resolve) => {
+    if (!word || !chrome.runtime?.id) return resolve(null);
+    try {
+      chrome.runtime.sendMessage({ type: 'CL_TRANSLATE_JA', word }, (res) => {
+        if (chrome.runtime.lastError) return resolve(null); // 接続切れ等は黙って諦める
+        resolve(res?.ja || null);
+      });
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+// 訳をクライアント側でもキャッシュ（ホバーとクリックで二重に取得しない・連続ホバーの抑制）。
+function getJaCached(word) {
+  const key = (word || '').toLowerCase();
+  if (jaCache.has(key)) return Promise.resolve(jaCache.get(key));
+  return translateToJa(word).then((ja) => {
+    jaCache.set(key, ja);
+    return ja;
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────
+// ホバー訳ツールチップ（クリックしなくても訳が見える）
+//   字幕の単語に一定時間カーソルが乗ったら、その上に日本語訳を出す。
+//   通り過ぎるだけの語で API を叩かないようデバウンスし、結果はキャッシュ。
+// ─────────────────────────────────────────────────────────────────
+function scheduleHoverTip(wordEl) {
+  clearTimeout(hoverTipTimer);
+  if (popup && popup.style.display === 'flex') { hideHoverTip(); return; } // 詳細ポップアップ中は出さない
+  hoverTipTimer = setTimeout(() => showHoverTip(wordEl), 300);
+}
+
+async function showHoverTip(wordEl) {
+  if (!clHoverTip || !wordEl || hoveredWord !== wordEl) return; // 既に別の語へ移っていたら出さない
+  if (popup && popup.style.display === 'flex') return;
+  const word = wordEl.dataset.word;
+  if (!word) return;
+
+  // キャッシュ済みなら即時、未取得ならローディング表示してから取得
+  const cached = jaCache.get(word.toLowerCase());
+  if (cached !== undefined) {
+    if (!cached) return hideHoverTip();        // 訳が取れない語は出さない
+    clHoverTip.textContent = cached;
+  } else {
+    clHoverTip.textContent = '…';
+  }
+  positionHoverTip(wordEl);
+
+  if (cached !== undefined) return;            // キャッシュ表示で完了
+
+  const ja = await getJaCached(word);
+  if (hoveredWord !== wordEl) return;          // 取得中に別の語へ移った
+  if (!ja) return hideHoverTip();
+  clHoverTip.textContent = ja;
+  positionHoverTip(wordEl);
+}
+
+function positionHoverTip(wordEl) {
+  if (!clHoverTip) return;
+  clHoverTip.style.visibility = 'hidden';
+  clHoverTip.style.display = 'block';
+  const r  = wordEl.getBoundingClientRect();
+  const th = clHoverTip.offsetHeight || 32;
+  const tw = clHoverTip.offsetWidth  || 80;
+  let top  = r.top - th - 8;
+  if (top < 8) top = r.bottom + 8;             // 上に収まらなければ下へ
+  let left = r.left + r.width / 2 - tw / 2;
+  left = Math.max(8, Math.min(left, window.innerWidth - tw - 8));
+  clHoverTip.style.top  = `${top}px`;
+  clHoverTip.style.left = `${left}px`;
+  clHoverTip.style.visibility = 'visible';
+}
+
+function hideHoverTip() {
+  clearTimeout(hoverTipTimer);
+  if (clHoverTip) clHoverTip.style.display = 'none';
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -567,6 +665,7 @@ function requestExampleBackfill(entry) {
 // ─────────────────────────────────────────────────────────────────
 async function showWordPopup(word, sentence, rect) {
   if (!popup) return;
+  hideHoverTip(); // 詳細ポップアップと重ねない
 
   // Netflix のオーバーレイが消える前に即座に取得
   const ctx = getEpisodeContext();
@@ -581,7 +680,9 @@ async function showWordPopup(word, sentence, rect) {
       <div style="font-size:12px;color:#aaa;margin-top:4px">辞書を検索中...</div>
     </div>`;
 
-  const dict = await lookupWord(word);
+  // 英英定義と英日訳を並行取得（どちらかが失敗してももう一方を表示）。
+  // 訳はホバーと同じキャッシュを使い、同じ語を二重に取得しない。
+  const [dict, ja] = await Promise.all([lookupWord(word), getJaCached(word)]);
 
   popup.innerHTML = `
     <div style="padding:16px 16px 12px;border-bottom:1px solid #f0f0f0">
@@ -592,9 +693,10 @@ async function showWordPopup(word, sentence, rect) {
       ${dict?.pos ? `<span style="font-size:10px;color:#5b4fd4;
         border:1px solid rgba(91,79,212,0.3);border-radius:3px;padding:1px 6px">
         ${dict.pos}</span>` : ''}
-      <div style="margin-top:8px;font-size:13px;color:#333;line-height:1.6">
-        ${dict?.definition || '<span style="color:#aaa">定義が見つかりませんでした</span>'}
-      </div>
+      ${ja ? `<div style="margin-top:8px;font-size:15px;color:#222;font-weight:600;line-height:1.5">${ja}</div>` : ''}
+      ${dict?.definition ? `<div style="margin-top:${ja ? '6px' : '8px'};font-size:13px;
+        color:${ja ? '#777' : '#333'};line-height:1.6">${dict.definition}</div>` : ''}
+      ${(!ja && !dict?.definition) ? `<div style="margin-top:8px;font-size:13px;color:#aaa">訳・定義が見つかりませんでした</div>` : ''}
       ${sentence ? `<div style="margin-top:8px;font-size:11px;color:#aaa;
         line-height:1.5;font-style:italic;
         border-top:1px solid #f5f5f5;padding-top:8px">"${sentence}"</div>` : ''}
@@ -1018,6 +1120,7 @@ function relocateControlsForFullscreen() {
   if (clMiniToast && clMiniToast.parentElement !== host) host.appendChild(clMiniToast);
   if (clBadge && clBadge.parentElement !== host) host.appendChild(clBadge);
   if (clHint && clHint.parentElement !== host) host.appendChild(clHint);
+  if (clHoverTip && clHoverTip.parentElement !== host) host.appendChild(clHoverTip);
   positionControls();
 }
 
@@ -1145,6 +1248,7 @@ function setEnabled(on, persist = true) {
     // 休止：ホバー解除・開いている単語ポップアップを閉じる・オーバーレイを隠す
     if (hoveredWord) { hoveredWord.classList.remove('cl-word-active'); hoveredWord = null; }
     isSubtitleHovered = false;
+    hideHoverTip();
     closePopupAndResume();
     if (clOverlay) clOverlay.style.display = 'none';
   }

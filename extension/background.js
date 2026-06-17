@@ -37,6 +37,19 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       .catch(() => sendResponse({ found: false }));
     return true; // 非同期レスポンス
   }
+  // 単語クリック時の英日訳（公式翻訳APIの鍵をサーバー側に隠すため /api/translate を代理）。
+  // content.js から外部翻訳APIを直接叩かず、鍵はサーバーに保管・結果はサーバーでキャッシュする。
+  if (msg.type === 'CL_TRANSLATE_JA') {
+    fetch(`${CINELEARN_NEXT_URL}/api/translate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ word: msg.word }),
+    })
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status))))
+      .then(data => sendResponse(data))
+      .catch(() => sendResponse({ ja: null }));
+    return true; // 非同期レスポンス
+  }
 });
 
 // セッションを有効な状態に保つ（js/supabase.js の ensureFreshSession と同等）。

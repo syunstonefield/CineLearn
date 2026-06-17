@@ -79,6 +79,27 @@
   transform: none !important;
 }
 
+/* ホバー訳ツールチップ（クリックしなくても訳が見える）。
+   pointer-events:none で、ホバー検出（elementsFromPoint）を邪魔しない。 */
+#cl-hovertip {
+  position: fixed !important;
+  z-index: 2147483647 !important;
+  pointer-events: none !important;
+  background: rgba(20, 20, 20, 0.95) !important;
+  color: #fff !important;
+  font-family: system-ui, sans-serif !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  line-height: 1.45 !important;
+  padding: 6px 12px !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5) !important;
+  max-width: 280px !important;
+  text-align: center !important;
+  /* display は JS がインラインで切替（!important を付けるとインライン block を上書きできず出なくなる）。
+     初期非表示は init の inline style.display='none' が担当。 */
+}
+
 /* ── CineLearn ロゴバッジ（ON/OFF トグル）＋初回ヒント ──────────────
    ロゴ＋ON/OFF ラベルを常時表示し、トグルだと一目で気づけるようにする。
    視聴中は少しだけ淡色化して邪魔しない（消さない）。クリックで ON/OFF。
