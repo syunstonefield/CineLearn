@@ -318,6 +318,15 @@ export default function SettingsModal({ onClose }) {
               CineLearn は Netflix・Amazon と提携・公認関係にありません。
               <br />
               <a
+                href="/terms"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: 'var(--accent)' }}
+              >
+                利用規約
+              </a>
+              {' ・ '}
+              <a
                 href="/privacy"
                 target="_blank"
                 rel="noopener noreferrer"

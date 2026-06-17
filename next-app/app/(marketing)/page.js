@@ -643,6 +643,7 @@ const MARKUP = `
   <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
     <div style="display:flex;gap:14px;flex-wrap:wrap;justify-content:flex-end">
       <a href="/app">アプリを開く →</a>
+      <a href="/terms">利用規約</a>
       <a href="/privacy">プライバシーポリシー</a>
       <a href="mailto:cinelearn.202606@gmail.com">お問い合わせ</a>
     </div>
