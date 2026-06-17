@@ -208,7 +208,11 @@ export default function VocabScreen() {
   const loadExtWords = useCallbackSafe(
     async (se, ep, existing) => {
       if (!drama) return;
+      // 取得（ネットワーク）が遅れて別エピソードへ切り替えた後に解決しても、
+      // 現在表示中の話に別話の拡張単語を出さないよう世代を捕捉する。
+      const myReq = reqId.current;
       const ext = await getMyWordsForEpisode(drama, se, ep, pid, subMem.current.text);
+      if (myReq !== reqId.current) return; // 別エピソードへ移っていたら破棄
       const existingSet = new Set((existing || []).map((w) => w.word.toLowerCase()));
       const newExt = ext
         .filter((w) => !existingSet.has(w.word.toLowerCase()))
@@ -226,7 +230,7 @@ export default function VocabScreen() {
       if (newExt.length) {
         translateExtWordDefinitions(newExt, pid)
           .then((changed) => {
-            if (changed) setExtWords([...newExt]);
+            if (changed && myReq === reqId.current) setExtWords([...newExt]);
           })
           .catch(() => {});
       }
