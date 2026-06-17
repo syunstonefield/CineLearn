@@ -1,6 +1,8 @@
 // 既存アプリ（js/app.js）からの移植。
 // localStorage のキー・データ構造は既存実装と完全に同一に保つこと。
 
+import { pushHistoryEntry, deleteHistoryRow } from './supabase';
+
 export const HISTORY_KEY = 'cl_history';
 export const SRS_KEY = 'cl_srs';
 export const PROFILES_KEY = 'cl_profiles';
@@ -436,18 +438,22 @@ export function saveHistoryEntry(ctx) {
   );
 
   let resultId;
+  let pushed;
   if (existingIdx >= 0) {
     const kept = history[existingIdx];
     history[existingIdx] = { ...entry, id: kept.id, quizScore: kept.quizScore, quizDate: kept.quizDate };
     resultId = kept.id;
+    pushed = history[existingIdx];
   } else {
     history.unshift(entry);
     resultId = newId;
+    pushed = entry;
   }
 
   const saved = history.slice(0, 50);
   safeSet(HISTORY_KEY, JSON.stringify(saved));
   markActivityToday();
+  pushHistoryEntry(pushed); // クラウド history へ反映（ログイン時・fire-and-forget）
   return resultId;
 }
 
@@ -458,6 +464,7 @@ export function updateHistoryWords(id, words) {
   if (idx >= 0) {
     history[idx].words = words;
     safeSet(HISTORY_KEY, JSON.stringify(history));
+    pushHistoryEntry(history[idx]); // 完全なエントリでクラウドへ upsert
   }
 }
 
@@ -468,6 +475,7 @@ export function updateHistoryQuizData(id, quiz) {
   if (idx >= 0) {
     history[idx].quiz = quiz;
     safeSet(HISTORY_KEY, JSON.stringify(history));
+    pushHistoryEntry(history[idx]);
   }
 }
 
@@ -480,6 +488,7 @@ export function updateHistoryScore(id, pct) {
     history[idx].quizScore = pct;
     history[idx].quizDate = todayStr();
     safeSet(HISTORY_KEY, JSON.stringify(history));
+    pushHistoryEntry(history[idx]);
   }
 }
 
@@ -488,6 +497,7 @@ export function deleteHistoryEntry(id, drama, season, episode) {
   if (id) {
     const history = loadHistory().filter((h) => h.id !== id);
     safeSet(HISTORY_KEY, JSON.stringify(history));
+    deleteHistoryRow(id); // クラウドからも削除（ログイン時・fire-and-forget）
   }
   if (drama && season && episode) {
     const title = (drama.englishTitle || drama.title).toLowerCase().replace(/[^a-z0-9]/g, '_');

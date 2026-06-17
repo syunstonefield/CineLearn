@@ -1,6 +1,10 @@
-// Supabase 連携（★読み取り専用★）。js/supabase.js から移植。
-// 重要：本番データを変更しないため cloudSync（書き込み）は移植しない。
-// pull（クラウド→localStorage）と認証（サインイン/リフレッシュ）のみ。
+// Supabase 連携。js/supabase.js から移植。
+// 原則 pull（クラウド→localStorage）＋認証（サインイン/リフレッシュ）。
+// 例外：学習履歴(history)のみ双方向にする（pushHistoryEntry / deleteHistoryRow）。
+//   理由: pull は cl_history を丸ごと上書きするため、push が無いと端末での
+//   削除/再生成が次回 pull で失われ、クラウドに残った破損行が復活してしまう
+//   （別話の単語が表示されるバグ）。history 以外（profiles/srs/my_words）は
+//   従来どおり読み取り専用のまま。
 const SUPABASE_URL = 'https://mndyexwdevkpdssglwpl.supabase.co';
 const SUPABASE_ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1uZHlleHdkZXZrcGRzc2dsd3BsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0MTcyOTQsImV4cCI6MjA5NTk5MzI5NH0.P6GDNdWAGMPpjc1zltGS9LAFWej5M8knchqTIDDNrE4';
@@ -171,4 +175,47 @@ export async function pullFromCloud(profileId = null) {
     // （拡張機能で増えた単語をフォーカス時の再取得で単語帳に出すため）
     if (profileId) localStorage.setItem(`cl_my_words_${profileId}`, wordsList);
   }
+}
+
+// ── history のみ双方向（★書き込み★）─────────────────────────────
+// 学習履歴の作成/更新をクラウド history テーブルへ upsert（主キー id で衝突解決）。
+// ログイン時のみ・fire-and-forget（失敗は握りつぶす＝学習体験を壊さない）。
+// drama/season/episode は schema 上 NOT NULL なので、必ず「完全なエントリ」を渡すこと
+// （部分更新を merge-duplicates で送ると NOT NULL を壊す）。
+export async function pushHistoryEntry(entry) {
+  if (!isLoggedIn() || !entry?.id) return;
+  const uid = getCurrentUser()?.id;
+  if (!uid) return;
+  await sbFetch('/rest/v1/history', {
+    method: 'POST',
+    headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify([
+      {
+        id: entry.id,
+        user_id: uid,
+        drama: entry.drama,
+        season: entry.season,
+        episode: entry.episode,
+        level: entry.level ?? null,
+        target_level: entry.targetLevel ?? null,
+        words: entry.words || [],
+        quiz: entry.quiz || [],
+        quiz_score: entry.quizScore ?? null,
+        quiz_date: entry.quizDate ?? null,
+        date: entry.date ?? null,
+        updated_at: new Date().toISOString(),
+      },
+    ]),
+  });
+}
+
+// 履歴エントリをクラウドから削除（自分の行のみ）。ログイン時のみ。
+export async function deleteHistoryRow(id) {
+  if (!isLoggedIn() || !id) return;
+  const uid = getCurrentUser()?.id;
+  if (!uid) return;
+  await sbFetch(`/rest/v1/history?id=eq.${encodeURIComponent(id)}&user_id=eq.${uid}`, {
+    method: 'DELETE',
+    headers: { Prefer: 'return=minimal' },
+  });
 }
