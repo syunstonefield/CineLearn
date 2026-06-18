@@ -32,15 +32,21 @@ function json(obj, status = 200) {
 }
 
 // 正規アプリ（next-app / cine-learn / localhost / 拡張）からの呼び出しのみ許可。
+//   このルートを叩くのは next-app ブラウザの同一オリジン POST（VocabScreen の contributeVocab）と
+//   Node シード（CINELEARN_API_ORIGIN を明示付与）のみ。いずれも Origin か Referer が必ず付く＝
+//   空 Origin の正規経路は無いので空は拒否する。Origin 詐称は可能なので主防御にはしない（決定3）。
+const ALLOWED_HOSTS = ['cinelearn-next.vercel.app', 'cine-learn.vercel.app']; // 本番ホスト完全一致
 function allowedOrigin(req) {
   const s = req.headers.get('origin') || req.headers.get('referer') || '';
-  if (!s) return true; // 同一オリジン fetch で origin 無しのことがある
-  return (
-    s.includes('cinelearn') ||
-    s.includes('cine-learn') ||
-    s.startsWith('http://localhost') ||
-    s.startsWith('chrome-extension://')
-  );
+  if (!s) return false; // 空 Origin の正規経路は無い（ブラウザ/シードは必ず付与する）
+  if (s.startsWith('chrome-extension://')) return true; // 拡張（ID 限定は公開後 TODO）
+  try {
+    const u = new URL(s);
+    if (u.hostname === 'localhost' || u.hostname === '127.0.0.1') return true; // 開発
+    return ALLOWED_HOSTS.includes(u.hostname);
+  } catch {
+    return false; // パース不能な Origin/Referer は拒否
+  }
 }
 
 function coverageRange(words) {
@@ -108,13 +114,16 @@ export async function POST(req) {
   };
 
   try {
-    // カタログにも作品を登録（ゲートoffでも将来のため）
+    // カタログにも作品を登録（enabled:false＝手動昇格運用）。
+    //   自動投稿はゲートを通る偽データが混入しうるため enabled:false で登録し、
+    //   オーナーが内容を確認してから手動で enabled:true に昇格する。汚染データが
+    //   全ユーザーへ配信される最悪ケースを断つ（3部討論の決定2）。
     await fetch(`${SUPABASE_URL}/rest/v1/catalog?on_conflict=tmdb_id`, {
       method: 'POST',
       headers,
       cache: 'no-store',
       body: JSON.stringify([
-        { tmdb_id: id, display_title: body.displayTitle || null, type: type || 'tv', enabled: true },
+        { tmdb_id: id, display_title: body.displayTitle || null, type: type || 'tv', enabled: false },
       ]),
     });
 
