@@ -16,6 +16,7 @@ import {
   exampleContainsWord,
   selectSubtitleCandidates,
   findExampleForWord,
+  findExampleByAnchor,
 } from '@/lib/subtitles';
 
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://mndyexwdevkpdssglwpl.supabase.co';
@@ -28,6 +29,14 @@ const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 // 生成ロジックの版。/api/vocab・シードと一致させること（cache_key の v{n}）。
 const CACHE_VERSION = Number(process.env.VOCAB_CACHE_VERSION || 1);
 
+// 層2（生 SRT＝全文がある経路）の例文は「観ている位置 ±N秒の窓内」の1文に限定する。
+// near（currentTimeSec）を必須化し窓で足切りすることで、word を変えた総当りで字幕全文を
+// 1文ずつ復元される穴を構造的に塞ぐ（非配信＝30条の4の内部運用線を配信層で担保）。
+// 窓は fitVodSync 補正後の sec に当てる（findExampleForWord 内）。サーバー側は VOD アンカーが
+// 無く補正は実質 no-op のため、±45秒は VOD/OS の素のオフセット吸収も兼ねる。
+// 正規クリックが落ちないことを実測しつつ、後で ±20〜30 秒へ詰める想定。
+const EXAMPLE_WINDOW_SEC = 45;
+
 function json(obj, status = 200) {
   return new Response(JSON.stringify(obj), {
     status,
@@ -36,15 +45,23 @@ function json(obj, status = 200) {
 }
 
 // 正規アプリ（next-app / cine-learn / localhost / 拡張）からの呼び出しのみ許可。
+//   多層防御の一枚（主防御は層2の near 窓フィルタ＝Origin は詐称可なので過信しない）。
+//   このルートを叩くのは拡張 background.js のみで、Service Worker fetch には必ず
+//   Origin: chrome-extension://<id> が付く＝空 Origin の正規経路は無いので空は拒否。
+//   ★公開後 TODO: ストア公開で拡張 ID が固定したら chrome-extension:// は完全一致 ID 限定へ。
+//     現状は load unpacked 配布で ID が端末ごとにランダムなためスキーム一致で許可している。
+const ALLOWED_HOSTS = ['cinelearn-next.vercel.app', 'cine-learn.vercel.app']; // 本番ホスト完全一致
 function allowedOrigin(req) {
   const s = req.headers.get('origin') || req.headers.get('referer') || '';
-  if (!s) return true; // 同一オリジン fetch で origin 無しのことがある
-  return (
-    s.includes('cinelearn') ||
-    s.includes('cine-learn') ||
-    s.startsWith('http://localhost') ||
-    s.startsWith('chrome-extension://')
-  );
+  if (!s) return false; // 空 Origin の正規経路は無い（拡張は必ず chrome-extension:// を付ける）
+  if (s.startsWith('chrome-extension://')) return true; // 拡張（ID 限定は公開後 TODO）
+  try {
+    const u = new URL(s);
+    if (u.hostname === 'localhost' || u.hostname === '127.0.0.1') return true; // 開発
+    return ALLOWED_HOSTS.includes(u.hostname);
+  } catch {
+    return false; // パース不能な Origin/Referer は拒否
+  }
 }
 
 // タイトル文字列 → TMDB ID（拡張は ID を持たないためここで解決）。失敗・曖昧は null。
@@ -173,6 +190,14 @@ export async function POST(req) {
   }
 
   // ── 層2: 生 SRT（raw cache → 無ければ OS から1回 DL）──
+  //   ★アンカー（lineText＝画面に出ている字幕行）か near（再生位置）のどちらも無ければ層2に
+  //     入らない＝OS DL もしない。任意位置の1文を当て推量で引ける穴を構造的に塞ぐ（総当り防止）。
+  //     層1（vocab_cache の語一致＝厳選語彙の再配布で全文ではない）は上で near 不要のまま通す。
+  const near = Number(body.currentTimeSec);
+  // 照合専用のアンカー。長さを制限して保存はしない（lineText は OS の行特定にのみ使う）。
+  const anchorLine = String(body.lineText || '').slice(0, 300).trim();
+  if (!anchorLine && !isFinite(near)) return json({ found: false }); // 手がかり無し → bare（OS DL せず）
+
   const rawKey = `tmdb${id}:s${s}e${e}`;
   let raw = await readRawCache(rawKey);
   if (!raw) {
@@ -188,9 +213,14 @@ export async function POST(req) {
     }
   }
 
-  const near = Number(body.currentTimeSec);
-  const hit = findExampleForWord(raw, word, isFinite(near) ? near : undefined);
-  if (!hit) return json({ found: false }); // OS に該当行なし → bare
+  // 本命＝アンカー照合（時計ズレ非依存・未知本文の抽出不能）。anchorLine は照合のみで保存しない。
+  // アンカー無し／不一致のときだけ ±EXAMPLE_WINDOW_SEC 窓フォールバック（near 必須・任意位置総当り防止）。
+  let hit = anchorLine
+    ? findExampleByAnchor(raw, word, anchorLine, isFinite(near) ? near : undefined)
+    : null;
+  const via = hit ? 'anchor' : 'raw';
+  if (!hit && isFinite(near)) hit = findExampleForWord(raw, word, near, EXAMPLE_WINDOW_SEC);
+  if (!hit) return json({ found: false }); // アンカー不一致＋窓内該当なし → bare
 
   return json({
     found: true,
@@ -201,6 +231,6 @@ export async function POST(req) {
     episode: e,
     tsSec: hit.sec,
     tsLabel: hit.label,
-    via: 'raw',
+    via,
   });
 }

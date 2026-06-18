@@ -260,13 +260,18 @@ export function secToTimeLabel(sec) {
     : `${m}:${String(s).padStart(2, '0')}`;
 }
 
-// クリック語を含む字幕キューを1つ特定して返す（経路②→①／#3 のサーバー側マッチ）。
-//   生 SRT をキューに切り出し、活用形込み（exampleContainsWord）で語を含む行を探す。
-//   複数一致は nearSec（VOD 再生位置）最近傍を選ぶ＝実際に観ていた行に寄せるベストエフォート。
-//   返す sentence は引用表示用に原文の大小文字を保持する（判定は exampleContainsWord 内で小文字化）。
-//   戻り値: { sentence, sec, label } / 一致なしは null。
-export function findExampleForWord(rawSrt, word, nearSec) {
-  if (!rawSrt || !word) return null;
+// 字幕のメタ行（OPテロップ/配布クレジット/歌詞）を照合・引用の対象から外す判定。
+//   セリフではないため、機械マッチで誤った時刻や誤った引用文を生む（例: OP の "♪ Suits ♪"、
+//   "Subtitles by ..." を拾う）。整形前の生行に対して大小無視で判定する。
+const META_LINE_RE = /[♪♫]|original air date|sync,?\s*corrected by|subtitles? by|opensubtitles/i;
+function isMetaLine(rawLine) {
+  return META_LINE_RE.test(rawLine || '');
+}
+
+// 生 SRT を {sec, text} のキュー配列へ。メタ行（OP/クレジット/歌詞）は除外する。
+//   配信時マッチ（findExampleForWord / findExampleByAnchor）専用。generation 経路の
+//   parseCues とは別系統＝そちらの tsSec 算出挙動は変えない。
+function parseServeCues(rawSrt) {
   const cues = [];
   rawSrt.split(/\r?\n\r?\n/).forEach((block) => {
     const lines = block.split(/\r?\n/);
@@ -275,24 +280,99 @@ export function findExampleForWord(rawSrt, word, nearSec) {
     const mt = lines[tIdx].match(/(\d{2}):(\d{2}):(\d{2})/);
     if (!mt) return;
     const sec = +mt[1] * 3600 + +mt[2] * 60 + +mt[3];
-    const text = lines
-      .slice(tIdx + 1)
-      .join(' ')
+    const rawText = lines.slice(tIdx + 1).join(' ');
+    if (isMetaLine(rawText)) return; // テロップ/クレジット/歌詞は除外
+    const text = rawText
       .replace(/<[^>]+>/g, '')
       .replace(/[♪♫]/g, '')
       .replace(/\s+/g, ' ')
       .trim();
     if (text) cues.push({ sec, text });
   });
-  const hits = cues.filter((c) => exampleContainsWord(c.text, word));
+  return cues;
+}
+
+// 字幕照合用にテキストをトークン集合へ正規化（小文字・記号除去・1文字語は捨てる）。
+function tokenSet(s) {
+  return new Set(
+    String(s || '')
+      .toLowerCase()
+      .replace(/[’'`]/g, "'")
+      .replace(/[^a-z0-9' ]/g, ' ')
+      .split(/\s+/)
+      .filter((w) => w.length > 1)
+  );
+}
+
+// クリック語を含む字幕キューを1つ特定して返す（経路②→①／#3 のサーバー側マッチ）。
+//   ★windowSec 指定時は「再生位置 nearSec ±windowSec の窓内」に足切りしてから最近傍を選ぶ
+//     ＝任意位置の総当りで字幕全文を1文ずつ復元される穴を構造的に塞ぐ。lineText アンカーが
+//     使えない旧クライアント・アンカー不一致時のフォールバック経路。窓内ヒット0なら null。
+//   返す sentence は引用表示用に原文の大小文字を保持する（判定は exampleContainsWord 内で小文字化）。
+//   戻り値: { sentence, sec, label } / 一致なし・窓外は null。
+export function findExampleForWord(rawSrt, word, nearSec, windowSec) {
+  if (!rawSrt || !word) return null;
+  const cues = parseServeCues(rawSrt);
+  let hits = cues.filter((c) => exampleContainsWord(c.text, word));
   if (!hits.length) return null;
+
+  const hasNear = typeof nearSec === 'number' && isFinite(nearSec);
+  const hasWindow = typeof windowSec === 'number' && isFinite(windowSec) && windowSec >= 0;
+
+  // 窓フィルタ：near と window が有効なら窓外のキューを捨てる。窓内ゼロは null。
+  if (hasNear && hasWindow) {
+    hits = hits.filter((c) => Math.abs(c.sec - nearSec) <= windowSec);
+    if (!hits.length) return null;
+  }
+
   let best = hits[0];
-  if (typeof nearSec === 'number' && isFinite(nearSec)) {
+  if (hasNear) {
     best = hits.reduce(
       (a, b) => (Math.abs(b.sec - nearSec) < Math.abs(a.sec - nearSec) ? b : a),
       hits[0]
     );
   }
+  return { sentence: best.text, sec: best.sec, label: secToTimeLabel(best.sec) };
+}
+
+// 画面に出ている字幕行（anchorLine）を手がかりに OpenSubtitles の該当キューを特定して返す（本命）。
+//   時計（VOD currentTime vs OS 時刻）のズレに依存せず、本文の一致で OS の行に揃える。
+//   ★防御上の利点：呼び出し側は「実際に画面に出ていた字幕」を知らないと引けない＝未知本文の
+//     総当り抽出が不能（窓フィルタより強い）。anchorLine は照合にのみ使い保存しない（route 側）。
+//   一致条件：クリック語を含み、かつ anchorLine とのトークン重なり（Jaccard）が閾値以上のキュー。
+//     複数該当は nearSec 最近傍で曖昧性を割る。確信できる一致が無ければ null（→窓フォールバック）。
+//   戻り値: { sentence, sec, label } / null。
+export function findExampleByAnchor(rawSrt, word, anchorLine, nearSec) {
+  if (!rawSrt || !word || !anchorLine) return null;
+  const aSet = tokenSet(anchorLine);
+  if (aSet.size < 2) return null; // 1語だけの曖昧アンカーは弾く（窓フォールバックへ回す）
+
+  const cues = parseServeCues(rawSrt);
+  const cands = cues.filter((c) => exampleContainsWord(c.text, word));
+  if (!cands.length) return null;
+
+  const hasNear = typeof nearSec === 'number' && isFinite(nearSec);
+  let best = null;
+  let bestScore = 0;
+  for (const c of cands) {
+    const cSet = tokenSet(c.text);
+    let inter = 0;
+    for (const t of aSet) if (cSet.has(t)) inter++;
+    if (inter < 2) continue; // 共有語2未満は一致と見なさない
+    const jacc = inter / (aSet.size + cSet.size - inter);
+    const better =
+      jacc > bestScore ||
+      (jacc === bestScore &&
+        best &&
+        hasNear &&
+        Math.abs(c.sec - nearSec) < Math.abs(best.sec - nearSec));
+    if (better) {
+      best = c;
+      bestScore = jacc;
+    }
+  }
+  // Netflix と OS は書き起こしが少し違う（句読点/SDH/縮約）。0.4 で実用域・誤一致は稀。
+  if (!best || bestScore < 0.4) return null;
   return { sentence: best.text, sec: best.sec, label: secToTimeLabel(best.sec) };
 }
 

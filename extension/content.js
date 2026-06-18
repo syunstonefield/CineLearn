@@ -635,7 +635,7 @@ function saveWord(entry) {
 //   /api/example（background 経由）から取得し、保存済みの同単語に後から埋める。
 //   不一致・字幕なし・TMDB未解決・通信失敗は bare（例文なし）のまま＝逆戻りさせない。
 // ─────────────────────────────────────────────────────────────────
-function requestExampleBackfill(entry) {
+function requestExampleBackfill(entry, lineText) {
   if (!chrome.runtime?.id) return;
   const payload = {
     title:   entry.dramaTitle,
@@ -643,9 +643,13 @@ function requestExampleBackfill(entry) {
     episode: entry.episode,
     word:    entry.word,
   };
-  // 複数一致の絞り込み用に現在の再生位置を添える（配信字幕テキストは送らない）。
+  // 複数一致の絞り込み用に現在の再生位置を添える。
   const t = getActiveVideo()?.currentTime;
   if (isFinite(t)) payload.currentTimeSec = Math.round(t);
+  // クリック語を含む「画面に出ている字幕行」をアンカーとして添える。サーバーはこれを OS 側の
+  // 該当行特定（時計ズレに依存しない照合）にのみ使い、保存しない。画面字幕は端末側に保存しない
+  // （entry.sentence='' のまま）＝送るのは照合用の一時データだけ。
+  if (lineText) payload.lineText = String(lineText).slice(0, 300);
 
   try {
     chrome.runtime.sendMessage({ type: 'CL_FETCH_EXAMPLE', payload }, (res) => {
@@ -738,7 +742,7 @@ async function showWordPopup(word, sentence, rect) {
     try {
       chrome.runtime.sendMessage({ type: 'SAVE_WORD_TO_CLOUD', word: entry }).catch(() => {});
     } catch {}
-    requestExampleBackfill(entry); // OpenSubtitles 由来の例文を非同期で補完（#3）
+    requestExampleBackfill(entry, sentence); // OS 由来の例文を非同期で補完（#3・画面字幕行をアンカーに）
     closePopupAndResume();
     const epInfo = ctx.season != null ? ` S${ctx.season}E${ctx.episode}` : '';
     showToast(`「${word}」を保存しました${epInfo} ✓`);
