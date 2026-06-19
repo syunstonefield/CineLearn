@@ -218,11 +218,17 @@ export function platformColor(platform) {
 // 履歴 + myDramas からライブラリカード用のエントリ一覧を作る
 // （既存 renderDramaLibrary のグループ化部分と同じロジック）
 export function buildLibraryEntries(history, myDramas) {
+  // myDramas はタイトル→詳細（tmdbId / posterPath / totalEpisodes 等）の参照に使う。
+  const byTitle = new Map((myDramas || []).map((d) => [d.title, d]));
   const map = new Map();
   history.forEach((h) => {
     const key = h.drama.title;
     if (!map.has(key)) {
-      map.set(key, { drama: h.drama, episodes: [], bestScore: null, lastDate: h.date });
+      // 履歴の drama は {title,genre,platform} のみ。myDramas 側の
+      // tmdbId/posterPath/totalEpisodes を引き継ぎ、ポスター取得や進捗バーを出せるようにする。
+      const extra = byTitle.get(key);
+      const drama = extra ? { ...extra, ...h.drama } : h.drama;
+      map.set(key, { drama, episodes: [], bestScore: null, lastDate: h.date });
     }
     const d = map.get(key);
     d.episodes.push({ season: h.season, episode: h.episode, score: h.quizScore });
@@ -243,10 +249,78 @@ export function buildLibraryEntries(history, myDramas) {
 
 // ドラマをライブラリから削除する（履歴も含めて）。
 // ※ Supabase 側の削除は既存アプリが担当（試作はローカルのみ）
+// ※ マイリストの「棚から外す」はアーカイブ（archiveDrama）に移行したため、
+//    現在この破壊的削除は UI から呼ばれない（履歴を残す方針）。互換のため残置。
 export function deleteDramaLocal(title) {
   const history = loadHistory();
   const newHistory = history.filter((h) => h.drama?.title !== title);
   safeSet(HISTORY_KEY, JSON.stringify(newHistory));
+}
+
+// ── アーカイブ（棚から外す） ────────────────────────────────
+// 「棚から外す」は学習履歴・単語・スコアを一切消さず、マイリストの表示からだけ隠す。
+// タイトル名の配列を端末ローカルに保持する（単一ユーザー運用＝グローバルキー）。
+export const ARCHIVED_KEY = 'cl_archived';
+
+export function loadArchived() {
+  return readJson(ARCHIVED_KEY, []);
+}
+
+export function archiveDrama(title) {
+  const arr = loadArchived();
+  if (!arr.includes(title)) {
+    arr.push(title);
+    safeSet(ARCHIVED_KEY, JSON.stringify(arr));
+  }
+}
+
+export function unarchiveDrama(title) {
+  const arr = loadArchived();
+  if (arr.includes(title)) {
+    safeSet(ARCHIVED_KEY, JSON.stringify(arr.filter((t) => t !== title)));
+  }
+}
+
+// 作品（タイトル）ごとの保存単語数。履歴の各エピソードの words を合算する。
+// カード上の「🔤 N語」表示用（エピソード間の重複は素朴に加算＝学習量の目安）。
+export function wordCountByTitle(history = loadHistory()) {
+  const m = new Map();
+  history.forEach((h) => {
+    const t = h.drama?.title;
+    if (!t) return;
+    m.set(t, (m.get(t) || 0) + (h.words?.length || 0));
+  });
+  return m;
+}
+
+// 作品（タイトル）ごとの学習状況を、全エピソードの単語を重複排除して集計する。
+// 戻り値: Map<title, { total, learned, mastered }>。
+//   total   = その作品で保存したユニーク単語数（全エピソード合算）
+//   learned = 「覚えた」(isLearned) 以上の語数（マスターも含む）
+//   mastered= 「マスター」(isMastered) の語数
+export function learningStatsByTitle(history = loadHistory(), srs = loadSrs()) {
+  const acc = new Map(); // title → { total, learned, mastered, seen:Set }
+  history.forEach((h) => {
+    const t = h.drama?.title;
+    if (!t) return;
+    let s = acc.get(t);
+    if (!s) {
+      s = { total: 0, learned: 0, mastered: 0, seen: new Set() };
+      acc.set(t, s);
+    }
+    (h.words || []).forEach((w) => {
+      const k = w.word?.toLowerCase();
+      if (!k || s.seen.has(k)) return; // 同じ語は作品内で1回だけ数える
+      s.seen.add(k);
+      s.total++;
+      const e = srs[k];
+      if (isMastered(e)) s.mastered++;
+      if (isLearned(e)) s.learned++;
+    });
+  });
+  const out = new Map();
+  acc.forEach((v, k) => out.set(k, { total: v.total, learned: v.learned, mastered: v.mastered }));
+  return out;
 }
 
 // プロフィールの settings に部分的な変更をマージして保存する

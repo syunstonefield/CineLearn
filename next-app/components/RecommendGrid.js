@@ -50,7 +50,10 @@ async function fetchPoster(item) {
 // おすすめ6件の 2×3 グリッド。
 // items: getRecommendations() の戻り値。onPick(item) でカードタップを通知する。
 // userLevel: バッジ表示用。作品がそのレベルを含めばユーザーのレベルを優先表示する。
-export default function RecommendGrid({ items, onPick, userLevel }) {
+// variant='row'  : 横スクロール1行（空のマイリストで説明付きカードを「サブスク風」に並べる）。
+// variant='mini' : マイリストの小型カードと揃えたポスターのみの横バー（文字は出さない）。
+export default function RecommendGrid({ items, onPick, userLevel, variant }) {
+  const mini = variant === 'mini';
   const [posters, setPosters] = useState({}); // tmdbId → URL
 
   useEffect(() => {
@@ -77,13 +80,18 @@ export default function RecommendGrid({ items, onPick, userLevel }) {
   }
 
   return (
-    <div className="recommend-grid">
+    <div className={'recommend-grid' + (variant === 'row' ? ' recommend-row' : '') + (mini ? ' recommend-mini' : '')}>
       {items.map((item) => {
         // バッジ：作品がユーザーのレベルを含めばそれを、無ければ先頭を代表表示（level-pill 流用）
         const badge = item.level.includes(userLevel) ? userLevel : item.level[0];
         const poster = posters[item.tmdbId];
         return (
-          <div key={item.tmdbId} className="recommend-card" onClick={() => onPick(item)}>
+          <div
+            key={item.tmdbId}
+            className="recommend-card"
+            onClick={() => onPick(item)}
+            title={mini ? item.title : undefined}
+          >
             <div className="recommend-poster">
               {poster ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -93,13 +101,16 @@ export default function RecommendGrid({ items, onPick, userLevel }) {
                 <span className="recommend-poster-fallback">{item.title.charAt(0)}</span>
               )}
             </div>
-            <div className="recommend-info">
-              <div className="recommend-title-row">
-                <span className="recommend-title">{item.title}</span>
-                <span className={`level-pill level-${badge}`}>{badge}</span>
+            {/* mini（小型横バー）では文字情報を出さない。作品名は title 属性に残す。 */}
+            {!mini && (
+              <div className="recommend-info">
+                <div className="recommend-title-row">
+                  <span className="recommend-title">{item.title}</span>
+                  <span className={`level-pill level-${badge}`}>{badge}</span>
+                </div>
+                <div className="recommend-reason">{item.reason}</div>
               </div>
-              <div className="recommend-reason">{item.reason}</div>
-            </div>
+            )}
           </div>
         );
       })}

@@ -18,6 +18,7 @@ import SearchScreen from '@/components/SearchScreen';
 import BottomNav from '@/components/BottomNav';
 import WelcomeTutorial from '@/components/WelcomeTutorial';
 import ExtensionGuide from '@/components/ExtensionGuide';
+import SplashScreen from '@/components/SplashScreen';
 import { getActiveWordCount, getDueReviewWords, DAILY_REVIEW_CAP } from '@/lib/storage';
 
 // まだ移植していない画面の仮ハンドラ
@@ -132,6 +133,8 @@ export default function Page() {
   return (
     <AppProvider>
       <AppShell />
+      {/* 起動スプラッシュ：最前面で画面を覆い、約1.4秒後に自動で消える */}
+      <SplashScreen />
     </AppProvider>
   );
 }

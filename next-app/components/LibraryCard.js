@@ -1,55 +1,57 @@
 'use client';
 
-import { formatDateJa, platformColor } from '@/lib/storage';
+import { platformColor } from '@/lib/storage';
 
-// 既存 buildLibraryCard() の再現
-export default function LibraryCard({ entry, onSelect, onDelete }) {
-  const { drama, episodes, bestScore, lastDate } = entry;
+// マイリストの1枚（小型ポスター＋学習状況キャプション）。
+// ポスター上：進捗バー（現在シーズンの学習済割合）・棚から外す(✕)。作品名は title 属性に残す。
+// ポスター下：作品ごとの学習状況（全エピソード合算）✅覚えた / ⭐マスター。
+// stats = { total, learned, mastered }（学習履歴のある作品のみ・未学習は undefined）。
+export default function LibraryCard({ entry, onSelect, onArchive, stats }) {
+  const { drama, episodes } = entry;
 
-  const recent = episodes.slice(-3).map((e) => `S${e.season}E${e.episode}`).join(' · ');
-  const scoreClass = bestScore >= 80 ? 'score-high' : bestScore >= 60 ? 'score-mid' : 'score-low';
+  const studied = episodes.length;
+  // 現在のシーズン＝学習した最大シーズン番号。そのシーズン内の進捗をバーにする。
+  const curSeason = studied > 0 ? Math.max(...episodes.map((e) => e.season || 1)) : 0;
+  const curStudied = studied > 0 ? episodes.filter((e) => (e.season || 1) === curSeason).length : 0;
+  const curTotal = drama.seasonCounts ? drama.seasonCounts[curSeason] || 0 : 0;
+  const pct = curTotal > 0 ? Math.min(100, Math.round((curStudied / curTotal) * 100)) : 0;
 
   const bannerStyle = drama.posterPath
     ? { background: `url('${drama.posterPath}') center/cover no-repeat` }
     : { background: platformColor(drama.platform) };
 
   return (
-    <div className="library-card" onClick={() => onSelect(drama)}>
+    <div className="library-card library-card-mini" onClick={() => onSelect(drama)} title={drama.title}>
       <div className="library-card-banner" style={bannerStyle}>
         {!drama.posterPath && <span className="library-card-letter">{drama.title.charAt(0)}</span>}
         <button
           className="library-card-delete"
-          title="削除"
+          title="棚から外す（学習記録は残ります）"
           onClick={(e) => {
             e.stopPropagation();
-            onDelete(drama.title);
+            onArchive(drama.title);
           }}
         >
           ✕
         </button>
-      </div>
-      <div className="library-card-body">
-        <div className="library-card-title">{drama.title}</div>
-        <div className="library-card-meta">
-          <span className="history-score score-none" style={{ fontSize: 11 }}>
-            {drama.platform}
-          </span>
-          {bestScore !== null && <span className={`history-score ${scoreClass}`}>{bestScore}%</span>}
-        </div>
-        {recent ? (
-          <div className="library-card-episodes">📚 {recent}</div>
-        ) : (
-          <div className="library-card-episodes" style={{ color: 'var(--text-muted)' }}>
-            未学習
+        {/* 進捗バー：背表紙の下端に重ねる（現在シーズンの話数が分かる作品のみ） */}
+        {curTotal > 0 && (
+          <div className="library-card-progress" title={`シーズン${curSeason}：${curStudied}/${curTotal}話 学習済み`}>
+            <span className="library-card-progress-bar" style={{ width: `${pct}%` }} />
           </div>
         )}
       </div>
-      <div className="library-card-footer">
-        <span className="library-card-date">{lastDate ? formatDateJa(lastDate) : ''}</span>
-        <button className="library-card-action">
-          {episodes.length > 0 ? '続きを学習 →' : '学習を始める →'}
-        </button>
-      </div>
+      {/* 学習状況（全エピソード合算）。保存単語がある作品だけ表示する。 */}
+      {stats && stats.total > 0 && (
+        <div className="library-card-caption">
+          <span className="lc-stat lc-learned" title="覚えた（全エピソード合計）">
+            ✅ 覚えた {stats.learned}/{stats.total}
+          </span>
+          <span className="lc-stat lc-mastered" title="マスター（全エピソード合計）">
+            ⭐ マスター {stats.mastered}/{stats.total}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

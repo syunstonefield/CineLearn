@@ -8,14 +8,17 @@ import AddDramaModal from './AddDramaModal';
 import RecommendGrid from './RecommendGrid';
 import { getRecommendations } from '@/lib/recommended';
 import { isMobileDevice } from '@/lib/device';
+import { tmdb } from '@/lib/api';
 import {
   DAILY_REVIEW_CAP,
+  archiveDrama,
   buildLibraryEntries,
-  deleteDramaLocal,
   getAllVocabWords,
   getDueReviewWords,
   getStreak,
   getWeekStats,
+  learningStatsByTitle,
+  loadArchived,
   loadHistory,
 } from '@/lib/storage';
 
@@ -69,6 +72,9 @@ export default function Dashboard() {
   // 履歴由来のカード（posterPathが永続化されない）でも表示が消えないようにする。
   const attemptedPosters = useRef(new Set());
   const [posterOverrides, setPosterOverrides] = useState({}); // title → posterPath
+  // 進捗バー用のシーズン別話数（{ season番号: 話数 }）。posterOverrides と同じく override で補完。
+  const attemptedEpisodes = useRef(new Set());
+  const [episodeOverrides, setEpisodeOverrides] = useState({}); // title → seasonCounts
   // ドラマ追加モーダル（null=閉、{tab, query}=開）
   const [addModal, setAddModal] = useState(null);
 
@@ -93,12 +99,14 @@ export default function Dashboard() {
   // SSR/初回レンダーは空で統一してハイドレーション不一致を防ぐ。
   const data = useMemo(() => {
     if (!mounted) {
-      return { history: [], entries: [], streak: 0, hasAnyWord: false, dueCount: 0, weekStats: { reviewedThisWeek: 0, mastered: 0 } };
+      return { history: [], entries: [], learnStats: new Map(), streak: 0, hasAnyWord: false, dueCount: 0, weekStats: { reviewedThisWeek: 0, mastered: 0 } };
     }
     const history = loadHistory();
+    const archived = new Set(loadArchived()); // 「棚から外した」作品は一覧から隠す（履歴は残す）
     return {
       history,
-      entries: buildLibraryEntries(history, myDramas),
+      entries: buildLibraryEntries(history, myDramas).filter((e) => !archived.has(e.drama.title)),
+      learnStats: learningStatsByTitle(history),
       streak: getStreak(),
       hasAnyWord: getAllVocabWords(history).length > 0,
       dueCount: getDueReviewWords(history).length,
@@ -158,14 +166,74 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 
-  // 取得済みポスターをカードに適用（履歴由来カードは drama オブジェクトが
+  // シーズン別話数（進捗バーの分母）を tmdbId のある作品だけ取得する。映画は対象外。
+  // /tv/{id} の seasons[].episode_count から { season番号: 話数 } を作る（Specials=0は除外）。
+  // 取得結果は myDramas（posterPath と同じく）へ永続化＋ override で表示補完する。
+  useEffect(() => {
+    const missing = data.entries.filter(
+      (e) =>
+        e.drama.tmdbId &&
+        e.drama.type !== 'movie' &&
+        !e.drama.seasonCounts &&
+        !episodeOverrides[e.drama.title] &&
+        !attemptedEpisodes.current.has(e.drama.title)
+    );
+    if (!missing.length) return;
+    missing.forEach((m) => attemptedEpisodes.current.add(m.drama.title));
+
+    (async () => {
+      const found = {}; // title → seasonCounts
+      const md = [...myDramas];
+      let mdChanged = false;
+      for (const { drama } of missing) {
+        try {
+          const d = await tmdb({ action: 'seasons', tvId: drama.tmdbId });
+          const seasons = Array.isArray(d?.seasons) ? d.seasons : [];
+          const counts = {};
+          seasons.forEach((s) => {
+            // Specials(season 0)は除外。本編シーズンのみ分母に使う。
+            if (s.season_number > 0 && s.episode_count > 0) counts[s.season_number] = s.episode_count;
+          });
+          if (Object.keys(counts).length) {
+            found[drama.title] = counts;
+            const m = md.find((x) => x.title === drama.title);
+            if (m) {
+              m.seasonCounts = counts;
+              mdChanged = true;
+            }
+          }
+        } catch {
+          /* 取得失敗は無視（バー非表示のまま） */
+        }
+      }
+      if (Object.keys(found).length) setEpisodeOverrides((prev) => ({ ...prev, ...found }));
+      if (mdChanged) updateSettings({ myDramas: md });
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
+
+  // 取得済みポスター・全話数をカードに適用（履歴由来カードは drama オブジェクトが
   // 再生成されるため、override で都度補完する）。縦ポスターへ取り直した既存カードも
   // override で上書きして表示を差し替える。
-  const entries = data.entries.map((e) =>
-    posterOverrides[e.drama.title]
-      ? { ...e, drama: { ...e.drama, posterPath: posterOverrides[e.drama.title] } }
-      : e
-  );
+  const entries = data.entries.map((e) => {
+    const poster = posterOverrides[e.drama.title];
+    const seasonCounts = episodeOverrides[e.drama.title];
+    if (!poster && !seasonCounts) return e;
+    return {
+      ...e,
+      drama: {
+        ...e.drama,
+        ...(poster ? { posterPath: poster } : {}),
+        ...(seasonCounts ? { seasonCounts } : {}),
+      },
+    };
+  });
+
+  // サブスク風に「続き（学習中）」と「マイリスト（未着手）」へ二分し、続きは最終学習日の新しい順。
+  const continueEntries = entries
+    .filter((e) => e.episodes.length > 0)
+    .sort((a, b) => String(b.lastDate || '').localeCompare(String(a.lastDate || '')));
+  const listEntries = entries.filter((e) => e.episodes.length === 0);
 
   // 空のダッシュボード（履歴・ライブラリ0件）で中央に出すおすすめ6件
   const recommendItems = useMemo(
@@ -173,10 +241,11 @@ export default function Dashboard() {
     [settings.userLevel, settings.selectedServices]
   );
 
-  const handleDelete = (title) => {
-    if (!confirm(`「${title}」をライブラリから削除しますか？\n学習履歴もすべて消えます。`)) return;
-    deleteDramaLocal(title);
-    updateSettings({ myDramas: myDramas.filter((d) => d.title !== title) });
+  // 棚から外す（アーカイブ）。学習記録（単語・スコア・履歴）は残し、一覧から隠すだけ。
+  // 同じ作品を開き直せば自動で棚に戻る（openDrama の unarchiveDrama）。
+  const handleArchive = (title) => {
+    if (!confirm(`「${title}」を棚から外しますか？\n学習記録（単語・スコア）は残ります。`)) return;
+    archiveDrama(title);
     setTick((t) => t + 1);
   };
 
@@ -268,24 +337,62 @@ export default function Dashboard() {
         </button>
       </div>
 
-      <div id="dramaLibrary" className="drama-library">
-        {entries.length === 0 && (
-          // 履歴・ライブラリが空 → 中央におすすめ6件（仕様：空のダッシュボード）
+      {entries.length === 0 ? (
+        <div id="dramaLibrary" className="drama-library">
+          {/* 履歴・ライブラリが空 → 中央におすすめ（横スクロール行で「サブスク風」に） */}
           <div className="library-empty recommend-empty-wrap">
             <div className="recommend-heading">🎬 気になる作品を選んで始めましょう</div>
             <div className="recommend-subheading">あなたのレベルと契約サービスに合った人気作品です</div>
-            <RecommendGrid items={recommendItems} onPick={startFromRecommend} userLevel={settings.userLevel || 'B1'} />
+            <RecommendGrid items={recommendItems} onPick={startFromRecommend} userLevel={settings.userLevel || 'B1'} variant="row" />
           </div>
-        )}
-        {entries.map((entry) => (
-          <LibraryCard
-            key={entry.drama.title}
-            entry={entry}
-            onSelect={(drama) => openDrama(drama)}
-            onDelete={handleDelete}
-          />
-        ))}
-      </div>
+        </div>
+      ) : (
+        <div id="dramaLibrary" className="library-sections">
+          {continueEntries.length > 0 && (
+            <section className="library-section">
+              <h2 className="library-section-title">▶ 続きを学習</h2>
+              <div className="library-row">
+                {continueEntries.map((entry) => (
+                  <LibraryCard
+                    key={entry.drama.title}
+                    entry={entry}
+                    stats={data.learnStats.get(entry.drama.title)}
+                    onSelect={(drama) => openDrama(drama)}
+                    onArchive={handleArchive}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+          {listEntries.length > 0 && (
+            <section className="library-section">
+              <h2 className="library-section-title">🎬 マイリスト</h2>
+              <div className="library-grid">
+                {listEntries.map((entry) => (
+                  <LibraryCard
+                    key={entry.drama.title}
+                    entry={entry}
+                    stats={data.learnStats.get(entry.drama.title)}
+                    onSelect={(drama) => openDrama(drama)}
+                    onArchive={handleArchive}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+          {recommendItems.length > 0 && (
+            <section className="library-section">
+              <h2 className="library-section-title">✨ おすすめ</h2>
+              <RecommendGrid
+                items={recommendItems}
+                onPick={startFromRecommend}
+                userLevel={settings.userLevel || 'B1'}
+                variant="mini"
+              />
+            </section>
+          )}
+        </div>
+      )}
 
       {addModal && (
         <AddDramaModal

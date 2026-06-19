@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { loadProfiles, saveProfiles, patchProfileSettings } from '@/lib/storage';
+import { loadProfiles, saveProfiles, patchProfileSettings, unarchiveDrama } from '@/lib/storage';
 import { ensureFreshSession, pullFromCloud, isLoggedIn, supaSignOut, clearSession } from '@/lib/supabase';
 import { recommendedToDrama } from '@/lib/recommended';
 
@@ -294,6 +294,8 @@ export default function AppProvider({ children }) {
     setSeason(1);
     setEpisode(1);
     setScreen('service-select');
+    // 棚から外していた作品を開き直したら自動で棚に戻す（アーカイブ解除）
+    unarchiveDrama(d.title);
     setSettings((prev) => {
       const exists = (prev.myDramas || []).some((x) => x.title === d.title);
       const myDramas = exists ? prev.myDramas : [...(prev.myDramas || []), d];
