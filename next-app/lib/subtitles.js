@@ -269,8 +269,8 @@ function isMetaLine(rawLine) {
 }
 
 // 生 SRT を {sec, text} のキュー配列へ。メタ行（OP/クレジット/歌詞）は除外する。
-//   配信時マッチ（findExampleForWord / findExampleByAnchor）専用。generation 経路の
-//   parseCues とは別系統＝そちらの tsSec 算出挙動は変えない。
+//   配信時マッチ（findExampleForWord / findExampleByAnchor）専用。原文の大小文字を保持する
+//   （引用表示用）。generation 経路は下の parseCues（小文字化・ソート・メタ行除外）を使う。
 function parseServeCues(rawSrt) {
   const cues = [];
   rawSrt.split(/\r?\n\r?\n/).forEach((block) => {
@@ -376,7 +376,10 @@ export function findExampleByAnchor(rawSrt, word, anchorLine, nearSec) {
   return { sentence: best.text, sec: best.sec, label: secToTimeLabel(best.sec) };
 }
 
-// 生SRTを {sec, text} のキュー配列にして時刻昇順で返す（同一署名はキャッシュ）
+// 生SRTを {sec, text} のキュー配列にして時刻昇順で返す（同一署名はキャッシュ）。
+//   メタ行（OPテロップ/配布クレジット/歌詞）は除外する＝generation 経路の tsSec 算出が
+//   OP の "♪ Suits 1x01 ♪" 等を誤マッチして保存時刻がずれるのを構造的に防ぐ
+//   （配信経路 parseServeCues と同じ isMetaLine を使い回す）。
 let _cueCacheSig = '';
 let _cueCacheArr = [];
 function parseCues(raw, sig) {
@@ -389,9 +392,9 @@ function parseCues(raw, sig) {
     const mt = lines[tIdx].match(/(\d{2}):(\d{2}):(\d{2})/);
     if (!mt) return;
     const sec = +mt[1] * 3600 + +mt[2] * 60 + +mt[3];
-    const text = lines
-      .slice(tIdx + 1)
-      .join(' ')
+    const rawText = lines.slice(tIdx + 1).join(' ');
+    if (isMetaLine(rawText)) return; // テロップ/クレジット/歌詞は除外（OPテロップ誤マッチ防止）
+    const text = rawText
       .replace(/<[^>]+>/g, '')
       .replace(/[♪♫]/g, '')
       .replace(/[’'`]/g, "'")
@@ -502,7 +505,12 @@ function applyVodSync(fit, sec) {
   return fit ? Math.max(0, Math.round(fit.a * sec + fit.b)) : sec;
 }
 
-function findWordCueSec(cues, word) {
+// 単語（活用形含む）を含むキューの時刻を1つ返す。
+//   保存される example 文がある場合は、その語を含む候補キューのうち example と
+//   トークン重なりが最大のキューに揃える＝📍時刻と例文が同じ出現箇所を指すようにする
+//   （tsSec と example が別経路で別場面を指していた不一致バグの修正）。
+//   example が無い／候補ゼロのときは従来どおり「語を含む最初のキュー」にフォールバック。
+function findWordCueSec(cues, word, example) {
   if (!cues.length) return null;
   const res = word
     .toLowerCase()
@@ -514,8 +522,32 @@ function findWordCueSec(cues, word) {
       );
       return new RegExp(`\\b(${variants.join('|')})\\b`, 'i');
     });
-  for (const c of cues) if (res.every((re) => re.test(c.text))) return c.sec;
-  return null;
+  // ① その語（活用形含む）を含むキューに候補を絞る
+  const hits = cues.filter((c) => res.every((re) => re.test(c.text)));
+  if (!hits.length) return null;
+  if (hits.length === 1) return hits[0].sec;
+
+  // ② example があれば、example 文とのトークン重なりが最大のキューを選ぶ。
+  //    "this is a" 等の汎用句だけで別場面を誤マッチする穴を回避するため、
+  //    語自体（res で既に保証済）以外の共有トークンで曖昧性を割る。
+  const exSet = example ? tokenSet(example) : null;
+  if (exSet && exSet.size) {
+    let best = hits[0];
+    let bestScore = -1;
+    for (const c of hits) {
+      const cSet = tokenSet(c.text);
+      let inter = 0;
+      for (const t of exSet) if (cSet.has(t)) inter++;
+      if (inter > bestScore) {
+        best = c;
+        bestScore = inter;
+      }
+    }
+    return best.sec;
+  }
+
+  // ③ example 無し → 従来どおり最初のキュー
+  return hits[0].sec;
 }
 
 // 各単語に「ベース字幕時刻」を tsSec(数値|null)/tsLabel(文字列|null) として付与する（in-place）。
@@ -540,7 +572,9 @@ export function computeTimestamps(words, ctx) {
   const { cues, fit } = buildTsContext(ctx);
   words.forEach((w) => {
     if (map.has(w.word)) return;
-    const raw = findWordCueSec(cues, w.word);
+    // example 文があれば、その語を含む候補のうち example に最も一致するキューに揃える
+    // （📍時刻と例文の出現箇所を一致させる）。example 無しは語含む最初のキューへフォールバック。
+    const raw = findWordCueSec(cues, w.word, w.example);
     if (raw == null) {
       map.set(w.word, { sec: Infinity, label: null });
     } else {

@@ -23,15 +23,20 @@ const SUPABASE_URL = process.env.SUPABASE_URL || 'https://mndyexwdevkpdssglwpl.s
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const CACHE_VERSION = Number(process.env.VOCAB_CACHE_VERSION || 1);
 
-// ── 対象（既定: Suits S1E1 のみ）──
-// 他の stale 行も直したい場合は episodes を足す。
+// 指定シーズンの episode 範囲を [{season,episode}...] に展開（seed-vocab.mjs と同じ流儀）。
+const eps = (season, from, to) =>
+  Array.from({ length: to - from + 1 }, (_, i) => ({ season, episode: from + i }));
+
+// ── 対象（Suits S1 全話）──
+// tsSec を example 基準に揃える修正後の付け直し。既に正しい行は値変更検知で書込見送り。
+// 行が無い回（範囲超過）は fetchRow が null を返し自動スキップ。
 const TARGETS = [
   {
     tmdbId: 37680,
     title: 'Suits',
     englishTitle: 'Suits',
     type: 'tv',
-    episodes: [{ season: 1, episode: 1 }],
+    episodes: eps(1, 1, 12), // Suits Season 1 全話（E1〜E12）
   },
 ];
 
@@ -114,6 +119,9 @@ async function backfillEpisode(t, season, episode) {
     return;
   }
   const before = tsCount(words);
+  // 修復前の tsSec を語ごとに退避（値変更検知用）。attachBaseTimestamps は in-place で
+  // words を書き換えるため、上書き前に控える。
+  const beforeTs = new Map(words.map((w) => [w.word, w.tsSec ?? null]));
   console.log(`  既存 ${words.length} 語（時刻付き ${before}）`);
 
   const rawSrt = await fetchRawSrt(drama, season, episode);
@@ -127,11 +135,15 @@ async function backfillEpisode(t, season, episode) {
   attachBaseTimestamps(words, { title: drama.englishTitle || drama.title, season, episode, rawSrt });
   const after = tsCount(words);
 
-  if (after <= before) {
-    console.warn(`  ⚠ 付与が増えない（${before}→${after}）→ 書込見送り（字幕の不一致の可能性）`);
+  // ★安全ガードは「値変更検知」。今回の修復は語数同じで tsSec の値だけ正すため、
+  //   付与数（after vs before）では差が出ず全件スキップになる。tsSec が1つでも
+  //   変われば書く／全く変わらなければ書込見送り、という恒久的に安全な判定にする。
+  const changed = words.filter((w) => (w.tsSec ?? null) !== (beforeTs.get(w.word) ?? null)).length;
+  if (changed === 0) {
+    console.log(`  ＝ tsSec 変化なし（時刻付き ${before}→${after}）→ 書込見送り（既に正しい）`);
     return;
   }
-  console.log(`  時刻付与: ${before} → ${after}（drama 語の照合結果）`);
+  console.log(`  tsSec 変化: ${changed} 語（時刻付き ${before}→${after}）→ 更新`);
 
   row.words = words;
   row.word_count = words.length;
