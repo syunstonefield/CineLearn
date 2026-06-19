@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { platformColor } from '@/lib/storage';
 
 // マイリストの1枚（小型ポスター＋学習状況キャプション）。
@@ -8,6 +9,8 @@ import { platformColor } from '@/lib/storage';
 // stats = { total, learned, mastered }（学習履歴のある作品のみ・未学習は undefined）。
 export default function LibraryCard({ entry, onSelect, onArchive, stats }) {
   const { drama, episodes } = entry;
+  // ポスター画像の読み込み失敗を検知して頭文字フォールバックへ切り替える（白い空カード対策）
+  const [imgFailed, setImgFailed] = useState(false);
 
   const studied = episodes.length;
   // 現在のシーズン＝学習した最大シーズン番号。そのシーズン内の進捗をバーにする。
@@ -16,14 +19,27 @@ export default function LibraryCard({ entry, onSelect, onArchive, stats }) {
   const curTotal = drama.seasonCounts ? drama.seasonCounts[curSeason] || 0 : 0;
   const pct = curTotal > 0 ? Math.min(100, Math.round((curStudied / curTotal) * 100)) : 0;
 
-  const bannerStyle = drama.posterPath
-    ? { background: `url('${drama.posterPath}') center/cover no-repeat` }
-    : { background: platformColor(drama.platform) };
+  // ポスター未設定 or 読み込み失敗のときは、プラットフォーム色＋頭文字で必ず埋める。
+  const showPoster = drama.posterPath && !imgFailed;
 
   return (
     <div className="library-card library-card-mini" onClick={() => onSelect(drama)} title={drama.title}>
-      <div className="library-card-banner" style={bannerStyle}>
-        {!drama.posterPath && <span className="library-card-letter">{drama.title.charAt(0)}</span>}
+      <div
+        className="library-card-banner"
+        style={showPoster ? undefined : { background: platformColor(drama.platform) }}
+      >
+        {showPoster ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            className="library-card-poster"
+            src={drama.posterPath}
+            alt=""
+            loading="lazy"
+            onError={() => setImgFailed(true)}
+          />
+        ) : (
+          <span className="library-card-letter">{drama.title.charAt(0)}</span>
+        )}
         <button
           className="library-card-delete"
           title="棚から外す（学習記録は残ります）"

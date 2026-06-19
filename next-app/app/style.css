@@ -1646,6 +1646,13 @@ header {
 .library-card:hover .library-card-banner {
   box-shadow: 0 12px 30px rgba(0,0,0,0.28);
 }
+/* ポスター画像（背景ではなく img。onErrorで頭文字フォールバックに切替） */
+.library-card-poster {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
 
 /* 学習状況キャプション（ポスター下・全エピソード合算） */
 .library-card-caption {
@@ -1810,6 +1817,11 @@ header {
   top: 5px;
   right: 5px;
 }
+/* タッチ端末は hover が無いので「棚から外す」✕を常時表示（モバイルでも押せるように）。
+   .library-card-mini で詳細度0,2,0＝基本の opacity:0 を確実に上書きする。 */
+@media (hover: none) {
+  .library-card-mini .library-card-delete { opacity: 1; }
+}
 
 /* 進捗バー（背表紙の下端に重ねる） */
 .library-card-progress {
@@ -1846,6 +1858,19 @@ header {
   transition: color 0.15s;
 }
 .btn-back:hover { color: var(--accent); }
+
+/* VocabScreen ヘッダーの「サービス変更」インラインリンク */
+.svc-change-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+}
+.svc-change-btn:hover { opacity: 0.8; }
 
 .screen-header {
   margin-bottom: 24px;

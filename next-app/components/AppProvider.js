@@ -293,16 +293,20 @@ export default function AppProvider({ children }) {
     setDrama(d);
     setSeason(1);
     setEpisode(1);
-    setScreen('service-select');
     // 棚から外していた作品を開き直したら自動で棚に戻す（アーカイブ解除）
     unarchiveDrama(d.title);
+    // 2回目以降（ライブラリから再オープン＝clearService=false）で、前回の視聴サービスが
+    // 分かっていればサービス選択を省略して直接 vocab へ。新規追加時(clearService)は従来どおり選択させる。
+    const remembered = !clearService && d.viewingService ? d.viewingService : null;
     setSettings((prev) => {
       const exists = (prev.myDramas || []).some((x) => x.title === d.title);
       const myDramas = exists ? prev.myDramas : [...(prev.myDramas || []), d];
       const next = { ...prev, myDramas };
       if (clearService) next.selectedViewingService = null;
+      else if (remembered) next.selectedViewingService = remembered;
       return next;
     });
+    setScreen(remembered ? 'vocab' : 'service-select');
   }, []);
 
   // ジャンルタグのトグル（関数型更新で連続クリックにも耐える）。
@@ -318,10 +322,17 @@ export default function AppProvider({ children }) {
   // 視聴サービスを選んで単語リスト画面へ
   const chooseService = useCallback(
     (serviceName) => {
-      updateSettings({ selectedViewingService: serviceName });
+      // グローバルの「前回使用」に加え、作品ごとにも視聴サービスを記憶する
+      // （2回目以降のオープンで openDrama がこれを見てサービス選択を省略する）。
+      setSettings((prev) => {
+        const myDramas = (prev.myDramas || []).map((x) =>
+          drama && x.title === drama.title ? { ...x, viewingService: serviceName } : x
+        );
+        return { ...prev, selectedViewingService: serviceName, myDramas };
+      });
       setScreen('vocab');
     },
-    [updateSettings]
+    [drama]
   );
 
   // 「おすすめから探す」専用画面を開く（履歴あり時の＋追加導線から）

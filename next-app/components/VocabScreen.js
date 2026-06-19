@@ -655,13 +655,21 @@ export default function VocabScreen() {
     <div className="screen active" id="screen-4">
       <div className="screen-inner">
         <div className="screen-header">
-          <button className="btn-back" onClick={() => setScreen('service-select')}>
-            ← サービス選択
+          <button className="btn-back" onClick={() => setScreen('main')}>
+            ← マイドラマ
           </button>
           <div>
             <div className="screen-title">視聴前の準備</div>
             <div className="screen-desc">
-              「{drama.title}」（{settings.selectedViewingService}）のエピソードを選んで単語を予習する
+              「{drama.title}」のエピソードを選んで単語を予習する ・ サービス：
+              <button
+                type="button"
+                className="svc-change-btn"
+                onClick={() => setScreen('service-select')}
+                title="視聴サービスを変更"
+              >
+                {settings.selectedViewingService || '未選択'}（変更）
+              </button>
             </div>
           </div>
         </div>
