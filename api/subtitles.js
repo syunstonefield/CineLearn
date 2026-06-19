@@ -1,4 +1,5 @@
 import { isAllowedOrigin } from './_origin.js';
+import { checkRateLimit } from './_ratelimit.js';
 
 const OS_BASE = 'https://api.opensubtitles.com/api/v1';
 
@@ -46,6 +47,10 @@ export default async function handler(req, res) {
   }
   if (!isAllowedOrigin(req)) {
     return res.status(403).json({ error: 'Forbidden' });
+  }
+  // ゲート通過後の枠保護：IP単位 30/分・300/時（Upstash env 未設定なら no-op 素通し）。
+  if (!(await checkRateLimit(req, 'subtitles')).ok) {
+    return res.status(429).json({ error: 'rate_limited' });
   }
 
   const apiKey = process.env.OPENSUBTITLES_API_KEY;
