@@ -77,6 +77,8 @@ export default function VocabScreen() {
   const [mediaChoice, setMediaChoice] = useState(null); // {tv, movie}
   // タイプ（ドラマ/映画）確定・シーズン構築が済むまでエピソード選択枠を隠す
   const [selectorReady, setSelectorReady] = useState(false);
+  // エピソード選択の折りたたみ（既定は畳む＝選択後すぐ単語へ。「変更」で展開）
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [historyId, setHistoryId] = useState(null);
 
   // メモリ上の字幕（app.js の cachedSubtitleText/Key 相当）
@@ -621,6 +623,7 @@ export default function VocabScreen() {
   const pickEpisode = (ep) => {
     setEpisode(ep);
     loadEpisode(season, ep);
+    setPickerOpen(false); // 選択したら畳んで単語リストへ（スマホで長いグリッドを越えてスクロールしない）
   };
   const onDelete = () => {
     if (!confirm('この単語リストを削除しますか？')) return;
@@ -655,8 +658,12 @@ export default function VocabScreen() {
 
   // 進捗バー（buildProgressHTML 準拠）
   const pct = stats.total === 0 ? 0 : Math.round((stats.learned / stats.total) * 100);
-  const barColor =
-    pct === 100 ? '#f5c518' : pct > 60 ? '#4fc3f7' : pct > 30 ? 'var(--accent)' : 'var(--text-muted)';
+  // テンションの上がるゲージ：グレーは使わない。低〜中=鮮やかなエメラルド、達成=ゴールドで祝福。
+  const pctColor = pct === 100 ? '#d99a00' : pct >= 60 ? '#13967f' : '#16a06a';
+  const barFill =
+    pct === 100
+      ? 'linear-gradient(90deg, #19a06a, #f5c518)'
+      : 'linear-gradient(90deg, #16a06a, #3ccb8d)';
   const completeMsg =
     stats.total > 0 && stats.learned === stats.total
       ? stats.mastered === stats.total
@@ -691,10 +698,25 @@ export default function VocabScreen() {
             生成中は選択UIを畳んで縦スペースを空け、ローディングのあらすじを画面内に収める。 */}
         {selectorReady && phase !== 'generating' && (
         <div className="episode-selector">
-          <div className="episode-label">
-            {isMovie ? '🎬 映画（字幕から単語を予習）' : '視聴するエピソードを選択'}
-          </div>
-          {!isMovie && (
+          {isMovie ? (
+            <div className="episode-label">🎬 映画（字幕から単語を予習）</div>
+          ) : (
+            <button
+              type="button"
+              className="ep-collapse-head"
+              onClick={() => setPickerOpen((o) => !o)}
+              aria-expanded={pickerOpen}
+            >
+              <span className="ep-collapse-current">
+                <span className="ep-collapse-badge">
+                  S{season}E{episode}
+                </span>
+                <span className="ep-collapse-title">エピソードを選ぶ</span>
+              </span>
+              <span className="ep-collapse-chev">{pickerOpen ? '閉じる ▲' : '変更 ▾'}</span>
+            </button>
+          )}
+          {!isMovie && pickerOpen && (
             <div className="ep-picker">
               {seasons.length > 1 && (
                 <div className="ep-seasons" role="tablist" aria-label="シーズン">
@@ -799,12 +821,12 @@ export default function VocabScreen() {
                     {drama.title}
                     {isMovie ? '' : ` S${season}E${episode}`} の単語リスト
                   </span>
-                  <span className="srs-pct" style={{ color: barColor }}>
+                  <span className="srs-pct" style={{ color: pctColor }}>
                     {pct}% 覚えた
                   </span>
                 </div>
                 <div className="srs-bar">
-                  <div className="srs-bar-fill" style={{ width: `${pct}%`, background: barColor }} />
+                  <div className="srs-bar-fill" style={{ width: `${pct}%`, background: barFill }} />
                 </div>
                 <div className="srs-counts">
                   <span className="srs-count-learned">
