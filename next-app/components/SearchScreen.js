@@ -107,26 +107,10 @@ export default function SearchScreen() {
           results.length > 0 && (
             <>
               {aiMode && <div className="search-suggest-aihint">🤖 AIが解釈した候補</div>}
-              <div className="search-results">
+              {/* ダッシュボードと揃えたポスターグリッドで「本棚から選ぶ」見せ方に */}
+              <div className="select-grid">
                 {results.map((s) => (
-                  <button key={s.tmdbId} type="button" className="search-suggest-item" onClick={() => pick(s)}>
-                    {s.posterPath ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img className="search-suggest-thumb" src={s.posterPath} alt="" />
-                    ) : (
-                      <span className="search-suggest-thumb search-suggest-thumb-empty">🎬</span>
-                    )}
-                    <span className="search-suggest-text">
-                      <span className="search-suggest-title">{s.englishTitle}</span>
-                      {s.localizedTitle && s.localizedTitle !== s.englishTitle && (
-                        <span className="search-suggest-sub">{s.localizedTitle}</span>
-                      )}
-                    </span>
-                    <span className={'search-suggest-type ' + (s.mediaType === 'movie' ? 'is-movie' : 'is-tv')}>
-                      {s.mediaType === 'movie' ? '映画' : 'ドラマ'}
-                    </span>
-                    {s.year && <span className="search-suggest-year">{s.year}</span>}
-                  </button>
+                  <SelectCard key={s.tmdbId} item={s} onPick={pick} />
                 ))}
               </div>
             </>
@@ -141,5 +125,41 @@ export default function SearchScreen() {
         )}
       </div>
     </div>
+  );
+}
+
+// 検索結果1件＝ポスターカード。読み込み中はシマー、失敗/無しは🎬フォールバック。
+function SelectCard({ item, onPick }) {
+  const [loaded, setLoaded] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const showPoster = item.posterPath && !failed;
+  return (
+    <button type="button" className="select-card" onClick={() => onPick(item)} title={item.englishTitle}>
+      <div className="select-poster">
+        {showPoster ? (
+          <>
+            {!loaded && <span className="img-skeleton" aria-hidden="true" />}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={item.posterPath}
+              alt=""
+              loading="lazy"
+              style={{ opacity: loaded ? 1 : 0 }}
+              onLoad={() => setLoaded(true)}
+              onError={() => setFailed(true)}
+            />
+          </>
+        ) : (
+          <span className="select-poster-fallback">🎬</span>
+        )}
+        <span className={'select-type-badge ' + (item.mediaType === 'movie' ? 'is-movie' : 'is-tv')}>
+          {item.mediaType === 'movie' ? '映画' : 'ドラマ'}
+        </span>
+      </div>
+      <div className="select-caption">
+        <span className="select-title">{item.englishTitle}</span>
+        {item.year && <span className="select-year">{item.year}</span>}
+      </div>
+    </button>
   );
 }

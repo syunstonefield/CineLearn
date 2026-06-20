@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { loadProfiles, saveProfiles, patchProfileSettings, unarchiveDrama } from '@/lib/storage';
+import { applyTheme, getThemePref } from '@/lib/theme';
 import { ensureFreshSession, pullFromCloud, isLoggedIn, supaSignOut, clearSession } from '@/lib/supabase';
 import { recommendedToDrama } from '@/lib/recommended';
 
@@ -81,6 +82,18 @@ export default function AppProvider({ children }) {
   // 起動時の認証判定（オートログイン or ログインモーダル表示）が終わるまでは
   // プロフィール自動遷移を待たせるためのフラグ（封印モードでのみ参照）。
   const [bootstrapping, setBootstrapping] = useState(true);
+
+  // テーマ適用（描画前スクリプトと同期）＋システムテーマ変更の追従（pref='system'時）。
+  useEffect(() => {
+    applyTheme();
+    const mq = window.matchMedia?.('(prefers-color-scheme: dark)');
+    if (!mq) return;
+    const onChange = () => {
+      if (getThemePref() === 'system') applyTheme('system');
+    };
+    mq.addEventListener?.('change', onChange);
+    return () => mq.removeEventListener?.('change', onChange);
+  }, []);
 
   useEffect(() => {
     setMounted(true);

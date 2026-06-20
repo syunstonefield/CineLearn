@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useApp } from './AppProvider';
 import { getToeicLevel, getVocabCount } from '@/lib/vocab';
+import { getThemePref, setThemePref } from '@/lib/theme';
 
 // 既存 settingsModal の再現（英語レベル / 利用サービス / 単語階層 / 復習リマインダー）。
 const LEVEL_LABELS = { A2: 'A2（初級）', B1: 'B1（中級）', B2: 'B2（中上級）', C1: 'C1（上級）' };
@@ -35,6 +36,13 @@ export default function SettingsModal({ onClose }) {
 
   const [notifyMsg, setNotifyMsg] = useState('');
   const [notifyBtn, setNotifyBtn] = useState(null); // null=通常, それ以外はラベル上書き
+  // テーマ（ライト/ダーク/システム）。SSR一致のため初期は 'system'、マウント後に実値へ。
+  const [theme, setTheme] = useState('system');
+  useEffect(() => setTheme(getThemePref()), []);
+  const pickTheme = (t) => {
+    setTheme(t);
+    setThemePref(t);
+  };
   // 入力中の文字列はローカルで保持（settings に直接バインドすると "6" のような
   // 途中の無効値で 0 にリセットされ、複数桁が打てなくなるため）。
   const [toeicText, setToeicText] = useState(toeicScore ? String(toeicScore) : '');
@@ -206,6 +214,27 @@ export default function SettingsModal({ onClose }) {
                   <div className="service-name">{name}</div>
                   <div className="service-check">✓</div>
                 </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 外観（テーマ） */}
+          <div className="settings-section">
+            <div className="settings-section-title">🎨 外観（テーマ）</div>
+            <div className="theme-seg">
+              {[
+                { v: 'light', label: '☀️ ライト' },
+                { v: 'dark', label: '🌙 ダーク' },
+                { v: 'system', label: '🖥 自動' },
+              ].map((o) => (
+                <button
+                  key={o.v}
+                  type="button"
+                  className={'theme-seg-btn' + (theme === o.v ? ' active' : '')}
+                  onClick={() => pickTheme(o.v)}
+                >
+                  {o.label}
+                </button>
               ))}
             </div>
           </div>

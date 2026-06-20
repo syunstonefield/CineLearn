@@ -55,6 +55,7 @@ async function fetchPoster(item) {
 export default function RecommendGrid({ items, onPick, userLevel, variant }) {
   const mini = variant === 'mini';
   const [posters, setPosters] = useState({}); // tmdbId → URL
+  const [failed, setFailed] = useState({}); // tmdbId → true（取得失敗＝頭文字フォールバック）
 
   useEffect(() => {
     let cancelled = false;
@@ -63,6 +64,7 @@ export default function RecommendGrid({ items, onPick, userLevel, variant }) {
         const url = await fetchPoster(item);
         if (cancelled) return;
         if (url) setPosters((prev) => ({ ...prev, [item.tmdbId]: url }));
+        else setFailed((prev) => ({ ...prev, [item.tmdbId]: true }));
       }
     })();
     return () => {
@@ -96,9 +98,12 @@ export default function RecommendGrid({ items, onPick, userLevel, variant }) {
               {poster ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={poster} alt={item.title} loading="lazy" />
-              ) : (
+              ) : failed[item.tmdbId] ? (
                 // ポスター取得失敗時のフォールバック（頭文字）
                 <span className="recommend-poster-fallback">{item.title.charAt(0)}</span>
+              ) : (
+                // 取得中：シマー（スケルトン）
+                <span className="img-skeleton" aria-hidden="true" />
               )}
             </div>
             {/* mini（小型横バー）では文字情報を出さない。作品名は title 属性に残す。 */}

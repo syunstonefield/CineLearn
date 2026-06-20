@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
 import { GENRES, recommendDramas, searchDramaByTitle } from '@/lib/recommend';
+import { tmdb } from '@/lib/api';
 
 // 既存 addDramaModal（AI推薦 / タイトル検索）の再現。
 // initialTab='recommend'|'search', initialQuery はツールバー検索から開いた時に使う。
@@ -199,9 +200,36 @@ function DramaResults({ state, emptyMsg, onPick }) {
   return state.items.map((d, i) => <DramaCard key={`${d.title}-${i}`} drama={d} onPick={onPick} />);
 }
 
-// 1作品カード（renderDramas の .drama-card 再現）
+// 1作品カード＝ポスターカード。AI推薦/検索結果はポスターを持たないことが多いので
+// TMDBタイトル検索でポスターを解決する（取得中はシマー、無い場合は頭文字）。
 function DramaCard({ drama: d, onPick }) {
   const [selected, setSelected] = useState(false);
+  const [poster, setPoster] = useState(d.posterPath || null);
+  const [failed, setFailed] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    if (poster) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const s = await tmdb({ action: 'search', query: d.englishTitle || d.title });
+        const hit = s.results?.[0];
+        if (cancelled) return;
+        if (hit?.poster_path) setPoster(`https://image.tmdb.org/t/p/w300${hit.poster_path}`);
+        else setFailed(true);
+      } catch {
+        if (!cancelled) setFailed(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const showPoster = poster && !failed;
+
   return (
     <div
       className={'drama-card' + (selected ? ' selected' : '')}
@@ -209,17 +237,33 @@ function DramaCard({ drama: d, onPick }) {
         setSelected(true);
         onPick(d);
       }}
+      title={d.title}
     >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-        <div className="drama-title">{d.title}</div>
-        <span className={`level-pill level-${d.level}`}>{d.level}</span>
+      <div className="drama-card-poster">
+        {showPoster ? (
+          <>
+            {!loaded && <span className="img-skeleton" aria-hidden="true" />}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={poster}
+              alt=""
+              loading="lazy"
+              style={{ opacity: loaded ? 1 : 0 }}
+              onLoad={() => setLoaded(true)}
+              onError={() => setFailed(true)}
+            />
+          </>
+        ) : failed ? (
+          <span className="drama-card-fallback">{(d.title || '?').charAt(0)}</span>
+        ) : (
+          <span className="img-skeleton" aria-hidden="true" />
+        )}
+        {d.level && <span className={`level-pill level-${d.level} drama-card-level`}>{d.level}</span>}
       </div>
-      <div className="drama-meta">
-        <span>{d.platform}</span>
-        <span>{d.genre}</span>
-        <span>{d.speech_feature}</span>
+      <div className="drama-card-info">
+        <div className="drama-card-title">{d.title}</div>
+        {d.reason && <div className="drama-reason">{d.reason}</div>}
       </div>
-      <div className="drama-reason">{d.reason}</div>
     </div>
   );
 }

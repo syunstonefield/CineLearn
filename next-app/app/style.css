@@ -10,6 +10,7 @@
   --text-soft: #4d4d4d; /* 単語の意味・例文など「読ませる二次テキスト」用（mutedより濃い） */
   --red: #d94f6a;
   --green: #2ea87a;
+  --gold: #c79a2e; /* マスター（⭐）の強調色 */
   /* 共通コンテンツ幅トークン（全画面の横幅を揃える）
      --content-max  : グリッド系（ダッシュボードのライブラリ）の最大幅
      --content-narrow: 読み物・フォーム系（screen-inner）の最大幅 */
@@ -1665,12 +1666,11 @@ header {
   white-space: nowrap;
 }
 .library-card-caption .lc-stat {
-  color: var(--text);
   font-variant-numeric: tabular-nums;
+  font-weight: 500;
 }
-.library-card-caption .lc-mastered {
-  color: var(--text-muted);
-}
+.library-card-caption .lc-learned { color: var(--green); }   /* 覚えた=緑 */
+.library-card-caption .lc-mastered { color: var(--gold); }   /* マスター=金 */
 
 .library-card-delete {
   position: absolute;
@@ -3882,3 +3882,178 @@ header {
   cursor: pointer;
 }
 .profile-login-link:hover { color: var(--accent); }
+
+/* ════════════════════════════════════════════════════════════════
+   UI/UX 追加（2026-06-20）：スケルトン / 選択画面ポスター化 / ダークモード
+   ════════════════════════════════════════════════════════════════ */
+
+/* ── #8 画像読み込みスケルトン（シマー） ── */
+@keyframes imgShimmer {
+  0% { background-position: 150% 0; }
+  100% { background-position: -150% 0; }
+}
+.img-skeleton {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(100deg, var(--surface2) 30%, var(--border) 50%, var(--surface2) 70%);
+  background-size: 200% 100%;
+  animation: imgShimmer 1.2s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) { .img-skeleton { animation: none; } }
+
+/* ── #3 作品選択：検索結果のポスターグリッド ── */
+.select-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 16px;
+  margin-top: 8px;
+}
+.select-card {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  font: inherit;
+  transition: transform 0.18s ease;
+}
+.select-card:hover { transform: scale(1.05); z-index: 2; }
+.select-poster {
+  position: relative;
+  aspect-ratio: 2 / 3;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--surface2);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.16);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.select-poster img { width: 100%; height: 100%; object-fit: cover; display: block; transition: opacity 0.3s; }
+.select-poster-fallback { font-size: 30px; }
+.select-type-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  color: #fff;
+  background: rgba(0,0,0,0.6);
+}
+.select-type-badge.is-movie { background: rgba(91,79,212,0.88); }
+.select-type-badge.is-tv { background: rgba(193,127,59,0.92); }
+.select-caption { padding: 6px 2px 0; }
+.select-title {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.select-year { font-size: 11px; color: var(--text-muted); }
+
+/* ── #3 AI推薦/検索結果（モーダル内）：ポスターカード化 ── */
+.modal-body .drama-list {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+.modal-body .drama-card {
+  display: flex;
+  flex-direction: column;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: transform 0.18s ease;
+}
+.modal-body .drama-card:hover { transform: scale(1.04); border: none; background: none; }
+.modal-body .drama-card.selected { background: none; }
+.drama-card-poster {
+  position: relative;
+  aspect-ratio: 2 / 3;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--surface2);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.16);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.drama-card-poster img { width: 100%; height: 100%; object-fit: cover; display: block; transition: opacity 0.3s; }
+.drama-card-fallback { font-size: 32px; font-weight: 700; color: var(--text-muted); }
+.drama-card-level { position: absolute; top: 6px; right: 6px; }
+.drama-card-info { padding: 6px 2px 0; }
+.drama-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 2px;
+}
+.modal-body .drama-card .drama-reason {
+  font-size: 11px;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+@media (max-width: 768px) {
+  .select-grid { grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .modal-body .drama-list { gap: 10px; }
+}
+
+/* ── #6 ダークモード ── */
+html[data-theme="light"] { color-scheme: light; }
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #14110d;
+  --surface: #201b15;
+  --surface2: #2b2419;
+  --border: rgba(255,255,255,0.12);
+  --accent: #d8a24a;
+  --accent2: #8b80ff;
+  --text: #f3efe8;
+  --text-muted: #a89e8d;
+  --text-soft: #d2c8b8;
+  --red: #e4708a;
+  --green: #4cc79b;
+  --gold: #e0b450;
+}
+html[data-theme="dark"] body { background: var(--bg); color: var(--text); }
+/* ダーク時：白(#fff)固定だったヘッダー/ボトムナビ等を surface に寄せる */
+html[data-theme="dark"] header,
+html[data-theme="dark"] .bottom-nav { background: var(--surface); }
+
+/* テーマ切替（設定モーダル）のセグメント */
+.theme-seg {
+  display: flex;
+  gap: 8px;
+}
+.theme-seg-btn {
+  flex: 1;
+  padding: 10px 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.theme-seg-btn.active {
+  border-color: var(--accent);
+  background: rgba(193,127,59,0.1);
+  color: var(--accent);
+  font-weight: 600;
+}

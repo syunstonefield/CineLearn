@@ -11,6 +11,8 @@ export default function LibraryCard({ entry, onSelect, onArchive, stats }) {
   const { drama, episodes } = entry;
   // ポスター画像の読み込み失敗を検知して頭文字フォールバックへ切り替える（白い空カード対策）
   const [imgFailed, setImgFailed] = useState(false);
+  // 読み込み完了までシマー（スケルトン）を出す
+  const [imgLoaded, setImgLoaded] = useState(false);
 
   const studied = episodes.length;
   // 現在のシーズン＝学習した最大シーズン番号。そのシーズン内の進捗をバーにする。
@@ -29,14 +31,19 @@ export default function LibraryCard({ entry, onSelect, onArchive, stats }) {
         style={showPoster ? undefined : { background: platformColor(drama.platform) }}
       >
         {showPoster ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            className="library-card-poster"
-            src={drama.posterPath}
-            alt=""
-            loading="lazy"
-            onError={() => setImgFailed(true)}
-          />
+          <>
+            {!imgLoaded && <span className="img-skeleton" aria-hidden="true" />}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              className="library-card-poster"
+              src={drama.posterPath}
+              alt=""
+              loading="lazy"
+              style={{ opacity: imgLoaded ? 1 : 0 }}
+              onLoad={() => setImgLoaded(true)}
+              onError={() => setImgFailed(true)}
+            />
+          </>
         ) : (
           <span className="library-card-letter">{drama.title.charAt(0)}</span>
         )}

@@ -19,8 +19,15 @@ export const viewport = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="ja">
+    <html lang="ja" suppressHydrationWarning>
       <body>
+        {/* テーマを描画前に確定してチラつきを防ぐ（保存値→システム設定の順） */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){try{var t=localStorage.getItem('cl_theme');if(t!=='dark'&&t!=='light'){t=(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';}document.documentElement.dataset.theme=t;}catch(e){}})();",
+          }}
+        />
         {/* 既存 index.html と同じ Google Fonts（React が <head> へ巻き上げる） */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
