@@ -124,6 +124,19 @@ export default function VocabScreen() {
     );
   }, [vocab, timestamps]);
 
+  // このドラマで学習済みのエピソード（シーズン→Set(episode)）。チップの状態表示に使う。
+  const studiedByEp = useMemo(() => {
+    const m = {};
+    if (!drama) return m;
+    loadHistory().forEach((h) => {
+      if (h.drama?.title === drama.title && h.words?.length) {
+        (m[h.season] = m[h.season] || new Set()).add(h.episode);
+      }
+    });
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drama, historyId, reviewVersion]);
+
   const reloadSrs = useCallbackSafe(() => setSrs(loadSrs()), []);
 
   // SRS はマウント時に必ずロードする（クラウドから pull 済みの
@@ -599,8 +612,8 @@ export default function VocabScreen() {
   const handleCopyTime = (time) => {
     navigator.clipboard?.writeText(time).catch(() => {});
   };
-  const onSeasonChange = (e) => {
-    const se = parseInt(e.target.value);
+  const pickSeason = (se) => {
+    if (se === season) return;
     setSeason(se);
     setEpisode(1);
     loadEpisode(se, 1);
@@ -682,32 +695,44 @@ export default function VocabScreen() {
             {isMovie ? '🎬 映画（字幕から単語を予習）' : '視聴するエピソードを選択'}
           </div>
           {!isMovie && (
-            <div className="episode-picker">
-              <div className="episode-field">
-                <label className="episode-field-label">シーズン</label>
-                <select className="episode-select" value={season} onChange={onSeasonChange}>
+            <div className="ep-picker">
+              {seasons.length > 1 && (
+                <div className="ep-seasons" role="tablist" aria-label="シーズン">
                   {seasons.map((s) => (
-                    <option key={s.season} value={s.season}>
-                      Season {s.season}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="episode-field episode-field-grow">
-                <label className="episode-field-label">エピソード</label>
-                <div className="episode-chips">
-                  {Array.from({ length: epCount }, (_, i) => i + 1).map((i) => (
                     <button
-                      key={i}
+                      key={s.season}
                       type="button"
-                      className={'episode-chip' + (i === episode ? ' is-active' : '')}
-                      onClick={() => pickEpisode(i)}
-                      aria-pressed={i === episode}
+                      className={'ep-season-chip' + (s.season === season ? ' is-active' : '')}
+                      onClick={() => pickSeason(s.season)}
+                      aria-pressed={s.season === season}
                     >
-                      {i}
+                      S{s.season}
                     </button>
                   ))}
                 </div>
+              )}
+              <div className="ep-grid">
+                {Array.from({ length: epCount }, (_, i) => i + 1).map((ep) => {
+                  const done = (studiedByEp[season] || new Set()).has(ep);
+                  const active = ep === episode;
+                  return (
+                    <button
+                      key={ep}
+                      type="button"
+                      className={'ep-card' + (active ? ' is-active' : '') + (done ? ' is-done' : '')}
+                      onClick={() => pickEpisode(ep)}
+                      aria-pressed={active}
+                    >
+                      <span className="ep-card-num">{ep}</span>
+                      <span className="ep-card-body">
+                        <span className="ep-card-title">Episode {ep}</span>
+                        <span className="ep-card-state">
+                          {done ? '✓ 学習済み' : active ? 'NEXT' : '未学習'}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}

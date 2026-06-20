@@ -36,8 +36,28 @@ export default function TodayPanel({ streak, hasAnyWord, todayCount, weekStats, 
       <div className="today-panel">
         <div className="today-hero is-due">
           <div className="today-hero-count" aria-hidden="true">
-            <span className="today-hero-count-num">{todayCount}</span>
-            <span className="today-hero-count-unit">語</span>
+            <svg className="today-ring" viewBox="0 0 72 72">
+              <defs>
+                <linearGradient id="todayRingGrad" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stopColor="var(--accent)" />
+                  <stop offset="1" stopColor="var(--gold)" />
+                </linearGradient>
+              </defs>
+              <circle className="today-ring-track" cx="36" cy="36" r="31" />
+              <circle
+                cx="36"
+                cy="36"
+                r="31"
+                fill="none"
+                stroke="url(#todayRingGrad)"
+                strokeWidth="4"
+                strokeLinecap="round"
+              />
+            </svg>
+            <span className="today-hero-count-inner">
+              <span className="today-hero-count-num">{todayCount}</span>
+              <span className="today-hero-count-unit">語</span>
+            </span>
           </div>
           <div className="today-hero-main">
             <div className="today-hero-title">今日の復習</div>
