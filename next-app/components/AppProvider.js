@@ -71,6 +71,14 @@ export default function AppProvider({ children }) {
   const [currentHistoryId, setCurrentHistoryId] = useState(null);
   const [reviewWords, setReviewWords] = useState(null); // null=モーダル閉
   const [reviewVersion, setReviewVersion] = useState(0); // 復習完了後の再集計トリガ
+  // 予習エンジン（Prep Engine）：phase を汚さずに open/close で重ねるモーダル。
+  //   prepQuiz   : 「今夜のリハーサル」クイズ3問。null=閉 / { questions, meta }
+  //   prepLaunch : 完了 launch ramp。null=閉 / { variant:'quiz'|'cards'|'watch', ...payload }
+  const [prepQuiz, setPrepQuiz] = useState(null);
+  const [prepLaunch, setPrepLaunch] = useState(null);
+  // 予習の「じっくり覚える」で ReviewModal を起動したとき、閉じたら cards バリエの
+  // launch ramp を出すための保留ペイロード（{ words, drama, title, ... } | null）。
+  const pendingPrepCardsRef = useRef(null);
   // 初回ウェルカム・チュートリアル：null=閉 / 'onboarding'（設定完了直後→閉じると作品追加へ）/ 'help'（？ボタン再表示）。
   // 「見た」フラグは cl_tutorial_seen（端末ローカル・クラウド同期に左右されない）に保存する。
   const [tutorial, setTutorial] = useState(null);
@@ -396,7 +404,25 @@ export default function AppProvider({ children }) {
   const closeReview = useCallback(() => {
     setReviewWords(null);
     setReviewVersion((v) => v + 1); // ダッシュボード/単語リストの再集計を促す
+    // 予習の「じっくり覚える」で開いていたら、閉じた直後に cards の launch ramp を出す。
+    const pending = pendingPrepCardsRef.current;
+    if (pending) {
+      pendingPrepCardsRef.current = null;
+      setPrepLaunch({ variant: 'cards', ...pending });
+    }
   }, []);
+  // 予習からフラッシュカード（first-pass）を起動。閉じたら cards launch ramp を予約。
+  const openPrepReview = useCallback((words, launchPayload) => {
+    pendingPrepCardsRef.current = launchPayload || null;
+    setReviewWords(words || []);
+  }, []);
+
+  // 予習エンジン：クイズ／launch ramp の開閉（VocabScreen の下部3択から呼ぶ）。
+  // openReview/closeReview と同じ素朴な open/close パターン。phase には触れない。
+  const openPrepQuiz = useCallback((payload) => setPrepQuiz(payload || null), []);
+  const closePrepQuiz = useCallback(() => setPrepQuiz(null), []);
+  const openPrepLaunch = useCallback((payload) => setPrepLaunch(payload || null), []);
+  const closePrepLaunch = useCallback(() => setPrepLaunch(null), []);
 
   // 拡張機能の導入ガイドの開閉
   const openGuide = useCallback(() => setGuideOpen(true), []);
@@ -475,8 +501,15 @@ export default function AppProvider({ children }) {
     reviewWords,
     openReview,
     closeReview,
+    openPrepReview,
     reviewVersion,
     goToQuiz,
+    prepQuiz,
+    openPrepQuiz,
+    closePrepQuiz,
+    prepLaunch,
+    openPrepLaunch,
+    closePrepLaunch,
     tutorial,
     openTutorial,
     closeTutorial,

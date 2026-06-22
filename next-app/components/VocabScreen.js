@@ -32,6 +32,7 @@ import {
 import { generateSuperset, personalizeWords, fillMissingExampleJa } from '@/lib/vocab';
 import { fetchSharedVocab, contributeVocab } from '@/lib/api';
 import { getMyWordsForEpisode, resolveUnassignedWords, translateExtWordDefinitions } from '@/lib/words';
+import { selectQuizWords, buildQuizQuestions, prepIntegrity } from '@/lib/prep';
 
 function speak(word) {
   if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
@@ -58,6 +59,9 @@ export default function VocabScreen() {
     setCurrentHistoryId,
     goToQuiz,
     openReview,
+    openPrepReview,
+    openPrepQuiz,
+    openPrepLaunch,
     reviewVersion,
   } = app;
   const pid = app.profile?.id;
@@ -80,6 +84,10 @@ export default function VocabScreen() {
   // エピソード選択の折りたたみ（既定は畳む＝選択後すぐ単語へ。「変更」で展開）
   const [pickerOpen, setPickerOpen] = useState(false);
   const [historyId, setHistoryId] = useState(null);
+  // 予習エンジン：下部3択ゾーンの表示フラグ。新規生成(onGenerate)成功時だけ true。
+  // saved 再表示・error・soon・generating では出さない（finish line でなく launch ramp）。
+  const [prepFresh, setPrepFresh] = useState(false);
+  const [prepModes, setPrepModes] = useState(false); // 「次に進む」でモード選択ページへ
 
   // メモリ上の字幕（app.js の cachedSubtitleText/Key 相当）
   const subMem = useRef({ key: '', text: '', raw: '' });
@@ -330,6 +338,7 @@ export default function VocabScreen() {
       setVocab([]);
       setExtWords([]);
       setHistoryId(null);
+      setPrepFresh(false); // 別エピソードへ移ったら下部3択は隠す（新規生成成功で再点灯）
       setGenBtn({ text: '単語を生成', disabled: true, hidden: false });
       if (await checkSaved(se, ep)) {
         // 保存済みでも字幕キャッシュが無ければ「無音版」で静かに取得
@@ -512,6 +521,7 @@ export default function VocabScreen() {
         setSubRaw('');
         setVocab([]);
         setSource('');
+        setPrepFresh(false); // soon では下部3択を出さない
         setMessage('🚧 この作品は近日対応予定です（カタログを順次拡大中）');
         setPhase('soon');
         setGenBtn({ text: '単語を生成', disabled: true, hidden: true });
@@ -580,6 +590,8 @@ export default function VocabScreen() {
       setVocab(words);
       setSource(srcLabel);
       setPhase('vocab');
+      setPrepFresh(true); // 新規生成成功 → 下部「次に進む」（予習エンジン）を出す
+      setPrepModes(false); // 生成直後はまず単語リスト（「次に進む」でモード選択へ）
       setGenBtn({ text: '単語を再生成', disabled: false, hidden: true });
 
       // 履歴に保存
@@ -601,6 +613,7 @@ export default function VocabScreen() {
       // クイズはここでは生成しない。ユーザーがテストを開いた時に QuizScreen 側で生成する。
     } catch (e) {
       setPhase('error');
+      setPrepFresh(false); // error では下部3択を出さない
       setMessage(e.message || '生成に失敗しました');
       setGenBtn({ text: '単語を再生成', disabled: false, hidden: false });
     }
@@ -631,6 +644,7 @@ export default function VocabScreen() {
     setHistoryId(null);
     setVocab([]);
     setExtWords([]);
+    setPrepFresh(false);
     setPhase('empty');
     setMessage('エピソードを選んでください');
     setStatusText('');
@@ -656,6 +670,48 @@ export default function VocabScreen() {
     ? `📺 ${drama.title}（字幕：OpenSubtitles）`
     : `📺 ${drama.title} S${season}E${episode}（字幕：OpenSubtitles）`;
 
+  // ── 予習エンジン（下部3択ゾーン）─────────────────────────
+  // このエピソードの新出語（SRS にエントリ無し＝今夜が初対面）。「じっくり覚える」first-pass の対象。
+  const episodeNewWords = sortedVocab.filter((w) => !srs[w.word.toLowerCase()]);
+  // 誠実指標（予習時点で真な数だけ・「覚えた」は使わない）。
+  const integrity = prepIntegrity(sortedVocab);
+  // launch ramp / クイズの共通メタ。
+  const prepMeta = {
+    drama,
+    title: drama.title,
+    season,
+    episode,
+    isMovie,
+    service: settings.selectedViewingService || '',
+    integrity,
+    freshCount: integrity.fresh,
+  };
+
+  // 主：「今夜のリハーサル」＝クイズ3問を起動（出題語を自動選定→3問を組む）。
+  const startPrepQuiz = () => {
+    const quizWords = selectQuizWords(sortedVocab, 3);
+    if (!quizWords.length) {
+      // 出題できる実セリフ例文が無ければクイズは諦め、最小の watch ramp へ逃がす。
+      openPrepLaunch({ variant: 'watch', ...prepMeta });
+      return;
+    }
+    const questions = buildQuizQuestions(quizWords, sortedVocab);
+    openPrepQuiz({ questions, meta: prepMeta });
+  };
+
+  // 副：「じっくり覚える」＝このエピソードの新出語で ReviewModal を first-pass 起動。
+  // 閉じたら cards の launch ramp が出る（openPrepReview が予約）。
+  const startPrepCards = () => {
+    const words = (episodeNewWords.length ? episodeNewWords : sortedVocab).map((w) => ({
+      ...w,
+      _src: { title: drama.title, season, episode, type: drama.type },
+    }));
+    openPrepReview(words, { ...prepMeta, cardCount: words.length });
+  };
+
+  // 逃げ：「今夜は観るだけ」＝最小 launch ramp（無摩擦・観るは常に一級）。
+  const startPrepWatch = () => openPrepLaunch({ variant: 'watch', ...prepMeta });
+
   // 進捗バー（buildProgressHTML 準拠）
   const pct = stats.total === 0 ? 0 : Math.round((stats.learned / stats.total) * 100);
   // テンションの上がるゲージ：グレーは使わない。低〜中=鮮やかなエメラルド、達成=ゴールドで祝福。
@@ -670,6 +726,44 @@ export default function VocabScreen() {
         ? '🌟 全単語マスター達成！'
         : '✨ 全単語「覚えた」達成！'
       : '';
+
+  // ── 予習エンジン：モード選択ページ（「次に進む」で遷移）──────────────
+  //   3つは同じ大きさ・色で誘導（リハーサル=アクセント/じっくり=accent2/観るだけ=中立）。
+  if (showVocab && sortedVocab.length > 0 && prepFresh && prepModes) {
+    return (
+      <div className="screen active" id="screen-4">
+        <div className="screen-inner">
+          <div className="screen-header">
+            <button className="btn-back" onClick={() => setPrepModes(false)}>
+              ← 単語リスト
+            </button>
+            <div>
+              <div className="screen-title">仕込み方を選ぶ</div>
+              <div className="screen-desc">
+                「{drama.title}」{isMovie ? '' : ` S${season}E${episode}`} ・ {integrity.prepared}語を準備
+              </div>
+            </div>
+          </div>
+          <div className="prep-modes-list">
+            <button className="prep-mode prep-mode-quiz" onClick={startPrepQuiz}>
+              <span className="prep-mode-name">今夜のリハーサル</span>
+              <span className="prep-mode-desc">クイズ3問 ・ 〜90秒で耳を慣らす</span>
+            </button>
+            <button className="prep-mode prep-mode-cards" onClick={startPrepCards}>
+              <span className="prep-mode-name">じっくり覚える</span>
+              <span className="prep-mode-desc">
+                フラッシュカードで新出{integrity.fresh}語を一周
+              </span>
+            </button>
+            <button className="prep-mode prep-mode-watch" onClick={startPrepWatch}>
+              <span className="prep-mode-name">今夜は観るだけ</span>
+              <span className="prep-mode-desc">クイズとカードは後でも受けられます</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="screen active" id="screen-4">
@@ -943,10 +1037,21 @@ export default function VocabScreen() {
           )}
         </div>
 
-        {showVocab && sortedVocab.length > 0 && (
-          <button className="btn-primary vocab-cta-sticky" onClick={() => goToQuiz()}>
-            テストを受ける →
+        {/* 予習エンジン：新規生成成功時だけ「次に進む」→ モード選択ページへ。
+            saved 再表示・error・soon・generating では従来の「テストを受ける」を出す。 */}
+        {showVocab && sortedVocab.length > 0 && prepFresh ? (
+          <button
+            className="btn-primary vocab-cta-sticky"
+            onClick={() => setPrepModes(true)}
+          >
+            予習する →
           </button>
+        ) : (
+          showVocab && sortedVocab.length > 0 && (
+            <button className="btn-primary vocab-cta-sticky" onClick={() => goToQuiz()}>
+              テストを受ける →
+            </button>
+          )
         )}
       </div>
     </div>

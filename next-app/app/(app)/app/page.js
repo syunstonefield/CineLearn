@@ -8,6 +8,8 @@ import ServiceSelect from '@/components/ServiceSelect';
 import VocabScreen from '@/components/VocabScreen';
 import QuizScreen from '@/components/QuizScreen';
 import ReviewModal from '@/components/ReviewModal';
+import PrepQuiz from '@/components/PrepQuiz';
+import PrepLaunch from '@/components/PrepLaunch';
 import SettingsModal from '@/components/SettingsModal';
 import ProfileSelect from '@/components/ProfileSelect';
 import WordbookModal from '@/components/WordbookModal';
@@ -33,6 +35,8 @@ function AppShell() {
     goHome,
     mounted,
     reviewWords,
+    prepQuiz,
+    prepLaunch,
     reviewVersion,
     settingsOpen,
     openSettings,
@@ -99,6 +103,8 @@ function AppShell() {
       </main>
 
       {reviewWords && <ReviewModal />}
+      {prepQuiz && <PrepQuiz />}
+      {prepLaunch && <PrepLaunch />}
       {settingsOpen && <SettingsModal onClose={closeSettings} />}
       {wordbookOpen && <WordbookModal />}
       {authOpen && <AuthModal />}
