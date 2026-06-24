@@ -76,18 +76,21 @@ function AppShell() {
 
   return (
     <>
-      <Header
-        profile={headerProfile}
-        wordCount={wordCount}
-        onLogoClick={goHome}
-        onSwitchProfile={PROFILE_SELECT_ENABLED ? switchProfile : null}
-        onWordbook={openWordbook}
-        onSettings={openSettings}
-        onHelp={openTutorial}
-        loggedIn={loggedIn}
-        onAuth={openAuth}
-        onSignOut={signOut}
-      />
+      {/* オンボーディング中は全画面ウィザード（Duolingo風）にするためヘッダーを隠す */}
+      {screen !== 'onboarding' && (
+        <Header
+          profile={headerProfile}
+          wordCount={wordCount}
+          onLogoClick={goHome}
+          onSwitchProfile={PROFILE_SELECT_ENABLED ? switchProfile : null}
+          onWordbook={openWordbook}
+          onSettings={openSettings}
+          onHelp={openTutorial}
+          loggedIn={loggedIn}
+          onAuth={openAuth}
+          onSignOut={signOut}
+        />
+      )}
 
       <main id="mainContent">
         {/* 封印中（PROFILE_SELECT_ENABLED=false）は「だれが観ますか？」を描画しない。

@@ -25,6 +25,11 @@ const DEFAULT_SETTINGS = {
   testTiers: ['core', 'advanced'],
   selectedViewingService: null,
   myDramas: [],
+  // オンボーディング（初回ログイン時の6問アンケート）で取得・記憶する項目。
+  learningGoal: null, // 学ぶ目的（subtitles-free/travel/work/exam/hobby）
+  learnStyle: null, // 学習スタイル fun=楽しく / efficient=効率的に（映画館演出の既定に効かせる）
+  referralSource: null, // 流入元（どこでCineLearnを知ったか）＝マーケ参考
+  onboarded: false, // 初回アンケート完了フラグ。true 以降はオンボーディングを出さない。
 };
 
 const AVATAR_COLORS = [
@@ -231,6 +236,12 @@ export default function AppProvider({ children }) {
     setProfile(p);
     const s = { ...DEFAULT_SETTINGS, ...(p.settings || {}) };
     setSettings(s);
+    // 初回オンボーディング未完了なら、ログイン状態に関わらず1回だけアンケートへ。
+    // 完了で onboarded:true が立つので、以降は main 直行（＝二度と出さない）。
+    if (!s.onboarded) {
+      setScreen('onboarding');
+      return;
+    }
     setScreen('main');
     // 未設定（TOEIC/サービス未入力）なら設定モーダルを開く（オンボーディング代替）
     if (!s.toeicScore || !(s.selectedServices || []).length) setSettingsOpen(true);
@@ -253,17 +264,12 @@ export default function AppProvider({ children }) {
   // 設定を保存してメインへ → ドラマ追加モーダルをタイトル検索タブで開く
   const [pendingAddDrama, setPendingAddDrama] = useState(null); // {tab, query} | null
   const finishOnboarding = useCallback((patch) => {
-    setSettings((prev) => ({ ...prev, ...patch }));
+    // 全回答を保存し、onboarded:true を必ず立てる（以降オンボーディングは出さない＝1回だけ）。
+    setSettings((prev) => ({ ...prev, ...patch, onboarded: true }));
     setScreen('main');
-    // 初回はまず使い方ガイドを見せ、閉じたときに作品追加へ進む（closeTutorial が担当）。
-    // すでにガイドを見た端末（2人目のプロフィール作成など）は従来どおり直接作品追加へ。
-    const seen = typeof window !== 'undefined' && localStorage.getItem('cl_tutorial_seen') === '1';
-    if (seen) {
-      setPendingAddDrama({ tab: 'search', query: '' });
-    } else {
-      markTutorialSeen(); // 表示と同時に既読化＝自動表示は一度だけ
-      setTutorial('onboarding');
-    }
+    // 作品選びはホーム（おすすめ＋検索）に任せるため、ここでは追加モーダルを開かない。
+    // 自動の使い方ガイドも抑止（オンボーディングで案内済み）。
+    markTutorialSeen();
   }, []);
 
   const deleteProfile = useCallback((id) => {

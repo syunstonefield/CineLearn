@@ -3,7 +3,7 @@
 // landing.css のクラスに依存しないよう、見た目はインラインスタイルで自己完結させる。
 
 const CONTACT_EMAIL = 'cinelearn.202606@gmail.com';
-const UPDATED = '2026年6月17日';
+const UPDATED = '2026年6月20日';
 
 export const metadata = {
   title: 'プライバシーポリシー — CineLearn',
@@ -49,6 +49,12 @@ export default function PrivacyPage() {
           英語レベル（TOEIC）設定、学習の進捗・復習スケジュール。
         </li>
         <li style={li}>
+          <strong>オンボーディング情報：</strong>初回のアンケートでご回答いただくプロフィール属性
+          （英語学習の目的、好きなジャンル、学習スタイル、利用している動画サービス、最初に予習したい作品名など）。
+          学習プランのご提案・パーソナライズおよびサービス改善のために利用します。
+          性別・年代・健康状態などのセンシティブ情報は取得しません。
+        </li>
+        <li style={li}>
           <strong>端末内データ：</strong>ログインせずに利用する場合、上記データはお使いの端末
           （ブラウザの localStorage および拡張機能のストレージ）にのみ保存され、当社サーバーには送信されません。
         </li>
@@ -64,6 +70,7 @@ export default function PrivacyPage() {
       <h2 style={h2}>2. 利用目的</h2>
       <ul>
         <li style={li}>単語生成・単語帳・復習（SRS）などの学習機能の提供</li>
+        <li style={li}>あなたに合わせた学習プランのご提案・パーソナライズ</li>
         <li style={li}>複数端末間でのクラウド同期</li>
         <li style={li}>復習リマインダーの配信</li>
         <li style={li}>本サービスの品質改善</li>

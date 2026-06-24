@@ -52,7 +52,7 @@ async function fetchPoster(item) {
 // userLevel: バッジ表示用。作品がそのレベルを含めばユーザーのレベルを優先表示する。
 // variant='row'  : 横スクロール1行（空のマイリストで説明付きカードを「サブスク風」に並べる）。
 // variant='mini' : マイリストの小型カードと揃えたポスターのみの横バー（文字は出さない）。
-export default function RecommendGrid({ items, onPick, userLevel, variant }) {
+export default function RecommendGrid({ items, onPick, userLevel, variant, selectedTitle }) {
   const mini = variant === 'mini';
   const [posters, setPosters] = useState({}); // tmdbId → URL
   const [failed, setFailed] = useState({}); // tmdbId → true（取得失敗＝頭文字フォールバック）
@@ -90,7 +90,7 @@ export default function RecommendGrid({ items, onPick, userLevel, variant }) {
         return (
           <div
             key={item.tmdbId}
-            className="recommend-card"
+            className={'recommend-card' + (selectedTitle && item.title === selectedTitle ? ' is-selected' : '')}
             onClick={() => onPick(item)}
             title={mini ? item.title : undefined}
           >
