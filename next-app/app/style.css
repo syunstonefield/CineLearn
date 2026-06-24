@@ -4742,3 +4742,83 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
 /* オンボーディングの作品ピッカー（ポスター選択・自由入力なし） */
 .ob-picker { margin-top: 16px; }
 .ob-picker .recommend-grid { max-width: 100%; }
+
+/* ── 半券（観た証）カード：ホームの TodayPanel 直下に最新1枚。「あの場面を思い出す」入口 ── */
+/* TodayPanel と左右の基準線を揃える（中身は 640px 内に左寄せ） */
+.stub-row {
+  margin: 0 0 14px;
+  padding: 0 max(40px, calc((100% - var(--content-max)) / 2));
+}
+.stub-card {
+  width: 100%;
+  max-width: 640px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 16px;
+  padding: 14px 16px;
+  /* チケットの半券らしい暖色グラデ＋柔らかい影（today-hero.is-due と同系で統一） */
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 14%, var(--surface)), var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.05);
+  -webkit-appearance: none;
+  appearance: none;
+  font: inherit;
+  color: var(--text);
+  transition: box-shadow 0.15s ease, transform 0.05s ease;
+}
+.stub-card:hover { box-shadow: 0 6px 22px rgba(0, 0, 0, 0.09); }
+.stub-card:active { transform: scale(0.995); }
+
+.stub-card-stub {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+  /* 半券のミシン目（破った縁）を右側の点線で表現 */
+  border-right: 2px dashed color-mix(in srgb, var(--accent) 35%, var(--border));
+}
+.stub-card-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.stub-card-eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  text-transform: uppercase;
+}
+.stub-card-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stub-card-sub { font-size: 12px; color: var(--text-muted); }
+.stub-card-cta {
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+  white-space: nowrap;
+}
+@media (max-width: 560px) {
+  .stub-card-cta {
+    /* 狭幅では矢印ラベルを畳んで本文を優先 */
+    font-size: 0;
+  }
+  .stub-card-cta::before { content: '🃏'; font-size: 18px; }
+}

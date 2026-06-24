@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { loadProfiles, saveProfiles, patchProfileSettings, unarchiveDrama } from '@/lib/storage';
+import { issueTicket as issueTicketLib, loadTickets } from '@/lib/tickets';
 import { applyTheme, getThemePref } from '@/lib/theme';
 import { ensureFreshSession, pullFromCloud, isLoggedIn, supaSignOut, clearSession } from '@/lib/supabase';
 import { recommendedToDrama } from '@/lib/recommended';
@@ -75,7 +76,10 @@ export default function AppProvider({ children }) {
   const [quizData, setQuizData] = useState([]); // 表示用（シャッフル済み）
   const [currentHistoryId, setCurrentHistoryId] = useState(null);
   const [reviewWords, setReviewWords] = useState(null); // null=モーダル閉
+  const [reviewAll, setReviewAll] = useState(false); // true=SRS期日に関係なく全語をカード化（半券のシーン記憶カード用）
   const [reviewVersion, setReviewVersion] = useState(0); // 復習完了後の再集計トリガ
+  // 半券（観た証）：予習クイズ完了で1枚発行し、ホームの「あの場面を思い出す」入口に使う。
+  const [tickets, setTickets] = useState([]);
   // 予習エンジン（Prep Engine）：phase を汚さずに open/close で重ねるモーダル。
   //   prepQuiz   : 「今夜のリハーサル」クイズ3問。null=閉 / { questions, meta }
   //   prepLaunch : 完了 launch ramp。null=閉 / { variant:'quiz'|'cards'|'watch', ...payload }
@@ -406,7 +410,11 @@ export default function AppProvider({ children }) {
   const goToQuiz = useCallback(() => setScreen('quiz'), []);
 
   // 復習モーダルの開閉（ダッシュボード・単語リストの両方から呼ぶ）
-  const openReview = useCallback((words) => setReviewWords(words || []), []);
+  // opts.all=true で SRS の期日フィルタを通さず全語をカード化（半券のシーン記憶カード用）。
+  const openReview = useCallback((words, opts) => {
+    setReviewAll(!!(opts && opts.all));
+    setReviewWords(words || []);
+  }, []);
   const closeReview = useCallback(() => {
     setReviewWords(null);
     setReviewVersion((v) => v + 1); // ダッシュボード/単語リストの再集計を促す
@@ -427,8 +435,30 @@ export default function AppProvider({ children }) {
   // openReview/closeReview と同じ素朴な open/close パターン。phase には触れない。
   const openPrepQuiz = useCallback((payload) => setPrepQuiz(payload || null), []);
   const closePrepQuiz = useCallback(() => setPrepQuiz(null), []);
-  const openPrepLaunch = useCallback((payload) => setPrepLaunch(payload || null), []);
+  const openPrepLaunch = useCallback(
+    (payload) => {
+      setPrepLaunch(payload || null);
+      // 予習クイズ完了＝半券を1枚発行（観た後の「あの場面を思い出す」入口に使う）。
+      // cards/watch バリエはチケットを作らない（quiz のみ）。
+      if (payload && payload.variant === 'quiz' && profile) {
+        issueTicketLib(profile.id, payload);
+        setTickets(loadTickets(profile.id));
+      }
+    },
+    [profile]
+  );
   const closePrepLaunch = useCallback(() => setPrepLaunch(null), []);
+
+  // 半券をタップ → そのエピソードの出題語を「シーン記憶カード」として開く。
+  // 横断扱い（特定 historyId に紐づけない）＋全語表示（SRS期日で空にしない）。
+  const openSceneCards = useCallback(
+    (ticket) => {
+      if (!ticket) return;
+      setCurrentHistoryId(null);
+      openReview(ticket.words || [], { all: true });
+    },
+    [openReview]
+  );
 
   // 拡張機能の導入ガイドの開閉
   const openGuide = useCallback(() => setGuideOpen(true), []);
@@ -455,6 +485,11 @@ export default function AppProvider({ children }) {
     markTutorialSeen(); // 表示と同時に既読化＝自動表示は一度だけ（以降は「?」から）
     setTutorial('help');
   }, [mounted, profile, screen, settingsOpen, tutorial]);
+
+  // 半券（観た証）をプロフィールごとに読み込む（クラウド同期はしない・端末ローカル）。
+  useEffect(() => {
+    setTickets(profile ? loadTickets(profile.id) : []);
+  }, [profile]);
 
   const value = {
     profile,
@@ -505,10 +540,13 @@ export default function AppProvider({ children }) {
     currentHistoryId,
     setCurrentHistoryId,
     reviewWords,
+    reviewAll,
     openReview,
     closeReview,
     openPrepReview,
     reviewVersion,
+    tickets,
+    openSceneCards,
     goToQuiz,
     prepQuiz,
     openPrepQuiz,

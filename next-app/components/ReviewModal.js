@@ -15,7 +15,7 @@ import {
 
 // 既存 startReview / renderReviewCard（SRSフラッシュカード）の再現。
 export default function ReviewModal() {
-  const { reviewWords, closeReview, currentHistoryId } = useApp();
+  const { reviewWords, reviewAll, closeReview, currentHistoryId } = useApp();
 
   // 初期キュー：未学習 or 期日到来のみ・シャッフル（reviewWords が変わるたびに作り直す）
   const [queue, setQueue] = useState([]);
@@ -32,6 +32,8 @@ export default function ReviewModal() {
     const srs = loadSrs();
     const q = reviewWords
       .filter((w) => {
+        // reviewAll（半券のシーン記憶カード）は期日に関係なく全語を出す＝場面を必ず振り返れる。
+        if (reviewAll) return true;
         const e = srs[w.word.toLowerCase()];
         return !e || isDue(e);
       })

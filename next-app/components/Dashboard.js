@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
 import TodayPanel from './TodayPanel';
+import HomeStubCard from './HomeStubCard';
 import LibraryCard from './LibraryCard';
 import AddDramaModal from './AddDramaModal';
 import RecommendGrid from './RecommendGrid';
@@ -44,6 +45,8 @@ export default function Dashboard() {
     openRecommend,
     openSearch,
     openGuide,
+    tickets,
+    openSceneCards,
   } = useApp();
   const [tick, setTick] = useState(0); // 再読込トリガ
   // 拡張機能の導入バナー（最初の関門対策で常設）。拡張未検出の判定はできないため、
@@ -293,6 +296,22 @@ export default function Dashboard() {
           openReview(getDueReviewWords().slice(0, DAILY_REVIEW_CAP));
         }}
       />
+
+      {/* 半券（観た証）＝観た後に戻る入口。シーン記憶カードへ。最新1枚だけ出して混雑を避ける。 */}
+      {(() => {
+        const withWords = (tickets || []).filter((t) => (t.words || []).length > 0);
+        if (!withWords.length) return null;
+        const latest = withWords[withWords.length - 1];
+        return (
+          <div className="stub-row">
+            <HomeStubCard
+              ticket={latest}
+              extraCount={withWords.length - 1}
+              onOpen={openSceneCards}
+            />
+          </div>
+        );
+      })()}
 
       <div className="main-toolbar">
         <div className="toolbar-search">
