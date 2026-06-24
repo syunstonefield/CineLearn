@@ -33,7 +33,7 @@ export default function RootLayout({ children }) {
         <link
           rel="stylesheet"
           precedence="default"
-          href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Sans:wght@300;400;500&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500&family=Montserrat:wght@500;600;700&family=Playfair+Display:wght@400;700&display=swap"
         />
         {children}
       </body>

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useApp } from './AppProvider';
+import { nextSeat } from '@/lib/prep';
 
 // 予習エンジン「今夜のリハーサル」＝3問固定の recognition クイズ。
 // 各問: 実セリフ（drama由来 example）の対象語を空欄にして提示し、
@@ -55,6 +56,7 @@ export default function PrepQuiz() {
       closePrepQuiz();
       openPrepLaunch({
         variant: 'quiz',
+        seat: nextSeat(), // 指定席を1ずつ採番（=観覧通し番号）。ここで一度だけ確定。
         quizWords: questions.map((x) => x.word),
         correct: correctCount, // 正誤は pick 時点で集計済み
         total: questions.length,

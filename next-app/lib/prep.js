@@ -154,3 +154,27 @@ export function watchSearchUrl(title, service) {
   // 既定（Netflix／未選択）。
   return `https://www.netflix.com/search?q=${q}`;
 }
+
+// プレミアパスの「指定席」を1ずつ採番して端末に記憶する（=観覧履歴の通し番号）。
+//   A-01 → A-99 → B-01 → … → Z-99 → A-01（Z以降は巡回）。
+//   ★パス生成時に一度だけ呼ぶ（再描画・フリップで増えないように呼び出し側で1回）。
+//   端末ローカル（localStorage）。クラウド同期はしない（席番号は装飾的なので割り切り）。
+const SEAT_KEY = 'cl_seat_counter';
+export function nextSeat() {
+  let n = 0;
+  try {
+    n = parseInt(localStorage.getItem(SEAT_KEY) || '0', 10) || 0;
+  } catch {
+    /* SSR/プライベートモード等は採番せず A-01 */
+    return 'A-01';
+  }
+  n += 1;
+  try {
+    localStorage.setItem(SEAT_KEY, String(n));
+  } catch {
+    /* 保存失敗は番号だけ進めて表示（永続はしない） */
+  }
+  const within = ((n - 1) % 99) + 1; // 1..99
+  const letter = String.fromCharCode(65 + (Math.floor((n - 1) / 99) % 26)); // A..Z 巡回
+  return `${letter}-${String(within).padStart(2, '0')}`;
+}

@@ -30,12 +30,16 @@ function json(obj, status = 200) {
 function allowedOrigin(req) {
   const s = req.headers.get('origin') || req.headers.get('referer') || '';
   if (!s) return true; // 同一オリジン fetch や拡張 background で origin 無しのことがある
-  return (
-    s.includes('cinelearn') ||
-    s.includes('cine-learn') ||
-    s.startsWith('http://localhost') ||
-    s.startsWith('chrome-extension://')
-  );
+  if (s.startsWith('chrome-extension://')) return true; // 拡張
+  try {
+    const u = new URL(s);
+    const selfHost = req.headers.get('host') || '';
+    if (selfHost && u.host === selfHost) return true; // 同一オリジン（LAN IP実機/各デプロイURL）
+    if (u.hostname === 'localhost' || u.hostname === '127.0.0.1') return true; // 開発
+    return ['cinelearn-next.vercel.app', 'cine-learn.vercel.app'].includes(u.hostname);
+  } catch {
+    return false;
+  }
 }
 
 // ── translation_cache（service_role 専用）読み書き ──

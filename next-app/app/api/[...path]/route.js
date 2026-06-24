@@ -21,6 +21,12 @@ function allowedOrigin(req) {
   if (s.startsWith('chrome-extension://')) return true; // 拡張（ID 限定は公開後 TODO）
   try {
     const u = new URL(s);
+    // ★同一オリジン（アプリ自身が配信されているホスト）は常に許可。
+    //   ブラウザが自分の /api/* を叩くのは常に same-origin だから、これで
+    //   localhost / LAN IP(スマホ実機=192.168.x:3000 等) / 各 vercel デプロイURL /
+    //   独自ドメイン が全部通る。第三者の別オリジン・空 Origin は弾いたまま。
+    const selfHost = req.headers.get('host') || '';
+    if (selfHost && u.host === selfHost) return true; // host は :port 込み
     if (u.hostname === 'localhost' || u.hostname === '127.0.0.1') return true; // 開発
     return ALLOWED_HOSTS.includes(u.hostname);
   } catch {

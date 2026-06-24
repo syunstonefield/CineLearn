@@ -57,6 +57,8 @@ function allowedOrigin(req) {
   if (s.startsWith('chrome-extension://')) return true; // 拡張（ID 限定は公開後 TODO）
   try {
     const u = new URL(s);
+    const selfHost = req.headers.get('host') || '';
+    if (selfHost && u.host === selfHost) return true; // 同一オリジン（LAN IP実機/各デプロイURL）
     if (u.hostname === 'localhost' || u.hostname === '127.0.0.1') return true; // 開発
     return ALLOWED_HOSTS.includes(u.hostname);
   } catch {

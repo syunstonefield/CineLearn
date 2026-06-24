@@ -3370,6 +3370,11 @@ header {
   transform: translateY(-3px);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
 }
+/* オンボーディングの作品ピッカーで選択中のカード */
+.recommend-card.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent), 0 8px 24px color-mix(in srgb, var(--accent) 22%, transparent);
+}
 
 .recommend-poster {
   position: relative;
@@ -4405,3 +4410,335 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
   color: var(--text-muted);
   margin-top: 6px;
 }
+
+/* ── 予習エンジン：完了＝映画館の「開演」（暖色・固定配色／theme非依存／真っ黒禁止）── */
+/* 暗転は出現時のフェードのみ（速い）。配色は light/dark どちらでも同じ"暖色の暗がり"。 */
+/* 全画面ページ（ポップアップでなく"場内に入る"感）。head 上・body 中央・foot 下固定。 */
+.prep-cinema-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  background: #1f1810;
+  animation: prepCinemaFade 0.45s ease;
+}
+@keyframes prepCinemaFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.prep-cinema-panel {
+  width: 100%;
+  max-width: 460px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #1f1810;
+  color: #ece2cf;
+}
+.prep-cinema-body {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 12px 20px;
+}
+.prep-cinema-foot {
+  padding: 14px 20px calc(16px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid rgba(201, 162, 78, 0.16);
+}
+.prep-cinema-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(18px + env(safe-area-inset-top, 0px)) 20px 4px;
+}
+.prep-cinema-title { color: #e8b766; font-size: 16px; font-weight: 600; }
+.prep-cinema-close {
+  background: none;
+  border: none;
+  color: #9a8f7e;
+  font-size: 18px;
+  cursor: pointer;
+  line-height: 1;
+}
+/* 「半券を獲得」ラベル：チケットが浮き上がった後にふっと現れる */
+.prep-cinema-earned {
+  color: #e8b766;
+  font-size: 13px;
+  text-align: center;
+  margin-bottom: 12px;
+  animation: prepCinemaFadeUp 0.4s ease 0.85s both;
+}
+@keyframes prepCinemaFadeUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.prep-cinema-lead { color: #e7dcc4; font-size: 15px; margin-bottom: 12px; }
+.prep-cinema-sub { color: #a89878; font-size: 13px; margin-bottom: 14px; }
+/* 半券（チケット）：暖色の闇に浮く紙のチケット。下から浮き上がって"獲得"する演出。 */
+.prep-ticket {
+  display: flex;
+  background: #f1e8d6;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 14px;
+  animation: prepTicketEarn 0.7s cubic-bezier(0.18, 0.9, 0.3, 1.25) 0.2s both;
+}
+@keyframes prepTicketEarn {
+  0% { transform: translateY(48px) scale(0.9); opacity: 0; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+.prep-ticket-main { flex: 1; padding: 13px 14px; min-width: 0; }
+.prep-ticket-brand { color: #9c7c33; font-size: 10px; letter-spacing: 0.1em; margin-bottom: 6px; }
+.prep-ticket-title { color: #2a2114; font-size: 17px; font-weight: 600; line-height: 1.2; }
+.prep-ticket-ep { color: #6a5c43; font-size: 12px; margin: 2px 0 10px; }
+.prep-ticket-cue-label { color: #8a7553; font-size: 10px; }
+.prep-ticket-cue { color: #3a2f1d; font-size: 13px; font-weight: 600; }
+.prep-ticket-stub {
+  width: 58px;
+  padding: 12px 6px;
+  background: #e9deca;
+  border-left: 2px dashed #cabd9f;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+.prep-ticket-seat { color: #9c7c33; font-size: 10px; writing-mode: vertical-rl; letter-spacing: 0.1em; }
+.prep-ticket-date { color: #6a5c43; font-size: 10px; }
+/* 今夜聞く3行（声/場面は出さずテキストのみ＝satiation回避） */
+.prep-cinema-lines {
+  border-left: 2px solid rgba(201, 162, 78, 0.5);
+  padding-left: 12px;
+  margin-bottom: 14px;
+}
+.prep-cinema-line {
+  font-family: Georgia, 'Times New Roman', serif;
+  color: #d9cdb8;
+  font-size: 14px;
+  line-height: 1.9;
+}
+.prep-cinema-hl { color: #e9c877; font-weight: 600; }
+.prep-cinema-tomorrow { color: #9a8f7e; font-size: 12px; margin-bottom: 16px; }
+.prep-cinema-cta {
+  width: 100%;
+  background: #d8a94e;
+  color: #2a2014;
+  border: none;
+  padding: 14px;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.prep-cinema-cta-note { text-align: center; color: #8c7c5e; font-size: 11px; margin-top: 9px; }
+@media (prefers-reduced-motion: reduce) {
+  .prep-cinema-overlay,
+  .prep-cinema-panel,
+  .prep-cinema-earned,
+  .prep-ticket { animation: none; }
+}
+
+/* ── プレミアパス：紙チケット画像を土台に、動的テキストを重ねる＋タップでフリップ ── */
+/* 形・質感は public/premiere-pass.png と一致。文字サイズは cqw でチケット幅に追従。 */
+.pf-ticket-card {
+  width: 100%;
+  max-width: 440px;
+  aspect-ratio: 1312 / 816; /* テンプレ画像の実寸 */
+  margin: 4px auto 0;
+  perspective: 1400px;
+  container-type: inline-size;
+  cursor: pointer;
+  animation: prepTicketEarn 0.7s cubic-bezier(0.18, 0.9, 0.3, 1.25) 0.2s both;
+}
+.pf-ticket-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 0.6s cubic-bezier(0.4, 0.1, 0.2, 1);
+}
+.pf-ticket-card.is-flipped .pf-ticket-inner { transform: rotateY(180deg); }
+.pf-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.pf-front { background: url('/premiere-pass.png') center / contain no-repeat; }
+.pf-back {
+  background: #241c14;
+  transform: rotateY(180deg);
+  border-radius: 10px;
+  border: 1px solid #6e5a2f;
+  padding: 6cqw 7cqw;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+/* 動的オーバーレイ（位置 top/left% はコンポーネント側 inline で指定＝微調整しやすく） */
+.pf-ov {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  white-space: nowrap;
+}
+/* タイトル＝Bebas Neue（コンデンス／元画像の作品名フォントに近い）。単一ウェイトなので
+   font-weight は 400（700指定はフェイクボールドで崩れる）。英字はBebas・和字は和ゴシックへ。 */
+.pf-ov-title {
+  color: #2a2114;
+  font-family: 'Bebas Neue', 'DM Sans', system-ui, sans-serif;
+  font-weight: 400;
+  font-size: 7cqw;
+  letter-spacing: 0.04em;
+  max-width: 54cqw;
+  white-space: normal;
+  line-height: 1.02;
+}
+.pf-ov-se { color: #6a5c43; font-family: 'Montserrat', sans-serif; font-weight: 500; font-size: 3cqw; letter-spacing: 0.12em; }
+.pf-ov-result { color: #8b2e2e; font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: 4.2cqw; letter-spacing: 0.08em; }
+/* 指定席・日付＝Montserrat（英数字・元画像のサブテキストに近いジオメトリックサンセリフ） */
+.pf-ov-seat { color: #8b2e2e; font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: 4.2cqw; letter-spacing: 0.02em; }
+.pf-ov-date { color: #6a5c43; font-family: 'Montserrat', sans-serif; font-weight: 600; font-size: 2.8cqw; letter-spacing: 0.04em; }
+.pf-back-head { color: #e8b766; font-size: 3.4cqw; margin-bottom: 3cqw; }
+.pf-back-lines { border-left: 2px solid rgba(201, 162, 78, 0.5); padding-left: 3cqw; }
+.pf-back-line { font-family: Georgia, 'Times New Roman', serif; color: #dccfb6; font-size: 3.6cqw; line-height: 2; }
+.pf-back-hl { color: #e9c877; font-weight: 600; }
+.pf-hint { text-align: center; color: #8c7c5e; font-size: 11px; margin-top: 10px; }
+@media (prefers-reduced-motion: reduce) {
+  .pf-ticket-card { animation: none; }
+}
+
+/* ── オンボーディング（Duolingo参照：高さ固定／上バー／下固定ボタン）── */
+/* .screen.active(display:block) に勝つため .screen.ob-screen で指定 */
+.screen.ob-screen {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  max-width: 480px;
+  margin: 0 auto;
+  background: var(--bg);
+}
+/* 上部：戻る＋進捗バー */
+.ob-bar { flex-shrink: 0; display: flex; align-items: center; gap: 14px; padding: 14px 16px 8px; }
+.ob-back {
+  flex-shrink: 0; background: none; border: none; font-size: 24px; line-height: 1;
+  color: var(--text-muted); cursor: pointer; padding: 2px 6px;
+}
+.ob-back:disabled { opacity: 0.3; cursor: default; }
+.ob-progress { flex: 1; height: 14px; border-radius: 999px; background: var(--surface2); overflow: hidden; }
+.ob-progress-fill {
+  display: block; height: 100%; border-radius: 999px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 80%, white), var(--accent));
+  transition: width 0.35s ease;
+}
+/* 中央：内容（足りなければここだけスクロール） */
+.ob-content { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 12px 20px 20px; }
+/* 下部：固定ボタン */
+.ob-footer {
+  flex-shrink: 0;
+  /* ボタンを少し上げる（下に余白を確保。ホームバー領域も加味） */
+  padding: 14px 20px max(28px, calc(env(safe-area-inset-bottom) + 16px));
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+}
+.ob-skip {
+  background: none; border: none; cursor: pointer; font: inherit; font-size: 13px;
+  color: var(--text-muted); padding: 4px;
+}
+.ob-skip:hover { color: var(--accent); }
+
+/* 大きい選択肢の行（チェックボックス付き・複数選択） */
+.ob-rows { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+.ob-row {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+  padding: 15px 16px; border-radius: 14px; border: 1.5px solid var(--border);
+  background: var(--surface); color: var(--text); font: inherit; cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.ob-row:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
+.ob-row.selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+.ob-row-icon { font-size: 22px; flex-shrink: 0; }
+.ob-row-label { flex: 1; font-size: 15px; font-weight: 600; }
+.ob-row-check {
+  flex-shrink: 0; width: 22px; height: 22px; border-radius: 6px; border: 2px solid var(--border);
+  display: flex; align-items: center; justify-content: center; transition: background .15s, border-color .15s;
+}
+.ob-row.selected .ob-row-check { background: var(--accent); border-color: var(--accent); }
+.ob-row.selected .ob-row-check::after { content: '✓'; color: var(--on-accent); font-size: 13px; font-weight: 700; line-height: 1; }
+.onboarding-step.done { background: color-mix(in srgb, var(--accent) 55%, var(--border)); }
+
+/* 単一選択の選択肢（目的） */
+.ob-opts { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
+.ob-opt {
+  width: 100%; text-align: left; padding: 14px 16px; border-radius: 12px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  font: inherit; font-size: 14px; cursor: pointer;
+  transition: border-color .15s, background .15s, box-shadow .15s;
+}
+.ob-opt:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
+.ob-opt.selected {
+  border-color: var(--accent); font-weight: 600;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 10%, var(--surface)), var(--surface));
+  box-shadow: 0 0 0 1px var(--accent), 0 6px 16px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+/* 学習スタイル（2枚カード） */
+.ob-style-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 18px; }
+.ob-style-card {
+  display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 20px 12px;
+  border-radius: 14px; border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  font: inherit; cursor: pointer; transition: transform .12s, border-color .15s, box-shadow .15s;
+}
+.ob-style-card:hover { transform: translateY(-1px); }
+.ob-style-card.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 8px 20px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+.ob-style-icon { font-size: 28px; }
+.ob-style-label { font-size: 14px; font-weight: 700; }
+.ob-style-desc { font-size: 11px; color: var(--text-muted); text-align: center; line-height: 1.4; }
+
+/* 作品テキスト入力 */
+.ob-text-input {
+  width: 100%; margin-top: 18px; padding: 14px 16px; border-radius: 12px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  font: inherit; font-size: 15px;
+}
+.ob-text-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.ob-text-input::placeholder { color: var(--text-muted); }
+
+.ob-nav-row { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; min-height: 24px; }
+.ob-note { font-size: 11px; color: var(--text-muted); text-align: center; margin-top: 22px; line-height: 1.6; }
+.ob-note a { color: var(--accent); text-decoration: underline; }
+
+/* 作成中演出（高さ固定内で中央寄せ） */
+.ob-building { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 24px; text-align: center; }
+.ob-building-title { font-size: 17px; font-weight: 700; margin-top: 8px; }
+.ob-building-line { font-size: 13px; color: var(--text-muted); }
+
+/* プラン提示 */
+.ob-plan { padding: 12px 0; }
+.ob-plan-badge {
+  display: inline-block; font-size: 12px; font-weight: 700; color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent); border-radius: 999px; padding: 5px 12px;
+}
+.ob-plan-title { font-size: 22px; font-weight: 700; margin: 14px 0 16px; line-height: 1.35; }
+.ob-plan-rows {
+  border: 1px solid var(--border); border-radius: 14px; overflow: hidden;
+  background: var(--surface); box-shadow: 0 4px 16px rgba(0,0,0,0.05);
+}
+.ob-plan-row { display: flex; justify-content: space-between; gap: 12px; padding: 12px 16px; }
+.ob-plan-row + .ob-plan-row { border-top: 1px solid var(--border); }
+.ob-plan-k { font-size: 13px; color: var(--text-muted); }
+.ob-plan-v { font-size: 14px; font-weight: 600; text-align: right; }
+.ob-plan-lead { font-size: 13px; color: var(--text-soft); line-height: 1.7; margin: 16px 0 4px; }
+
+/* オンボーディングの作品ピッカー（ポスター選択・自由入力なし） */
+.ob-picker { margin-top: 16px; }
+.ob-picker .recommend-grid { max-width: 100%; }
