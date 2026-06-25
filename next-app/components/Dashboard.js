@@ -3,8 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
 import TodayPanel from './TodayPanel';
+import VocabProgress from './VocabProgress';
 import HomeStubCard from './HomeStubCard';
 import LibraryCard from './LibraryCard';
+import ContinueCard from './ContinueCard';
 import AddDramaModal from './AddDramaModal';
 import RecommendGrid from './RecommendGrid';
 import { getRecommendations } from '@/lib/recommended';
@@ -42,8 +44,6 @@ export default function Dashboard() {
     setPendingAddDrama,
     cloudVersion,
     startFromRecommend,
-    openRecommend,
-    openSearch,
     openGuide,
     tickets,
     openSceneCards,
@@ -80,13 +80,8 @@ export default function Dashboard() {
   const [episodeOverrides, setEpisodeOverrides] = useState({}); // title → seasonCounts
   // ドラマ追加モーダル（null=閉、{tab, query}=開）
   const [addModal, setAddModal] = useState(null);
-
-  // タイトル検索：候補をインライン表示せず、おすすめと同じく結果画面（screen-search）へ遷移する。
-  const [q, setQ] = useState('');
-  const submitSearch = () => {
-    const v = q.trim();
-    if (v) openSearch(v);
-  };
+  // 「続きから学習」を全部見るか（既定は2件・それ以上は「すべて見る」で展開）
+  const [showAllContinue, setShowAllContinue] = useState(false);
 
   // オンボーディング完了直後はドラマ追加モーダルを検索タブで開く（既存 finishOnboarding 相当）
   useEffect(() => {
@@ -102,14 +97,27 @@ export default function Dashboard() {
   // SSR/初回レンダーは空で統一してハイドレーション不一致を防ぐ。
   const data = useMemo(() => {
     if (!mounted) {
-      return { history: [], entries: [], learnStats: new Map(), streak: 0, hasAnyWord: false, dueCount: 0, weekStats: { reviewedThisWeek: 0, mastered: 0 } };
+      return { history: [], entries: [], learnStats: new Map(), totalLearned: 0, totalMastered: 0, totalWords: 0, streak: 0, hasAnyWord: false, dueCount: 0, weekStats: { reviewedThisWeek: 0, mastered: 0 } };
     }
     const history = loadHistory();
     const archived = new Set(loadArchived()); // 「棚から外した」作品は一覧から隠す（履歴は残す）
+    // 全作品合算の「覚えた／マスター」語数（ホームの達成感＝復習モチベ用）。per-drama統計と同じ数え方で集計。
+    const learnStats = learningStatsByTitle(history);
+    let totalLearned = 0;
+    let totalMastered = 0;
+    let totalWords = 0;
+    learnStats.forEach((s) => {
+      totalLearned += s.learned;
+      totalMastered += s.mastered;
+      totalWords += s.total;
+    });
     return {
       history,
       entries: buildLibraryEntries(history, myDramas).filter((e) => !archived.has(e.drama.title)),
-      learnStats: learningStatsByTitle(history),
+      learnStats,
+      totalLearned,
+      totalMastered,
+      totalWords,
       streak: getStreak(),
       hasAnyWord: getAllVocabWords(history).length > 0,
       dueCount: getDueReviewWords(history).length,
@@ -289,7 +297,6 @@ export default function Dashboard() {
         streak={data.streak}
         hasAnyWord={data.hasAnyWord}
         todayCount={Math.min(data.dueCount, DAILY_REVIEW_CAP)}
-        weekStats={data.weekStats}
         onStartReview={() => {
           // 横断復習（特定エピソードに紐づかない）→ historyId は null
           setCurrentHistoryId(null);
@@ -297,64 +304,36 @@ export default function Dashboard() {
         }}
       />
 
+      {/* 累計の語彙進捗（別枠）。今日の復習とは分けて「これまでの積み上げ」を見せる。 */}
+      <VocabProgress learned={data.totalLearned} mastered={data.totalMastered} total={data.totalWords} />
+
       {/* 半券（観た証）＝観た後に戻る入口。シーン記憶カードへ。最新1枚だけ出して混雑を避ける。 */}
       {(() => {
         const withWords = (tickets || []).filter((t) => (t.words || []).length > 0);
         if (!withWords.length) return null;
         const latest = withWords[withWords.length - 1];
+        const poster =
+          posterOverrides[latest.title] ||
+          myDramas.find((d) => d.title === latest.title)?.posterPath ||
+          entries.find((e) => e.drama.title === latest.title)?.drama.posterPath ||
+          null;
         return (
-          <div className="stub-row">
-            <HomeStubCard
-              ticket={latest}
-              extraCount={withWords.length - 1}
-              onOpen={openSceneCards}
-            />
-          </div>
+          <>
+            <h2 className="home-section-title">おすすめの復習</h2>
+            <div className="stub-row">
+              <HomeStubCard
+                ticket={latest}
+                extraCount={withWords.length - 1}
+                poster={poster}
+                onOpen={openSceneCards}
+              />
+            </div>
+          </>
         );
       })()}
 
-      <div className="main-toolbar">
-        <div className="toolbar-search">
-          <input
-            type="text"
-            id="mainSearchInput"
-            placeholder="ドラマ・映画のタイトルで検索..."
-            autoComplete="off"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                submitSearch();
-              }
-            }}
-          />
-          <button type="button" className="btn-icon-search" aria-label="検索" onClick={submitSearch}>
-            🔍
-          </button>
-        </div>
-        {/* PC: 「ジャンル別検索」(=AI推薦) と「おすすめ」(=RecommendScreen) の2導線。
-            モバイルでは下の「＋ドラマを追加」に集約（display制御は style.css）。 */}
-        <button
-          className="toolbar-btn toolbar-btn-genre toolbar-pc-entry"
-          onClick={() => setAddModal({ tab: 'recommend', query: '', variant: 'genre' })}
-        >
-          ジャンル別検索
-        </button>
-        <button
-          className="toolbar-btn toolbar-btn-reco toolbar-pc-entry"
-          onClick={openRecommend}
-        >
-          ✨ おすすめ
-        </button>
-        {/* モバイル専用：両導線を含むモーダルを開く単一ボタン */}
-        <button
-          className="btn-primary btn-add-drama"
-          onClick={() => setAddModal({ tab: 'recommend', query: '' })}
-        >
-          ＋ ドラマを追加
-        </button>
-      </div>
+      {/* 検索・ジャンル別検索・おすすめ・作品追加はすべてヘッダーの「＋」モーダルへ集約。
+          ホームのツールバーは撤去して散らかりを減らす（おすすめは下のセクションにも残す）。 */}
 
       {entries.length === 0 ? (
         <div id="dramaLibrary" className="drama-library">
@@ -369,15 +348,25 @@ export default function Dashboard() {
         <div id="dramaLibrary" className="library-sections">
           {continueEntries.length > 0 && (
             <section className="library-section">
-              <h2 className="library-section-title">▶ 続きを学習</h2>
-              <div className="library-row">
-                {continueEntries.map((entry) => (
-                  <LibraryCard
+              <div className="library-section-head">
+                <h2 className="library-section-title">続きから学習</h2>
+                {continueEntries.length > 2 && (
+                  <button
+                    type="button"
+                    className="section-see-all"
+                    onClick={() => setShowAllContinue((s) => !s)}
+                  >
+                    {showAllContinue ? '閉じる' : 'すべて見る →'}
+                  </button>
+                )}
+              </div>
+              <div className="continue-list">
+                {(showAllContinue ? continueEntries : continueEntries.slice(0, 2)).map((entry) => (
+                  <ContinueCard
                     key={entry.drama.title}
                     entry={entry}
                     stats={data.learnStats.get(entry.drama.title)}
                     onSelect={(drama) => openDrama(drama)}
-                    onArchive={handleArchive}
                   />
                 ))}
               </div>

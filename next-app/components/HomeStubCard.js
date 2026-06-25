@@ -3,7 +3,7 @@
 // 半券（観た証）カード。ホームの TodayPanel 直下に最新1枚だけ出す（混雑回避）。
 // タップで「あの場面を思い出す」＝そのエピソードの出題語をシーン記憶カードとして開く。
 // 「未視聴チケットの催促」ではなく「観た後に戻る入口」（push→pull・2026-06-25 部署討論の反転案）。
-export default function HomeStubCard({ ticket, extraCount = 0, onOpen }) {
+export default function HomeStubCard({ ticket, extraCount = 0, poster = null, onOpen }) {
   if (!ticket) return null;
   const hasSE = !ticket.isMovie && ticket.season != null && ticket.episode != null;
   const seLabel = hasSE ? ` S${ticket.season}E${ticket.episode}` : '';
@@ -18,7 +18,7 @@ export default function HomeStubCard({ ticket, extraCount = 0, onOpen }) {
       onClick={open}
       aria-label={`${ticket.title}${seLabel} のあの場面を思い出す`}
     >
-      {/* 左の半券ミシン目（破った半券の質感） */}
+      {/* 左の半券アイコン（破った半券の質感） */}
       <span className="stub-card-stub" aria-hidden="true">
         🎟
       </span>
@@ -33,9 +33,15 @@ export default function HomeStubCard({ ticket, extraCount = 0, onOpen }) {
           {extraCount > 0 ? ` ・ 他${extraCount}枚` : ''}
         </span>
       </span>
-      <span className="stub-card-cta" aria-hidden="true">
-        🃏 思い出す →
-      </span>
+      {/* 右：作品のミニポスター（どの作品の半券か一目で分かる）。無ければ🃏アイコン。 */}
+      {poster ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img className="stub-card-poster" src={poster} alt="" loading="lazy" />
+      ) : (
+        <span className="stub-card-cta" aria-hidden="true">
+          🃏 思い出す →
+        </span>
+      )}
     </button>
   );
 }
