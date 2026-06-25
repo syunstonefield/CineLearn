@@ -55,9 +55,12 @@ export default async function handler(req, res) {
     return res.status(200).json(data);
   }
 
-  // 映画・TVを横断検索（人気/関連度順）。type 判定に使う
+  // 映画・TVを横断検索（人気/関連度順）。type 判定に使う。
+  // language=ja-JP：日本語クエリ（「スターウォーズ」等）でも localized title が返るようにし、
+  // クライアント側(titleSearch.js)で邦題マッチ＝有名作を確実に上位化できるようにする。
+  // original_title/original_name は原語のまま返るため英語マッチ・英語表示は維持される。
   if (action === 'search_multi') {
-    const r = await fetch(`${TMDB_BASE}/search/multi?api_key=${apiKey}&query=${encodeURIComponent(query)}&language=en-US`);
+    const r = await fetch(`${TMDB_BASE}/search/multi?api_key=${apiKey}&query=${encodeURIComponent(query)}&language=ja-JP`);
     const data = await r.json();
     return res.status(200).json(data);
   }
