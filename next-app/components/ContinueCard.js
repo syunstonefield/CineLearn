@@ -7,7 +7,7 @@ import { platformColor } from '@/lib/storage';
 //   右：作品名・現在地(S/E)・覚えた率バー・「つづきを学習」ボタン。
 //   進捗％＝覚えた率（覚えた語 / 全保存語）。視聴は検知できないので“学習の進み”で正直に示す。
 //   タップ／ボタンで openDrama（→ サービス記憶があれば単語リストへ直行）。
-export default function ContinueCard({ entry, stats, onSelect }) {
+export default function ContinueCard({ entry, stats, onSelect, onArchive }) {
   const { drama, episodes } = entry;
   const [imgFailed, setImgFailed] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
@@ -34,6 +34,19 @@ export default function ContinueCard({ entry, stats, onSelect }) {
         className="continue-card-poster-wrap"
         style={showPoster ? undefined : { background: platformColor(drama.platform) }}
       >
+        {/* 左上：棚から外す（一覧から隠すだけ・学習記録＝単語/スコア/履歴は保存される）。 */}
+        <button
+          type="button"
+          className="continue-card-archive"
+          title="棚から外す（学習記録は残ります）"
+          aria-label="棚から外す"
+          onClick={(e) => {
+            e.stopPropagation();
+            onArchive?.(drama.title);
+          }}
+        >
+          ✕
+        </button>
         {showPoster ? (
           <>
             {!imgLoaded && <span className="img-skeleton" aria-hidden="true" />}

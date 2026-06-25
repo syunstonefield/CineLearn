@@ -367,6 +367,7 @@ export default function Dashboard() {
                     entry={entry}
                     stats={data.learnStats.get(entry.drama.title)}
                     onSelect={(drama) => openDrama(drama)}
+                    onArchive={handleArchive}
                   />
                 ))}
               </div>
