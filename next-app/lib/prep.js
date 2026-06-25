@@ -137,6 +137,53 @@ export function prepIntegrity(words) {
   return { prepared: list.length, withExample, fresh };
 }
 
+// 予習ウォークスルーのデッキ並び替え。
+//   新出（SRS未登録＝今夜が初対面）を先頭に、その中はレベル高め優先。
+//   元の並び（タイムスタンプ順）は安定保持（同条件はindex順）。
+//   狙い：途中で離脱しても“見ておくべき重要語”が先に出る＝67枚全部見なくても効く。
+export function orderWordsForPrep(words, srs) {
+  const list = Array.isArray(words) ? words : [];
+  const s = srs || {};
+  return list
+    .map((w, i) => ({
+      w,
+      i,
+      fresh: s[(w.word || '').toLowerCase()] ? 0 : 1,
+      lvl: levelRank(w),
+    }))
+    .sort((a, b) => b.fresh - a.fresh || b.lvl - a.lvl || a.i - b.i)
+    .map((x) => x.w);
+}
+
+// ── 予習完了の永続化（リロードでの半券再取得＝席番号インフレを防ぐ）──────
+//   端末ローカル（プロフィール非依存・装飾なので割り切り）。エピソード単位で1回だけ記録。
+//   getPrepped が返す seat を再予習でも使い回す＝nextSeat() を初回のみ呼ぶための土台。
+const PREPPED_KEY = 'cl_prepped';
+function loadPrepped() {
+  try {
+    return JSON.parse(localStorage.getItem(PREPPED_KEY) || '{}') || {};
+  } catch {
+    return {};
+  }
+}
+export function getPrepped(epId) {
+  if (!epId) return null;
+  return loadPrepped()[epId] || null; // { at, seat } | null
+}
+export function markPrepped(epId, seat) {
+  if (!epId) return null;
+  const all = loadPrepped();
+  if (!all[epId]) {
+    all[epId] = { at: Date.now(), seat: seat || '' };
+    try {
+      localStorage.setItem(PREPPED_KEY, JSON.stringify(all));
+    } catch {
+      /* プライベートモード等は保存をあきらめる */
+    }
+  }
+  return all[epId];
+}
+
 // 視聴サービスの作品ディープリンク（作品単位・場面tsSecは使わない）。
 // 各サービスの動画IDは保持しないため検索URLに留める（非提携・正規アプリへ）。
 // service は selectedViewingService（ServiceSelect の svc.name）＝

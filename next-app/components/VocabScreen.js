@@ -32,7 +32,7 @@ import {
 import { generateSuperset, personalizeWords, fillMissingExampleJa } from '@/lib/vocab';
 import { fetchSharedVocab, contributeVocab } from '@/lib/api';
 import { getMyWordsForEpisode, resolveUnassignedWords, translateExtWordDefinitions } from '@/lib/words';
-import { selectQuizWords, buildQuizQuestions, prepIntegrity } from '@/lib/prep';
+import { selectQuizWords, buildQuizQuestions, prepIntegrity, orderWordsForPrep, getPrepped } from '@/lib/prep';
 
 function speak(word) {
   if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
@@ -166,28 +166,9 @@ export default function VocabScreen() {
   useEffect(() => {
     if (!justGenerated) return;
     if (!drama || phase !== 'vocab' || !sortedVocab.length) return;
-    const wordsForWalk = sortedVocab.map((w) => ({
-      ...w,
-      _tsLabel: timestamps.get(w.word)?.label || null,
-    }));
-    const credit = isMovie
-      ? `📺 ${drama.title}（字幕：OpenSubtitles）`
-      : `📺 ${drama.title} S${season}E${episode}（字幕：OpenSubtitles）`;
-    const integrity = prepIntegrity(sortedVocab);
-    openPrepWalk({
-      words: wordsForWalk,
-      meta: {
-        drama,
-        title: drama.title,
-        season,
-        episode,
-        isMovie,
-        service: settings.selectedViewingService || '',
-        integrity,
-        freshCount: integrity.fresh,
-        credit,
-      },
-    });
+    openPrepWalk(
+      buildWalkPayload({ sortedVocab, timestamps, srs, drama, season, episode, isMovie, service: settings.selectedViewingService || '' })
+    );
     setJustGenerated(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [justGenerated, phase, sortedVocab]);
@@ -700,6 +681,8 @@ export default function VocabScreen() {
   const doneToday = historyId ? todaySessionCount(historyId) : 0;
   const testTiers = settings.testTiers || ['core', 'advanced'];
   const showVocab = phase === 'vocab' || phase === 'saved';
+  // この話を予習済みか（完了で永続化・「✓予習済み」表示用）。tickets 変化で再評価される。
+  const prepped = getPrepped(episodeId(drama, season, episode, isMovie));
 
   // 出所明示（著作権法48条）：このリストの例文＝字幕の逐語引用の出典。
   // drama語/ext語（字幕由来）に付け、plus語（Claude作例・字幕外）には付けない。
@@ -753,11 +736,9 @@ export default function VocabScreen() {
   //   ★単語リスト（スクロール一覧）は変えない。これは“予習”専用の表示で、見終えたら一覧へ戻る。
   //   📍時刻ラベルは timestamps から各語へ焼いて渡す（ウォークスルー側で再計算しない）。
   const openWalkthrough = () => {
-    const wordsForWalk = sortedVocab.map((w) => ({
-      ...w,
-      _tsLabel: timestamps.get(w.word)?.label || null,
-    }));
-    openPrepWalk({ words: wordsForWalk, meta: { ...prepMeta, credit: exampleCredit } });
+    openPrepWalk(
+      buildWalkPayload({ sortedVocab, timestamps, srs, drama, season, episode, isMovie, service: settings.selectedViewingService || '' })
+    );
   };
 
   // 進捗バー（buildProgressHTML 準拠）
@@ -962,6 +943,7 @@ export default function VocabScreen() {
                   <span className="srs-ep-label">
                     {drama.title}
                     {isMovie ? '' : ` S${season}E${episode}`} の単語リスト
+                    {prepped && <span className="prepped-chip">✓ 予習済み</span>}
                   </span>
                   <span className="srs-pct" style={{ color: pctColor }}>
                     {pct}% 覚えた
@@ -1108,6 +1090,42 @@ export default function VocabScreen() {
       </div>
     </div>
   );
+}
+
+// エピソードの安定ID（予習位置・予習済み記録のキー。tmdbId優先・無ければタイトル）。
+function episodeId(drama, season, episode, isMovie) {
+  const base = drama?.tmdbId || drama?.title || 'x';
+  return isMovie ? `${base}|movie|movie` : `${base}|${season}|${episode}`;
+}
+
+// 予習ウォークスルーの payload を組む（auto-open effect と「予習する →」ボタンで共用）。
+//   - 重要語（新出・高レベル）優先に並び替え（orderWordsForPrep）
+//   - 各語に📍時刻ラベルを焼く／出所明示（48条）の credit／エピソードID を載せる
+function buildWalkPayload({ sortedVocab, timestamps, srs, drama, season, episode, isMovie, service }) {
+  const ordered = orderWordsForPrep(sortedVocab, srs);
+  const wordsForWalk = ordered.map((w) => ({
+    ...w,
+    _tsLabel: timestamps.get(w.word)?.label || null,
+  }));
+  const credit = isMovie
+    ? `📺 ${drama.title}（字幕：OpenSubtitles）`
+    : `📺 ${drama.title} S${season}E${episode}（字幕：OpenSubtitles）`;
+  const integrity = prepIntegrity(ordered);
+  return {
+    words: wordsForWalk,
+    meta: {
+      drama,
+      title: drama.title,
+      season,
+      episode,
+      isMovie,
+      service,
+      integrity,
+      freshCount: integrity.fresh,
+      credit,
+      epId: episodeId(drama, season, episode, isMovie),
+    },
+  };
 }
 
 // useCallback の安全ラッパ（依存配列を明示）
