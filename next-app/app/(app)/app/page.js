@@ -56,6 +56,7 @@ function AppShell() {
     tutorial,
     openTutorial,
     guideOpen,
+    setScreen,
   } = useApp();
   // localStorage 依存はマウント後のみ（SSR/初回レンダーは 0 で統一）。
   // getActiveWordCount は最大2000語をJSON.parseするので、毎レンダーではなく
@@ -85,6 +86,7 @@ function AppShell() {
           wordCount={wordCount}
           onLogoClick={goHome}
           onSwitchProfile={PROFILE_SELECT_ENABLED ? switchProfile : null}
+          onAddDrama={() => setScreen('search')}
           onWordbook={openWordbook}
           onSettings={openSettings}
           onHelp={openTutorial}

@@ -39,6 +39,15 @@ function IconHelp() {
   );
 }
 
+function IconPlus() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" {...ICON} aria-hidden="true">
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  );
+}
+
 function IconLogin() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" {...ICON} aria-hidden="true">
@@ -64,6 +73,7 @@ export default function Header({
   wordCount,
   onLogoClick,
   onSwitchProfile,
+  onAddDrama,
   onWordbook,
   onSettings,
   onHelp,
@@ -91,6 +101,12 @@ export default function Header({
               {profile.name.charAt(0)}
             </span>
             <span>{profile.name}</span>
+          </button>
+        )}
+        {/* 作品追加（ホームのツールバーから移設）。どの画面からでも届く常設導線。 */}
+        {profile && onAddDrama && (
+          <button className="btn-header-icon btn-header-add" title="ドラマを追加" onClick={onAddDrama}>
+            <IconPlus />
           </button>
         )}
         {/* 単語帳・設定はモバイルではボトムナビと重複するため隠す（PCのみ表示） */}
