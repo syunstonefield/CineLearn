@@ -85,6 +85,8 @@ export default function AppProvider({ children }) {
   //   prepLaunch : 完了 launch ramp。null=閉 / { variant:'quiz'|'cards'|'watch', ...payload }
   const [prepQuiz, setPrepQuiz] = useState(null);
   const [prepLaunch, setPrepLaunch] = useState(null);
+  // 予習ウォークスルー（生成直後・全語を1枚ずつ通し見）。null=閉 / { words, meta }
+  const [prepWalk, setPrepWalk] = useState(null);
   // 予習の「じっくり覚える」で ReviewModal を起動したとき、閉じたら cards バリエの
   // launch ramp を出すための保留ペイロード（{ words, drama, title, ... } | null）。
   const pendingPrepCardsRef = useRef(null);
@@ -448,6 +450,9 @@ export default function AppProvider({ children }) {
     [profile]
   );
   const closePrepLaunch = useCallback(() => setPrepLaunch(null), []);
+  // 予習ウォークスルーの開閉（VocabScreen の「予習する →」から開く）。
+  const openPrepWalk = useCallback((payload) => setPrepWalk(payload || null), []);
+  const closePrepWalk = useCallback(() => setPrepWalk(null), []);
 
   // 半券をタップ → そのエピソードの出題語を「シーン記憶カード」として開く。
   // 横断扱い（特定 historyId に紐づけない）＋全語表示（SRS期日で空にしない）。
@@ -554,6 +559,9 @@ export default function AppProvider({ children }) {
     prepLaunch,
     openPrepLaunch,
     closePrepLaunch,
+    prepWalk,
+    openPrepWalk,
+    closePrepWalk,
     tutorial,
     openTutorial,
     closeTutorial,

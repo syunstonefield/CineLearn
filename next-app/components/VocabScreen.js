@@ -62,6 +62,7 @@ export default function VocabScreen() {
     openPrepReview,
     openPrepQuiz,
     openPrepLaunch,
+    openPrepWalk,
     reviewVersion,
   } = app;
   const pid = app.profile?.id;
@@ -88,6 +89,9 @@ export default function VocabScreen() {
   // saved 再表示・error・soon・generating では出さない（finish line でなく launch ramp）。
   const [prepFresh, setPrepFresh] = useState(false);
   const [prepModes, setPrepModes] = useState(false); // 「次に進む」でモード選択ページへ
+  // 生成直後は単語リストを経由せず予習ウォークスルーへ直行する（ユーザー要望）。
+  // onGenerate 成功でこの一回限りフラグを立て、新出語が揃った瞬間に effect が開く。
+  const [justGenerated, setJustGenerated] = useState(false);
 
   // メモリ上の字幕（app.js の cachedSubtitleText/Key 相当）
   const subMem = useRef({ key: '', text: '', raw: '' });
@@ -155,6 +159,38 @@ export default function VocabScreen() {
   useEffect(() => {
     setSrs(loadSrs());
   }, [reviewVersion]);
+
+  // ── 生成直後＝予習ウォークスルーへ直行（justGenerated の一回限りトリガ）──
+  // 新出語（sortedVocab）が揃い phase==='vocab' になった瞬間に1回だけ開く。
+  // 閉じてもフラグは倒れているので再オープンしない（戻り先は従来のスクロール一覧のまま）。
+  useEffect(() => {
+    if (!justGenerated) return;
+    if (!drama || phase !== 'vocab' || !sortedVocab.length) return;
+    const wordsForWalk = sortedVocab.map((w) => ({
+      ...w,
+      _tsLabel: timestamps.get(w.word)?.label || null,
+    }));
+    const credit = isMovie
+      ? `📺 ${drama.title}（字幕：OpenSubtitles）`
+      : `📺 ${drama.title} S${season}E${episode}（字幕：OpenSubtitles）`;
+    const integrity = prepIntegrity(sortedVocab);
+    openPrepWalk({
+      words: wordsForWalk,
+      meta: {
+        drama,
+        title: drama.title,
+        season,
+        episode,
+        isMovie,
+        service: settings.selectedViewingService || '',
+        integrity,
+        freshCount: integrity.fresh,
+        credit,
+      },
+    });
+    setJustGenerated(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [justGenerated, phase, sortedVocab]);
 
   // ── example_ja のバックグラウンド補完（二重実行ガードつき）──
   const fillJaRunning = useRef(false);
@@ -590,8 +626,9 @@ export default function VocabScreen() {
       setVocab(words);
       setSource(srcLabel);
       setPhase('vocab');
-      setPrepFresh(true); // 新規生成成功 → 下部「次に進む」（予習エンジン）を出す
-      setPrepModes(false); // 生成直後はまず単語リスト（「次に進む」でモード選択へ）
+      setPrepFresh(true); // 新規生成成功 → 下部「予習する」（再入場用）を残す
+      setPrepModes(false);
+      setJustGenerated(true); // 生成直後は予習ウォークスルーへ直行（effect が新出語の揃った瞬間に開く）
       setGenBtn({ text: '単語を再生成', disabled: false, hidden: true });
 
       // 履歴に保存
@@ -711,6 +748,17 @@ export default function VocabScreen() {
 
   // 逃げ：「今夜は観るだけ」＝最小 launch ramp（無摩擦・観るは常に一級）。
   const startPrepWatch = () => openPrepLaunch({ variant: 'watch', ...prepMeta });
+
+  // 主動線：予習ウォークスルー＝全語を1枚ずつ通し見（生成直後だけ）。
+  //   ★単語リスト（スクロール一覧）は変えない。これは“予習”専用の表示で、見終えたら一覧へ戻る。
+  //   📍時刻ラベルは timestamps から各語へ焼いて渡す（ウォークスルー側で再計算しない）。
+  const openWalkthrough = () => {
+    const wordsForWalk = sortedVocab.map((w) => ({
+      ...w,
+      _tsLabel: timestamps.get(w.word)?.label || null,
+    }));
+    openPrepWalk({ words: wordsForWalk, meta: { ...prepMeta, credit: exampleCredit } });
+  };
 
   // 進捗バー（buildProgressHTML 準拠）
   const pct = stats.total === 0 ? 0 : Math.round((stats.learned / stats.total) * 100);
@@ -1040,12 +1088,16 @@ export default function VocabScreen() {
         {/* 予習エンジン：新規生成成功時だけ「次に進む」→ モード選択ページへ。
             saved 再表示・error・soon・generating では従来の「テストを受ける」を出す。 */}
         {showVocab && sortedVocab.length > 0 && prepFresh ? (
-          <button
-            className="btn-primary vocab-cta-sticky"
-            onClick={() => setPrepModes(true)}
-          >
-            予習する →
-          </button>
+          <>
+            {/* 主動線：全語を1枚ずつめくって“一通り見る”ウォークスルー（見終えたら半券＝特典）。 */}
+            <button className="btn-primary vocab-cta-sticky" onClick={openWalkthrough}>
+              予習する →
+            </button>
+            {/* 副動線：クイズ／じっくり等の予習エンジン（控えめに温存）。 */}
+            <button type="button" className="vocab-cta-alt" onClick={() => setPrepModes(true)}>
+              クイズ・カードで予習する
+            </button>
+          </>
         ) : (
           showVocab && sortedVocab.length > 0 && (
             <button className="btn-primary vocab-cta-sticky" onClick={() => goToQuiz()}>

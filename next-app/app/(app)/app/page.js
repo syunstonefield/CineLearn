@@ -10,6 +10,7 @@ import QuizScreen from '@/components/QuizScreen';
 import ReviewModal from '@/components/ReviewModal';
 import PrepQuiz from '@/components/PrepQuiz';
 import PrepLaunch from '@/components/PrepLaunch';
+import PrepWalkthrough from '@/components/PrepWalkthrough';
 import SettingsModal from '@/components/SettingsModal';
 import ProfileSelect from '@/components/ProfileSelect';
 import WordbookModal from '@/components/WordbookModal';
@@ -37,6 +38,7 @@ function AppShell() {
     reviewWords,
     prepQuiz,
     prepLaunch,
+    prepWalk,
     reviewVersion,
     settingsOpen,
     openSettings,
@@ -108,6 +110,7 @@ function AppShell() {
       {reviewWords && <ReviewModal />}
       {prepQuiz && <PrepQuiz />}
       {prepLaunch && <PrepLaunch />}
+      {prepWalk && <PrepWalkthrough />}
       {settingsOpen && <SettingsModal onClose={closeSettings} />}
       {wordbookOpen && <WordbookModal />}
       {authOpen && <AuthModal />}
