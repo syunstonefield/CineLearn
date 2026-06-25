@@ -82,8 +82,19 @@ export default function SearchScreen() {
     setAiMode(false);
     setPhase('loading');
     try {
-      const items = await searchTitlesTMDB(t);
+      let items = await searchTitlesTMDB(t);
       if (my !== seq.current) return;
+      // 直検索が手薄（候補<3）＝表記ゆれ等でTMDBが本家を返せていない（例「スターウォーズ」=中黒なし）。
+      // 自動でAI解釈検索にフォールバック（"Star Wars"に正規化→本家サーガが出る）。手動ボタンを待たせない。
+      if (items.length < 3) {
+        const ai = await aiSearchTitles(t);
+        if (my !== seq.current) return;
+        if (ai.length) {
+          const seen = new Set(ai.map((x) => x.tmdbId));
+          items = [...ai, ...items.filter((x) => !seen.has(x.tmdbId))];
+          setAiMode(true);
+        }
+      }
       setResults(items);
     } catch {
       if (my === seq.current) setResults([]);
@@ -361,7 +372,15 @@ function SelectCard({ item, onPick }) {
         </span>
       </div>
       <div className="select-caption">
-        <span className="select-title">{item.englishTitle}</span>
+        {/* 邦題があれば主に表示（選ぶ自信が出る）。英語原題は副に小さく添える。 */}
+        <span className="select-title">
+          {item.localizedTitle && item.localizedTitle !== item.englishTitle
+            ? item.localizedTitle
+            : item.englishTitle}
+        </span>
+        {item.localizedTitle && item.localizedTitle !== item.englishTitle && (
+          <span className="select-en">{item.englishTitle}</span>
+        )}
         {item.year && <span className="select-year">{item.year}</span>}
       </div>
     </button>

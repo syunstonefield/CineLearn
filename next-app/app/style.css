@@ -4227,6 +4227,14 @@ header {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.select-en {
+  display: block;
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .select-year { font-size: 11px; color: var(--text-muted); }
 
 /* ── #3 AI推薦/検索結果（モーダル内）：ポスターカード化 ── */

@@ -23,14 +23,17 @@ export function mapTmdbResult(r) {
   };
 }
 
-// 関連度スコア：人気×投票数を基礎に、タイトル一致とポスター有無で補正してノイズを後ろへ
+// 関連度スコア：人気×投票数を基礎に、タイトル一致とポスター有無で補正してノイズを後ろへ。
+// ★英語原題(en)と邦題(loc)の両方で一致を見て良い方を採用＝日本語クエリは loc で当てる
+//   （中継 ja-JP で loc=邦題が返る）。低voteの無名作は大きく後退させる。
 function scoreTmdbResult(r, ql) {
   const isMovie = r.media_type === 'movie';
   const en = (isMovie ? r.original_title || r.title : r.original_name || r.name || '').toLowerCase();
+  const loc = (isMovie ? r.title : r.name || '').toLowerCase();
   let s = (r.popularity || 0) * Math.log10((r.vote_count || 0) + 10);
-  if (en === ql) s *= 6;
-  else if (en.startsWith(ql)) s *= 2.5;
-  else if (en.includes(ql)) s *= 1.3;
+  const bonus = (t) => (!t ? 1 : t === ql ? 6 : t.startsWith(ql) ? 2.5 : t.includes(ql) ? 1.3 : 1);
+  s *= Math.max(bonus(en), bonus(loc));
+  if ((r.vote_count || 0) < 10) s *= 0.15; // 無名・ノイズを末尾へ
   s *= r.poster_path ? 1.5 : 0.5;
   return s;
 }
@@ -50,7 +53,8 @@ async function tmdbSearchMulti(query) {
   return json.results || [];
 }
 
-// 入力タイトルをTMDBでそのまま検索（速い）。関連度順に最大12件。
+// 入力タイトルをTMDBでそのまま検索（速い）。関連度順に最大20件。
+// （日本語クエリはマッチが散りやすく目的作が枠外に落ちやすいので12→20に拡大）
 export async function searchTitlesTMDB(query) {
   const q = (query || '').trim();
   if (q.length < 2) return [];
@@ -60,7 +64,7 @@ export async function searchTitlesTMDB(query) {
     .filter(isWantedResult)
     .map((r) => ({ r, score: scoreTmdbResult(r, ql) }))
     .sort((a, b) => b.score - a.score)
-    .slice(0, 12)
+    .slice(0, 20)
     .map(({ r }) => mapTmdbResult(r));
 }
 
