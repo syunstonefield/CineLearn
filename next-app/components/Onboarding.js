@@ -15,7 +15,8 @@ const TOEIC_ROWS = [
   { score: 750, range: '600〜 800点', level: 'B2', name: 'B2 中上級' },
   { score: 900, range: '800点〜', level: 'C1', name: 'C1 上級' },
 ];
-const SERVICES = ['Netflix', 'Amazon Prime', 'Disney+', 'Apple TV+', 'Hulu', 'U-NEXT', 'YouTube'];
+// 拡張の動作実態に合わせ Apple TV+/Hulu/U-NEXT は一旦UIから外す（2026-06-25・厳選）。
+const SERVICES = ['Netflix', 'Amazon Prime', 'Disney+', 'YouTube'];
 const PURPOSES = [
   { v: 'subtitles', icon: '🎬', label: '字幕なしで観られるようになりたい' },
   { v: 'travel', icon: '✈️', label: '旅行・日常会話で使いたい' },
