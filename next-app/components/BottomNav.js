@@ -1,8 +1,8 @@
 'use client';
 
-// スマホ向けの常設ボトムタブ（ホーム / 復習 / 単語帳 / 設定）。
+// 常設ボトムタブ（ホーム / 復習 / 単語帳 / 半券 / 設定）。
 // 親指動線を最優先し、復習タブには未消化件数のバッジを出す。
-// PC（>=769px）では非表示（display制御は style.css）。ヘッダーの導線で代替する。
+// PC幅でも常時表示（バー全幅・タブ群は中央寄せ）。ヘッダーの単語帳/設定は集約のため隠す。
 
 import { useApp } from './AppProvider';
 import { getDueReviewWords, DAILY_REVIEW_CAP } from '@/lib/storage';
@@ -70,7 +70,6 @@ export default function BottomNav({ dueCount = 0, wordCount = 0 }) {
     openReview,
     setCurrentHistoryId,
     settingsOpen,
-    wordbookOpen,
     openCollection,
     reviewWords,
   } = useApp();
@@ -84,7 +83,7 @@ export default function BottomNav({ dueCount = 0, wordCount = 0 }) {
   // アクティブ判定：モーダル系（復習/単語帳/設定）が開いていればそれを優先、
   // それ以外でメイン系画面ならホームを点灯する。
   const reviewActive = !!reviewWords;
-  const wordbookActive = wordbookOpen;
+  const wordbookActive = screen === 'wordbook';
   const collectionActive = screen === 'collection';
   const settingsActive = settingsOpen;
   const homeActive = !reviewActive && !wordbookActive && !collectionActive && !settingsActive && screen === 'main';

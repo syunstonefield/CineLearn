@@ -13,7 +13,7 @@ import PrepLaunch from '@/components/PrepLaunch';
 import PrepWalkthrough from '@/components/PrepWalkthrough';
 import SettingsModal from '@/components/SettingsModal';
 import ProfileSelect from '@/components/ProfileSelect';
-import WordbookModal from '@/components/WordbookModal';
+import WordbookScreen from '@/components/WordbookScreen';
 import TicketCollectionScreen from '@/components/TicketCollectionScreen';
 import AuthModal from '@/components/AuthModal';
 import Onboarding from '@/components/Onboarding';
@@ -45,7 +45,6 @@ function AppShell() {
     openSettings,
     closeSettings,
     switchProfile,
-    wordbookOpen,
     openWordbook,
     wordbookVersion,
     authOpen,
@@ -109,6 +108,7 @@ function AppShell() {
         {screen === 'vocab' && <VocabScreen />}
         {screen === 'quiz' && <QuizScreen />}
         {screen === 'collection' && <TicketCollectionScreen />}
+        {screen === 'wordbook' && <WordbookScreen />}
       </main>
 
       {reviewWords && <ReviewModal />}
@@ -116,7 +116,6 @@ function AppShell() {
       {prepLaunch && <PrepLaunch />}
       {prepWalk && <PrepWalkthrough />}
       {settingsOpen && <SettingsModal onClose={closeSettings} />}
-      {wordbookOpen && <WordbookModal />}
       {authOpen && <AuthModal />}
       {tutorial && <WelcomeTutorial />}
       {guideOpen && <ExtensionGuide />}

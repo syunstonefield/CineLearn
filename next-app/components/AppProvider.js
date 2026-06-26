@@ -58,13 +58,32 @@ function markTutorialSeen() {
   }
 }
 
+// オンボーディング（初回アンケート）の既読は「端末ごとに一度だけ」。
+// ★重要★ cl_profiles はログイン時の pullFromCloud で丸ごと上書きされ、
+// クラウド未同期の settings.onboarded が毎回消える＝「アンケートが毎回出る」バグになる。
+// そこで既読フラグは cl_tutorial_seen と同様に端末ローカルの独立キーで持ち、
+// クラウド同期に左右されないようにする（pull は cl_onboarded を触らない）。
+function markOnboardedSeen() {
+  try {
+    localStorage.setItem('cl_onboarded', '1');
+  } catch {
+    /* ignore */
+  }
+}
+function hasOnboardedSeen() {
+  try {
+    return localStorage.getItem('cl_onboarded') === '1';
+  } catch {
+    return false;
+  }
+}
+
 export default function AppProvider({ children }) {
   const [profile, setProfile] = useState(null);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   // 'profile-select'（だれが観ますか）から開始。選択後に 'main' へ。
   const [screen, setScreen] = useState('profile-select'); // | 'service-select' | 'vocab' | 'quiz'
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [wordbookOpen, setWordbookOpen] = useState(false);
   const [wordbookVersion, setWordbookVersion] = useState(0); // 削除後のバッジ/一覧再集計
   // Supabase（読み取り専用）
   const [authOpen, setAuthOpen] = useState(false);
@@ -244,8 +263,9 @@ export default function AppProvider({ children }) {
     const s = { ...DEFAULT_SETTINGS, ...(p.settings || {}) };
     setSettings(s);
     // 初回オンボーディング未完了なら、ログイン状態に関わらず1回だけアンケートへ。
-    // 完了で onboarded:true が立つので、以降は main 直行（＝二度と出さない）。
-    if (!s.onboarded) {
+    // 既読は端末ローカル(cl_onboarded)でも判定する＝クラウド pull で settings.onboarded が
+    // 消えても、この端末で一度完了していれば二度と出さない（毎回出るバグの修正）。
+    if (!s.onboarded && !hasOnboardedSeen()) {
       setScreen('onboarding');
       return;
     }
@@ -264,13 +284,16 @@ export default function AppProvider({ children }) {
     saveProfiles([...profiles, p]);
     setProfile(p);
     setSettings({ ...DEFAULT_SETTINGS });
-    setScreen('onboarding');
+    // 端末で既にオンボーディング済みなら（cl_profiles だけ消えた等）アンケートを出さない。
+    setScreen(hasOnboardedSeen() ? 'main' : 'onboarding');
   }, []);
 
   // オンボーディング完了（既存 finishOnboarding 相当）：
   // 設定を保存してメインへ → ドラマ追加モーダルをタイトル検索タブで開く
   const [pendingAddDrama, setPendingAddDrama] = useState(null); // {tab, query} | null
   const finishOnboarding = useCallback((patch) => {
+    // 端末ローカルに既読化（クラウド pull で settings.onboarded が消えても二度と出さない）。
+    markOnboardedSeen();
     // 全回答を保存し、onboarded:true を必ず立てる（以降オンボーディングは出さない＝1回だけ）。
     setSettings((prev) => ({ ...prev, ...patch, onboarded: true }));
     setScreen('main');
@@ -405,8 +428,9 @@ export default function AppProvider({ children }) {
   const openSettings = useCallback(() => setSettingsOpen(true), []);
   const closeSettings = useCallback(() => setSettingsOpen(false), []);
 
-  const openWordbook = useCallback(() => setWordbookOpen(true), []);
-  const closeWordbook = useCallback(() => setWordbookOpen(false), []);
+  // マイ単語帳は全画面（ヘッダー・ボトムナビが見える）の screen として扱う。
+  const openWordbook = useCallback(() => setScreen('wordbook'), []);
+  const closeWordbook = useCallback(() => setScreen('main'), []);
   // 半券コレクションは全画面（ヘッダー・ボトムナビが見える）の screen として扱う。
   const openCollection = useCallback(() => setScreen('collection'), []);
   const closeCollection = useCallback(() => setScreen('main'), []);
@@ -561,7 +585,6 @@ export default function AppProvider({ children }) {
     settingsOpen,
     openSettings,
     closeSettings,
-    wordbookOpen,
     openWordbook,
     closeWordbook,
     openCollection,

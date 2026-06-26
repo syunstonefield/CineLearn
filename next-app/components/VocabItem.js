@@ -6,7 +6,7 @@ import { statusBadge, nextReviewLabel } from '@/lib/storage';
 // 1単語カード。モバイルは折りたたみ（語＋和訳＋状態ドット＋📍時刻のみ）→タップで詳細展開。
 // PCでは常時展開（display制御は style.css のメディアクエリ）。
 // 詳細は常にDOMに描画し、開閉は is-expanded クラスで切り替える（PC常時表示を両立するため）。
-export default function VocabItem({ word, srs, testTiers, ts, exampleSource, onSpeak, onSkip, onCopyTime }) {
+export default function VocabItem({ word, srs, testTiers, ts, exampleSource, onSpeak, onSkip, onCopyTime, onDelete }) {
   const [expanded, setExpanded] = useState(false);
   const w = word;
   const e = srs[w.word.toLowerCase()];
@@ -104,6 +104,12 @@ export default function VocabItem({ word, srs, testTiers, ts, exampleSource, onS
           >
             {isSkip ? 'Resume' : 'Skip'}
           </button>
+          {/* 単語帳など削除可能な文脈でのみ表示（VocabScreen は onDelete を渡さない） */}
+          {onDelete && (
+            <button className="btn-srs-skip btn-word-del" onClick={() => onDelete(w.word)}>
+              🗑 削除
+            </button>
+          )}
         </div>
       </div>
     </div>

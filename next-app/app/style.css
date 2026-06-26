@@ -3733,79 +3733,78 @@ header {
    PC（>=769px）の見た目は原則維持し、<=768px でのみ上書きする。
 ════════════════════════════════════════════════════════════════ */
 
-/* ── ① ボトムタブナビ（モバイルのみ） ───────────────────────── */
-.bottom-nav { display: none; }
-.bottom-nav-spacer { display: none; }
+/* ── ① ボトムタブナビ（全幅・常時表示：PCでも出す） ───────────── */
+/* 単語帳・設定はボトムナビへ集約 → ヘッダーからは常に隠す（PCで二重ナビにしない） */
+.header-only-desktop { display: none !important; }
 
-@media (max-width: 768px) {
-  /* 単語帳・設定はボトムナビへ集約 → ヘッダーからは隠す */
-  .header-only-desktop { display: none !important; }
+.bottom-nav {
+  display: flex;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 900;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  /* バー背景は全幅のまま、広い画面ではタブ群を約640px内に中央寄せ（PCで間延びさせない）。
+     上=0 / 左右=中央寄せ余白 / 下=セーフエリア。 */
+  padding: 0 max(0px, calc((100% - 640px) / 2)) env(safe-area-inset-bottom);
+  box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.05);
+}
+/* 固定ナビの高さ分、本文末尾に余白（フッターがナビ裏に隠れないように） */
+.bottom-nav-spacer {
+  display: block;
+  height: calc(56px + env(safe-area-inset-bottom));
+}
 
-  .bottom-nav {
-    display: flex;
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 900;
-    background: var(--surface);
-    border-top: 1px solid var(--border);
-    padding-bottom: env(safe-area-inset-bottom);
-    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.05);
-  }
-  /* 固定ナビの高さ分、本文末尾に余白（フッターがナビ裏に隠れないように） */
-  .bottom-nav-spacer {
-    display: block;
-    height: calc(56px + env(safe-area-inset-bottom));
-  }
+.bottom-nav-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 8px 0 7px;
+  min-height: 56px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-family: 'DM Sans', sans-serif;
+  transition: color 0.15s, transform 0.1s;
+  -webkit-tap-highlight-color: transparent;
+}
+.bottom-nav-tab.is-active { color: var(--accent); }
+.bottom-nav-tab:hover { color: var(--text); }
+.bottom-nav-tab.is-active:hover { color: var(--accent); }
+.bottom-nav-tab:active { transform: scale(0.94); }
 
-  .bottom-nav-tab {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 3px;
-    padding: 8px 0 7px;
-    min-height: 56px;
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: var(--text-muted);
-    font-family: 'DM Sans', sans-serif;
-    transition: color 0.15s, transform 0.1s;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .bottom-nav-tab.is-active { color: var(--accent); }
-  .bottom-nav-tab:active { transform: scale(0.94); }
+.bottom-nav-icon { position: relative; line-height: 0; }
+.bottom-nav-label { font-size: 10px; font-weight: 500; }
 
-  .bottom-nav-icon { position: relative; line-height: 0; }
-  .bottom-nav-label { font-size: 10px; font-weight: 500; }
-
-  /* 復習＝要対応（赤）。視線を引いて毎日の復習に戻す導線。 */
-  .bottom-nav-badge {
-    position: absolute;
-    top: -5px;
-    right: -9px;
-    min-width: 16px;
-    height: 16px;
-    padding: 0 4px;
-    border-radius: 8px;
-    background: var(--red);
-    color: #fff;
-    font-size: 10px;
-    font-weight: 700;
-    line-height: 16px;
-    text-align: center;
-    box-sizing: border-box;
-  }
-  /* 単語帳＝在庫表示（中立色）。要対応の赤と区別する。 */
-  .bottom-nav-badge.is-count {
-    background: var(--surface2);
-    color: var(--text-muted);
-    border: 1px solid var(--border);
-    line-height: 14px;
-  }
+/* 復習＝要対応（赤）。視線を引いて毎日の復習に戻す導線。 */
+.bottom-nav-badge {
+  position: absolute;
+  top: -5px;
+  right: -9px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--red);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  box-sizing: border-box;
+}
+/* 単語帳＝在庫表示（中立色）。要対応の赤と区別する。 */
+.bottom-nav-badge.is-count {
+  background: var(--surface2);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  line-height: 14px;
 }
 
 /* ── ② ホームのヒーローカード ─────────────────────────────── */
@@ -5615,4 +5614,20 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
   margin-top: 4px;
 }
 .td-cta:active { transform: scale(0.99); }
+
+/* ── マイ単語帳（ページ版・表示は単語リスト＝VocabItem） ───────── */
+.wb-screen { max-width: 680px; margin: 0 auto; padding: 16px 16px 24px; }
+.wb-head { margin-bottom: 14px; }
+.wb-h1 { font-size: 22px; font-weight: 800; margin: 4px 0; }
+.wb-sub { font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+.wb-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.wb-count { font-size: 13px; color: var(--text-muted); }
+.wb-actions { display: inline-flex; align-items: center; gap: 8px; }
+.wb-sync { padding: 4px 10px; font-size: 12px; }
+
+/* 削除ボタン（VocabItem の詳細アクション内・onDelete を渡した文脈＝単語帳のみ表示） */
+.btn-word-del {
+  color: var(--red) !important;
+  border-color: color-mix(in srgb, var(--red) 35%, var(--border)) !important;
+}
 
