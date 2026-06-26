@@ -14,6 +14,7 @@ import PrepWalkthrough from '@/components/PrepWalkthrough';
 import SettingsModal from '@/components/SettingsModal';
 import ProfileSelect from '@/components/ProfileSelect';
 import WordbookModal from '@/components/WordbookModal';
+import TicketCollectionScreen from '@/components/TicketCollectionScreen';
 import AuthModal from '@/components/AuthModal';
 import Onboarding from '@/components/Onboarding';
 import RecommendScreen from '@/components/RecommendScreen';
@@ -107,6 +108,7 @@ function AppShell() {
         {screen === 'service-select' && <ServiceSelect />}
         {screen === 'vocab' && <VocabScreen />}
         {screen === 'quiz' && <QuizScreen />}
+        {screen === 'collection' && <TicketCollectionScreen />}
       </main>
 
       {reviewWords && <ReviewModal />}

@@ -43,6 +43,15 @@ function IconBook() {
   );
 }
 
+function IconTicket() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" {...ICON} aria-hidden="true">
+      <path d="M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4V8z" />
+      <path d="M14 6v12" strokeDasharray="2 2" />
+    </svg>
+  );
+}
+
 function IconSettings() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" {...ICON} aria-hidden="true">
@@ -62,6 +71,7 @@ export default function BottomNav({ dueCount = 0, wordCount = 0 }) {
     setCurrentHistoryId,
     settingsOpen,
     wordbookOpen,
+    openCollection,
     reviewWords,
   } = useApp();
 
@@ -75,8 +85,9 @@ export default function BottomNav({ dueCount = 0, wordCount = 0 }) {
   // それ以外でメイン系画面ならホームを点灯する。
   const reviewActive = !!reviewWords;
   const wordbookActive = wordbookOpen;
+  const collectionActive = screen === 'collection';
   const settingsActive = settingsOpen;
-  const homeActive = !reviewActive && !wordbookActive && !settingsActive && screen === 'main';
+  const homeActive = !reviewActive && !wordbookActive && !collectionActive && !settingsActive && screen === 'main';
 
   // badgeKind: 'urgent'（赤・要対応＝復習）/ 'count'（中立・在庫＝単語帳）
   const tab = (active, onClick, icon, label, badge, badgeKind) => (
@@ -103,6 +114,7 @@ export default function BottomNav({ dueCount = 0, wordCount = 0 }) {
       {tab(homeActive, goHome, <IconHome />, 'ホーム', 0)}
       {tab(reviewActive, onReview, <IconReview />, '復習', dueCount, 'urgent')}
       {tab(wordbookActive, openWordbook, <IconBook />, '単語帳', wordCount, 'count')}
+      {tab(collectionActive, openCollection, <IconTicket />, '半券', 0)}
       {tab(settingsActive, openSettings, <IconSettings />, '設定', 0)}
     </nav>
   );

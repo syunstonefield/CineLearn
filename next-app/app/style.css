@@ -5307,6 +5307,7 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
 /* ── 「続きから学習」横長カード（ポスター左＋本文右＋覚えた率バー）── */
 .continue-list { display: flex; flex-direction: column; gap: 10px; }
 .continue-card {
+  position: relative;
   display: flex;
   gap: 14px;
   align-items: stretch;
@@ -5336,11 +5337,11 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
 }
 .continue-card-poster { width: 100%; height: 100%; object-fit: cover; transition: opacity 0.2s ease; }
 .continue-card-letter { font-size: 26px; font-weight: 700; color: #fff; opacity: 0.85; }
-/* 左上の「棚から外す」✕（モバイルは常時表示＝指で消せる）。学習記録は保存される。 */
+/* 右上の「棚から外す」✕（モバイルは常時表示＝指で消せる）。学習記録は保存される。 */
 .continue-card-archive {
   position: absolute;
   top: 6px;
-  left: 6px;
+  right: 6px;
   z-index: 2;
   width: 24px;
   height: 24px;
@@ -5383,6 +5384,7 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  padding-right: 24px; /* 右上の✕に長いタイトルが潜り込まないよう余白を確保 */
 }
 .continue-card-ep { font-size: 12px; color: var(--text-muted); margin-top: -2px; }
 .continue-card-progress { display: flex; align-items: center; gap: 8px; }
@@ -5425,3 +5427,192 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
 @media (max-width: 768px) {
   .continue-card-btn { width: 100%; align-self: stretch; text-align: center; }
 }
+
+/* ── 半券コレクション画面（ボトムナビ「半券」タブ＝screen='collection'） ───── */
+.tc-screen {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 16px 16px 24px;
+}
+.tc-head { margin-bottom: 14px; }
+.tc-h1 { font-size: 22px; font-weight: 800; margin: 4px 0; }
+.tc-sub { font-size: 13px; color: var(--text-muted); }
+
+/* stats 帯（3指標・罫線で区切る） */
+.tc-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+.tc-stat { background: var(--surface); padding: 14px 6px; text-align: center; }
+.tc-stat-label { font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
+.tc-stat-num { font-size: 24px; font-weight: 800; color: var(--accent); line-height: 1.1; }
+.tc-stat-unit { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+/* フィルタタブ */
+.tc-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: 10px; }
+.tc-tab {
+  flex: 1; padding: 10px 4px; font-size: 13px; font-weight: 600;
+  color: var(--text-muted); background: none; border: none; cursor: pointer;
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.tc-tab.is-active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ソート */
+.tc-sortrow { display: flex; justify-content: flex-end; margin-bottom: 12px; }
+.tc-sort { font-size: 12px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 4px; }
+.tc-sort select {
+  font: inherit; font-size: 12px; color: var(--text);
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 4px 8px;
+}
+
+/* カードリスト（コンパクトに中央寄せ） */
+.tc-list { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+
+/* チケット型カード：public/collection-ticket.png をテンプレ背景にして動的データを重ねる（PrepLaunch方式）。
+   テキストは cqw（カード幅基準）でスケール。位置%はテンプレ画像に合わせて微調整（TUNE）。 */
+.tcimg-card {
+  position: relative;
+  width: 100%;
+  max-width: 300px; /* 1枚を小さめに（大きすぎ対策） */
+  aspect-ratio: 1300 / 556;
+  background: url('/collection-ticket.png') no-repeat center / 100% 100%;
+  cursor: pointer;
+  container-type: inline-size;
+  transition: transform 0.05s ease, filter 0.15s ease;
+}
+.tcimg-card:hover { filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.12)); }
+.tcimg-card:active { transform: scale(0.995); }
+
+/* 左：ポスター（暗部に重ねる・無ければ頭文字） */
+.tcimg-poster {
+  position: absolute;
+  left: 2.6%; top: 11%; width: 23.6%; height: 77%;
+  object-fit: cover;
+  border-radius: 1.6cqw;
+}
+.tcimg-poster-fallback {
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-weight: 800; font-size: 9cqw;
+}
+
+/* 本体（ADMIT ONE はテンプレ画像側） */
+.tcimg-body {
+  position: absolute;
+  left: 30.5%; top: 30%; width: 42%;
+  display: flex; flex-direction: column; gap: 0.5cqw;
+}
+.tcimg-title { font-size: 5.2cqw; font-weight: 800; color: #2c241e; line-height: 1.1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tcimg-ja { font-size: 3.3cqw; color: #6f6052; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tcimg-range { font-size: 3.1cqw; color: #8a7a6a; margin-top: 0.8cqw; }
+.tcimg-date { font-size: 2.8cqw; color: #a3917f; margin-top: 0.3cqw; }
+
+/* 右スタブの数字（ラベル TOTAL EPISODES / PROGRESS は画像） */
+.tcimg-eps {
+  position: absolute; left: 76%; width: 22%; top: 43%;
+  text-align: center; font-size: 6.4cqw; font-weight: 800; color: #2c241e; line-height: 1;
+}
+.tcimg-prog {
+  position: absolute; left: 76%; width: 22%; top: 81%;
+  text-align: center; font-size: 4.2cqw; font-weight: 800; color: var(--accent); line-height: 1;
+}
+.tcimg-prog.is-partial { color: #d98324; }
+
+/* お気に入り（画像の金★位置に重ねる。非お気に入りは紙色の円で金★をマスクして☆を出す） */
+.tcimg-fav {
+  position: absolute; top: 8%; left: 86.5%; width: 9%; height: 20%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 5.2cqw; line-height: 1; color: #f5b301;
+  background: none; border: none; cursor: pointer;
+  -webkit-appearance: none; appearance: none;
+}
+.tcimg-fav:not(.is-on) {
+  color: #b9a48f;
+  background: radial-gradient(circle at center, #f3e8da 52%, transparent 56%);
+}
+
+/* 空状態 */
+.tc-empty { text-align: center; padding: 48px 20px; color: var(--text-muted); }
+.tc-empty-icon { font-size: 40px; margin-bottom: 12px; }
+.tc-empty-title { font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+.tc-empty-sub { font-size: 13px; line-height: 1.7; max-width: 300px; margin: 0 auto; }
+
+/* ── 半券の詳細ページ（Phase 2） ───────────────────────────── */
+.td-screen { max-width: 680px; margin: 0 auto; padding: 8px 16px 28px; }
+.td-header { display: flex; align-items: center; justify-content: space-between; padding: 6px 0 12px; }
+.td-back { font-size: 26px; line-height: 1; color: var(--text); background: none; border: none; cursor: pointer; width: 32px; text-align: left; }
+.td-htitle { font-size: 16px; font-weight: 700; }
+.td-hspacer { width: 32px; }
+
+/* ヒーローチケット（一覧より大きく＝全幅・中央寄せ解除） */
+.td-hero { max-width: 100%; margin: 0 0 16px; }
+
+/* アクション行 */
+.td-actions { display: flex; gap: 10px; margin-bottom: 22px; }
+.td-action {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 11px 8px; font-size: 13px; font-weight: 600; text-decoration: none;
+  color: var(--text); background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; cursor: pointer;
+}
+.td-action.is-on { color: #c98a00; border-color: color-mix(in srgb, #f5b301 40%, var(--border)); }
+
+/* セクション */
+.td-sec { margin-bottom: 22px; }
+.td-sec-title { font-size: 15px; font-weight: 700; margin-bottom: 12px; }
+
+/* 学習の記録（3指標） */
+.td-stats {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px;
+  background: var(--border); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; margin-bottom: 12px;
+}
+.td-stat { background: var(--surface); padding: 14px 6px; text-align: center; }
+.td-stat-label { font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
+.td-stat-num { font-size: 20px; font-weight: 800; color: var(--text); line-height: 1.1; }
+.td-stat-sub { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+
+.td-progress-row { display: flex; align-items: center; gap: 10px; }
+.td-progress-bar { flex: 1; height: 8px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 14%, var(--surface)); overflow: hidden; }
+.td-progress-bar > span { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
+.td-progress-pct { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+.td-done-badge { font-size: 11px; font-weight: 700; color: var(--green); background: color-mix(in srgb, var(--green) 14%, var(--surface)); border-radius: 999px; padding: 2px 8px; }
+
+/* シーズン別の進捗 */
+.td-seasons { display: flex; flex-direction: column; gap: 12px; }
+.td-season { display: grid; grid-template-columns: 78px 54px 1fr; align-items: center; gap: 10px; }
+.td-season-name { font-size: 13px; color: var(--text); }
+.td-season-count { font-size: 12px; color: var(--text-muted); text-align: right; }
+.td-season-bar { height: 6px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 12%, var(--surface)); overflow: hidden; }
+.td-season-bar > span { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
+
+/* 最近学習したエピソード */
+.td-eps { display: flex; flex-direction: column; gap: 8px; }
+.td-ep {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+}
+.td-ep-se { font-size: 13px; font-weight: 800; color: var(--accent); flex-shrink: 0; }
+.td-ep-date { font-size: 12px; color: var(--text-muted); flex: 1; }
+.td-ep-score { font-size: 12px; font-weight: 700; color: var(--text); }
+
+/* 学んだ表現・単語 */
+.td-words { display: flex; flex-wrap: wrap; gap: 8px; }
+.td-word {
+  font-size: 13px; color: var(--text); background: var(--surface); border: 1px solid var(--border);
+  border-radius: 999px; padding: 5px 12px;
+}
+.td-word-more { color: var(--text-muted); }
+
+/* CTA */
+.td-cta {
+  width: 100%; padding: 15px; font-size: 15px; font-weight: 700;
+  color: var(--on-accent, #fff); background: var(--accent); border: none; border-radius: 14px; cursor: pointer;
+  margin-top: 4px;
+}
+.td-cta:active { transform: scale(0.99); }
+

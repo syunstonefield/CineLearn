@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { loadProfiles, saveProfiles, patchProfileSettings, unarchiveDrama } from '@/lib/storage';
 import { issueTicket as issueTicketLib, loadTickets } from '@/lib/tickets';
+import { addStudySeconds, addDramaStudySeconds } from '@/lib/studytime';
 import { applyTheme, getThemePref } from '@/lib/theme';
 import { ensureFreshSession, pullFromCloud, isLoggedIn, supaSignOut, clearSession } from '@/lib/supabase';
 import { recommendedToDrama } from '@/lib/recommended';
@@ -406,6 +407,9 @@ export default function AppProvider({ children }) {
 
   const openWordbook = useCallback(() => setWordbookOpen(true), []);
   const closeWordbook = useCallback(() => setWordbookOpen(false), []);
+  // 半券コレクションは全画面（ヘッダー・ボトムナビが見える）の screen として扱う。
+  const openCollection = useCallback(() => setScreen('collection'), []);
+  const closeCollection = useCallback(() => setScreen('main'), []);
   const bumpWordbook = useCallback(() => setWordbookVersion((v) => v + 1), []);
 
   // テスト画面へ（VocabScreen の「テストを受ける」）
@@ -496,6 +500,45 @@ export default function AppProvider({ children }) {
     setTickets(profile ? loadTickets(profile.id) : []);
   }, [profile]);
 
+  // 学習画面に居る間だけ、選択中ドラマに時間を帰属させるための参照（作品別学習時間）。
+  const studyDramaRef = useRef(null);
+  useEffect(() => {
+    const studying =
+      screen === 'vocab' || screen === 'quiz' || !!reviewWords || !!prepQuiz || !!prepLaunch || !!prepWalk;
+    studyDramaRef.current = studying && drama ? drama.title : null;
+  }, [screen, drama, reviewWords, prepQuiz, prepLaunch, prepWalk]);
+
+  // 学習時間（今から計測）: アプリを前景で開いている時間を秒で積算する（過去分は0）。
+  // 離席（タブ非表示）は加算せず、長すぎる間隔は離席とみなして捨てる。
+  // 学習画面に居る時は選択中ドラマにも帰属（作品別・詳細ページ用）。
+  useEffect(() => {
+    if (!mounted || !profile) return;
+    let last = Date.now();
+    const flush = () => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+        last = Date.now();
+        return;
+      }
+      const now = Date.now();
+      const delta = (now - last) / 1000;
+      last = now;
+      if (delta > 0 && delta < 90) {
+        addStudySeconds(profile.id, delta); // 90秒超は離席→捨てる
+        if (studyDramaRef.current) addDramaStudySeconds(profile.id, studyDramaRef.current, delta);
+      }
+    };
+    const iv = setInterval(flush, 20000);
+    const onVis = () => { last = Date.now(); };
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('beforeunload', flush);
+    return () => {
+      flush();
+      clearInterval(iv);
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('beforeunload', flush);
+    };
+  }, [mounted, profile]);
+
   const value = {
     profile,
     settings,
@@ -521,6 +564,8 @@ export default function AppProvider({ children }) {
     wordbookOpen,
     openWordbook,
     closeWordbook,
+    openCollection,
+    closeCollection,
     wordbookVersion,
     bumpWordbook,
     authOpen,
