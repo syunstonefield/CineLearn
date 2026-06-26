@@ -9,7 +9,11 @@ export function getCachedSeasons(tmdbId) {
   if (!tmdbId) return null;
   try {
     const v = localStorage.getItem(epsCacheKey(tmdbId));
-    return v ? JSON.parse(v) : null;
+    if (!v) return null;
+    const obj = JSON.parse(v);
+    // 旧キャッシュ（制作年フィールド firstYear が無い）は未取得扱いにして再取得させる＝自己治癒。
+    if (!obj || !('firstYear' in obj)) return null;
+    return obj;
   } catch {
     return null;
   }
