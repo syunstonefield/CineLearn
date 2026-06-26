@@ -13,7 +13,8 @@
     "https://www.netflix.com/*",
     "https://www.youtube.com/*",
     "https://www.amazon.co.jp/*",
-    "https://www.primevideo.com/*"
+    "https://www.primevideo.com/*",
+    "https://www.disneyplus.com/*"
   ],
 
   "content_scripts": [
@@ -29,7 +30,8 @@
         "https://www.primevideo.com/*",
         "https://www.youtube.com/watch*",
         "https://www.amazon.co.jp/gp/video/detail/*",
-        "https://www.amazon.co.jp/*/dp/*"
+        "https://www.amazon.co.jp/*/dp/*",
+        "https://www.disneyplus.com/*"
       ],
       "js": ["extension/content.js"],
       "css": ["extension/content.css"],
@@ -49,7 +51,8 @@
         "https://www.netflix.com/*",
         "https://www.primevideo.com/*",
         "https://www.youtube.com/*",
-        "https://www.amazon.co.jp/*"
+        "https://www.amazon.co.jp/*",
+        "https://www.disneyplus.com/*"
       ]
     }
   ],

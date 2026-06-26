@@ -12,6 +12,9 @@ const LONG_PRESS_MS = 600; // 長押し判定ミリ秒
 // ホバー時の自動一時停止を無効化する（クリックでの単語保存は有効）
 const IS_AMAZON = /amazon\.|primevideo\./.test(location.hostname);
 const IS_NETFLIX = /netflix\./.test(location.hostname);
+// Disney+（BAMTECH系・hive プレイヤー）。字幕は Web Components の Shadow DOM 内に描画されるため
+// Amazon同様オーバーレイ方式で読む（createDisneyOverlay）。ホバー一時停止は有効（DRM落ちは実機監視中）。
+const IS_DISNEY = /disneyplus\./.test(location.hostname);
 
 const SUBTITLE_SELECTORS = [
   // Netflix
@@ -234,6 +237,9 @@ function init() {
     // アマプラは React 管理 DOM のため直接書き換えると落ちる。
     // 元字幕を透明化し、自前オーバーレイをポーリングで重ねる方式を使う。
     createAmazonOverlay();
+  } else if (IS_DISNEY) {
+    // Disney+(hive)は字幕を Shadow DOM 内に能動再描画する → Amazon同様オーバーレイ方式。
+    createDisneyOverlay();
   } else {
     findAndWatchSubtitles();
     new MutationObserver(() => findAndWatchSubtitles())
@@ -259,6 +265,10 @@ function pauseVideo() {
   if (!video) return;
   pausedVideoRef = video;
   video.pause();
+
+  // Disney+ は keepalive(50ms毎の再pause)で再生を握り続けると native の再生ボタンが効かなくなる
+  // （再生→即re-pause の綱引き）。1回だけ pause し、以降の再生制御はユーザー/プレイヤーに委ねる。
+  if (IS_DISNEY) return;
 
   clearInterval(pauseKeepAlive);
   pauseKeepAlive = setInterval(() => {
@@ -785,10 +795,14 @@ const TT_KEYS_MAX = 30;               // 保持するエピソード数の上限
 let clPrevBtn = null;
 let clNextBtn = null;
 
-// 本編の video 要素を取得（Netflix / Amazon 共通）
+// 本編の video 要素を取得（Netflix / Amazon / Disney+ 共通）。
+// Disney+ 等は currentTime=0・videoWidth=0・duration=NaN の「ダミー video」が同居するため、
+// 実際に映像を描画している video（videoWidth>0）を最優先で選ぶ（一時停止中でも本編を取り違えない）。
 function getActiveVideo() {
   const vids = Array.from(document.querySelectorAll('video'));
-  return vids.find(v => !v.paused && v.currentTime > 0)
+  return vids.find(v => v.videoWidth > 0 && v.currentTime > 0)
+      || vids.find(v => v.videoWidth > 0)
+      || vids.find(v => !v.paused && v.currentTime > 0)
       || vids.filter(v => isFinite(v.duration) && v.duration > 0)
              .sort((a, b) => b.duration - a.duration)[0]
       || vids[0] || null;
@@ -919,7 +933,7 @@ function getCurrentBlockIndex() {
 
 // 画面に今出ている字幕テキスト（タイムライン未蓄積時のフォールバック）
 function getOnScreenCaption() {
-  if (IS_AMAZON) return lastOverlayText || '';
+  if (IS_AMAZON || IS_DISNEY) return lastOverlayText || '';
   for (const sel of SUBTITLE_SELECTORS) {
     for (const el of document.querySelectorAll(sel)) {
       const txt = (el.innerText || '').trim();
@@ -1008,6 +1022,11 @@ function scheduleSeek(video, time) {
       // フリーズする。ページの公式プレイヤーAPI(seek)を inject 経由で呼ぶ。
       window.postMessage({ source: 'cl-netflix-cmd', type: 'seek',
         timeMs: Math.round(target * 1000) }, '*');
+    } else if (IS_DISNEY) {
+      // Disney+ は一時停止中に currentTime で seek すると「読み込み中」のまま止まりやすい。
+      // 先に再生状態へ戻してから seek すると、rebuffer 後に自動で再生が継続しやすい。
+      v.play().catch(() => {});
+      try { v.currentTime = target; } catch {}
     } else {
       try { v.currentTime = target; } catch {}
       // Amazon はシーク後にスタールすることがあるので、少し後に動いて
@@ -1153,13 +1172,20 @@ function createSubtitleControls() {
     return b;
   };
 
-  clPrevBtn = makeBtn('◀',  '前のセリフへ戻る',      () => seekRelative(-1));
-  clNextBtn = makeBtn('▶',  '次のセリフへ進む',      () => seekRelative(+1));
-  clControls.append(
-    clPrevBtn,
-    makeBtn('📋', '今のセリフを1文コピー', () => copyCurrentSentence()),
-    clNextBtn,
-  );
+  if (IS_DISNEY) {
+    // Disney+ は currentTime シークが rebuffer でスタールするため ◀▶ を一旦無効化（B案）。
+    // 字幕読み・単語保存・ホバー一時停止・📋コピーは有効。◀▶は内部APIシーク実装まで保留。
+    // clPrevBtn/clNextBtn は null のまま → updateNavButtonsState は guard で no-op。
+    clControls.append(makeBtn('📋', '今のセリフを1文コピー', () => copyCurrentSentence()));
+  } else {
+    clPrevBtn = makeBtn('◀',  '前のセリフへ戻る',      () => seekRelative(-1));
+    clNextBtn = makeBtn('▶',  '次のセリフへ進む',      () => seekRelative(+1));
+    clControls.append(
+      clPrevBtn,
+      makeBtn('📋', '今のセリフを1文コピー', () => copyCurrentSentence()),
+      clNextBtn,
+    );
+  }
   document.body.appendChild(clControls);
 
   // 全画面の出入りで親要素を移し替え、リサイズで位置を再計算する
@@ -1443,12 +1469,114 @@ function buildOverlayWords(text) {
 }
 
 // ─────────────────────────────────────────────────────────────────
+// Disney+（hive プレイヤー）用オーバーレイ
+//   字幕は <timed-text-override-region> 等のオープン Shadow DOM 内
+//   `.hive-subtitle-renderer-*` に能動再描画される（document.querySelectorAll では届かない）。
+//   Amazon と同様、直接書き換えず Shadow DOM を貫通して読み取り→自前オーバーレイを重ねる。
+//   元字幕を隠す style は「字幕が属する shadow root」に注入する（document.head では隔離され効かない）。
+// ─────────────────────────────────────────────────────────────────
+let disneyCapHost = null; // 字幕を含む shadow host（Web Component）をキャッシュして再探索を避ける
+// 字幕オーバーレイを上げてプレイヤーのスキップ等ボタンとの重なりを避ける（px・調整可）。
+// 2行字幕でも下端がボタンに被らないよう、やや大きめに取る。
+const DISNEY_SUB_RAISE_PX = 120;
+
+function createDisneyOverlay() {
+  clOverlay = document.createElement('div');
+  Object.assign(clOverlay.style, {
+    position: 'fixed', zIndex: '2147483640',
+    pointerEvents: 'none', textAlign: 'center',
+    display: 'none', lineHeight: '1.3', whiteSpace: 'pre-wrap',
+    fontFamily: 'inherit',
+  });
+  document.body.appendChild(clOverlay);
+  setInterval(updateDisneyOverlay, 150);
+}
+
+// Shadow DOM を貫通して hive 字幕要素を探す（host はキャッシュし、次回以降は中だけ見て軽くする）
+function findDisneyCaption() {
+  if (disneyCapHost && disneyCapHost.isConnected && disneyCapHost.shadowRoot) {
+    const c = disneyCapHost.shadowRoot.querySelector('[class*="hive-subtitle"]');
+    if (c && (c.innerText || '').trim()) return c;
+  }
+  const stack = [document];
+  while (stack.length) {
+    const root = stack.pop();
+    let els;
+    try { els = root.querySelectorAll('*'); } catch { continue; }
+    for (const el of els) {
+      if (el.shadowRoot) stack.push(el.shadowRoot);
+      if (/hive-subtitle/.test(String(el.className || '')) && (el.innerText || '').trim()) {
+        const host = el.getRootNode().host;
+        if (host) disneyCapHost = host;
+        return el;
+      }
+    }
+  }
+  return null;
+}
+
+// 元字幕を隠す style を、字幕が属する shadow root 内に1度だけ注入する
+function ensureDisneyHideStyle(capEl) {
+  const root = capEl.getRootNode();
+  if (!root || root === document || typeof root.querySelector !== 'function') return;
+  if (root.querySelector('style[data-cl-hide]')) return;
+  const s = document.createElement('style');
+  s.setAttribute('data-cl-hide', '1');
+  // 文字色だけでなく背景（半透明の黒帯）も消す。元字幕を完全に不可視化し、自前オーバーレイだけ見せる。
+  s.textContent = '[class*="hive-subtitle"], [class*="hive-subtitle"] * { color: transparent !important; text-shadow: none !important; background: transparent !important; background-color: transparent !important; box-shadow: none !important; }';
+  root.appendChild(s);
+}
+
+// フォントサイズ取得用に、字幕 wrapper 内で「直接テキストノードを持つ最深要素」を返す
+function findDisneyTextEl(wrapper) {
+  for (const el of wrapper.querySelectorAll('*')) {
+    for (const n of el.childNodes) {
+      if (n.nodeType === 3 && n.textContent.trim()) return el;
+    }
+  }
+  return wrapper;
+}
+
+function updateDisneyOverlay() {
+  if (!clOverlay) return;
+  if (!clEnabled) { clOverlay.style.display = 'none'; return; } // OFF 時は隠す
+  const cap = findDisneyCaption();
+  if (!cap) {
+    if (clOverlay.style.display !== 'none') { clOverlay.style.display = 'none'; lastOverlayText = ''; }
+    return;
+  }
+  ensureDisneyHideStyle(cap);
+
+  const text = (cap.innerText || '').trim();
+  if (text && text !== lastOverlayText) {
+    lastOverlayText = text;
+    buildOverlayWords(text);   // クリック可能な .cl-word を生成（Amazon と共通）
+    recordCaptionBlock(text);  // ◀▶📋 用の字幕タイムラインに記録
+  }
+
+  // オーバーレイは「実際に字幕が表示されている要素」に重ねる。
+  // wrapper(cap) は大きな容器で上部基準のことがあり位置もサイズもズレる →
+  // 直接テキストを持つ最深要素の座標・フォントに合わせる（＝Disney+ が出している下部の位置）。
+  const textEl = findDisneyTextEl(cap);
+  const rect   = textEl.getBoundingClientRect();
+  const cs     = getComputedStyle(textEl);
+  Object.assign(clOverlay.style, {
+    display:    'block',
+    left:       `${rect.left}px`,
+    top:        `${rect.top - DISNEY_SUB_RAISE_PX}px`,
+    width:      `${rect.width}px`,
+    fontSize:   cs.fontSize,
+    fontWeight: cs.fontWeight,
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────
 // 字幕コンテナを探して監視する（Netflix / YouTube 用）
 // ─────────────────────────────────────────────────────────────────
 let watchedContainers = new Set();
 
 function findAndWatchSubtitles() {
-  if (IS_AMAZON) return; // アマプラはオーバーレイ方式を使うため何もしない
+  if (IS_AMAZON || IS_DISNEY) return; // アマプラ/Disney+ はオーバーレイ方式を使うため何もしない
   SUBTITLE_SELECTORS.forEach(sel => {
     try {
       document.querySelectorAll(sel).forEach(el => {
