@@ -30,23 +30,23 @@ export default function ContinueCard({ entry, stats, onSelect, onArchive }) {
 
   return (
     <div className="continue-card" onClick={() => onSelect(drama)} title={drama.title}>
+      {/* カード右上：棚から外す（一覧から隠すだけ・学習記録＝単語/スコア/履歴は保存される）。 */}
+      <button
+        type="button"
+        className="continue-card-archive"
+        title="棚から外す（学習記録は残ります）"
+        aria-label="棚から外す"
+        onClick={(e) => {
+          e.stopPropagation();
+          onArchive?.(drama.title);
+        }}
+      >
+        ✕
+      </button>
       <div
         className="continue-card-poster-wrap"
         style={showPoster ? undefined : { background: platformColor(drama.platform) }}
       >
-        {/* 左上：棚から外す（一覧から隠すだけ・学習記録＝単語/スコア/履歴は保存される）。 */}
-        <button
-          type="button"
-          className="continue-card-archive"
-          title="棚から外す（学習記録は残ります）"
-          aria-label="棚から外す"
-          onClick={(e) => {
-            e.stopPropagation();
-            onArchive?.(drama.title);
-          }}
-        >
-          ✕
-        </button>
         {showPoster ? (
           <>
             {!imgLoaded && <span className="img-skeleton" aria-hidden="true" />}
