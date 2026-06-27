@@ -40,6 +40,7 @@ export default function WordbookScreen() {
   const [srs, setSrs] = useState({});
   const [syncing, setSyncing] = useState(false);
   const [exJa, setExJa] = useState({}); // word(小文字) → 例文の和訳（/api/translate）
+  const [wordJa, setWordJa] = useState({}); // word(小文字) → 単語の和訳（意味を日本語に）
 
   useEffect(() => {
     setSrs(loadSrs());
@@ -52,19 +53,33 @@ export default function WordbookScreen() {
     };
   }, [pid, wordbookVersion]);
 
+  // 単語帳を開いた時にクラウドから最新を取り込む（拡張で保存→約1秒後に後埋めした例文を反映）。
+  // 後埋めが初回pullに間に合わないことがあるので、開いた直後＋数秒後の2回引いて取りこぼしを防ぐ。
+  // refreshFromCloud は wordbookVersion を上げる→上の effect が再読込する。ログイン時のみ。
+  useEffect(() => {
+    if (!loggedIn) return;
+    refreshFromCloud();
+    const t = setTimeout(() => refreshFromCloud(), 6000);
+    return () => clearTimeout(t);
+  }, [loggedIn, refreshFromCloud]);
+
   // 例文の和訳を /api/translate から取得（端末キャッシュ・短文のみ・鍵未設定なら null＝和訳なし）。
   useEffect(() => {
     if (!words || !words.length) return;
     let cancelled = false;
     (async () => {
       for (const w of words) {
-        const sent = w.example || w.sentence;
-        if (!sent) continue;
-        const ja = await fetchJa(sent);
+        const wl = w.word.toLowerCase();
+        // 単語の和訳（意味を日本語に・英語定義しか無い保存語向け）
+        const wja = await fetchJa(w.word);
         if (cancelled) return;
-        if (ja != null) {
-          const wl = w.word.toLowerCase();
-          setExJa((m) => (m[wl] === ja ? m : { ...m, [wl]: ja }));
+        if (wja != null) setWordJa((m) => (m[wl] === wja ? m : { ...m, [wl]: wja }));
+        // 例文の和訳
+        const sent = w.example || w.sentence;
+        if (sent) {
+          const ja = await fetchJa(sent);
+          if (cancelled) return;
+          if (ja != null) setExJa((m) => (m[wl] === ja ? m : { ...m, [wl]: ja }));
         }
       }
     })();
@@ -137,6 +152,7 @@ export default function WordbookScreen() {
                   key={w.word}
                   word={{
                     ...w,
+                    definition: wordJa[w.word.toLowerCase()] || w.definition,
                     example: w.example || w.sentence || '',
                     example_ja: w.example_ja || exJa[w.word.toLowerCase()] || '',
                   }}

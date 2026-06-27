@@ -304,6 +304,41 @@ function tokenSet(s) {
   );
 }
 
+// マッチした字幕cueの前後を結合して1文に近づける。OS字幕は1文が複数cueに割れて
+// "...next door..." のように "..." で継続することがあるため、文頭〜文末まで隣接cueを足す。
+// 暴走防止に前後それぞれ最大3cue・合計240字までで足切り（超過は安全側で単cueに戻す）。
+function expandToFullSentence(cues, best) {
+  const i = cues.indexOf(best);
+  if (i < 0) return best.text;
+  const MAX = 3;
+  const CHAR_CAP = 240;
+  const endsSentence = (t) => /[.!?]["'”’)]*\s*$/.test(t) && !/\.\.\.\s*$/.test(t);
+  const startsSentence = (t) => {
+    const x = t.trim();
+    return /^["'“‘(]?[A-Z♪]/.test(x) && !/^\.\.\./.test(x);
+  };
+  let start = i;
+  let end = i;
+  let steps = 0;
+  while (end < cues.length - 1 && !endsSentence(cues[end].text) && steps < MAX) {
+    end++;
+    steps++;
+  }
+  steps = 0;
+  while (start > 0 && !startsSentence(cues[start].text) && steps < MAX) {
+    start--;
+    steps++;
+  }
+  const parts = cues.slice(start, end + 1).map((c) => c.text.trim());
+  for (let k = 0; k < parts.length; k++) {
+    if (k > 0) parts[k] = parts[k].replace(/^\.\.\.\s*/, ''); // 継続cueの先頭 "..." を除去
+    if (k < parts.length - 1) parts[k] = parts[k].replace(/\s*\.\.\.$/, ''); // 末尾 "..." を除去
+  }
+  const s = parts.join(' ').replace(/\s{2,}/g, ' ').trim();
+  if (s.length > CHAR_CAP) return best.text;
+  return s || best.text;
+}
+
 // クリック語を含む字幕キューを1つ特定して返す（経路②→①／#3 のサーバー側マッチ）。
 //   ★windowSec 指定時は「再生位置 nearSec ±windowSec の窓内」に足切りしてから最近傍を選ぶ
 //     ＝任意位置の総当りで字幕全文を1文ずつ復元される穴を構造的に塞ぐ。lineText アンカーが
@@ -332,7 +367,7 @@ export function findExampleForWord(rawSrt, word, nearSec, windowSec) {
       hits[0]
     );
   }
-  return { sentence: best.text, sec: best.sec, label: secToTimeLabel(best.sec) };
+  return { sentence: expandToFullSentence(cues, best), sec: best.sec, label: secToTimeLabel(best.sec) };
 }
 
 // 画面に出ている字幕行（anchorLine）を手がかりに OpenSubtitles の該当キューを特定して返す（本命）。
@@ -373,7 +408,7 @@ export function findExampleByAnchor(rawSrt, word, anchorLine, nearSec) {
   }
   // Netflix と OS は書き起こしが少し違う（句読点/SDH/縮約）。0.4 で実用域・誤一致は稀。
   if (!best || bestScore < 0.4) return null;
-  return { sentence: best.text, sec: best.sec, label: secToTimeLabel(best.sec) };
+  return { sentence: expandToFullSentence(cues, best), sec: best.sec, label: secToTimeLabel(best.sec) };
 }
 
 // 生SRTを {sec, text} のキュー配列にして時刻昇順で返す（同一署名はキャッシュ）。
