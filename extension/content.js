@@ -481,6 +481,20 @@ function getEpisodeContext() {
     return null;
   }
 
+  // Disney+ は Shadow DOM で DOM セレクタが空振りするが、document.title に作品名が入る
+  // （例: "ファインディング・ニモ | Disney+(ディズニープラス)"）。"|" で区切ってサービス名側
+  //  （Disney+(ディズニープラス) 等）を捨て、先頭の作品名を採用する。S/E はシリーズなら
+  //  document.title から拾う（映画は null＝/api/example は映画扱い）。
+  if (IS_DISNEY) {
+    const parts = document.title.split('|').map((s) => s.trim()).filter(Boolean);
+    const titleParts = parts.filter((p) => !/^disney\s*\+/i.test(p) && !BANNED_TITLES.test(p));
+    const t = titleParts[0] || '';
+    if (t && !BANNED_TITLES.test(t)) {
+      const se = extractSE(document.title);
+      return { dramaTitle: t, season: se?.season ?? null, episode: se?.episode ?? null };
+    }
+  }
+
   // ① 特定セレクターから S/E とタイトルを取得
   const titleSelectors = [
     '[data-uia="video-title"]',
