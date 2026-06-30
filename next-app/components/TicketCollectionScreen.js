@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
 import { loadHistory, learningStatsByTitle, buildLibraryEntries } from '@/lib/storage';
 import { getStudySeconds, formatStudyTime } from '@/lib/studytime';
@@ -22,13 +22,16 @@ const FILTERS = [
 const POSTER_COLORS = ['#E50914', '#1A73E8', '#2E7D32', '#7B1FA2', '#E65100', '#00695C', '#AD1457'];
 
 export default function TicketCollectionScreen() {
-  const { settings, openDrama, mounted, profile, reviewVersion, cloudVersion, wordbookVersion } = useApp();
+  const { settings, updateSettings, openDrama, mounted, profile, reviewVersion, cloudVersion, wordbookVersion } =
+    useApp();
 
   const [favs, setFavs] = useState([]);
   const [seasonsMap, setSeasonsMap] = useState({}); // tmdbId → { total, seasons }
   const [filter, setFilter] = useState('all');
   const [sort, setSort] = useState('added');
   const [detailTitle, setDetailTitle] = useState(null); // 開いている作品詳細（タイトル）
+  const attemptedPosters = useRef(new Set()); // 重複fetch防止
+  const [posterOverrides, setPosterOverrides] = useState({}); // title → posterPath（表示補完）
 
   useEffect(() => {
     setFavs(loadFavorites(profile?.id));
@@ -67,26 +70,89 @@ export default function TicketCollectionScreen() {
     });
   }, [mounted, settings.myDramas, reviewVersion, cloudVersion, wordbookVersion]);
 
-  // 総話数・シーズン構成を TMDB から非同期取得（キャッシュ優先・1件ずつ）。
+  // 総話数・シーズン構成を TMDB から非同期取得。キャッシュ済みは即適用、
+  // 未キャッシュは同時4件のプールで並列取得（直列N連の初回待ちを解消＝engineer指摘の本丸）。
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      const toFetch = [];
+      const cachedUpdates = {};
       for (const e of entries) {
         if (!e.tmdbId || e.isMovie || seasonsMap[e.tmdbId]) continue;
         const cached = getCachedSeasons(e.tmdbId);
-        if (cached) {
-          setSeasonsMap((m) => ({ ...m, [e.tmdbId]: cached }));
-          continue;
-        }
-        const r = await fetchSeasons(e.tmdbId, false);
+        if (cached) cachedUpdates[e.tmdbId] = cached;
+        else toFetch.push(e);
+      }
+      if (Object.keys(cachedUpdates).length) setSeasonsMap((m) => ({ ...m, ...cachedUpdates }));
+      const CONC = 4;
+      for (let i = 0; i < toFetch.length && !cancelled; i += CONC) {
+        const chunk = toFetch.slice(i, i + CONC);
+        const results = await Promise.all(
+          chunk.map((e) => fetchSeasons(e.tmdbId, false).then((r) => [e.tmdbId, r]))
+        );
         if (cancelled) return;
-        if (r) setSeasonsMap((m) => ({ ...m, [e.tmdbId]: r }));
+        const upd = {};
+        for (const [id, r] of results) if (r) upd[id] = r;
+        if (Object.keys(upd).length) setSeasonsMap((m) => ({ ...m, ...upd }));
       }
     })();
     return () => {
       cancelled = true;
     };
   }, [entries]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ポスター解決（ホーム Dashboard と同じ）：posterPath 未設定/旧サイズ(w500/w780)の作品を
+  // TMDB 検索で縦ポスター(w342)に取り直し、表示用 override ＋ myDramas へ永続化。
+  // これで「ホームには出るがコレクションに出ない」不一致を解消（どちらの画面を先に開いても揃う）。
+  useEffect(() => {
+    const missing = entries.filter(
+      (e) =>
+        (!e.posterPath || e.posterPath.includes('/w500') || e.posterPath.includes('/w780')) &&
+        // TV(tmdbId有)は進捗バー用の seasons 取得でポスターも得られる＝検索往復を省く。
+        // 検索が要るのは映画 or tmdbId 無し（seasons を引けない）作品だけ。
+        !(e.tmdbId && !e.isMovie) &&
+        !attemptedPosters.current.has(e.title)
+    );
+    if (!missing.length) return;
+    missing.forEach((m) => attemptedPosters.current.add(m.title));
+    (async () => {
+      const found = {};
+      const md = [...(settings.myDramas || [])];
+      let mdChanged = false;
+      const CONC = 4; // 同時4件のプール（検索往復の直列N連を解消）
+      for (let i = 0; i < missing.length; i += CONC) {
+        const chunk = missing.slice(i, i + CONC);
+        await Promise.all(
+          chunk.map(async (e) => {
+            try {
+              const res = await fetch('/api/tmdb', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'search', query: e.drama.englishTitle || e.title }),
+              });
+              const json = await res.json();
+              const hit = json.results?.[0];
+              if (!hit?.backdrop_path && !hit?.poster_path) return;
+              const imgPath = hit.poster_path || hit.backdrop_path;
+              const p = `https://image.tmdb.org/t/p/w342${imgPath}`;
+              found[e.title] = p;
+              const m = md.find((d) => d.title === e.title);
+              if (m) {
+                m.posterPath = p;
+                if (hit.id) m.tmdbId = hit.id;
+                mdChanged = true;
+              }
+            } catch {
+              /* 取得失敗は無視（onError フォールバックで頭文字表示） */
+            }
+          })
+        );
+      }
+      if (Object.keys(found).length) setPosterOverrides((prev) => ({ ...prev, ...found }));
+      if (mdChanged) updateSettings({ myDramas: md });
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entries]);
 
   // total / progress / range を付与。
   const decorated = useMemo(
@@ -98,12 +164,12 @@ export default function TicketCollectionScreen() {
         const range = fullRangeLabel(sj?.seasons, e.episodes);
         const isFav = favs.includes(e.title);
         const status = total != null ? (e.studiedEps >= total ? 'done' : 'watching') : 'watching';
-        // posterPath は myDramas 由来が第一だが、欠落/同期ズレで消えることがある。
-        // tmdbId 単位で永続キャッシュした TMDB ポスターをフォールバックに（リロードで消える対策）。
-        const posterPath = e.posterPath || sj?.posterPath || null;
+        // ポスター優先順位：解決済み override(w342縦) → myDramas → tmdb キャッシュ(w780)。
+        // override はホームと同じ TMDB 検索結果＝表示を home と一致させる。
+        const posterPath = posterOverrides[e.title] || e.posterPath || sj?.posterPath || null;
         return { ...e, posterPath, total, progress, range, isFav, status };
       }),
-    [entries, seasonsMap, favs]
+    [entries, seasonsMap, favs, posterOverrides]
   );
 
   // フィルタ→ソート。
@@ -230,6 +296,7 @@ export default function TicketCollectionScreen() {
                   src={e.posterPath}
                   label={e.enTitle}
                   color={POSTER_COLORS[i % POSTER_COLORS.length]}
+                  eager={i < 4}
                 />
 
                 {/* 本体（ADMIT ONE はテンプレ画像に焼かれている） */}

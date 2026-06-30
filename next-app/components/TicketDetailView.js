@@ -70,7 +70,7 @@ export default function TicketDetailView({ entry, seasons, onBack, onFav, onStud
 
         {/* ヒーロー：チケット（画像テンプレを大きく） */}
         <div className="tcimg-card td-hero">
-          <TicketPoster src={entry.posterPath} label={entry.enTitle} color="#7B1FA2" />
+          <TicketPoster src={entry.posterPath} label={entry.enTitle} color="#7B1FA2" eager />
           <div className="tcimg-body">
             <div className="tcimg-title">{entry.enTitle}</div>
             {entry.jaTitle && <div className="tcimg-ja">{entry.jaTitle}</div>}

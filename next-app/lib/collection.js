@@ -34,10 +34,11 @@ export async function fetchSeasons(tmdbId, isMovie = false) {
     const total = seasons.reduce((a, s) => a + s.episodes, 0);
     const firstYear = (detail.first_air_date || '').slice(0, 4) || null;
     const lastYear = (detail.last_air_date || '').slice(0, 4) || null;
-    // ポスター（半券の左暗部用）も一緒にキャッシュ＝myDramas/クラウド同期に依存せず
-    // tmdbId 単位で永続化し、リロードで消える問題を解消（既存 posterPath が無い時のフォールバック）。
-    const imgPath = detail.backdrop_path || detail.poster_path;
-    const posterPath = imgPath ? `https://image.tmdb.org/t/p/w780${imgPath}` : null;
+    // ポスター（半券の左暗部用）も一緒にキャッシュ＝この seasons 取得は進捗バーで必ず走るので、
+    // ポスターを「ついで」に得てキャッシュすれば、別途の TMDB 検索往復を省ける（出るまでの遅延を削減）。
+    // 縦スロット用に poster_path(縦) を優先・w342（ホームと同サイズ＝軽く速い）。
+    const imgPath = detail.poster_path || detail.backdrop_path;
+    const posterPath = imgPath ? `https://image.tmdb.org/t/p/w342${imgPath}` : null;
     const out = { total, seasons, firstYear, lastYear, posterPath };
     if (total > 0) {
       try {
