@@ -7,6 +7,7 @@ import { getStudySeconds, formatStudyTime } from '@/lib/studytime';
 import { loadFavorites, toggleFavorite } from '@/lib/favorites';
 import { fetchSeasons, getCachedSeasons, fullRangeLabel } from '@/lib/collection';
 import TicketDetailView from './TicketDetailView';
+import TicketPoster from './TicketPoster';
 
 // 半券コレクション（Phase 1：一覧画面）。
 // 学習履歴を作品単位に集約し、チケット型カードで「学習したドラマの記録」を見せる。
@@ -97,7 +98,10 @@ export default function TicketCollectionScreen() {
         const range = fullRangeLabel(sj?.seasons, e.episodes);
         const isFav = favs.includes(e.title);
         const status = total != null ? (e.studiedEps >= total ? 'done' : 'watching') : 'watching';
-        return { ...e, total, progress, range, isFav, status };
+        // posterPath は myDramas 由来が第一だが、欠落/同期ズレで消えることがある。
+        // tmdbId 単位で永続キャッシュした TMDB ポスターをフォールバックに（リロードで消える対策）。
+        const posterPath = e.posterPath || sj?.posterPath || null;
+        return { ...e, posterPath, total, progress, range, isFav, status };
       }),
     [entries, seasonsMap, favs]
   );
@@ -221,19 +225,12 @@ export default function TicketCollectionScreen() {
                   }
                 }}
               >
-                {/* 左の暗部にポスターを重ねる（無ければ頭文字） */}
-                {e.posterPath ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img className="tcimg-poster" src={e.posterPath} alt="" loading="lazy" />
-                ) : (
-                  <span
-                    className="tcimg-poster tcimg-poster-fallback"
-                    style={{ background: POSTER_COLORS[i % POSTER_COLORS.length] }}
-                    aria-hidden="true"
-                  >
-                    {(e.enTitle || '?').charAt(0)}
-                  </span>
-                )}
+                {/* 左の暗部にポスターを重ねる（無ければ頭文字・読み込み失敗もフォールバック） */}
+                <TicketPoster
+                  src={e.posterPath}
+                  label={e.enTitle}
+                  color={POSTER_COLORS[i % POSTER_COLORS.length]}
+                />
 
                 {/* 本体（ADMIT ONE はテンプレ画像に焼かれている） */}
                 <div className="tcimg-body">

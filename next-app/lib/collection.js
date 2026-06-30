@@ -11,8 +11,9 @@ export function getCachedSeasons(tmdbId) {
     const v = localStorage.getItem(epsCacheKey(tmdbId));
     if (!v) return null;
     const obj = JSON.parse(v);
-    // 旧キャッシュ（制作年フィールド firstYear が無い）は未取得扱いにして再取得させる＝自己治癒。
-    if (!obj || !('firstYear' in obj)) return null;
+    // 旧キャッシュ（制作年 firstYear / posterPath が無い）は未取得扱いにして再取得＝自己治癒。
+    // posterPath は「キーの有無」で判定（null でも取得済み扱い＝再取得ループを防ぐ）。
+    if (!obj || !('firstYear' in obj) || !('posterPath' in obj)) return null;
     return obj;
   } catch {
     return null;
@@ -33,7 +34,11 @@ export async function fetchSeasons(tmdbId, isMovie = false) {
     const total = seasons.reduce((a, s) => a + s.episodes, 0);
     const firstYear = (detail.first_air_date || '').slice(0, 4) || null;
     const lastYear = (detail.last_air_date || '').slice(0, 4) || null;
-    const out = { total, seasons, firstYear, lastYear };
+    // ポスター（半券の左暗部用）も一緒にキャッシュ＝myDramas/クラウド同期に依存せず
+    // tmdbId 単位で永続化し、リロードで消える問題を解消（既存 posterPath が無い時のフォールバック）。
+    const imgPath = detail.backdrop_path || detail.poster_path;
+    const posterPath = imgPath ? `https://image.tmdb.org/t/p/w780${imgPath}` : null;
+    const out = { total, seasons, firstYear, lastYear, posterPath };
     if (total > 0) {
       try {
         localStorage.setItem(epsCacheKey(tmdbId), JSON.stringify(out));

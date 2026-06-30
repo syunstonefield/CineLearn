@@ -5479,7 +5479,7 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
   position: relative;
   width: 100%;
   max-width: 300px; /* 1枚を小さめに（大きすぎ対策） */
-  aspect-ratio: 1300 / 556;
+  aspect-ratio: 1300 / 556; /* 透過切り抜きテンプレの実寸 */
   background: url('/collection-ticket.png') no-repeat center / 100% 100%;
   cursor: pointer;
   container-type: inline-size;
@@ -5491,7 +5491,7 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
 /* 左：ポスター（暗部に重ねる・無ければ頭文字） */
 .tcimg-poster {
   position: absolute;
-  left: 2.6%; top: 11%; width: 23.6%; height: 77%;
+  left: 3.3%; top: 10.5%; width: 23.5%; height: 81%; /* 暗部にフィット */
   object-fit: cover;
   border-radius: 1.6cqw;
 }
@@ -5513,18 +5513,18 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
 
 /* 右スタブの数字（ラベル TOTAL EPISODES / PROGRESS は画像） */
 .tcimg-eps {
-  position: absolute; left: 76%; width: 22%; top: 43%;
+  position: absolute; left: 80%; width: 19%; top: 45%;
   text-align: center; font-size: 6.4cqw; font-weight: 800; color: #2c241e; line-height: 1;
 }
 .tcimg-prog {
-  position: absolute; left: 76%; width: 22%; top: 81%;
+  position: absolute; left: 79.3%; width: 19%; top: 76%;
   text-align: center; font-size: 4.2cqw; font-weight: 800; color: var(--accent); line-height: 1;
 }
 .tcimg-prog.is-partial { color: #d98324; }
 
 /* お気に入り（画像の金★位置に重ねる。非お気に入りは紙色の円で金★をマスクして☆を出す） */
 .tcimg-fav {
-  position: absolute; top: 8%; left: 86.5%; width: 9%; height: 20%;
+  position: absolute; top: 12%; left: 89%; width: 9%; height: 13%;
   display: flex; align-items: center; justify-content: center;
   font-size: 5.2cqw; line-height: 1; color: #f5b301;
   background: none; border: none; cursor: pointer;

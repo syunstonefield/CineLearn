@@ -1,13 +1,19 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { loadHistory } from '@/lib/storage';
 import { getDramaStudySeconds, formatStudyTime } from '@/lib/studytime';
+import TicketPoster from './TicketPoster';
 
 // 半券の詳細ページ（Phase 2）。コレクション一覧のカードをタップで開くサブ画面。
 // 学習履歴＋TMDB（seasons キャッシュ）から、作品単位の学習記録を見せる。
 // データは捏造しない：episode タイトルは未保持のため SxE＋学習日で表現する。
 export default function TicketDetailView({ entry, seasons, onBack, onFav, onStudy, profileId }) {
+  // 半券を開いたら常に一番上から表示（一覧でスクロールした位置を引き継がない）。
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   // 履歴からこのドラマのエピソード（日付つき）と学んだ単語を集める。
   const { eps, words } = useMemo(() => {
     const hist = loadHistory().filter((h) => h.drama?.title === entry.title);
@@ -64,14 +70,7 @@ export default function TicketDetailView({ entry, seasons, onBack, onFav, onStud
 
         {/* ヒーロー：チケット（画像テンプレを大きく） */}
         <div className="tcimg-card td-hero">
-          {entry.posterPath ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img className="tcimg-poster" src={entry.posterPath} alt="" />
-          ) : (
-            <span className="tcimg-poster tcimg-poster-fallback" style={{ background: '#7B1FA2' }} aria-hidden="true">
-              {(entry.enTitle || '?').charAt(0)}
-            </span>
-          )}
+          <TicketPoster src={entry.posterPath} label={entry.enTitle} color="#7B1FA2" />
           <div className="tcimg-body">
             <div className="tcimg-title">{entry.enTitle}</div>
             {entry.jaTitle && <div className="tcimg-ja">{entry.jaTitle}</div>}
