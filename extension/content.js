@@ -748,6 +748,7 @@ async function showWordPopup(word, sentence, rect) {
       showToast('拡張機能が更新されました。ページを再読み込み（F5）してください');
       return;
     }
+    const _clickT = getActiveVideo()?.currentTime;
     const entry = {
       word,
       // 配信(Netflix/Amazon)の画面字幕行は保存しない（経路②→①畳み込み #3）。
@@ -757,6 +758,7 @@ async function showWordPopup(word, sentence, rect) {
       pos:        dict?.pos || '',
       definition: dict?.definition || '',
       savedAt:    new Date().toISOString().slice(0, 10), // ISO（アプリ側で表示変換）
+      tsSec:      isFinite(_clickT) ? Math.round(_clickT) : null, // クリック時の再生位置（📍時刻表示用）
       source:     document.title.split(/[|\-–—]/)[0].trim(),
       dramaTitle: ctx.dramaTitle,
       season:     ctx.season,

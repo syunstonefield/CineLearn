@@ -67,6 +67,11 @@ export default function VocabScreen() {
   } = app;
   const pid = app.profile?.id;
 
+  // 単語リストへ来たら常に一番上から表示（コレクション等のスクロール位置を引き継がない）。
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   const [seasons, setSeasons] = useState([]); // dramaSeasonInfo
   const [isMovie, setIsMovie] = useState(false);
   const [statusText, setStatusText] = useState('シーズン情報を取得中...');
@@ -123,6 +128,10 @@ export default function VocabScreen() {
     );
     return m;
   }, [vocab, subRaw, drama, season, episode]);
+
+  // 📍時刻：生成vocabは timestamps マップ、追加した単語(拡張保存)は保存済み tsSec から作る。
+  const tsFor = (w) =>
+    timestamps.get(w.word) || (w.tsSec != null ? { sec: w.tsSec, label: secToTimeLabel(w.tsSec) } : null);
 
   // 重複除去＋タイムスタンプ順ソート（renderVocab 準拠）
   const sortedVocab = useMemo(() => {
@@ -676,7 +685,13 @@ export default function VocabScreen() {
 
   const dramaWords = sortedVocab.filter((w) => w.source !== 'plus');
   const plusWords = sortedVocab.filter((w) => w.source === 'plus');
-  const stats = episodeStats(sortedVocab, srs);
+  // 今日の復習・対象集計はエピソードの単語＋「追加した単語」(拡張保存)を統合（重複は語で排除）。
+  const seenForReview = new Set(sortedVocab.map((w) => w.word.toLowerCase()));
+  const reviewWords = [
+    ...sortedVocab,
+    ...extWords.filter((w) => w.word && !seenForReview.has(w.word.toLowerCase())),
+  ];
+  const stats = episodeStats(reviewWords, srs);
   // 今日の復習セッション数（srs/reviewVersion 変化で再レンダーされるため毎回読み直す）
   const doneToday = historyId ? todaySessionCount(historyId) : 0;
   const testTiers = settings.testTiers || ['core', 'advanced'];
@@ -980,7 +995,7 @@ export default function VocabScreen() {
                     word={w}
                     srs={srs}
                     testTiers={testTiers}
-                    ts={timestamps.get(w.word)}
+                    ts={tsFor(w)}
                     exampleSource={exampleCredit}
                     onSpeak={speak}
                     onSkip={handleSkip}
@@ -1001,7 +1016,31 @@ export default function VocabScreen() {
                         word={w}
                         srs={srs}
                         testTiers={testTiers}
-                        ts={timestamps.get(w.word)}
+                        ts={tsFor(w)}
+                        onSpeak={speak}
+                        onSkip={handleSkip}
+                        onCopyTime={handleCopyTime}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 拡張機能で追加した単語（今日の復習・テストボタンの上に配置） */}
+              {extWords.length > 0 && (
+                <div id="ext-words-section">
+                  <div className="source-label" style={{ marginTop: 14 }}>
+                    ✏️ 追加した単語
+                  </div>
+                  <div className="vocab-list">
+                    {extWords.map((w) => (
+                      <VocabItem
+                        key={w.word}
+                        word={w}
+                        srs={srs}
+                        testTiers={testTiers}
+                        ts={tsFor(w)}
+                        exampleSource={exampleCredit}
                         onSpeak={speak}
                         onSkip={handleSkip}
                         onCopyTime={handleCopyTime}
@@ -1015,9 +1054,10 @@ export default function VocabScreen() {
                 <button
                   className="btn-review-start"
                   onClick={() =>
-                    // 復習カードの出所明示用に、各語へ作品/話メタ（_src）を付帯（Dashboard経路と同形）
+                    // 復習カードの出所明示用に、各語へ作品/話メタ（_src）を付帯（Dashboard経路と同形）。
+                    // sortedVocab＋追加した単語(reviewWords)を渡す＝追加語も今日の復習に含める。
                     openReview(
-                      sortedVocab.map((w) => ({
+                      reviewWords.map((w) => ({
                         ...w,
                         _src: { title: drama.title, season, episode, type: drama.type },
                       }))
@@ -1031,30 +1071,6 @@ export default function VocabScreen() {
                 doneToday > 0 && (
                   <div className="review-completed-today">✅ 今日の復習完了（{doneToday}回）</div>
                 )
-              )}
-
-              {/* 拡張機能で追加した単語 */}
-              {extWords.length > 0 && (
-                <div id="ext-words-section">
-                  <div className="source-label" style={{ marginTop: 14 }}>
-                    ✏️ 追加した単語
-                  </div>
-                  <div className="vocab-list">
-                    {extWords.map((w) => (
-                      <VocabItem
-                        key={w.word}
-                        word={w}
-                        srs={srs}
-                        testTiers={testTiers}
-                        ts={timestamps.get(w.word)}
-                        exampleSource={exampleCredit}
-                        onSpeak={speak}
-                        onSkip={handleSkip}
-                        onCopyTime={handleCopyTime}
-                      />
-                    ))}
-                  </div>
-                </div>
               )}
             </>
           ) : (

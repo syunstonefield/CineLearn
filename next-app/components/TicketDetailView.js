@@ -3,6 +3,7 @@
 import { useEffect, useMemo } from 'react';
 import { loadHistory } from '@/lib/storage';
 import { getDramaStudySeconds, formatStudyTime } from '@/lib/studytime';
+import { useApp } from './AppProvider';
 import TicketPoster from './TicketPoster';
 
 // 半券の詳細ページ（Phase 2）。コレクション一覧のカードをタップで開くサブ画面。
@@ -14,24 +15,27 @@ export default function TicketDetailView({ entry, seasons, onBack, onFav, onStud
     window.scrollTo(0, 0);
   }, []);
 
-  // 履歴からこのドラマのエピソード（日付つき）と学んだ単語を集める。
-  const { eps, words } = useMemo(() => {
-    const hist = loadHistory().filter((h) => h.drama?.title === entry.title);
-    const eps = hist
-      .map((h) => ({ season: h.season, episode: h.episode, date: h.date || '', score: h.quizScore }))
-      .sort((a, b) => b.date.localeCompare(a.date));
-    const seen = new Set();
-    const words = [];
-    hist.forEach((h) =>
-      (h.words || []).forEach((w) => {
-        const k = (w.word || '').toLowerCase();
-        if (k && !seen.has(k)) {
-          seen.add(k);
-          words.push(w.word);
-        }
-      })
-    );
-    return { eps, words };
+  // エピソードごとの「単語リスト」へ飛ぶ（既存の VocabScreen＝screen='vocab' を再利用）。
+  const { setDrama, setSeason, setEpisode, setScreen } = useApp();
+  const openWordList = (s, e) => {
+    setDrama(entry.drama);
+    setSeason(s);
+    setEpisode(e);
+    setScreen('vocab');
+  };
+
+  // 履歴からこのドラマの「学習したエピソード」を集める（season-episode で重複排除・最新日を採用）。
+  const { eps } = useMemo(() => {
+    const hist = loadHistory().filter((h) => h.drama?.title === entry.title && h.words?.length);
+    const byEp = new Map();
+    hist.forEach((h) => {
+      const key = `${h.season}-${h.episode}`;
+      const d = h.date || '';
+      const prev = byEp.get(key);
+      if (!prev || d > prev.date) byEp.set(key, { season: h.season, episode: h.episode, date: d, score: h.quizScore });
+    });
+    const eps = [...byEp.values()].sort((a, b) => a.season - b.season || a.episode - b.episode);
+    return { eps };
   }, [entry.title]);
 
   // シーズン別: 学習済み話数 / 総話数（TMDB）。
@@ -169,42 +173,35 @@ export default function TicketDetailView({ entry, seasons, onBack, onFav, onStud
           </section>
         )}
 
-        {/* 最近学習したエピソード（episode タイトルは未保持＝SxE＋学習日で表現） */}
+        {/* エピソード別の単語リスト（各行タップで そのエピソードの単語リスト画面へ） */}
         {eps.length > 0 && (
           <section className="td-sec">
-            <h2 className="td-sec-title">最近学習したエピソード</h2>
+            <h2 className="td-sec-title">エピソード別の単語リスト</h2>
             <div className="td-eps">
-              {eps.slice(0, 5).map((e, i) => (
-                <div className="td-ep" key={`${e.season}-${e.episode}-${i}`}>
+              {eps.map((e) => (
+                <button
+                  type="button"
+                  className="td-ep td-ep-link"
+                  key={`${e.season}-${e.episode}`}
+                  onClick={() => openWordList(e.season, e.episode)}
+                >
                   <span className="td-ep-se">
                     S{e.season}E{e.episode}
                   </span>
                   <span className="td-ep-date">学習日：{fmtDate(e.date)}</span>
                   {e.score != null && <span className="td-ep-score">{e.score}点</span>}
-                </div>
+                  <span className="td-ep-go" aria-hidden="true">
+                    ›
+                  </span>
+                </button>
               ))}
-            </div>
-          </section>
-        )}
-
-        {/* 学んだ表現・単語 */}
-        {words.length > 0 && (
-          <section className="td-sec">
-            <h2 className="td-sec-title">学んだ表現・単語</h2>
-            <div className="td-words">
-              {words.slice(0, 18).map((w) => (
-                <span className="td-word" key={w}>
-                  {w}
-                </span>
-              ))}
-              {words.length > 18 && <span className="td-word td-word-more">+{words.length - 18}</span>}
             </div>
           </section>
         )}
 
         {/* CTA */}
         <button type="button" className="td-cta" onClick={onStudy}>
-          ▶ もう一度この作品を学習する
+          📖 単語リスト
         </button>
       </div>
     </div>
