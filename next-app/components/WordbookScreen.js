@@ -4,19 +4,12 @@ import { useEffect, useState } from 'react';
 import { useApp } from './AppProvider';
 import VocabItem from './VocabItem';
 import { getActiveWords, deleteMyWord, clearAllWords } from '@/lib/words';
-import { loadSrs, skipWord, unskipWord } from '@/lib/storage';
+import { loadSrs, skipWord, unskipWord, isLearned, isMastered, isStruggling } from '@/lib/storage';
 import { fetchJa } from '@/lib/jatranslate';
+import { speak } from '@/lib/speak';
 
 // マイ単語帳（ページ版・表示は単語リスト＝VocabItem と同じ折りたたみカード）。
 // 旧 WordbookModal をモーダル→screen='wordbook' に置き換え。
-function speak(word) {
-  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(word);
-    u.lang = 'en-US';
-    window.speechSynthesis.speak(u);
-  }
-}
 
 // 出所明示（48条）：例文があるときだけ字幕の入手元を併記（旧モーダルと同じ書式）。
 function wordSource(w) {
@@ -88,6 +81,19 @@ export default function WordbookScreen() {
     };
   }, [words]);
 
+  // 上部stats（単語/未学習/覚えた/マスター）。未学習＝まだ「覚えた」未到達（合計に一致させる）。
+  const stats = (() => {
+    if (!words) return null;
+    let mastered = 0;
+    let learned = 0;
+    for (const w of words) {
+      const e = srs[w.word.toLowerCase()];
+      if (isMastered(e)) mastered++;
+      else if (isLearned(e)) learned++;
+    }
+    return { total: words.length, learned, mastered, unlearned: words.length - learned - mastered };
+  })();
+
   const testTiers = settings.testTiers || ['core', 'advanced'];
   const handleSkip = (word, isSkip) => {
     isSkip ? unskipWord(word) : skipWord(word);
@@ -133,6 +139,26 @@ export default function WordbookScreen() {
           </div>
         ) : (
           <>
+            {stats && (
+              <div className="wb-stats">
+                <div className="wb-stat">
+                  <span className="wb-stat-num">{stats.total}</span>
+                  <span className="wb-stat-label">単語</span>
+                </div>
+                <div className="wb-stat">
+                  <span className="wb-stat-num">{stats.unlearned}</span>
+                  <span className="wb-stat-label">未学習</span>
+                </div>
+                <div className="wb-stat wb-stat-learned">
+                  <span className="wb-stat-num">{stats.learned}</span>
+                  <span className="wb-stat-label">覚えた</span>
+                </div>
+                <div className="wb-stat wb-stat-mastered">
+                  <span className="wb-stat-num">{stats.mastered}</span>
+                  <span className="wb-stat-label">マスター</span>
+                </div>
+              </div>
+            )}
             <div className="wb-toolbar">
               <span className="wb-count">{words.length}単語</span>
               <span className="wb-actions">
@@ -159,6 +185,7 @@ export default function WordbookScreen() {
                   srs={srs}
                   testTiers={testTiers}
                   ts={null}
+                  priority={isStruggling(srs[w.word.toLowerCase()])}
                   exampleSource={wordSource(w)}
                   onSpeak={speak}
                   onSkip={handleSkip}

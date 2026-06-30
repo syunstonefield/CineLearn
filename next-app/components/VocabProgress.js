@@ -4,6 +4,8 @@
 // 「これまでの積み上げ」を独立で見せる。覚えた＝エメラルド／マスター＝ゴールドで達成感→復習の動機に。
 export default function VocabProgress({ learned = 0, mastered = 0, total = 0 }) {
   if (total <= 0) return null;
+  const lp = Math.round((learned / total) * 100);
+  const mp = Math.round((mastered / total) * 100);
   return (
     <div className="vocab-progress">
       <div className="vocab-progress-card">
@@ -13,6 +15,10 @@ export default function VocabProgress({ learned = 0, mastered = 0, total = 0 }) 
             {learned}
             <span className="vp-sub"> / {total}</span>
           </span>
+          <span className="vp-gauge" aria-hidden="true">
+            <span className="vp-gauge-fill" style={{ width: `${lp}%` }} />
+          </span>
+          <span className="vp-pct">{lp}%</span>
         </div>
         <span className="vp-divider" aria-hidden="true" />
         <div className="vp-tile vp-mastered">
@@ -21,6 +27,10 @@ export default function VocabProgress({ learned = 0, mastered = 0, total = 0 }) 
             {mastered}
             <span className="vp-sub"> / {total}</span>
           </span>
+          <span className="vp-gauge" aria-hidden="true">
+            <span className="vp-gauge-fill" style={{ width: `${mp}%` }} />
+          </span>
+          <span className="vp-pct">{mp}%</span>
         </div>
       </div>
     </div>

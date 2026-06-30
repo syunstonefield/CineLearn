@@ -2325,6 +2325,16 @@ header {
   margin: 8px 0 4px;
 }
 
+/* 発音ボタン（🔊）：単語横と例文横。控えめ＝学習の邪魔をしない。 */
+.review-speak {
+  background: none; border: none; cursor: pointer; padding: 2px 4px;
+  font-size: 20px; line-height: 1; vertical-align: middle; margin-left: 8px;
+  opacity: 0.7; transition: opacity 0.15s ease, transform 0.05s ease;
+}
+.review-speak:hover { opacity: 1; }
+.review-speak:active { transform: scale(0.9); }
+.review-speak-sm { font-size: 14px; margin-left: 6px; }
+
 .review-pos-tag {
   font-size: 11px;
   color: var(--accent2);
@@ -3866,6 +3876,15 @@ header {
 .vp-learned .vp-label, .vp-learned .vp-num { color: var(--green); }
 .vp-mastered .vp-label, .vp-mastered .vp-num { color: var(--gold, #d99a00); }
 .vp-divider { width: 1px; flex-shrink: 0; background: var(--border); }
+/* 進捗ゲージ（覚えた／マスターの割合を可視化） */
+.vp-gauge {
+  width: 100%; height: 6px; margin-top: 7px; border-radius: 999px;
+  background: color-mix(in srgb, var(--border) 55%, transparent); overflow: hidden;
+}
+.vp-gauge-fill { display: block; height: 100%; border-radius: 999px; transition: width 0.4s ease; }
+.vp-learned .vp-gauge-fill { background: var(--green); }
+.vp-mastered .vp-gauge-fill { background: var(--gold, #d99a00); }
+.vp-pct { font-size: 11px; font-weight: 700; color: var(--text-muted); }
 
 /* 円形カウント：ベタ塗り→ゴールドのリング枠＋中央に「今日やる数」（達成率は示さない素直な数字） */
 .today-hero-count {
@@ -5628,8 +5647,22 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
 .wb-head { margin-bottom: 14px; }
 .wb-h1 { font-size: 22px; font-weight: 800; margin: 4px 0; }
 .wb-sub { font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+/* 上部stats（単語/未学習/覚えた/マスター） */
+.wb-stats {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
+  background: var(--border); border: 1px solid var(--border);
+  border-radius: 14px; overflow: hidden; margin-bottom: 12px;
+}
+.wb-stat { background: var(--surface); padding: 12px 6px; text-align: center; }
+.wb-stat-num { display: block; font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 800; line-height: 1.1; }
+.wb-stat-label { display: block; font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+.wb-stat-learned .wb-stat-num { color: var(--green); }
+.wb-stat-mastered .wb-stat-num { color: var(--gold, #d99a00); }
+
 .wb-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
 .wb-count { font-size: 13px; color: var(--text-muted); }
+/* ⭐よく忘れる単語フラグ（行内・語の右） */
+.vocab-star { font-size: 13px; line-height: 1; margin-left: 2px; flex-shrink: 0; }
 .wb-actions { display: inline-flex; align-items: center; gap: 8px; }
 .wb-sync { padding: 4px 10px; font-size: 12px; }
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
+import { speak } from '@/lib/speak';
 import {
   loadSrs,
   isDue,
@@ -143,7 +144,20 @@ function ReviewCard({ word: w, idx, total, flipped, onFlip, onRate }) {
       <div className="review-counter">
         {idx + 1} / {total}
       </div>
-      <div className="review-word-big">{w.word}</div>
+      <div className="review-word-big">
+        {w.word}
+        <button
+          type="button"
+          className="review-speak"
+          aria-label="発音を聞く"
+          onClick={(ev) => {
+            ev.stopPropagation();
+            speak(w.word);
+          }}
+        >
+          🔊
+        </button>
+      </div>
       {w.pos && <div className="review-pos-tag">{w.pos}</div>}
       {!flipped ? (
         <button className="review-flip" onClick={onFlip}>
@@ -154,7 +168,17 @@ function ReviewCard({ word: w, idx, total, flipped, onFlip, onRate }) {
           <div className="review-def-text">{w.definition || ''}</div>
           {w.example && (
             <div className="review-example-text">
-              <div>&quot;{w.example}&quot;</div>
+              <div>
+                &quot;{w.example}&quot;
+                <button
+                  type="button"
+                  className="review-speak review-speak-sm"
+                  aria-label="例文を聞く"
+                  onClick={() => speak(w.example)}
+                >
+                  🔊
+                </button>
+              </div>
               {w.example_ja && <div className="review-example-ja">{w.example_ja}</div>}
               {/* 出所明示（著作権法48条）：例文を引いた作品・話・字幕元 */}
               {subtitleCredit(w) && <div className="review-example-source">{subtitleCredit(w)}</div>}
@@ -162,15 +186,15 @@ function ReviewCard({ word: w, idx, total, flipped, onFlip, onRate }) {
           )}
           <div className="review-rate-btns">
             <button className="btn-rate btn-rate-fail" onClick={() => onRate(0)}>
-              😰<br />
+              😟<br />
               <span>知らなかった</span>
             </button>
             <button className="btn-rate btn-rate-hard" onClick={() => onRate(3)}>
-              🤔<br />
+              🙂<br />
               <span>うろ覚え</span>
             </button>
             <button className="btn-rate btn-rate-easy" onClick={() => onRate(5)}>
-              ✅<br />
+              🔥<br />
               <span>知ってた！</span>
             </button>
           </div>

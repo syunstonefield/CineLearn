@@ -97,6 +97,12 @@ export function isLearned(e) {
   return !!e && !e.skipped && e.repetitions >= 2;
 }
 
+// よく忘れる単語（⭐優先表示用）。easeFactor は既定2.5・失敗(quality<3)で初めて2.0未満まで下がる
+// ＝「一度でも思い出せなかった＝苦手」の代理指標。lapse専用カウンタは持っていないためこれで判定。
+export function isStruggling(e) {
+  return !!e && !e.skipped && typeof e.easeFactor === 'number' && e.easeFactor < 2.0;
+}
+
 export function isDue(e) {
   if (!e || e.skipped || isMastered(e)) return false;
   return !e.dueDate || e.dueDate <= todayStr();

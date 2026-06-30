@@ -6,7 +6,7 @@ import { statusBadge, nextReviewLabel } from '@/lib/storage';
 // 1単語カード。モバイルは折りたたみ（語＋和訳＋状態ドット＋📍時刻のみ）→タップで詳細展開。
 // PCでは常時展開（display制御は style.css のメディアクエリ）。
 // 詳細は常にDOMに描画し、開閉は is-expanded クラスで切り替える（PC常時表示を両立するため）。
-export default function VocabItem({ word, srs, testTiers, ts, exampleSource, onSpeak, onSkip, onCopyTime, onDelete }) {
+export default function VocabItem({ word, srs, testTiers, ts, priority, exampleSource, onSpeak, onSkip, onCopyTime, onDelete }) {
   const [expanded, setExpanded] = useState(false);
   const w = word;
   const e = srs[w.word.toLowerCase()];
@@ -55,6 +55,11 @@ export default function VocabItem({ word, srs, testTiers, ts, exampleSource, onS
       >
         <span className="vocab-dot" style={dotColor ? { background: dotColor, borderColor: dotColor } : undefined} aria-hidden="true" />
         <span className="vocab-word">{w.word}</span>
+        {priority && (
+          <span className="vocab-star" title="よく忘れる単語（要復習）" aria-label="要復習">
+            ⭐
+          </span>
+        )}
         <span className="vocab-meaning">{w.definition || ''}</span>
         {tsLabel && (
           <span
