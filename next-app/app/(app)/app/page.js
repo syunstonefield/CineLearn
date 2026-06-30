@@ -11,7 +11,7 @@ import ReviewModal from '@/components/ReviewModal';
 import PrepQuiz from '@/components/PrepQuiz';
 import PrepLaunch from '@/components/PrepLaunch';
 import PrepWalkthrough from '@/components/PrepWalkthrough';
-import SettingsModal from '@/components/SettingsModal';
+import SettingsScreen from '@/components/SettingsScreen';
 import ProfileSelect from '@/components/ProfileSelect';
 import WordbookScreen from '@/components/WordbookScreen';
 import TicketCollectionScreen from '@/components/TicketCollectionScreen';
@@ -41,9 +41,7 @@ function AppShell() {
     prepLaunch,
     prepWalk,
     reviewVersion,
-    settingsOpen,
     openSettings,
-    closeSettings,
     switchProfile,
     openWordbook,
     wordbookVersion,
@@ -109,13 +107,13 @@ function AppShell() {
         {screen === 'quiz' && <QuizScreen />}
         {screen === 'collection' && <TicketCollectionScreen />}
         {screen === 'wordbook' && <WordbookScreen />}
+        {screen === 'settings' && <SettingsScreen />}
       </main>
 
       {reviewWords && <ReviewModal />}
       {prepQuiz && <PrepQuiz />}
       {prepLaunch && <PrepLaunch />}
       {prepWalk && <PrepWalkthrough />}
-      {settingsOpen && <SettingsModal onClose={closeSettings} />}
       {authOpen && <AuthModal />}
       {tutorial && <WelcomeTutorial />}
       {guideOpen && <ExtensionGuide />}

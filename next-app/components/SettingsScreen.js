@@ -5,7 +5,8 @@ import { useApp } from './AppProvider';
 import { getToeicLevel, getVocabCount } from '@/lib/vocab';
 import { getThemePref, setThemePref } from '@/lib/theme';
 
-// 既存 settingsModal の再現（英語レベル / 利用サービス / 単語階層 / 復習リマインダー）。
+// 設定（英語レベル / 利用サービス / テーマ / 単語階層 / 復習リマインダー）。
+// 旧 SettingsModal をモーダル→screen='settings' のページに置き換え。
 const LEVEL_LABELS = { A2: 'A2（初級）', B1: 'B1（中級）', B2: 'B2（中上級）', C1: 'C1（上級）' };
 
 const TOEIC_ROWS = [
@@ -24,8 +25,8 @@ const TIERS = [
   { value: 'context', pill: 'tier-context', label: 'Context', name: '文脈専門語', desc: 'ドラマ特有の専門語・低頻度語（除外推奨）' },
 ];
 
-export default function SettingsModal({ onClose }) {
-  const { settings, updateSettings } = useApp();
+export default function SettingsScreen() {
+  const { settings, updateSettings, closeSettings } = useApp();
 
   const toeicScore = settings.toeicScore || 0;
   const targetScore = settings.targetToeicScore || 0;
@@ -95,7 +96,7 @@ export default function SettingsModal({ onClose }) {
       alert('利用サービスを1つ以上選択してください');
       return;
     }
-    onClose();
+    closeSettings();
   };
 
   // 復習リマインダー：ブラウザの通知許可をリクエスト（プッシュ購読は
@@ -121,22 +122,15 @@ export default function SettingsModal({ onClose }) {
     }
   };
 
-  const overlayClick = (e) => {
-    if (e.target === e.currentTarget) onClose();
-  };
-
   const showLevel = toeicScore >= 10;
 
   return (
-    <div className="modal-overlay" style={{ display: 'flex' }} onClick={overlayClick}>
-      <div className="modal-panel modal-panel-wide">
-        <div className="modal-header">
-          <span className="modal-title">⚙️ 設定</span>
-          <button className="modal-close" onClick={onClose}>
-            ✕
-          </button>
+    <div className="screen active" id="screen-settings">
+      <div className="settings-screen">
+        <div className="settings-head">
+          <h1 className="settings-h1">⚙️ 設定</h1>
         </div>
-        <div className="modal-body">
+        <div className="settings-body">
           {/* 英語レベル */}
           <div className="settings-section">
             <div className="settings-section-title">📊 英語レベル</div>
@@ -301,7 +295,7 @@ export default function SettingsModal({ onClose }) {
           </div>
 
           <button className="btn-primary" style={{ marginTop: 8, width: '100%' }} onClick={save}>
-            設定を保存して始める
+            設定を保存して戻る
           </button>
 
           {/* クレジット / Credits（TMDB の帰属表示は API 規約上の必須要件） */}

@@ -82,8 +82,7 @@ export default function AppProvider({ children }) {
   const [profile, setProfile] = useState(null);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   // 'profile-select'（だれが観ますか）から開始。選択後に 'main' へ。
-  const [screen, setScreen] = useState('profile-select'); // | 'service-select' | 'vocab' | 'quiz'
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [screen, setScreen] = useState('profile-select'); // | 'service-select' | 'vocab' | 'quiz' | 'settings'
   const [wordbookVersion, setWordbookVersion] = useState(0); // 削除後のバッジ/一覧再集計
   // Supabase（読み取り専用）
   const [authOpen, setAuthOpen] = useState(false);
@@ -270,8 +269,8 @@ export default function AppProvider({ children }) {
       return;
     }
     setScreen('main');
-    // 未設定（TOEIC/サービス未入力）なら設定モーダルを開く（オンボーディング代替）
-    if (!s.toeicScore || !(s.selectedServices || []).length) setSettingsOpen(true);
+    // 未設定（TOEIC/サービス未入力）なら設定ページを開く（オンボーディング代替）
+    if (!s.toeicScore || !(s.selectedServices || []).length) setScreen('settings');
   }, []);
 
   // 新規プロフィール作成 → オンボーディングへ（既存 startOnboarding 相当）
@@ -425,8 +424,8 @@ export default function AppProvider({ children }) {
     setScreen(profile ? 'main' : 'profile-select');
   }, [profile]);
 
-  const openSettings = useCallback(() => setSettingsOpen(true), []);
-  const closeSettings = useCallback(() => setSettingsOpen(false), []);
+  const openSettings = useCallback(() => setScreen('settings'), []);
+  const closeSettings = useCallback(() => setScreen('main'), []);
 
   // マイ単語帳は全画面（ヘッダー・ボトムナビが見える）の screen として扱う。
   const openWordbook = useCallback(() => setScreen('wordbook'), []);
@@ -509,7 +508,7 @@ export default function AppProvider({ children }) {
   // 既存ユーザーが初めてダッシュボードに来たときの自動表示（端末ごとに一度だけ）。
   // オンボーディング直後は finishOnboarding が 'onboarding' を立てるので、ここはスキップされる。
   useEffect(() => {
-    if (!mounted || !profile || screen !== 'main' || settingsOpen || tutorial) return;
+    if (!mounted || !profile || screen !== 'main' || tutorial) return;
     try {
       if (localStorage.getItem('cl_tutorial_seen') === '1') return;
     } catch {
@@ -517,7 +516,7 @@ export default function AppProvider({ children }) {
     }
     markTutorialSeen(); // 表示と同時に既読化＝自動表示は一度だけ（以降は「?」から）
     setTutorial('help');
-  }, [mounted, profile, screen, settingsOpen, tutorial]);
+  }, [mounted, profile, screen, tutorial]);
 
   // 半券（観た証）をプロフィールごとに読み込む（クラウド同期はしない・端末ローカル）。
   useEffect(() => {
@@ -582,7 +581,7 @@ export default function AppProvider({ children }) {
     finishOnboarding,
     pendingAddDrama,
     setPendingAddDrama,
-    settingsOpen,
+    settingsOpen: screen === 'settings',
     openSettings,
     closeSettings,
     openWordbook,

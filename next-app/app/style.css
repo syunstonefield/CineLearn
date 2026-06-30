@@ -5648,6 +5648,11 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
 .td-cta:active { transform: scale(0.99); }
 
 /* ── マイ単語帳（ページ版・表示は単語リスト＝VocabItem） ───────── */
+/* 設定ページ（旧モーダル→screen='settings'） */
+.settings-screen { max-width: 680px; margin: 0 auto; padding: 16px 16px 24px; }
+.settings-head { margin-bottom: 14px; }
+.settings-h1 { font-size: 22px; font-weight: 800; margin: 4px 0; }
+
 .wb-screen { max-width: 680px; margin: 0 auto; padding: 16px 16px 24px; }
 .wb-head { margin-bottom: 14px; }
 .wb-h1 { font-size: 22px; font-weight: 800; margin: 4px 0; }
