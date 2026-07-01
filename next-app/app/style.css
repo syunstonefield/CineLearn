@@ -2442,20 +2442,30 @@ header {
   margin-top: 8px;
 }
 
+/* 参考UI準拠：3ボタン同サイズ。絵文字＋ラベル（種別カラーの下線）＋サブラベル。 */
 .btn-rate {
-  flex: 1;
-  padding: 14px 8px;
-  border-radius: 10px;
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 6px;
+  border-radius: 12px;
   border: 1px solid var(--border);
   cursor: pointer;
   font-family: 'DM Sans', sans-serif;
-  font-size: 11px;
-  line-height: 1.6;
   text-align: center;
   transition: all 0.15s;
   background: var(--surface2);
   color: var(--text);
 }
+.btn-rate-emoji { font-size: 22px; line-height: 1; }
+.btn-rate-label { font-size: 14px; font-weight: 700; padding-bottom: 5px; border-bottom: 2px solid var(--border); white-space: nowrap; }
+.btn-rate-sub { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+.btn-rate-fail .btn-rate-label { border-bottom-color: var(--red); }
+.btn-rate-hard .btn-rate-label { border-bottom-color: var(--gold, #d99a00); }
+.btn-rate-easy .btn-rate-label { border-bottom-color: var(--green); }
 .btn-rate:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
 
 .btn-rate-fail:hover { border-color: var(--red);   background: rgba(217,79,106,0.06);  color: var(--red); }
@@ -4106,8 +4116,29 @@ header {
     padding: 24px 20px calc(24px + env(safe-area-inset-bottom));
   }
   .review-word-big { font-size: 46px; }
-  .btn-rate { padding: 16px 8px; font-size: 12px; }
+  /* 3択ボタン＝親指で押しやすいよう大きく（同サイズ・参考UI準拠） */
+  .review-rate-btns { gap: 10px; margin-top: 12px; }
+  .btn-rate { padding: 18px 6px; }
+  .btn-rate-emoji { font-size: 24px; }
+  .btn-rate-label { font-size: 15px; }
+  /* 「タップして意味を確認」も大きく */
+  .review-flip { padding: 20px 28px; font-size: 16px; }
   .review-swipe-hint { display: block; }
+
+  /* 復習ページ（asPage・<main>内）＝片手操作向けに内容を下寄せ（親指ゾーンへ）。
+     可視高さ(100dvh − ヘッダー59 − ボトムナビ57 ≒ 116px)を埋め、カード/完了画面を下端寄せ。
+     背が高い時（完了画面など）はスクロールにフォールバック。予習のオーバーレイ(.review-overlay)は不変。 */
+  .screen.review-screen { min-height: calc(100dvh - 116px); display: flex; flex-direction: column; }
+  .review-screen .review-panel { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .review-screen .review-content {
+    flex: 1; min-height: 0; overflow-y: auto;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+  }
+  /* カード＝可視領域を埋める縦フレックス。本文(review-card-body)を中央、
+     ボタン(review-card-actions)は自然に下端＝親指ゾーン。 */
+  .review-screen .review-card { flex: 1; display: flex; flex-direction: column; width: 100%; }
+  .review-screen .review-card-body { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .review-screen .review-done { margin-top: auto; margin-bottom: auto; } /* 完了画面は中央寄せ */
 }
 
 /* ── ⑤ エピソード選択チップ＋下部固定CTA ──────────────────── */

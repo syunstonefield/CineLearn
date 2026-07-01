@@ -149,65 +149,77 @@ function ReviewCard({ word: w, idx, total, flipped, onFlip, onRate }) {
       <div className="review-counter">
         {idx + 1} / {total}
       </div>
-      <div className="review-word-big">
-        {w.word}
-        <button
-          type="button"
-          className="review-speak"
-          aria-label="発音を聞く"
-          onClick={(ev) => {
-            ev.stopPropagation();
-            speak(w.word);
-          }}
-        >
-          🔊
-        </button>
-      </div>
-      {w.pos && <div className="review-pos-tag">{w.pos}</div>}
-      {!flipped ? (
-        <button className="review-flip" onClick={onFlip}>
-          タップして意味を確認 →
-        </button>
-      ) : (
-        <div className="review-answer" style={{ display: 'block' }}>
-          <div className="review-def-text">{w.definition || ''}</div>
-          {w.example && (
-            <div className="review-example-text">
-              <div>
-                &quot;{w.example}&quot;
-                <button
-                  type="button"
-                  className="review-speak review-speak-sm"
-                  aria-label="例文を聞く"
-                  onClick={() => speak(w.example)}
-                >
-                  🔊
-                </button>
-              </div>
-              {w.example_ja && <div className="review-example-ja">{w.example_ja}</div>}
-              {/* 出所明示（著作権法48条）：例文を引いた作品・話・字幕元 */}
-              {subtitleCredit(w) && <div className="review-example-source">{subtitleCredit(w)}</div>}
-            </div>
-          )}
-          <div className="review-rate-btns">
-            <button className="btn-rate btn-rate-fail" onClick={() => onRate(0)}>
-              😟<br />
-              <span>知らなかった</span>
-            </button>
-            <button className="btn-rate btn-rate-hard" onClick={() => onRate(3)}>
-              🙂<br />
-              <span>うろ覚え</span>
-            </button>
-            <button className="btn-rate btn-rate-easy" onClick={() => onRate(5)}>
-              🔥<br />
-              <span>知ってた！</span>
-            </button>
-          </div>
-          <div className="review-swipe-hint" aria-hidden="true">
-            ← 知らなかった　｜　知ってた →
-          </div>
+      {/* 本文（単語＋意味＋例文）＝画面中央に配置。採点/確認ボタンは下端(review-card-actions)。 */}
+      <div className="review-card-body">
+        <div className="review-word-big">
+          {w.word}
+          <button
+            type="button"
+            className="review-speak"
+            aria-label="発音を聞く"
+            onClick={(ev) => {
+              ev.stopPropagation();
+              speak(w.word);
+            }}
+          >
+            🔊
+          </button>
         </div>
-      )}
+        {w.pos && <div className="review-pos-tag">{w.pos}</div>}
+        {flipped && (
+          <div className="review-answer" style={{ display: 'block' }}>
+            <div className="review-def-text">{w.definition || ''}</div>
+            {w.example && (
+              <div className="review-example-text">
+                <div>
+                  &quot;{w.example}&quot;
+                  <button
+                    type="button"
+                    className="review-speak review-speak-sm"
+                    aria-label="例文を聞く"
+                    onClick={() => speak(w.example)}
+                  >
+                    🔊
+                  </button>
+                </div>
+                {w.example_ja && <div className="review-example-ja">{w.example_ja}</div>}
+                {/* 出所明示（著作権法48条）：例文を引いた作品・話・字幕元 */}
+                {subtitleCredit(w) && <div className="review-example-source">{subtitleCredit(w)}</div>}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+      <div className="review-card-actions">
+        {!flipped ? (
+          <button className="review-flip" onClick={onFlip}>
+            タップして意味を確認 →
+          </button>
+        ) : (
+          <>
+            <div className="review-rate-btns">
+              <button className="btn-rate btn-rate-fail" onClick={() => onRate(0)}>
+                <span className="btn-rate-emoji">😟</span>
+                <span className="btn-rate-label">知らなかった</span>
+                <span className="btn-rate-sub">覚え直す</span>
+              </button>
+              <button className="btn-rate btn-rate-hard" onClick={() => onRate(3)}>
+                <span className="btn-rate-emoji">🙂</span>
+                <span className="btn-rate-label">うろ覚え</span>
+                <span className="btn-rate-sub">あとで復習</span>
+              </button>
+              <button className="btn-rate btn-rate-easy" onClick={() => onRate(5)}>
+                <span className="btn-rate-emoji">🔥</span>
+                <span className="btn-rate-label">知ってた！</span>
+                <span className="btn-rate-sub">次へ進む</span>
+              </button>
+            </div>
+            <div className="review-swipe-hint" aria-hidden="true">
+              ← 知らなかった　｜　知ってた →
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
