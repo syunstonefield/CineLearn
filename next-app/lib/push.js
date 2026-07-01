@@ -1,9 +1,11 @@
 // Web Push 購読（復習リマインダー）。旧 js/app.js の購読フローから移植。
 // 公開鍵はクライアント埋め込みで問題ない（VAPID の public 側・秘密鍵はサーバー env のみ）。
+// 2026-07-02 鍵ペア新規生成（旧秘密鍵が Vercel で Sensitive＝取り出し不可のため。
+// 旧鍵の購読は休眠につき切り捨て・送信時 410 → push-notify が自動削除）。
 import { getSession, isLoggedIn } from './supabase';
 
 const VAPID_PUBLIC_KEY =
-  'BDvzao62EPn3UHluB_1UgyWnnmVyX3BGwnLg7q-TyfHYkQYRC0sAC4HU0bsLAAABQ_FfQkwvWRWLJRATiDuAslk';
+  'BMJuSqk9uZw0R8lbB2rYB7NAXCOnCxQw_fcKIB_gU4CTLh9n6ys1SVqP_kZKJC2Z6uEAkF03y7H4jHf8Lgv5DHA';
 
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
