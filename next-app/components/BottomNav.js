@@ -83,9 +83,9 @@ export default function BottomNav({ dueCount = 0, wordCount = 0 }) {
   // アクティブ判定：モーダル系（復習/単語帳/設定）が開いていればそれを優先、
   // それ以外でメイン系画面ならホームを点灯する。
   const reviewActive = !!reviewWords;
-  const wordbookActive = screen === 'wordbook';
-  const collectionActive = screen === 'collection';
-  const settingsActive = settingsOpen;
+  const wordbookActive = !reviewActive && screen === 'wordbook';
+  const collectionActive = !reviewActive && screen === 'collection';
+  const settingsActive = !reviewActive && settingsOpen;
   const homeActive = !reviewActive && !wordbookActive && !collectionActive && !settingsActive && screen === 'main';
 
   // badgeKind: 'urgent'（赤・要対応＝復習）/ 'count'（中立・在庫＝単語帳）

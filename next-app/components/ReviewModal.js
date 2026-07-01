@@ -15,7 +15,7 @@ import {
 } from '@/lib/storage';
 
 // 既存 startReview / renderReviewCard（SRSフラッシュカード）の再現。
-export default function ReviewModal() {
+export default function ReviewModal({ asPage = false }) {
   const { reviewWords, reviewAll, closeReview, currentHistoryId } = useApp();
 
   // 初期キュー：未学習 or 期日到来のみ・シャッフル（reviewWords が変わるたびに作り直す）
@@ -76,8 +76,13 @@ export default function ReviewModal() {
   const pct = queue.length ? Math.round(((done ? queue.length : idx) / queue.length) * 100) : 0;
 
   return (
-    <div className="modal-overlay review-overlay" style={{ display: 'flex' }} onClick={overlayClick}>
-      <div className="modal-panel review-modal-panel">
+    <div
+      className={asPage ? 'screen active review-screen' : 'modal-overlay review-overlay'}
+      id={asPage ? 'screen-review' : undefined}
+      style={asPage ? undefined : { display: 'flex' }}
+      onClick={asPage ? undefined : overlayClick}
+    >
+      <div className={asPage ? 'review-panel' : 'modal-panel review-modal-panel'}>
         <div className="modal-header">
           <span className="modal-title">🃏 復習</span>
           <button className="modal-close" onClick={closeReview}>
@@ -123,7 +128,7 @@ export default function ReviewModal() {
 }
 
 function ReviewCard({ word: w, idx, total, flipped, onFlip, onRate }) {
-  // スワイプ加速（任意）：右=知ってた(5) / 左=知らなかった(0)。
+  // スワイプ採点：右=知ってた(5) / 左=知らなかった(0)。
   // うろ覚え(3)は3択ボタンで常時選べる（中間はSM-2の肝なのでジェスチャーに潰さない）。
   // 判定は意味を表示（flipped）してから有効。
   const touch = useRef({ x: 0, y: 0 });

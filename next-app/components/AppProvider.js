@@ -94,8 +94,11 @@ export default function AppProvider({ children }) {
   // テスト（screen-5）・復習モーダルの共有状態
   const [quizData, setQuizData] = useState([]); // 表示用（シャッフル済み）
   const [currentHistoryId, setCurrentHistoryId] = useState(null);
-  const [reviewWords, setReviewWords] = useState(null); // null=モーダル閉
+  const [reviewWords, setReviewWords] = useState(null); // null=復習閉
   const [reviewAll, setReviewAll] = useState(false); // true=SRS期日に関係なく全語をカード化（半券のシーン記憶カード用）
+  // 復習の表示形態：true=ページ（タブ/今日の復習。<main>内・ボトムナビ表示・横スワイプ移動可）／
+  // false=オーバーレイ（予習のフラッシュカード＝従来の没入モーダル）。
+  const [reviewAsPage, setReviewAsPage] = useState(false);
   const [reviewVersion, setReviewVersion] = useState(0); // 復習完了後の再集計トリガ
   // 半券（観た証）：予習クイズ完了で1枚発行し、ホームの「あの場面を思い出す」入口に使う。
   const [tickets, setTickets] = useState([]);
@@ -419,19 +422,36 @@ export default function AppProvider({ children }) {
     [openDrama, chooseService, settings.selectedServices, settings.userLevel]
   );
 
+  // 復習ページ（reviewWords）は <main> を占有するため、トップレベル画面へ移動する時は必ず閉じる。
+  // これをしないと復習ページ表示中にボトムナビ/ヘッダーを押しても画面が変わらない（反応しないように見える）。
+  const exitReviewPage = () => {
+    setReviewWords(null);
+    setReviewAsPage(false);
+  };
+
   const goHome = useCallback(() => {
+    exitReviewPage();
     // プロフィール選択済みならメイン、未選択ならプロフィール選択画面へ
     setScreen(profile ? 'main' : 'profile-select');
   }, [profile]);
 
-  const openSettings = useCallback(() => setScreen('settings'), []);
+  const openSettings = useCallback(() => {
+    exitReviewPage();
+    setScreen('settings');
+  }, []);
   const closeSettings = useCallback(() => setScreen('main'), []);
 
   // マイ単語帳は全画面（ヘッダー・ボトムナビが見える）の screen として扱う。
-  const openWordbook = useCallback(() => setScreen('wordbook'), []);
+  const openWordbook = useCallback(() => {
+    exitReviewPage();
+    setScreen('wordbook');
+  }, []);
   const closeWordbook = useCallback(() => setScreen('main'), []);
   // 半券コレクションは全画面（ヘッダー・ボトムナビが見える）の screen として扱う。
-  const openCollection = useCallback(() => setScreen('collection'), []);
+  const openCollection = useCallback(() => {
+    exitReviewPage();
+    setScreen('collection');
+  }, []);
   const closeCollection = useCallback(() => setScreen('main'), []);
   const bumpWordbook = useCallback(() => setWordbookVersion((v) => v + 1), []);
 
@@ -442,10 +462,12 @@ export default function AppProvider({ children }) {
   // opts.all=true で SRS の期日フィルタを通さず全語をカード化（半券のシーン記憶カード用）。
   const openReview = useCallback((words, opts) => {
     setReviewAll(!!(opts && opts.all));
+    setReviewAsPage(true); // タブ/今日の復習＝ページ表示（横スワイプ移動可）
     setReviewWords(words || []);
   }, []);
   const closeReview = useCallback(() => {
     setReviewWords(null);
+    setReviewAsPage(false);
     setReviewVersion((v) => v + 1); // ダッシュボード/単語リストの再集計を促す
     // 予習の「じっくり覚える」で開いていたら、閉じた直後に cards の launch ramp を出す。
     const pending = pendingPrepCardsRef.current;
@@ -457,6 +479,7 @@ export default function AppProvider({ children }) {
   // 予習からフラッシュカード（first-pass）を起動。閉じたら cards launch ramp を予約。
   const openPrepReview = useCallback((words, launchPayload) => {
     pendingPrepCardsRef.current = launchPayload || null;
+    setReviewAsPage(false); // 予習フラッシュカードは従来どおり没入オーバーレイ
     setReviewWords(words || []);
   }, []);
 
@@ -613,6 +636,7 @@ export default function AppProvider({ children }) {
     setCurrentHistoryId,
     reviewWords,
     reviewAll,
+    reviewAsPage,
     openReview,
     closeReview,
     openPrepReview,

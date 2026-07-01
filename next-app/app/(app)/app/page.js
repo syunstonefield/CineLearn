@@ -30,6 +30,7 @@ function notYet(name) {
   alert(`「${name}」は次のステップで移植予定です（Next.js版 試作中）`);
 }
 
+
 function AppShell() {
   const {
     profile,
@@ -37,6 +38,7 @@ function AppShell() {
     goHome,
     mounted,
     reviewWords,
+    reviewAsPage,
     prepQuiz,
     prepLaunch,
     prepWalk,
@@ -75,6 +77,9 @@ function AppShell() {
   // プロフィール選択画面ではヘッダーのプロフィールチップを隠す（既存挙動）
   const headerProfile = screen === 'profile-select' ? null : profile;
 
+  // 復習はページ表示（reviewAsPage）時、他画面に代わって <main> 内に出す（ボトムナビ表示）。
+  const reviewPage = !!reviewWords && reviewAsPage;
+
   return (
     <>
       {/* オンボーディング中は全画面ウィザード（Duolingo風）にするためヘッダーを隠す */}
@@ -95,22 +100,30 @@ function AppShell() {
       )}
 
       <main id="mainContent">
-        {/* 封印中（PROFILE_SELECT_ENABLED=false）は「だれが観ますか？」を描画しない。
-            AppProvider の自動遷移エフェクトが既定プロフィールへ入れるまでの一瞬だけ空になる。 */}
-        {screen === 'profile-select' && PROFILE_SELECT_ENABLED && <ProfileSelect />}
-        {screen === 'onboarding' && <Onboarding />}
-        {screen === 'main' && <Dashboard />}
-        {screen === 'recommend' && <RecommendScreen />}
-        {screen === 'search' && <SearchScreen />}
-        {screen === 'service-select' && <ServiceSelect />}
-        {screen === 'vocab' && <VocabScreen />}
-        {screen === 'quiz' && <QuizScreen />}
-        {screen === 'collection' && <TicketCollectionScreen />}
-        {screen === 'wordbook' && <WordbookScreen />}
-        {screen === 'settings' && <SettingsScreen />}
+        {/* 復習（ページ表示）は他画面に代わって <main> 内に出す＝ボトムナビ表示・横スワイプ移動可 */}
+        {reviewPage ? (
+          <ReviewModal asPage />
+        ) : (
+          <>
+            {/* 封印中（PROFILE_SELECT_ENABLED=false）は「だれが観ますか？」を描画しない。
+                AppProvider の自動遷移エフェクトが既定プロフィールへ入れるまでの一瞬だけ空になる。 */}
+            {screen === 'profile-select' && PROFILE_SELECT_ENABLED && <ProfileSelect />}
+            {screen === 'onboarding' && <Onboarding />}
+            {screen === 'main' && <Dashboard />}
+            {screen === 'recommend' && <RecommendScreen />}
+            {screen === 'search' && <SearchScreen />}
+            {screen === 'service-select' && <ServiceSelect />}
+            {screen === 'vocab' && <VocabScreen />}
+            {screen === 'quiz' && <QuizScreen />}
+            {screen === 'collection' && <TicketCollectionScreen />}
+            {screen === 'wordbook' && <WordbookScreen />}
+            {screen === 'settings' && <SettingsScreen />}
+          </>
+        )}
       </main>
 
-      {reviewWords && <ReviewModal />}
+      {/* 予習フラッシュカードは従来どおり没入オーバーレイ（ページ扱いにしない） */}
+      {reviewWords && !reviewAsPage && <ReviewModal />}
       {prepQuiz && <PrepQuiz />}
       {prepLaunch && <PrepLaunch />}
       {prepWalk && <PrepWalkthrough />}

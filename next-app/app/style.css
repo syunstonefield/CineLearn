@@ -2293,6 +2293,13 @@ header {
   width: 92%;
 }
 
+/* 復習ページ版（asPage）：<main>内に in-flow 表示（オーバーレイでない・ボトムナビ表示・横スワイプ移動可） */
+.review-panel {
+  max-width: 420px;
+  width: 100%;
+  margin: 0 auto;
+}
+
 .review-content {
   padding: 24px 20px 28px;
   display: flex;
