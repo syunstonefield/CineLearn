@@ -92,7 +92,20 @@ export default function VocabItem({ word, srs, testTiers, ts, priority, exampleS
         {w.example && (
           <div className="word-example-wrap">
             {/* 出所がある＝字幕の逐語引用なので "…" で明瞭区分（著作権法32条） */}
-            <span className="word-example-en">{exampleSource ? `“${w.example}”` : w.example}</span>
+            <span className="word-example-en">
+              {exampleSource ? `“${w.example}”` : w.example}
+              <button
+                type="button"
+                className="word-ex-speak"
+                aria-label="例文を聞く"
+                onClick={(ev) => {
+                  ev.stopPropagation();
+                  onSpeak(w.example);
+                }}
+              >
+                🔊
+              </button>
+            </span>
             {w.example_ja && <span className="word-example-ja">{w.example_ja}</span>}
             {/* 出所明示（著作権法48条）：例文を引いた作品・話・字幕元 */}
             {exampleSource && <span className="word-example-source">{exampleSource}</span>}

@@ -2414,6 +2414,14 @@ header {
   color: var(--text-soft);
   line-height: 1.5;
 }
+/* 例文の読み上げ（🔊・Web Speech API＝ブラウザ内蔵TTS・無料）。行内に小さく。 */
+.word-ex-speak {
+  background: none; border: none; cursor: pointer;
+  font-size: 12px; line-height: 1; padding: 1px 3px; margin-left: 5px;
+  vertical-align: middle; opacity: 0.65; transition: opacity 0.15s ease;
+}
+.word-ex-speak:hover { opacity: 1; }
+.word-ex-speak:active { transform: scale(0.9); }
 .word-example-ja {
   font-size: 11px;
   color: var(--text-soft);
