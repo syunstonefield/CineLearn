@@ -2,12 +2,11 @@
 // 旧 cine-learn.vercel.app/api/claude.js からの移植。従来は [...path] の catch-all が
 // 旧バックエンドへ2ホップ中継していた（cold 実測 1.27s）。専用 route は catch-all より
 // 優先されるため、このファイルの存在だけで /api/claude は1ホップになる。
-// ANTHROPIC_API_KEY 未設定の間は relayLegacy で旧経路へフォールバック（移行期の安全弁）。
+// 鍵は cinelearn-next に設定済み。旧 cine-learn への移行期フォールバック（relayLegacy）は撤去した。
 
 export const dynamic = 'force-dynamic';
 
 import { checkRateLimit } from '@/lib/ratelimit';
-import { relayLegacy } from '@/lib/legacy-relay';
 
 function json(obj, status = 200) {
   return new Response(JSON.stringify(obj), {
@@ -43,7 +42,7 @@ export async function POST(req) {
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return relayLegacy('claude', body); // 鍵未設定 → 旧経路（移行期のみ）
+  if (!apiKey) return json({ error: 'server_misconfigured' }, 500); // 鍵は設定済みの前提（旧経路フォールバックは撤去）
 
   // ゲート通過後の課金天井：IP単位 30/分・300/時（Upstash env 未設定なら no-op）。
   if (!(await checkRateLimit(req, 'claude')).ok) return json({ error: 'rate_limited' }, 429);

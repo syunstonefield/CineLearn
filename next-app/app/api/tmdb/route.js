@@ -1,10 +1,8 @@
 // TMDB 中継（1ホップ化）。旧 cine-learn.vercel.app/api/tmdb.js からの移植。
-// TMDB_API_KEY 未設定の間は relayLegacy で旧経路へフォールバック（移行期の安全弁）。
+// 鍵は cinelearn-next に設定済み。旧 cine-learn への移行期フォールバック（relayLegacy）は撤去した。
 // レート制限は旧実装同様なし（課金面の優先度低・並列ポスター解決を阻害しないため）。
 
 export const dynamic = 'force-dynamic';
-
-import { relayLegacy } from '@/lib/legacy-relay';
 
 const TMDB_BASE = 'https://api.themoviedb.org/3';
 
@@ -42,7 +40,7 @@ export async function POST(req) {
   }
 
   const apiKey = process.env.TMDB_API_KEY;
-  if (!apiKey) return relayLegacy('tmdb', body); // 鍵未設定 → 旧経路（移行期のみ）
+  if (!apiKey) return json({ error: 'server_misconfigured' }, 500); // 鍵は設定済みの前提（旧経路フォールバックは撤去）
 
   const { action, query, tvId, movieId, season, episode } = body;
 

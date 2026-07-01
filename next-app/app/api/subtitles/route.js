@@ -1,11 +1,10 @@
 // OpenSubtitles 検索/ダウンロード中継（1ホップ化）。
 // 旧 cine-learn.vercel.app/api/subtitles.js からの移植。
-// OPENSUBTITLES_API_KEY 未設定の間は relayLegacy で旧経路へフォールバック（移行期の安全弁）。
+// 鍵は cinelearn-next に設定済み。旧 cine-learn への移行期フォールバック（relayLegacy）は撤去した。
 
 export const dynamic = 'force-dynamic';
 
 import { checkRateLimit } from '@/lib/ratelimit';
-import { relayLegacy } from '@/lib/legacy-relay';
 
 const OS_BASE = 'https://api.opensubtitles.com/api/v1';
 
@@ -79,7 +78,7 @@ export async function POST(req) {
   }
 
   const apiKey = process.env.OPENSUBTITLES_API_KEY;
-  if (!apiKey) return relayLegacy('subtitles', body); // 鍵未設定 → 旧経路（移行期のみ）
+  if (!apiKey) return json({ error: 'server_misconfigured' }, 500); // 鍵は設定済みの前提（旧経路フォールバックは撤去）
 
   // ゲート通過後の枠保護：IP単位 30/分・300/時（Upstash env 未設定なら no-op）。
   if (!(await checkRateLimit(req, 'subtitles')).ok) return json({ error: 'rate_limited' }, 429);
