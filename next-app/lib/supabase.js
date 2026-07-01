@@ -1,10 +1,14 @@
 // Supabase 連携。js/supabase.js から移植。
-// 原則 pull（クラウド→localStorage）＋認証（サインイン/リフレッシュ）。
-// 例外：学習履歴(history)のみ双方向にする（pushHistoryEntry / deleteHistoryRow）。
-//   理由: pull は cl_history を丸ごと上書きするため、push が無いと端末での
-//   削除/再生成が次回 pull で失われ、クラウドに残った破損行が復活してしまう
-//   （別話の単語が表示されるバグ）。history 以外（profiles/srs/my_words）は
-//   従来どおり読み取り専用のまま。
+// 認証（サインイン/リフレッシュ）＋学習データの双方向同期。
+// - history: 双方向（pushHistoryEntry / deleteHistoryRow）。pull が丸ごと上書きのため。
+// - srs: 双方向（reviewWord 等の書込ごとに pushSrsWords / pull は語単位マージ）。
+//   朝の復習リマインダー（/api/push-notify morning）が srs_data の due_date を読むため、
+//   クラウド側を最新に保つことが通知の前提になる。
+// - user_state: 半券/お気に入り/学習時間/予習完了/席番号の汎用 key-value 同期
+//   （queueStatePush / pull は種類別マージ＝union・max でデバイス間のクラバー防止）。
+// - profiles: 双方向（pushProfiles / deleteProfileRow）。プロフィール別 localStorage キー
+//   （cl_tickets_{pid} 等）がデバイス跨ぎで成立するには pid の同期が前提。
+// - my_words: pull のみ（書込は拡張が直接 Supabase へ）。
 const SUPABASE_URL = 'https://mndyexwdevkpdssglwpl.supabase.co';
 const SUPABASE_ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1uZHlleHdkZXZrcGRzc2dsd3BsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0MTcyOTQsImV4cCI6MjA5NTk5MzI5NH0.P6GDNdWAGMPpjc1zltGS9LAFWej5M8knchqTIDDNrE4';
@@ -134,12 +138,24 @@ export async function pullFromCloud(profileId = null) {
     );
   }
 
-  // srs
-  const srs = await sbFetch(`/rest/v1/srs_data?user_id=eq.${uid}&select=*`);
-  if (Array.isArray(srs) && srs.length) {
-    const map = {};
+  // srs（語単位マージ: lastReview が新しい方を採用・同日/欠落はローカル優先）。
+  // 丸ごと上書きにしないのは、この端末で育てたローカル SRS（lastQuality/reviewCount 等の
+  // 拡張フィールド含む）を、古いクラウド行で吹き飛ばさないため。
+  // マージ後、ローカル側が勝った/ローカルにしか無い語はクラウドへ吸い上げる
+  // （初回ログイン時の移行と、オフライン期間の追いつきを兼ねる）。
+  const srs = await sbFetch(`/rest/v1/srs_data?user_id=eq.${uid}&select=*&limit=5000`);
+  if (Array.isArray(srs)) {
+    let local = {};
+    try {
+      local = JSON.parse(localStorage.getItem('cl_srs') || '{}') || {};
+    } catch {
+      local = {};
+    }
+    const merged = { ...local };
+    const cloudByWord = {};
     srs.forEach((e) => {
-      map[e.word] = {
+      cloudByWord[e.word] = e;
+      const cloudEntry = {
         interval: e.interval,
         repetitions: e.repetitions,
         easeFactor: parseFloat(e.ease_factor),
@@ -147,8 +163,19 @@ export async function pullFromCloud(profileId = null) {
         lastReview: e.last_review,
         skipped: e.skipped,
       };
+      const l = local[e.word];
+      // クラウドの方が新しい復習日を持つ場合のみ採用（YYYY-MM-DD の文字列比較）。
+      if (!l || (e.last_review || '') > (l.lastReview || '')) merged[e.word] = cloudEntry;
     });
-    localStorage.setItem('cl_srs', JSON.stringify(map));
+    const pushBack = {};
+    Object.entries(merged).forEach(([w, e]) => {
+      const c = cloudByWord[w];
+      if (!c || (e.lastReview || '') > (c.last_review || '') || !!e.skipped !== !!c.skipped) {
+        pushBack[w] = e;
+      }
+    });
+    localStorage.setItem('cl_srs', JSON.stringify(merged));
+    if (Object.keys(pushBack).length) pushSrsWords(pushBack); // fire-and-forget
   }
 
   // my_words（グローバルキーに保存。プロフィール別キーは選択時にコピーする）
@@ -175,6 +202,189 @@ export async function pullFromCloud(profileId = null) {
     // （拡張機能で増えた単語をフォーカス時の再取得で単語帳に出すため）
     if (profileId) localStorage.setItem(`cl_my_words_${profileId}`, wordsList);
   }
+
+  // user_state（半券/お気に入り/学習時間/予習完了/席番号）：種類別マージ→ローカル反映。
+  // マージ結果がクラウドと異なるキーだけ push（初回移行の吸い上げを兼ねる）。
+  const stateRows = await sbFetch(`/rest/v1/user_state?user_id=eq.${uid}&select=key,value`);
+  if (Array.isArray(stateRows)) {
+    const cloudMap = {};
+    stateRows.forEach((r) => {
+      cloudMap[r.key] = r.value;
+    });
+    const keys = new Set([...localStateKeys(), ...Object.keys(cloudMap)]);
+    const toPush = [];
+    keys.forEach((key) => {
+      const merged = mergeStateValue(key, readStateLocal(key), key in cloudMap ? cloudMap[key] : null);
+      if (merged == null) return;
+      try {
+        localStorage.setItem(key, JSON.stringify(merged));
+      } catch {
+        /* プライベートモード等は無視 */
+      }
+      if (JSON.stringify(merged) !== JSON.stringify(cloudMap[key] ?? null)) {
+        toPush.push({ user_id: uid, key, value: merged, updated_at: new Date().toISOString() });
+      }
+    });
+    if (toPush.length) {
+      sbFetch('/rest/v1/user_state', {
+        method: 'POST',
+        headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify(toPush),
+      });
+    }
+  }
+}
+
+// ── 学習データ同期のヘルパ ──────────────────────────────────────
+
+// 同期対象の localStorage キー（user_state 1行=1キー）。
+const STATE_KEY_RE =
+  /^(cl_tickets|cl_fav_dramas|cl_study_sec|cl_study_drama)(_|$)|^cl_prepped$|^cl_seat_counter$/;
+
+function localStateKeys() {
+  try {
+    return Object.keys(localStorage).filter((k) => STATE_KEY_RE.test(k));
+  } catch {
+    return [];
+  }
+}
+
+function readStateLocal(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw == null) return null;
+    return JSON.parse(raw); // 数値キー（cl_study_sec 等）は "123" → 123 になる
+  } catch {
+    return null;
+  }
+}
+
+// 半券の同一話キー（lib/tickets.js の epKey と同じ定義）。
+const ticketEpKey = (t) => `${t.title}|${t.season}|${t.episode}`;
+const MAX_TICKETS = 30; // lib/tickets.js と同値
+
+// 種類別マージ。デバイスA/Bで別々に育ったデータを last-write-wins で潰さず統合する。
+function mergeStateValue(key, localV, cloudV) {
+  if (localV == null) return cloudV;
+  if (cloudV == null) return localV;
+  if (key.startsWith('cl_tickets')) {
+    // 半券: 同一話は createdAt が新しい方・全体は古い順で上限 FIFO（tickets.js と同じ規律）
+    const m = new Map();
+    [...(Array.isArray(cloudV) ? cloudV : []), ...(Array.isArray(localV) ? localV : [])]
+      .filter((t) => t && t.id)
+      .forEach((t) => {
+        const k = ticketEpKey(t);
+        const prev = m.get(k);
+        if (!prev || (t.createdAt || 0) >= (prev.createdAt || 0)) m.set(k, t);
+      });
+    const arr = [...m.values()].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+    while (arr.length > MAX_TICKETS) arr.shift();
+    return arr;
+  }
+  if (key.startsWith('cl_fav_dramas')) {
+    const l = Array.isArray(localV) ? localV : [];
+    const c = Array.isArray(cloudV) ? cloudV : [];
+    return [...new Set([...l, ...c])];
+  }
+  if (key.startsWith('cl_study_sec') || key === 'cl_seat_counter') {
+    // 積算カウンタは max（合算だと同期のたびに二重計上する）
+    return Math.max(Number(localV) || 0, Number(cloudV) || 0);
+  }
+  if (key.startsWith('cl_study_drama')) {
+    const out = { ...(cloudV || {}) };
+    Object.entries(localV || {}).forEach(([t, s]) => {
+      out[t] = Math.max(Number(out[t]) || 0, Number(s) || 0);
+    });
+    return out;
+  }
+  if (key === 'cl_prepped') {
+    // 予習完了: union。両方にあれば at が古い方（＝初回予習の記録・席番号を安定させる）
+    const out = { ...(localV || {}) };
+    Object.entries(cloudV || {}).forEach(([ep, v]) => {
+      if (!out[ep] || (v?.at || 0) < (out[ep]?.at || 0)) out[ep] = v;
+    });
+    return out;
+  }
+  return localV; // 未知キーはローカル優先
+}
+
+// localStorage キー1件をクラウドへ（トロットル型: 窓内の連続書込は1回に畳む。
+// デバウンスだと学習時間ティックのような定期書込で永久に飢餓するため、
+// 既にタイマーが走っていれば延長しない）。値は flush 時点の localStorage を読む。
+const stateTimers = {};
+export function queueStatePush(key, delayMs = 3000) {
+  if (typeof window === 'undefined' || !isLoggedIn()) return;
+  if (stateTimers[key]) return;
+  stateTimers[key] = setTimeout(() => {
+    delete stateTimers[key];
+    const uid = getCurrentUser()?.id;
+    const v = readStateLocal(key);
+    if (!uid || v == null) return;
+    sbFetch('/rest/v1/user_state', {
+      method: 'POST',
+      headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify([{ user_id: uid, key, value: v, updated_at: new Date().toISOString() }]),
+    });
+  }, delayMs);
+}
+
+// SRS を語単位でクラウドへ upsert（entries = { word: srsEntry }）。
+// スキーマ列のみ送る（lastQuality/reviewCount 等の拡張フィールドはローカル専用）。
+export async function pushSrsWords(entries) {
+  if (!isLoggedIn()) return;
+  const uid = getCurrentUser()?.id;
+  if (!uid || !entries) return;
+  const rows = Object.entries(entries)
+    .filter(([, e]) => e)
+    .map(([word, e]) => ({
+      user_id: uid,
+      word,
+      interval: e.interval ?? 1,
+      repetitions: e.repetitions ?? 0,
+      ease_factor: e.easeFactor ?? 2.5,
+      due_date: e.dueDate ?? null,
+      last_review: e.lastReview ?? null,
+      skipped: !!e.skipped,
+      updated_at: new Date().toISOString(),
+    }));
+  if (!rows.length) return;
+  await sbFetch('/rest/v1/srs_data', {
+    method: 'POST',
+    headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify(rows),
+  });
+}
+
+// プロフィール一覧をクラウドへ upsert（pid のデバイス跨ぎ安定化）。
+export async function pushProfiles(profiles) {
+  if (!isLoggedIn()) return;
+  const uid = getCurrentUser()?.id;
+  if (!uid || !Array.isArray(profiles) || !profiles.length) return;
+  await sbFetch('/rest/v1/profiles', {
+    method: 'POST',
+    headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify(
+      profiles.map((p) => ({
+        id: p.id,
+        user_id: uid,
+        name: p.name,
+        color: p.color,
+        settings: p.settings || {},
+        updated_at: new Date().toISOString(),
+      }))
+    ),
+  });
+}
+
+// プロフィール削除をクラウドへ反映（upsert だけだと次回 pull で復活してしまう）。
+export async function deleteProfileRow(id) {
+  if (!isLoggedIn() || !id) return;
+  const uid = getCurrentUser()?.id;
+  if (!uid) return;
+  await sbFetch(`/rest/v1/profiles?id=eq.${encodeURIComponent(id)}&user_id=eq.${uid}`, {
+    method: 'DELETE',
+    headers: { Prefer: 'return=minimal' },
+  });
 }
 
 // ── history のみ双方向（★書き込み★）─────────────────────────────

@@ -4,6 +4,7 @@
 
 import { getWordVariants, exampleContainsWord } from './subtitles';
 import { loadSrs } from './storage';
+import { queueStatePush } from './supabase';
 
 const CEFR_ORDER = ['A2', 'B1', 'B2', 'C1', 'C2'];
 
@@ -156,8 +157,9 @@ export function orderWordsForPrep(words, srs) {
 }
 
 // ── 予習完了の永続化（リロードでの半券再取得＝席番号インフレを防ぐ）──────
-//   端末ローカル（プロフィール非依存・装飾なので割り切り）。エピソード単位で1回だけ記録。
+//   プロフィール非依存。エピソード単位で1回だけ記録。
 //   getPrepped が返す seat を再予習でも使い回す＝nextSeat() を初回のみ呼ぶための土台。
+//   2026-07-02 から user_state 経由でクラウド同期（マージは union・at 古い方＝初回予習を正）。
 const PREPPED_KEY = 'cl_prepped';
 function loadPrepped() {
   try {
@@ -177,6 +179,7 @@ export function markPrepped(epId, seat) {
     all[epId] = { at: Date.now(), seat: seat || '' };
     try {
       localStorage.setItem(PREPPED_KEY, JSON.stringify(all));
+      queueStatePush(PREPPED_KEY, 500); // クラウドへ（未ログイン時は no-op）
     } catch {
       /* プライベートモード等は保存をあきらめる */
     }
@@ -205,7 +208,7 @@ export function watchSearchUrl(title, service) {
 // プレミアパスの「指定席」を1ずつ採番して端末に記憶する（=観覧履歴の通し番号）。
 //   A-01 → A-99 → B-01 → … → Z-99 → A-01（Z以降は巡回）。
 //   ★パス生成時に一度だけ呼ぶ（再描画・フリップで増えないように呼び出し側で1回）。
-//   端末ローカル（localStorage）。クラウド同期はしない（席番号は装飾的なので割り切り）。
+//   2026-07-02 から user_state 経由でクラウド同期（マージは max＝採番の巻き戻り防止）。
 const SEAT_KEY = 'cl_seat_counter';
 export function nextSeat() {
   let n = 0;
@@ -218,6 +221,7 @@ export function nextSeat() {
   n += 1;
   try {
     localStorage.setItem(SEAT_KEY, String(n));
+    queueStatePush(SEAT_KEY, 500); // クラウドへ（未ログイン時は no-op）
   } catch {
     /* 保存失敗は番号だけ進めて表示（永続はしない） */
   }

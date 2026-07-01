@@ -1,7 +1,7 @@
 // 既存アプリ（js/app.js）からの移植。
 // localStorage のキー・データ構造は既存実装と完全に同一に保つこと。
 
-import { pushHistoryEntry, deleteHistoryRow } from './supabase';
+import { pushHistoryEntry, deleteHistoryRow, pushSrsWords, pushProfiles } from './supabase';
 
 export const HISTORY_KEY = 'cl_history';
 export const SRS_KEY = 'cl_srs';
@@ -79,6 +79,7 @@ export function loadProfiles() {
 
 export function saveProfiles(profiles) {
   safeSet(PROFILES_KEY, JSON.stringify(profiles));
+  pushProfiles(profiles); // クラウドへ upsert（未ログイン時は no-op・fire-and-forget）
 }
 
 export function loadActivityDates() {
@@ -392,6 +393,7 @@ export function skipWord(word) {
   const k = word.toLowerCase();
   all[k] = { interval: 1, repetitions: 0, easeFactor: 2.5, ...(all[k] || {}), skipped: true };
   saveSrs(all);
+  pushSrsWords({ [k]: all[k] }); // クラウドへ（未ログイン時は no-op・fire-and-forget）
 }
 export function unskipWord(word) {
   const all = loadSrs();
@@ -399,6 +401,7 @@ export function unskipWord(word) {
   if (all[k]) {
     all[k].skipped = false;
     saveSrs(all);
+    pushSrsWords({ [k]: all[k] });
   }
 }
 
@@ -467,6 +470,7 @@ export function reviewWord(word, quality) {
     e.reviewCount = (e.reviewCount || 0) + 1;
     all[k] = e;
     saveSrs(all);
+    pushSrsWords({ [k]: e }); // クラウドへ（未ログイン時は no-op・fire-and-forget）
     return;
   }
 
@@ -488,6 +492,7 @@ export function reviewWord(word, quality) {
   e.reviewCount = (e.reviewCount || 0) + 1;
   all[k] = e;
   saveSrs(all);
+  pushSrsWords({ [k]: e }); // クラウドへ（未ログイン時は no-op・fire-and-forget）
 }
 
 // ── 履歴の保存・更新（saveToHistory 相当）──────────────────

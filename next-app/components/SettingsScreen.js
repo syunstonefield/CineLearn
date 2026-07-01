@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useApp } from './AppProvider';
 import { getToeicLevel, getVocabCount } from '@/lib/vocab';
 import { getThemePref, setThemePref } from '@/lib/theme';
+import { enablePushSubscription } from '@/lib/push';
 
 // 設定（英語レベル / 利用サービス / テーマ / 単語階層 / 復習リマインダー）。
 // 旧 SettingsModal をモーダル→screen='settings' のページに置き換え。
@@ -99,27 +100,20 @@ export default function SettingsScreen() {
     closeSettings();
   };
 
-  // 復習リマインダー：ブラウザの通知許可をリクエスト（プッシュ購読は
-  // Service Worker + ログインが必要なため、試作では許可取得＋案内のみ）
+  // 復習リマインダー：通知許可 → SW購読 → サーバー保存（lib/push.js）。
   const enableNotify = async () => {
-    if (typeof window === 'undefined' || !('Notification' in window)) {
-      setNotifyMsg('このブラウザは通知非対応です');
+    setNotifyBtn('設定中...');
+    const r = await enablePushSubscription();
+    if (r.ok) {
+      setNotifyBtn('✅ 通知は有効です');
+      setNotifyMsg('復習日の朝7時にお知らせします 🎬');
       return;
     }
-    setNotifyBtn('設定中...');
-    try {
-      const permission = await Notification.requestPermission();
-      if (permission === 'granted') {
-        setNotifyBtn('✅ 通知は有効です');
-        setNotifyMsg('毎朝8時に復習日をお知らせします 🎬（リマインダー配信は本番アプリで有効）');
-      } else {
-        setNotifyBtn(null);
-        setNotifyMsg('ブラウザの設定から通知を許可してください');
-      }
-    } catch {
-      setNotifyBtn(null);
-      setNotifyMsg('通知の設定に失敗しました');
-    }
+    setNotifyBtn(null);
+    if (r.reason === 'unsupported') setNotifyMsg('このブラウザは通知非対応です');
+    else if (r.reason === 'not_logged_in') setNotifyMsg('通知を使うにはログインしてください');
+    else if (r.reason === 'denied') setNotifyMsg('ブラウザの設定から通知を許可してください');
+    else setNotifyMsg('通知の設定に失敗しました');
   };
 
   const showLevel = toeicScore >= 10;
@@ -262,7 +256,7 @@ export default function SettingsScreen() {
           <div className="settings-section">
             <div className="settings-section-title">🔔 復習リマインダー</div>
             <div className="push-notify-desc" style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 6 }}>
-              復習日になったら毎朝8時に通知が届きます。
+              復習日になったら朝7時に通知が届きます。
             </div>
             <div
               style={{

@@ -5,7 +5,14 @@ import { loadProfiles, saveProfiles, patchProfileSettings, unarchiveDrama } from
 import { issueTicket as issueTicketLib, loadTickets } from '@/lib/tickets';
 import { addStudySeconds, addDramaStudySeconds } from '@/lib/studytime';
 import { applyTheme, getThemePref } from '@/lib/theme';
-import { ensureFreshSession, pullFromCloud, isLoggedIn, supaSignOut, clearSession } from '@/lib/supabase';
+import {
+  ensureFreshSession,
+  pullFromCloud,
+  isLoggedIn,
+  supaSignOut,
+  clearSession,
+  deleteProfileRow,
+} from '@/lib/supabase';
 import { recommendedToDrama } from '@/lib/recommended';
 
 // app.js のグローバル状態（selectedDrama / selectedSeason 等）に相当する共有状態。
@@ -138,6 +145,9 @@ export default function AppProvider({ children }) {
 
   useEffect(() => {
     setMounted(true);
+    // SW 登録（push 通知の受信路。fetch ハンドラ無しなので配信には干渉しない）。
+    // 購読済みユーザーがアプリを開くだけで SW が最新化される。
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
     // オートログイン：有効なセッションがあればクラウドから読み込む（読み取り専用）。
     (async () => {
       try {
@@ -306,6 +316,8 @@ export default function AppProvider({ children }) {
 
   const deleteProfile = useCallback((id) => {
     saveProfiles(loadProfiles().filter((x) => x.id !== id));
+    // クラウド側の行も消す（upsert だけだと次回 pull で復活してしまう）。
+    deleteProfileRow(id);
   }, []);
 
   // ヘッダーのプロフィール切替 → 選択画面へ戻る（現在の選択を解除）

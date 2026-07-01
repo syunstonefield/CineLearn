@@ -2,7 +2,9 @@
 // 設計の背景（2026-06-25 部署討論）: 「未視聴チケット」は視聴完了を検知できない以上ホームで
 //   消えず罪悪感UI化する → 反転して「観た後に戻る半券＝シーン記憶カードへの入口」にする。
 //   全チケットを発行時点で半券扱いにすれば open/archived の状態管理も視聴検知も不要。
-// 端末ローカル（プロフィール別）。クラウド同期はしない（席番号同様、装飾的＋場面語彙は my_words に既存）。
+// プロフィール別。2026-07-02 から user_state 経由でクラウド同期（機種変で消えない・マージは同一話 union）。
+
+import { queueStatePush } from './supabase';
 
 const MAX_TICKETS = 30; // 追記ログだが上限でFIFO（古いものから落とす）。ホームは最新1枚＋件数。
 
@@ -23,6 +25,7 @@ export function loadTickets(profileId) {
 function saveAll(profileId, arr) {
   try {
     localStorage.setItem(ticketsKey(profileId), JSON.stringify(arr));
+    queueStatePush(ticketsKey(profileId), 500); // クラウドへ（未ログイン時は no-op）
   } catch {
     /* プライベートモード等は保存をあきらめる（機能はメモリ上で動く） */
   }

@@ -1,0 +1,18 @@
+{
+  "headers": [
+    {
+      "source": "/sw.js",
+      "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/push-notify?type=morning",
+      "schedule": "0 22 * * *"
+    },
+    {
+      "path": "/api/push-notify?type=evening",
+      "schedule": "0 12 * * *"
+    }
+  ]
+}

@@ -1,6 +1,8 @@
 // 学習時間（今から計測）。アプリを前景で開いている時間を秒で積算する。
 // 過去分は計測していないため 0 から開始（ユーザー合意・2026-06-26）。
-// クラウド同期はしない（端末ローカル・装飾的指標）。プロフィール別キー。
+// プロフィール別キー。2026-07-02 から user_state 経由でクラウド同期（マージは max＝二重計上防止）。
+
+import { queueStatePush } from './supabase';
 
 export function studyTimeKey(profileId) {
   return profileId ? `cl_study_sec_${profileId}` : 'cl_study_sec';
@@ -19,6 +21,7 @@ export function addStudySeconds(profileId, sec) {
   try {
     const cur = getStudySeconds(profileId);
     localStorage.setItem(studyTimeKey(profileId), String(cur + Math.round(sec)));
+    queueStatePush(studyTimeKey(profileId), 60 * 1000); // 定期ティックは1分に1回へ畳む
   } catch {
     /* SSR / プライベートモード等は無視 */
   }
@@ -47,6 +50,7 @@ export function addDramaStudySeconds(profileId, title, sec) {
     const m = getDramaStudyMap(profileId);
     m[title] = (m[title] || 0) + Math.round(sec);
     localStorage.setItem(dramaStudyKey(profileId), JSON.stringify(m));
+    queueStatePush(dramaStudyKey(profileId), 60 * 1000); // 定期ティックは1分に1回へ畳む
   } catch {
     /* ignore */
   }
