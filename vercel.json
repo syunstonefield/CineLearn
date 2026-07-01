@@ -1,6 +1,11 @@
 {
   "redirects": [
     {
+      "source": "/",
+      "destination": "https://cinelearn-next.vercel.app/",
+      "permanent": false
+    },
+    {
       "source": "/:path*",
       "destination": "https://cinelearn-next.vercel.app/:path*",
       "permanent": false
