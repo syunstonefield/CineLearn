@@ -3,7 +3,7 @@
 // 半券（観た証）カード。ホームの TodayPanel 直下に最新1枚だけ出す（混雑回避）。
 // タップで「あの場面を思い出す」＝そのエピソードの出題語をシーン記憶カードとして開く。
 // 「未視聴チケットの催促」ではなく「観た後に戻る入口」（push→pull・2026-06-25 部署討論の反転案）。
-export default function HomeStubCard({ ticket, extraCount = 0, poster = null, onOpen }) {
+export default function HomeStubCard({ ticket, poster = null, onOpen }) {
   if (!ticket) return null;
   const hasSE = !ticket.isMovie && ticket.season != null && ticket.episode != null;
   const seLabel = hasSE ? ` S${ticket.season}E${ticket.episode}` : '';
@@ -28,10 +28,7 @@ export default function HomeStubCard({ ticket, extraCount = 0, poster = null, on
           {ticket.title || 'この作品'}
           {seLabel} を観た？
         </span>
-        <span className="stub-card-sub">
-          あの場面のセリフ、{n}語を思い出そう
-          {extraCount > 0 ? ` ・ 他${extraCount}枚` : ''}
-        </span>
+        <span className="stub-card-sub">あの場面のセリフ、{n}語を思い出そう</span>
       </span>
       {/* 右：作品のミニポスター（どの作品の半券か一目で分かる）。無ければ🃏アイコン。 */}
       {poster ? (

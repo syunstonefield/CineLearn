@@ -321,12 +321,7 @@ export default function Dashboard() {
           <>
             <h2 className="home-section-title">おすすめの復習</h2>
             <div className="stub-row">
-              <HomeStubCard
-                ticket={latest}
-                extraCount={withWords.length - 1}
-                poster={poster}
-                onOpen={openSceneCards}
-              />
+              <HomeStubCard ticket={latest} poster={poster} onOpen={openSceneCards} />
             </div>
           </>
         );

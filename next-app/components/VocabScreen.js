@@ -79,7 +79,7 @@ export default function VocabScreen() {
   const [message, setMessage] = useState(''); // empty-state / error text
   const [retryMsg, setRetryMsg] = useState('');
   const [genStatus, setGenStatus] = useState('単語を分析中...'); // 生成ローディングの状態文言
-  const [genBtn, setGenBtn] = useState({ text: '単語を生成', disabled: true, hidden: false });
+  const [genBtn, setGenBtn] = useState({ text: '予習をはじめる →', disabled: true, hidden: false });
   const [vocab, setVocab] = useState([]);
   const [source, setSource] = useState('');
   const [extWords, setExtWords] = useState([]);
@@ -243,8 +243,8 @@ export default function VocabScreen() {
         setStatusText(drama.type === 'movie' ? '🎬 映画' : `Season ${se} Episode ${ep}`);
         setVocab([]);
         setPhase('empty');
-        setMessage('「単語を生成」でAIの単語リストを追加できます');
-        setGenBtn({ text: '単語を生成', disabled: false, hidden: false });
+        setMessage('「予習をはじめる」でAIが単語リストをつくります');
+        setGenBtn({ text: '予習をはじめる →', disabled: false, hidden: false });
         loadExtWords(se, ep, []);
         return true;
       }
@@ -303,8 +303,8 @@ export default function VocabScreen() {
             drama.type === 'movie' ? '✓ 字幕取得済み' : `Season ${se} Episode ${ep} ✓ 字幕取得済み`
           );
           setPhase('ready');
-          setMessage('「単語を生成」を押してください');
-          setGenBtn({ text: '単語を生成', disabled: false, hidden: false });
+          setMessage('「予習をはじめる」を押してください');
+          setGenBtn({ text: '予習をはじめる →', disabled: false, hidden: false });
           resolveUnassignedWords(pid, result.parsed, drama.englishTitle || drama.title, se, ep)
             .then(() => loadExtWords(se, ep, vocab))
             .catch(() => {});
@@ -365,7 +365,7 @@ export default function VocabScreen() {
       setExtWords([]);
       setHistoryId(null);
       setPrepFresh(false); // 別エピソードへ移ったら下部3択は隠す（新規生成成功で再点灯）
-      setGenBtn({ text: '単語を生成', disabled: true, hidden: false });
+      setGenBtn({ text: '予習をはじめる →', disabled: true, hidden: false });
       if (await checkSaved(se, ep)) {
         // 保存済みでも字幕キャッシュが無ければ「無音版」で静かに取得
         // （タイムスタンプ＋拡張単語照合用。失敗してもリスト表示を壊さない）
@@ -465,7 +465,7 @@ export default function VocabScreen() {
     (async () => {
       setPhase('loading');
       setStatusText('シーズン情報を取得中...');
-      setGenBtn({ text: '単語を生成', disabled: true, hidden: false });
+      setGenBtn({ text: '予習をはじめる →', disabled: true, hidden: false });
       // ドラマ/映画の判定・シーズン構築が終わるまでエピソード選択枠ごと隠す。
       // 確定前に操作されると未確定のドラマ状態（englishTitle/type未設定）で
       // 字幕取得が走って壊れるため（既存 546da24 と同じ対策）。
@@ -550,7 +550,7 @@ export default function VocabScreen() {
         setPrepFresh(false); // soon では下部3択を出さない
         setMessage('🚧 この作品は近日対応予定です（カタログを順次拡大中）');
         setPhase('soon');
-        setGenBtn({ text: '単語を生成', disabled: true, hidden: true });
+        setGenBtn({ text: '予習をはじめる →', disabled: true, hidden: true });
         return;
       }
 
@@ -570,7 +570,7 @@ export default function VocabScreen() {
           await preload(season, episode, myReq);
           subText = subMem.current.key === key ? subMem.current.text : '';
           if (!subText) {
-            setGenBtn({ text: '単語を生成', disabled: false, hidden: false });
+            setGenBtn({ text: '予習をはじめる →', disabled: false, hidden: false });
             return;
           }
           // preload が phase を書き換えるためローディングを再表示（既存と同じ）
@@ -675,7 +675,7 @@ export default function VocabScreen() {
     setPhase('empty');
     setMessage('エピソードを選んでください');
     setStatusText('');
-    setGenBtn({ text: '単語を生成', disabled: false, hidden: false });
+    setGenBtn({ text: '予習をはじめる →', disabled: false, hidden: false });
   };
 
   if (!drama) return null;
