@@ -68,6 +68,7 @@ export default function PrepQuiz() {
         service: meta?.service || '',
         integrity: meta?.integrity || null,
         freshCount: meta?.freshCount ?? null,
+        credit: meta?.credit || '', // 出所明示をチケット裏（今夜聞く3行）へ引き継ぐ
       });
       return;
     }
@@ -114,6 +115,8 @@ export default function PrepQuiz() {
               q.example
             )}”
           </div>
+          {/* 出所明示（著作権法48条）：出題文は字幕の逐語引用 */}
+          {meta?.credit && <div className="prep-ex-src">{meta.credit}</div>}
 
           <div className="prep-choices">
             {q.choices.map((c) => {

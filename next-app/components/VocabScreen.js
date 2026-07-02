@@ -720,6 +720,7 @@ export default function VocabScreen() {
     service: settings.selectedViewingService || '',
     integrity,
     freshCount: integrity.fresh,
+    credit: exampleCredit, // 出所明示（48条）：クイズ/チケット裏の実セリフ表示にも付ける
   };
 
   // 主：「今夜のリハーサル」＝クイズ3問を起動（出題語を自動選定→3問を組む）。

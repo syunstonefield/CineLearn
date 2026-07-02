@@ -46,7 +46,9 @@ export default function PrivacyPage() {
         </li>
         <li style={li}>
           <strong>学習データ：</strong>保存した単語、例文（字幕の一文）、作品名・シーズン/エピソード、
-          英語レベル（TOEIC）設定、学習の進捗・復習スケジュール。
+          英語レベル（TOEIC）設定、学習の進捗・復習スケジュール、予習・視聴の記録
+          （予習を完了した作品・話数とその日時）、お気に入り作品、アプリの利用時間。
+          ログイン中はこれらを複数端末間の同期のためクラウドに保存します。
         </li>
         <li style={li}>
           <strong>オンボーディング情報：</strong>初回のアンケートでご回答いただくプロフィール属性
@@ -91,6 +93,10 @@ export default function PrivacyPage() {
           翻訳のためにクリックした単語のみを送信します（字幕の文は送信しません）。
         </li>
         <li style={li}><strong>Vercel</strong>：本サービスのホスティング</li>
+        <li style={li}>
+          <strong>Upstash</strong>：API の過剰利用防止（レート制限）。IPアドレス単位の
+          利用回数を短期間保存します（内容データは送信しません）。
+        </li>
       </ul>
 
       <h2 style={h2}>4. データの販売・第三者提供</h2>

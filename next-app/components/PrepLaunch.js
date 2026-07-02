@@ -114,6 +114,8 @@ export default function PrepLaunch() {
                       </div>
                     ))}
                   </div>
+                  {/* 出所明示（著作権法48条）：3行は字幕の逐語引用 */}
+                  {p.credit && lines.length > 0 && <div className="pf-back-src">{p.credit}</div>}
                 </div>
               </div>
             </div>

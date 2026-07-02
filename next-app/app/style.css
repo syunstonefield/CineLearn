@@ -5728,3 +5728,7 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
   border-color: color-mix(in srgb, var(--red) 35%, var(--border)) !important;
 }
 
+
+/* 出所明示（48条）: 予習クイズの出題文／チケット裏の3行（.pw-ex-src と同トーン） */
+.prep-ex-src { margin-top: 6px; font-size: 10px; color: var(--text-muted); text-align: center; }
+.pf-back-src { margin-top: 10px; font-size: 10px; color: #9a8a6a; text-align: center; }
