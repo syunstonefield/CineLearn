@@ -6,3 +6,4 @@ CineLearn-extension.zip
 
 # 社内部署（サブエージェント）— 内部の法務/セキュリティ判断を含むため public リポには出さない
 .claude/agents/
+dist/

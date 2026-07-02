@@ -1,3 +1,6 @@
+> ⚠️ **旧版アーカイブ（2026-07-02）**: これは旧バニラ版（js/app.js・cine-learn.vercel.app）時代の文書です。
+> 現行の公開ターゲットは `next-app/`（cinelearn-next.vercel.app）。現行構成は git 履歴と `docs/` の各設計書を参照。
+
 # CineLearn 技術仕様書
 
 最終更新: 2026-06-06
