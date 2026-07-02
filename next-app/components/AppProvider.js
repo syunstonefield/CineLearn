@@ -248,7 +248,11 @@ export default function AppProvider({ children }) {
       /* ignore */
     }
     clearSession();
-    ['cl_profiles', 'cl_history', 'cl_srs', 'cl_my_words'].forEach((k) => localStorage.removeItem(k));
+    // cl_profiles_updated_at も一緒に消す（古い時刻が残ると次のログインの
+    // 「新しい方が勝つ」比較に前ユーザーの時刻が混ざるため）。
+    ['cl_profiles', 'cl_profiles_updated_at', 'cl_history', 'cl_srs', 'cl_my_words'].forEach((k) =>
+      localStorage.removeItem(k)
+    );
     setLoggedIn(false);
     setProfile(null);
     setScreen('profile-select');

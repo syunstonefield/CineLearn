@@ -8,7 +8,11 @@
 //   （queueStatePush / pull は種類別マージ＝union・max でデバイス間のクラバー防止）。
 // - profiles: 双方向（pushProfiles / deleteProfileRow）。プロフィール別 localStorage キー
 //   （cl_tickets_{pid} 等）がデバイス跨ぎで成立するには pid の同期が前提。
+//   pull は時刻比較（cl_profiles_updated_at vs updated_at）で新しい方を採用＋myDramas 合体
+//   （lib/profileMerge.js）。push 失敗後に古いクラウドで設定が巻き戻る事故を防ぐ。
 // - my_words: pull のみ（書込は拡張が直接 Supabase へ）。
+import { PROFILES_AT_KEY, mergeProfileArrays, cloudWins } from './profileMerge';
+
 const SUPABASE_URL = 'https://mndyexwdevkpdssglwpl.supabase.co';
 const SUPABASE_ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1uZHlleHdkZXZrcGRzc2dsd3BsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0MTcyOTQsImV4cCI6MjA5NTk5MzI5NH0.P6GDNdWAGMPpjc1zltGS9LAFWej5M8knchqTIDDNrE4';
@@ -104,13 +108,36 @@ export async function pullFromCloud(profileId = null) {
   const uid = getCurrentUser()?.id;
   if (!uid) return;
 
-  // profiles
+  // profiles（設定）: 「新しい方が勝つ」＋ myDramas 合体（無条件上書きはしない）。
+  // かつては丸ごと上書きで、push 失敗後の起動時に古いクラウドが新しいローカルを潰し
+  // 設定・マイリストが巻き戻る事故があった。時刻比較で新しい側を winner にし、
+  // 負けた側からは myDramas と不足プロフィールだけ拾う（作品消失を絶対に防ぐ）。
   const profiles = await sbFetch(`/rest/v1/profiles?user_id=eq.${uid}&select=*`);
   if (Array.isArray(profiles) && profiles.length) {
-    localStorage.setItem(
-      'cl_profiles',
-      JSON.stringify(profiles.map((p) => ({ id: p.id, name: p.name, color: p.color, settings: p.settings })))
-    );
+    const cloudProfiles = profiles.map((p) => ({ id: p.id, name: p.name, color: p.color, settings: p.settings }));
+    const cloudAt = profiles.reduce((m, p) => ((p.updated_at || '') > m ? p.updated_at : m), '');
+    let localProfiles = [];
+    try {
+      localProfiles = JSON.parse(localStorage.getItem('cl_profiles') || '[]') || [];
+    } catch {
+      localProfiles = [];
+    }
+    const localAt = localStorage.getItem(PROFILES_AT_KEY) || '';
+    const merged = cloudWins(localProfiles, localAt, cloudAt)
+      ? mergeProfileArrays(cloudProfiles, localProfiles)
+      : mergeProfileArrays(localProfiles, cloudProfiles);
+    try {
+      localStorage.setItem('cl_profiles', JSON.stringify(merged));
+      // 時刻は「両者の新しい方」へ。now を打つと他端末の実変更に永久に勝ってしまうので不可。
+      const maxAt = cloudAt > localAt ? cloudAt : localAt;
+      if (maxAt) localStorage.setItem(PROFILES_AT_KEY, maxAt);
+    } catch {
+      /* プライベートモード等は無視 */
+    }
+    // マージ結果がクラウドと違う（ローカルが勝った/合体で増えた）→ クラウドへ書き戻す。
+    if (JSON.stringify(merged) !== JSON.stringify(cloudProfiles)) {
+      pushProfiles(merged, (cloudAt > localAt ? cloudAt : localAt) || undefined); // fire-and-forget
+    }
   }
 
   // history
@@ -356,7 +383,9 @@ export async function pushSrsWords(entries) {
 }
 
 // プロフィール一覧をクラウドへ upsert（pid のデバイス跨ぎ安定化）。
-export async function pushProfiles(profiles) {
+// updatedAt にはローカル保存時の時刻（cl_profiles_updated_at と同値）を渡す。
+// pull 側が同じ時刻軸で「新しい方が勝つ」比較をするため、push 時に時刻を作り直さない。
+export async function pushProfiles(profiles, updatedAt = null) {
   if (!isLoggedIn()) return;
   const uid = getCurrentUser()?.id;
   if (!uid || !Array.isArray(profiles) || !profiles.length) return;
@@ -370,7 +399,7 @@ export async function pushProfiles(profiles) {
         name: p.name,
         color: p.color,
         settings: p.settings || {},
-        updated_at: new Date().toISOString(),
+        updated_at: updatedAt || new Date().toISOString(),
       }))
     ),
   });

@@ -2,6 +2,7 @@
 // localStorage のキー・データ構造は既存実装と完全に同一に保つこと。
 
 import { pushHistoryEntry, deleteHistoryRow, pushSrsWords, pushProfiles } from './supabase';
+import { PROFILES_AT_KEY } from './profileMerge';
 
 export const HISTORY_KEY = 'cl_history';
 export const SRS_KEY = 'cl_srs';
@@ -78,8 +79,13 @@ export function loadProfiles() {
 }
 
 export function saveProfiles(profiles) {
+  const now = new Date().toISOString();
   safeSet(PROFILES_KEY, JSON.stringify(profiles));
-  pushProfiles(profiles); // クラウドへ upsert（未ログイン時は no-op・fire-and-forget）
+  // ローカルの更新時刻を記録し、クラウドにも同じ時刻で upsert する。
+  // push が失敗しても、次回 pull がこの時刻を見るので「古いクラウドが新しいローカルを
+  // 丸ごと潰す」事故（設定・マイリスト消失）が起きない。
+  safeSet(PROFILES_AT_KEY, now);
+  pushProfiles(profiles, now); // クラウドへ upsert（未ログイン時は no-op・fire-and-forget）
 }
 
 export function loadActivityDates() {
