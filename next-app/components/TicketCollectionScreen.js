@@ -107,9 +107,11 @@ export default function TicketCollectionScreen() {
   useEffect(() => {
     const missing = entries.filter(
       (e) =>
-        (!e.posterPath || e.posterPath.includes('/w500') || e.posterPath.includes('/w780')) &&
+        ((!e.posterPath || e.posterPath.includes('/w500') || e.posterPath.includes('/w780')) ||
+          // ポスターが健在でも tmdbId が無いTVは検索で id を補修する（同期マージで
+          // tmdbId が落ちた作品の自己治癒＝総話数「—」の復旧・2026-07-03）。
+          (!e.tmdbId && !e.isMovie)) &&
         // TV(tmdbId有)は進捗バー用の seasons 取得でポスターも得られる＝検索往復を省く。
-        // 検索が要るのは映画 or tmdbId 無し（seasons を引けない）作品だけ。
         !(e.tmdbId && !e.isMovie) &&
         !attemptedPosters.current.has(e.title)
     );

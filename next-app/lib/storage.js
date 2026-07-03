@@ -241,6 +241,8 @@ export function buildLibraryEntries(history, myDramas) {
       // tmdbId/posterPath/totalEpisodes を引き継ぎ、ポスター取得や進捗バーを出せるようにする。
       const extra = byTitle.get(key);
       const drama = extra ? { ...extra, ...h.drama } : h.drama;
+      // 履歴側の drama が tmdbId を null で持っていても myDramas 側の値を潰さない（保険）。
+      if (drama.tmdbId == null && extra?.tmdbId != null) drama.tmdbId = extra.tmdbId;
       map.set(key, { drama, episodes: [], bestScore: null, lastDate: h.date });
     }
     const d = map.get(key);

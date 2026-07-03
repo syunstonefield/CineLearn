@@ -14,10 +14,22 @@
 export const PROFILES_AT_KEY = 'cl_profiles_updated_at';
 
 // myDramas の合体。a を優先しつつ、b にしか無い作品（title 同定）を後ろに足す。
-// 作品ごとのフィールド（viewingService/posterPath 等）は a 側を優先する。
+// 同一タイトルは a 側優先だが、a に無い/null のフィールドは b から穴埋めする。
+// （古いクラウド形が winner になった時に tmdbId/posterPath が消える事故の再発防止・
+//   2026-07-03 実測: tmdbId 消失→半券の総話数が全作品「—」化）
 export function unionDramas(a, b) {
-  const out = [...(Array.isArray(a) ? a : [])];
-  (Array.isArray(b) ? b : []).forEach((d) => {
+  const bList = Array.isArray(b) ? b : [];
+  const out = (Array.isArray(a) ? a : []).map((d) => {
+    if (!d || !d.title) return d;
+    const other = bList.find((x) => x && x.title === d.title);
+    if (!other) return d;
+    const merged = { ...d };
+    Object.keys(other).forEach((k) => {
+      if (merged[k] == null && other[k] != null) merged[k] = other[k];
+    });
+    return merged;
+  });
+  bList.forEach((d) => {
     if (d && d.title && !out.some((x) => x && x.title === d.title)) out.push(d);
   });
   return out;
@@ -32,7 +44,9 @@ export function mergeProfileArrays(winner, loser) {
     const other = l.find((x) => x && x.id === p.id);
     if (!other) return p;
     const merged = unionDramas(p.settings?.myDramas, other.settings?.myDramas);
-    if (merged.length === (p.settings?.myDramas || []).length) return p; // 追加なし＝そのまま
+    // ⚠長さ比較で「変更なし」を判定してはいけない：フィールド穴埋め（tmdbId補完等）は
+    // 件数を変えないため捨てられてしまう（2026-07-03 の総話数「—」化の一因）。
+    if (JSON.stringify(merged) === JSON.stringify(p.settings?.myDramas || [])) return p;
     return { ...p, settings: { ...(p.settings || {}), myDramas: merged } };
   });
   // loser にしか無いプロフィールは消さずに補完（デバイスA/Bで別々に作った場合）
