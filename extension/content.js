@@ -46,6 +46,7 @@ const SUBTITLE_SELECTORS = [
 // UI 要素（DOMContentLoaded 後に作成）
 let toast = null;
 let popup = null;
+let clOverlay = null; // Amazon/Disney 字幕オーバーレイ（relocate が早期に参照するため先頭で宣言）
 let clControls       = null; // ◀ 📋 ▶ コントロール群
 let clMiniToast      = null; // コピー結果のミニトースト
 let clMiniToastTimer = null;
@@ -731,9 +732,23 @@ async function showWordPopup(word, sentence, rect) {
   // Netflix のオーバーレイが消える前に即座に取得
   const ctx = getEpisodeContext();
 
-  const top  = Math.max(rect.top - 240, 10);
+  // 全画面では全画面要素の子孫しか描画されないため、表示直前に現在のホストへ移す
+  // （全画面に入った後クリックした場合もここで確実に拾う）。
+  const fsHost = document.fullscreenElement || document.webkitFullscreenElement || document.body;
+  if (popup.parentElement !== fsHost) fsHost.appendChild(popup);
+
   const left = Math.max(Math.min(rect.left, window.innerWidth - 295), 10);
-  Object.assign(popup.style, { display: 'flex', top: `${top}px`, left: `${left}px` });
+  // 字幕（クリックした行）と被らないよう、ポップアップの下端をクリック行の少し上に固定し
+  // 上方向へ伸ばす（bottom アンカー＝辞書取得の前後で高さが変わってもズレず字幕を覆わない）。
+  // 上に余白が無い時（字幕が画面上部＝稀）だけ下に出す。
+  if (rect.top > 300) {
+    popup.style.top = 'auto';
+    popup.style.bottom = `${Math.round(window.innerHeight - rect.top + 12)}px`;
+  } else {
+    popup.style.bottom = 'auto';
+    popup.style.top = `${Math.round(rect.bottom + 12)}px`;
+  }
+  Object.assign(popup.style, { display: 'flex', left: `${left}px` });
 
   popup.innerHTML = `
     <div style="padding:16px">
@@ -1187,14 +1202,19 @@ function positionControls() {
 
 // 全画面時は body 直下の要素が描画されないため、全画面要素の中へ移し替える。
 function relocateControlsForFullscreen() {
-  if (!clControls) return;
+  // ★全画面では「全画面要素の子孫」しか描画されない。body 直下に置いた要素は全画面中
+  //   見えなくなるため、現在のホスト（全画面要素 or body）へ移し替える。
+  //   これを怠ると: 保存ポップアップが出ない(Netflix)／自前字幕オーバーレイが消えて
+  //   native透明化CSSだけ残り字幕が丸ごと消える(Amazon/Disney)。2026-07-04 実機で発覚。
   const host = document.fullscreenElement || document.webkitFullscreenElement || document.body;
-  if (clControls.parentElement !== host) host.appendChild(clControls);
+  if (clControls && clControls.parentElement !== host) host.appendChild(clControls);
   if (clMiniToast && clMiniToast.parentElement !== host) host.appendChild(clMiniToast);
   if (clBadge && clBadge.parentElement !== host) host.appendChild(clBadge);
   if (clHint && clHint.parentElement !== host) host.appendChild(clHint);
   if (clHoverTip && clHoverTip.parentElement !== host) host.appendChild(clHoverTip);
-  positionControls();
+  if (popup && popup.parentElement !== host) host.appendChild(popup);          // 保存ポップアップ
+  if (clOverlay && clOverlay.parentElement !== host) host.appendChild(clOverlay); // Amazon/Disney 字幕オーバーレイ
+  if (clControls) positionControls();
 }
 
 // ── ◀ 📋 ▶ コントロール群を作成 ─────────────────────────────────
@@ -1431,7 +1451,7 @@ function wrapWordsInElement(el) {
 //   React の差分計算が壊れてプレイヤーごと落ちる（会話が速いと字幕欠落も発生）。
 //   そこで元字幕は CSS で透明化し、その上に自前のクリック可能な層を重ねる。
 // ─────────────────────────────────────────────────────────────────
-let clOverlay       = null;
+// clOverlay は先頭付近（let popup の近く）で宣言済み＝早期の relocate 呼び出しでも TDZ にならない。
 let lastOverlayText = '';
 
 function createAmazonOverlay() {
