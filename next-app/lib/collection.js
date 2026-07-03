@@ -13,7 +13,8 @@ export function getCachedSeasons(tmdbId) {
     const obj = JSON.parse(v);
     // 旧キャッシュ（制作年 firstYear / posterPath が無い）は未取得扱いにして再取得＝自己治癒。
     // posterPath は「キーの有無」で判定（null でも取得済み扱い＝再取得ループを防ぐ）。
-    if (!obj || !('firstYear' in obj) || !('posterPath' in obj)) return null;
+    // names（照合用の作品名）が無い旧キャッシュも再取得＝自己治癒（偽ID検出に必要）。
+    if (!obj || !('firstYear' in obj) || !('posterPath' in obj) || !('names' in obj)) return null;
     return obj;
   } catch {
     return null;
@@ -39,7 +40,10 @@ export async function fetchSeasons(tmdbId, isMovie = false) {
     // 縦スロット用に poster_path(縦) を優先・w342（ホームと同サイズ＝軽く速い）。
     const imgPath = detail.poster_path || detail.backdrop_path;
     const posterPath = imgPath ? `https://image.tmdb.org/t/p/w342${imgPath}` : null;
-    const out = { total, seasons, firstYear, lastYear, posterPath };
+    // 作品名を保持＝呼び出し側が「チケットのタイトルとIDの中身が一致するか」を照合できる
+    // （同期事故で紛れ込んだ偽 tmdbId の検出用・2026-07-03）。
+    const names = [detail.name, detail.original_name, detail.title, detail.original_title].filter(Boolean);
+    const out = { total, seasons, firstYear, lastYear, posterPath, names };
     if (total > 0) {
       try {
         localStorage.setItem(epsCacheKey(tmdbId), JSON.stringify(out));

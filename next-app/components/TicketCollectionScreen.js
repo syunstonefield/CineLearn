@@ -75,25 +75,60 @@ export default function TicketCollectionScreen() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      // 偽ID検出: tmdbId の中身（TMDBの作品名）とチケットのタイトルが緩一致しなければ、
+      // 同期事故で紛れ込んだ別作品のIDと判定して外す（→解決器が正しく再解決・クラウドにも伝搬）。
+      // 実例: Toy Story 4 にクレしん外伝TVのIDが付き52話と表示された（2026-07-03）。
+      const norm = (s) => (s || '').toLowerCase().replace(/[^a-z0-9ぁ-んァ-ヶ一-龠]/g, '');
+      const idMatchesTitle = (sj, e) => {
+        if (!sj || !Array.isArray(sj.names) || !sj.names.length) return true; // 照合材料なし=判定しない
+        const expects = [e.title, e.enTitle, e.drama?.englishTitle].map(norm).filter(Boolean);
+        if (!expects.length) return true;
+        return sj.names.some((n) => {
+          const nn = norm(n);
+          return nn && expects.some((x) => nn.includes(x) || x.includes(nn));
+        });
+      };
+      const badTitles = [];
       const toFetch = [];
       const cachedUpdates = {};
       for (const e of entries) {
         if (!e.tmdbId || e.isMovie || seasonsMap[e.tmdbId]) continue;
         const cached = getCachedSeasons(e.tmdbId);
-        if (cached) cachedUpdates[e.tmdbId] = cached;
-        else toFetch.push(e);
+        if (cached) {
+          if (idMatchesTitle(cached, e)) cachedUpdates[e.tmdbId] = cached;
+          else badTitles.push(e.title);
+        } else toFetch.push(e);
       }
       if (Object.keys(cachedUpdates).length) setSeasonsMap((m) => ({ ...m, ...cachedUpdates }));
       const CONC = 4;
       for (let i = 0; i < toFetch.length && !cancelled; i += CONC) {
         const chunk = toFetch.slice(i, i + CONC);
         const results = await Promise.all(
-          chunk.map((e) => fetchSeasons(e.tmdbId, false).then((r) => [e.tmdbId, r]))
+          chunk.map((e) => fetchSeasons(e.tmdbId, false).then((r) => [e, r]))
         );
         if (cancelled) return;
         const upd = {};
-        for (const [id, r] of results) if (r) upd[id] = r;
+        for (const [e, r] of results) {
+          if (!r) continue;
+          if (idMatchesTitle(r, e)) upd[e.tmdbId] = r;
+          else badTitles.push(e.title);
+        }
         if (Object.keys(upd).length) setSeasonsMap((m) => ({ ...m, ...upd }));
+      }
+      // 偽IDを持つ作品: myDramas から tmdbId/posterPath を剥がして再解決に回す。
+      if (!cancelled && badTitles.length) {
+        const md = [...(settings.myDramas || [])];
+        let changed = false;
+        md.forEach((d) => {
+          if (badTitles.includes(d.title)) {
+            delete d.tmdbId;
+            delete d.posterPath;
+            delete d.type; // 偽マッチ由来のtv/movie判定も捨てて再解決に委ねる
+            changed = true;
+          }
+        });
+        badTitles.forEach((t) => attemptedPosters.current.delete(t)); // 解決器の再走を許可
+        if (changed) updateSettings({ myDramas: md });
       }
     })();
     return () => {
@@ -154,7 +189,7 @@ export default function TicketCollectionScreen() {
               if (m) {
                 m.posterPath = p;
                 if (hit.id) m.tmdbId = hit.id;
-                if (!m.type) m.type = isMovieHit ? 'movie' : 'tv';
+                m.type = isMovieHit ? 'movie' : 'tv'; // タイトル照合済みのmedia_typeが正
                 mdChanged = true;
               } else if (hit.id) {
                 // 履歴にだけ存在する作品（マイリスト外）にも tmdbId を持たせる受け皿を作る。
