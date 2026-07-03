@@ -25,6 +25,18 @@ export default function AuthModal() {
     setBusy(false);
 
     if (result?.access_token) {
+      // 新規登録＝まっさらなアカウント。「一度見た」系フラグを消して初回体験
+      // （アンケート・チュートリアル・拡張バナー）を必ず出す。前アカウントの
+      // 残留フラグでスキップされる事故の防止（signOut と同じリセット）。
+      if (mode === 'signup') {
+        ['cl_onboarded', 'cl_tutorial_seen', 'cl_ext_banner_dismissed'].forEach((k) => {
+          try {
+            localStorage.removeItem(k);
+          } catch {
+            /* ignore */
+          }
+        });
+      }
       await pullFromCloud(); // 読み取り専用：クラウド → localStorage
       onLoggedIn();
     } else {

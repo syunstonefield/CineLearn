@@ -250,9 +250,19 @@ export default function AppProvider({ children }) {
     clearSession();
     // cl_profiles_updated_at も一緒に消す（古い時刻が残ると次のログインの
     // 「新しい方が勝つ」比較に前ユーザーの時刻が混ざるため）。
-    ['cl_profiles', 'cl_profiles_updated_at', 'cl_history', 'cl_srs', 'cl_my_words'].forEach((k) =>
-      localStorage.removeItem(k)
-    );
+    // 「一度見た」系フラグ（オンボ/チュートリアル/拡張バナー）もリセットする：
+    // 残すと次に入る別アカウント・新規ゲストが初回体験（アンケート等）を一切見られない。
+    // 既存アカウントの再ログインはクラウドの settings.onboarded が生きるので二重表示にならない。
+    [
+      'cl_profiles',
+      'cl_profiles_updated_at',
+      'cl_history',
+      'cl_srs',
+      'cl_my_words',
+      'cl_onboarded',
+      'cl_tutorial_seen',
+      'cl_ext_banner_dismissed',
+    ].forEach((k) => localStorage.removeItem(k));
     setLoggedIn(false);
     setProfile(null);
     setScreen('profile-select');
@@ -314,8 +324,8 @@ export default function AppProvider({ children }) {
     setSettings((prev) => ({ ...prev, ...patch, onboarded: true }));
     setScreen('main');
     // 作品選びはホーム（おすすめ＋検索）に任せるため、ここでは追加モーダルを開かない。
-    // 自動の使い方ガイドも抑止（オンボーディングで案内済み）。
-    markTutorialSeen();
+    // 使い方ガイドはここで既読化しない → ホーム到達後に自動表示エフェクトが1回だけ出す
+    // （アンケート→ホーム→チュートリアルの初回導線。表示時に既読化されるので二重表示はない）。
   }, []);
 
   const deleteProfile = useCallback((id) => {
