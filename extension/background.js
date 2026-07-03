@@ -7,8 +7,10 @@ const SB_SESSION_KEY    = 'cl_sb_session';
 // 共有キャッシュ＋例文補完 API（Next.js 版本番）。/api/example はここに置かれている。
 const CINELEARN_NEXT_URL = 'https://cinelearn-next.vercel.app';
 
+// ツールバーのアイコン → Webアプリを開く（旧・拡張内 index.html は2026-07-02退役。
+// URL指定の tabs.create は "tabs" 権限不要）。
 chrome.action.onClicked.addListener(() => {
-  chrome.tabs.create({ url: chrome.runtime.getURL('index.html') });
+  chrome.tabs.create({ url: `${CINELEARN_NEXT_URL}/app` });
 });
 
 chrome.runtime.onInstalled.addListener(() => {

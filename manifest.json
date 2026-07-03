@@ -1,13 +1,12 @@
 {
   "manifest_version": 3,
   "name": "CineLearn",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "ドラマで英語を学ぶ — Netflixなどの字幕単語をクリックして単語帳に保存",
 
-  "permissions": ["storage", "tabs"],
+  "permissions": ["storage"],
 
   "host_permissions": [
-    "https://cine-learn.vercel.app/*",
     "https://cinelearn-next.vercel.app/*",
     "https://*.supabase.co/*",
     "https://www.netflix.com/*",
@@ -38,7 +37,7 @@
       "run_at": "document_start"
     },
     {
-      "matches": ["https://cine-learn.vercel.app/*"],
+      "matches": ["https://cinelearn-next.vercel.app/*"],
       "js": ["extension/bridge.js"],
       "run_at": "document_idle"
     }
