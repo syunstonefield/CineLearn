@@ -110,9 +110,10 @@ export default function BottomNav({ dueCount = 0, wordCount = 0 }) {
 
   return (
     <nav className="bottom-nav" aria-label="メインナビゲーション">
+      {/* 復習=最頻機能を親指が最も届く中央に配置（2026-07-03 実使用フィードバック#15） */}
       {tab(homeActive, goHome, <IconHome />, 'ホーム', 0)}
-      {tab(reviewActive, onReview, <IconReview />, '復習', dueCount, 'urgent')}
       {tab(wordbookActive, openWordbook, <IconBook />, '単語帳', wordCount, 'count')}
+      {tab(reviewActive, onReview, <IconReview />, '復習', dueCount, 'urgent')}
       {tab(collectionActive, openCollection, <IconTicket />, '半券', 0)}
       {tab(settingsActive, openSettings, <IconSettings />, '設定', 0)}
     </nav>

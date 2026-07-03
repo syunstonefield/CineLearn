@@ -5586,11 +5586,11 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
 
 /* 右スタブの数字（ラベル TOTAL EPISODES / PROGRESS は画像） */
 .tcimg-eps {
-  position: absolute; left: 80%; width: 19%; top: 45%;
+  position: absolute; left: 78.8%; width: 19%; top: 45%;
   text-align: center; font-size: 6.4cqw; font-weight: 800; color: #2c241e; line-height: 1;
 }
 .tcimg-prog {
-  position: absolute; left: 79.3%; width: 19%; top: 76%;
+  position: absolute; left: 78.1%; width: 19%; top: 76%;
   text-align: center; font-size: 4.2cqw; font-weight: 800; color: var(--accent); line-height: 1;
 }
 .tcimg-prog.is-partial { color: #d98324; }
@@ -5732,3 +5732,6 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
 /* 出所明示（48条）: 予習クイズの出題文／チケット裏の3行（.pw-ex-src と同トーン） */
 .prep-ex-src { margin-top: 6px; font-size: 10px; color: var(--text-muted); text-align: center; }
 .pf-back-src { margin-top: 10px; font-size: 10px; color: #9a8a6a; text-align: center; }
+
+/* クイズ対象外の階層注記（薄い表示の理由を明示・実使用フィードバック#3） */
+.tier-excluded-note { font-size: 10px; color: var(--text-muted); white-space: nowrap; }

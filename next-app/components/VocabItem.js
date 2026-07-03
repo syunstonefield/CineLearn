@@ -84,6 +84,8 @@ export default function VocabItem({ word, srs, testTiers, ts, priority, exampleS
         <div className="vocab-detail-tags">
           {badge && <span className={`srs-badge ${badge.cls}`}>{badge.text}</span>}
           <span className={`tier-pill ${tierCls}`}>{tierText}</span>
+          {/* 薄い表示の理由を初見でも分かるように明示（実使用フィードバック#3） */}
+          {notInTest && <span className="tier-excluded-note">クイズ対象外（設定で変更可）</span>}
           {w.pos && <span className="vocab-pos">{w.pos}</span>}
           {next && <span className="srs-next-review">📅 次回: {next}</span>}
           {reviewCountLabel && <span className="review-count-label">{reviewCountLabel}</span>}

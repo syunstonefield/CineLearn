@@ -131,6 +131,13 @@ export default function AppProvider({ children }) {
   // プロフィール自動遷移を待たせるためのフラグ（封印モードでのみ参照）。
   const [bootstrapping, setBootstrapping] = useState(true);
 
+  // 画面切替時は必ず最上部から表示（下タブ移動で前画面のスクロール位置が残ると
+  // 「途中から始まる」違和感が出る・2026-07-03 実使用フィードバック#12）。
+  // 復習ページ（reviewWords で <main> を占有）も対象にするため両方を依存に持つ。
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [screen, reviewWords]);
+
   // テーマ適用（描画前スクリプトと同期）＋システムテーマ変更の追従（pref='system'時）。
   useEffect(() => {
     applyTheme();

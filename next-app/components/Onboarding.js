@@ -24,10 +24,6 @@ const PURPOSES = [
   { v: 'exam', icon: '📝', label: '試験（TOEIC等）の対策' },
   { v: 'hobby', icon: '🎉', label: '趣味として楽しく続けたい' },
 ];
-const STYLES = [
-  { v: 'fun', icon: '🎬', label: '楽しく学ぶ', desc: 'ドラマの世界に浸りながら' },
-  { v: 'efficient', icon: '⚡', label: '効率的に学ぶ', desc: 'サクサク最短で予習' },
-];
 // 流入元（どこでCineLearnを知ったか）＝マーケ参考。単一選択。
 const REFERRALS = [
   { v: 'sns', label: 'X（Twitter）・Instagram などSNS' },
@@ -39,7 +35,7 @@ const REFERRALS = [
   { v: 'tv', label: 'テレビ' },
   { v: 'other', label: 'その他' },
 ];
-const TOTAL = 6;
+const TOTAL = 5; // 学習スタイル設問は未配線のため削除（2026-07-03・実使用フィードバック#5）
 
 export default function Onboarding() {
   const { finishOnboarding } = useApp();
@@ -51,7 +47,6 @@ export default function Onboarding() {
   const [services, setServices] = useState([]);
   const [genres, setGenres] = useState([]);
   const [goals, setGoals] = useState([]);
-  const [style, setStyle] = useState(null);
   const [referral, setReferral] = useState(null); // どこで知ったか（単一選択）
 
   const score = parseInt(scoreText);
@@ -71,7 +66,7 @@ export default function Onboarding() {
   }, [phase]);
 
   const canNext =
-    step === 2 ? services.length > 0 : step === 4 ? goals.length > 0 : step === 5 ? !!style : step === 6 ? !!referral : true;
+    step === 2 ? services.length > 0 : step === 4 ? goals.length > 0 : step === 5 ? !!referral : true;
   const back = () => step > 1 && setStep(step - 1);
   const next = () => (step < TOTAL ? setStep(step + 1) : setPhase('building'));
 
@@ -80,7 +75,6 @@ export default function Onboarding() {
       selectedServices: services,
       selectedGenres: genres.length ? genres : ['Crime Thriller'],
       learningGoal: goals,
-      learnStyle: style,
       referralSource: referral,
     };
     if (scoreValid) {
@@ -126,10 +120,6 @@ export default function Onboarding() {
               <div className="ob-plan-row">
                 <span className="ob-plan-k">レベル</span>
                 <span className="ob-plan-v">{LEVEL_LABELS[userLevel]}</span>
-              </div>
-              <div className="ob-plan-row">
-                <span className="ob-plan-k">学習スタイル</span>
-                <span className="ob-plan-v">{STYLES.find((s) => s.v === style)?.label || '—'}</span>
               </div>
               <div className="ob-plan-row">
                 <span className="ob-plan-k">目的</span>
@@ -276,27 +266,6 @@ export default function Onboarding() {
         )}
 
         {step === 5 && (
-          <div>
-            <h2 className="onboarding-title">どんなふうに学びたい？</h2>
-            <p className="onboarding-desc">あとから設定で変えられます</p>
-            <div className="ob-style-grid">
-              {STYLES.map((s) => (
-                <button
-                  key={s.v}
-                  type="button"
-                  className={'ob-style-card' + (style === s.v ? ' selected' : '')}
-                  onClick={() => setStyle(s.v)}
-                >
-                  <span className="ob-style-icon" aria-hidden="true">{s.icon}</span>
-                  <span className="ob-style-label">{s.label}</span>
-                  <span className="ob-style-desc">{s.desc}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {step === 6 && (
           <div>
             <h2 className="onboarding-title">CineLearnをどこで知りましたか？</h2>
             <p className="onboarding-desc">今後の参考にさせてください</p>
