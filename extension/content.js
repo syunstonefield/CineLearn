@@ -1222,20 +1222,21 @@ function createSubtitleControls() {
     return b;
   };
 
-  if (IS_DISNEY) {
-    // Disney+ は currentTime シークが rebuffer でスタールするため ◀▶ を一旦無効化（B案）。
-    // 字幕読み・単語保存・ホバー一時停止・📋コピーは有効。◀▶は内部APIシーク実装まで保留。
-    // clPrevBtn/clNextBtn は null のまま → updateNavButtonsState は guard で no-op。
-    clControls.append(makeBtn('📋', '今のセリフを1文コピー', () => copyCurrentSentence()));
-  } else {
-    clPrevBtn = makeBtn('◀',  '前のセリフへ戻る',      () => seekRelative(-1));
-    clNextBtn = makeBtn('▶',  '次のセリフへ進む',      () => seekRelative(+1));
-    clControls.append(
-      clPrevBtn,
-      makeBtn('📋', '今のセリフを1文コピー', () => copyCurrentSentence()),
-      clNextBtn,
-    );
-  }
+  // ◀▶ は全サービス共通で有効。Disney+ も 2026-07-03 に有効化した：
+  // 実機検証で play()→currentTime（scheduleSeek の Disney 分岐）＋トレーリングデバウンスが
+  // スタールせずシークできることを確認（1198→1191秒戻し→再生継続）。「一時停止中の currentTime
+  // シークで止まる」旧問題は play()先行の緩和策で解消済み。
+  // ★法的立て付け（2026-07-03 法務レビュー）: シークは公開API video.currentTime のみを使い、
+  //   Disney の内部プレイヤーオブジェクト（window配下）には一切触れない＝リバースエンジニアリング
+  //   条項を回避。Netflix だけは currentTime がハードクラッシュするため内部APIseek の例外を
+  //   維持するが、それを他サービスへ広げない（内部API依存は Netflix の技術的例外に封じ込め）。
+  clPrevBtn = makeBtn('◀',  '前のセリフへ戻る',      () => seekRelative(-1));
+  clNextBtn = makeBtn('▶',  '次のセリフへ進む',      () => seekRelative(+1));
+  clControls.append(
+    clPrevBtn,
+    makeBtn('📋', '今のセリフを1文コピー', () => copyCurrentSentence()),
+    clNextBtn,
+  );
   document.body.appendChild(clControls);
 
   // 全画面の出入りで親要素を移し替え、リサイズで位置を再計算する
