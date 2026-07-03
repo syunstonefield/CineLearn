@@ -127,14 +127,26 @@ export default function TicketCollectionScreen() {
         await Promise.all(
           chunk.map(async (e) => {
             try {
+              const q = e.drama?.englishTitle || e.title;
+              // 映画/TV横断のmulti検索。履歴のみの作品は type が欠けるため、TV検索固定だと
+              // 映画が無関係のTV番組に誤マッチする事故が起きた（Toy Story 4→別番組52話・2026-07-03実測）。
               const res = await fetch('/api/tmdb', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'search', query: e.drama.englishTitle || e.title }),
+                body: JSON.stringify({ action: 'search_multi', query: q }),
               });
               const json = await res.json();
-              const hit = json.results?.[0];
-              if (!hit?.backdrop_path && !hit?.poster_path) return;
+              // タイトルの緩一致を必須にして、無関係な作品の id/ポスターを保存しない。
+              const norm = (s) => (s || '').toLowerCase().replace(/[^a-z0-9ぁ-んァ-ヶ一-龠]/g, '');
+              const nq = norm(q) || norm(e.title);
+              const hit = (json.results || []).find((r) => {
+                if (r.media_type !== 'tv' && r.media_type !== 'movie') return false;
+                if (!r.poster_path && !r.backdrop_path) return false;
+                const names = [r.name, r.title, r.original_name, r.original_title].map(norm);
+                return names.some((n) => n && nq && (n.includes(nq) || nq.includes(n)));
+              });
+              if (!hit) return;
+              const isMovieHit = hit.media_type === 'movie';
               const imgPath = hit.poster_path || hit.backdrop_path;
               const p = `https://image.tmdb.org/t/p/w342${imgPath}`;
               found[e.title] = p;
@@ -142,6 +154,7 @@ export default function TicketCollectionScreen() {
               if (m) {
                 m.posterPath = p;
                 if (hit.id) m.tmdbId = hit.id;
+                if (!m.type) m.type = isMovieHit ? 'movie' : 'tv';
                 mdChanged = true;
               } else if (hit.id) {
                 // 履歴にだけ存在する作品（マイリスト外）にも tmdbId を持たせる受け皿を作る。
@@ -154,7 +167,7 @@ export default function TicketCollectionScreen() {
                   englishTitle: e.drama?.englishTitle || e.enTitle || e.title,
                   tmdbId: hit.id,
                   posterPath: p,
-                  type: e.isMovie ? 'movie' : 'tv',
+                  type: isMovieHit ? 'movie' : 'tv',
                   genre: e.genre || '',
                 });
                 mdChanged = true;
