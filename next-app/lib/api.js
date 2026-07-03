@@ -54,6 +54,8 @@ export async function searchSubtitles(title, season, episode, type = 'tv', tmdbI
   } else {
     body.season = season;
     body.episode = episode;
+    // TVも tmdbId を渡す＝サーバーが parent_tmdb_id 検索に切替（日本語題でもヒットする）。
+    if (tmdbId) body.tmdbId = tmdbId;
   }
   const res = await fetch(`${API_BASE}/api/subtitles`, {
     method: 'POST',

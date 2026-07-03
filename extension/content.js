@@ -485,12 +485,37 @@ function getEpisodeContext() {
   // （例: "ファインディング・ニモ | Disney+(ディズニープラス)"）。"|" で区切ってサービス名側
   //  （Disney+(ディズニープラス) 等）を捨て、先頭の作品名を採用する。S/E はシリーズなら
   //  document.title から拾う（映画は null＝/api/example は映画扱い）。
+  // Disney+ のプレイヤーUI（Shadow DOM）から S/E を拾う。タブタイトルには S/E が
+  // 出ないため、これが無いとシリーズが映画扱いになり例文が付かない（2026-07-03実測）。
+  // 保存クリック時にだけ呼ばれるので全shadow走査でも実害なし。
+  function disneyShadowSE() {
+    const seen = new Set();
+    const scan = (root, depth) => {
+      if (!root || depth > 6) return null;
+      for (const el of root.querySelectorAll('*')) {
+        const sr = el.shadowRoot;
+        if (!sr || seen.has(sr)) continue;
+        seen.add(sr);
+        const se = extractSE(sr.textContent || '');
+        if (se) return se;
+        const deep = scan(sr, depth + 1);
+        if (deep) return deep;
+      }
+      return null;
+    };
+    try {
+      return scan(document, 0);
+    } catch {
+      return null;
+    }
+  }
+
   if (IS_DISNEY) {
     const parts = document.title.split('|').map((s) => s.trim()).filter(Boolean);
     const titleParts = parts.filter((p) => !/^disney\s*\+/i.test(p) && !BANNED_TITLES.test(p));
     const t = titleParts[0] || '';
     if (t && !BANNED_TITLES.test(t)) {
-      const se = extractSE(document.title);
+      const se = extractSE(document.title) || disneyShadowSE();
       return { dramaTitle: t, season: se?.season ?? null, episode: se?.episode ?? null };
     }
   }

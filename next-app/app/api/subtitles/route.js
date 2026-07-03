@@ -98,6 +98,12 @@ export async function POST(req) {
       params.set('type', 'movie');
       if (tmdbId) params.set('tmdb_id', tmdbId);
       else params.set('query', query);
+    } else if (tmdbId) {
+      // TVは parent_tmdb_id ＋話数で厳密検索（タイトル文字列クエリだと日本語題
+      // 「マンダロリアン」等が英語字幕DBに一致せず全滅する・2026-07-03実測）。
+      params.set('parent_tmdb_id', tmdbId);
+      params.set('season_number', season);
+      params.set('episode_number', episode);
     } else {
       params.set('query', query);
       params.set('season_number', season);
