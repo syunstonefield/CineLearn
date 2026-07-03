@@ -1053,10 +1053,6 @@ function scheduleSeek(video, time) {
   // トレーリングデバウンス：押すたびにタイマーを延長し、指が止まってから
   // 1回だけシークする。超連打で currentTime を何度も叩いてバッファを壊し
   // スタール（リロード表示で停止）するのを防ぐ。
-  // Disney+ は1シークごとに必ず rebuffer（読み込み）が入るため、意図的な連打
-  // （300〜600ms間隔）でも1回に畳めるよう窓を長くする。navStart 連鎖は
-  // NAV_CHAIN_MS(1200ms)まで蓄積するので、この窓内の連打は最終位置へ1回だけ飛ぶ。
-  const debounceMs = IS_DISNEY ? 550 : 180;
   clearTimeout(seekDebounceTimer);
   seekDebounceTimer = setTimeout(() => {
     seekDebounceTimer = null;
@@ -1092,7 +1088,7 @@ function scheduleSeek(video, time) {
       }, 600);
     }
     if (v.paused) v.play().catch(() => {});
-  }, debounceMs);
+  }, 180);
 }
 
 // ── 機能2: 文単位の字幕コピー ────────────────────────────────────
@@ -1226,21 +1222,25 @@ function createSubtitleControls() {
     return b;
   };
 
-  // ◀▶ は全サービス共通で有効。Disney+ も 2026-07-03 に有効化した：
-  // 実機検証で play()→currentTime（scheduleSeek の Disney 分岐）＋トレーリングデバウンスが
-  // スタールせずシークできることを確認（1198→1191秒戻し→再生継続）。「一時停止中の currentTime
-  // シークで止まる」旧問題は play()先行の緩和策で解消済み。
-  // ★法的立て付け（2026-07-03 法務レビュー）: シークは公開API video.currentTime のみを使い、
-  //   Disney の内部プレイヤーオブジェクト（window配下）には一切触れない＝リバースエンジニアリング
-  //   条項を回避。Netflix だけは currentTime がハードクラッシュするため内部APIseek の例外を
-  //   維持するが、それを他サービスへ広げない（内部API依存は Netflix の技術的例外に封じ込め）。
-  clPrevBtn = makeBtn('◀',  '前のセリフへ戻る',      () => seekRelative(-1));
-  clNextBtn = makeBtn('▶',  '次のセリフへ進む',      () => seekRelative(+1));
-  clControls.append(
-    clPrevBtn,
-    makeBtn('📋', '今のセリフを1文コピー', () => copyCurrentSentence()),
-    clNextBtn,
-  );
+  if (IS_DISNEY) {
+    // Disney+ は ◀▶ を出さない（📋コピー・単語保存・字幕DOM読み・例文は有効）。
+    // 2026-07-03 に一度 case B（公開API video.currentTime）で有効化を試みたが、Disney の
+    // DRM ストリームは currentTime で少しでもシークするとデコーダがリセットされ、1回のシークでも
+    // 必ずリロード（rebuffer）表示が入る（拡張を通さない素の play()→currentTime でも再現＝方式の性質）。
+    // 滑らかにするには内部プレイヤーAPI（案A）が要るが、法務レビュー(2026-07-03)で reverse engineer
+    // 条項に正面衝突として不採用。同レビューの着地点「案Bが安定しなければ出さない」に従い ◀▶ は無効。
+    // Netflix の内部APIseek は currentTime がハードクラッシュする技術的例外として維持し、広げない。
+    // clPrevBtn/clNextBtn は null のまま → updateNavButtonsState は guard で no-op。
+    clControls.append(makeBtn('📋', '今のセリフを1文コピー', () => copyCurrentSentence()));
+  } else {
+    clPrevBtn = makeBtn('◀',  '前のセリフへ戻る',      () => seekRelative(-1));
+    clNextBtn = makeBtn('▶',  '次のセリフへ進む',      () => seekRelative(+1));
+    clControls.append(
+      clPrevBtn,
+      makeBtn('📋', '今のセリフを1文コピー', () => copyCurrentSentence()),
+      clNextBtn,
+    );
+  }
   document.body.appendChild(clControls);
 
   // 全画面の出入りで親要素を移し替え、リサイズで位置を再計算する
