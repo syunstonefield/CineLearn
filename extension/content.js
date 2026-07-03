@@ -1138,8 +1138,9 @@ function positionControls() {
   clControls.style.display = 'flex';
 
   const h = clControls.offsetHeight || 40;
-  // 字幕は動画下端から約16%上に出るので、その高さに中央を合わせる
-  let top = r.bottom - r.height * 0.16 - h / 2;
+  // 動画下端から26%上に配置。16%だと Netflix の下部コントロールバー帯（タイムライン等・
+  // 下部約2割）と重なる実害があった（2026-07-03 実機フィードバック）。字幕行より少し上。
+  let top = r.bottom - r.height * 0.26 - h / 2;
   top = Math.max(8, Math.min(top, window.innerHeight - h - 8));
   // 動画の右端から少し内側へ
   const margin = Math.max(16, r.width * 0.025);

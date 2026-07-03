@@ -31,7 +31,7 @@
 #cl-controls {
   position: fixed !important;
   right: 2.5% !important;
-  bottom: 16% !important;
+  bottom: 26% !important;
   display: flex !important;
   gap: 8px !important;
   z-index: 2147483647 !important;
@@ -107,7 +107,7 @@
 #cl-badge {
   position: fixed !important;
   left: 2.5% !important;
-  bottom: 16% !important;
+  bottom: 26% !important;
   display: flex !important;
   align-items: center !important;
   gap: 6px !important;
@@ -168,7 +168,7 @@ html.cl-disabled #cl-controls { display: none !important; }
 #cl-hint {
   position: fixed !important;
   left: 2.5% !important;
-  bottom: calc(16% + 52px) !important;
+  bottom: calc(26% + 52px) !important;
   width: 240px !important;
   padding: 14px 16px !important;
   background: #fff !important;
