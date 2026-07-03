@@ -27,7 +27,9 @@ const MARKUP = `
   <div class="streaming-row">
     <span>対応サービス</span>
     <span class="s-badge">🔴 Netflix</span>
-    <span class="s-badge">▶️ YouTube</span>
+    <span class="s-badge">📦 Amazon Prime</span>
+    <span class="s-badge">🏰 Disney+</span>
+    <span class="s-badge" style="opacity:0.5">▶️ YouTube（近日対応予定）</span>
   </div>
 
   <div class="hero-btns">
@@ -76,12 +78,22 @@ const MARKUP = `
       <div class="service-card featured">
         <div class="service-icon">🔴</div>
         <div class="service-name">Netflix</div>
-        <div class="service-note">字幕クリック保存対応</div>
+        <div class="service-note">字幕クリック保存・例文・◀▶対応</div>
       </div>
       <div class="service-card featured">
+        <div class="service-icon">📦</div>
+        <div class="service-name">Amazon Prime</div>
+        <div class="service-note">字幕クリック保存・例文・◀▶対応</div>
+      </div>
+      <div class="service-card featured">
+        <div class="service-icon">🏰</div>
+        <div class="service-name">Disney+</div>
+        <div class="service-note">字幕クリック保存・例文対応</div>
+      </div>
+      <div class="service-card" style="opacity:0.55">
         <div class="service-icon">▶️</div>
         <div class="service-name">YouTube</div>
-        <div class="service-note">字幕クリック保存対応</div>
+        <div class="service-note">近日対応予定</div>
       </div>
     </div>
   </div>

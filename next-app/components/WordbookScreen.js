@@ -121,7 +121,7 @@ export default function WordbookScreen() {
       <div className="wb-screen">
         <div className="wb-head">
           <h1 className="wb-h1">📖 マイ単語帳</h1>
-          <p className="wb-sub">Netflix・YouTubeの字幕で単語をクリックすると、ここに保存されます</p>
+          <p className="wb-sub">Netflix・Amazon Prime・Disney+の字幕で単語をクリックすると、ここに保存されます</p>
         </div>
 
         {words === null ? (

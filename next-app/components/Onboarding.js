@@ -16,7 +16,8 @@ const TOEIC_ROWS = [
   { score: 900, range: '800点〜', level: 'C1', name: 'C1 上級' },
 ];
 // 拡張の動作実態に合わせ Apple TV+/Hulu/U-NEXT は一旦UIから外す（2026-06-25・厳選）。
-const SERVICES = ['Netflix', 'Amazon Prime', 'Disney+', 'YouTube'];
+// 選択可能な対応サービス（YouTube は例文が付かず未対応→「近日対応予定」で別枠表示・選べない）。
+const SERVICES = ['Netflix', 'Amazon Prime', 'Disney+'];
 const PURPOSES = [
   { v: 'subtitles', icon: '🎬', label: '字幕なしで観られるようになりたい' },
   { v: 'travel', icon: '✈️', label: '旅行・日常会話で使いたい' },
@@ -220,6 +221,11 @@ export default function Onboarding() {
                   <div className="service-check">✓</div>
                 </div>
               ))}
+              {/* YouTube は近日対応予定（例文が付かないため今は未対応・選択不可） */}
+              <div className="service-card" style={{ opacity: 0.5, cursor: 'default' }}>
+                <div className="service-name">YouTube</div>
+                <div className="service-check" style={{ fontSize: 11 }}>近日対応予定</div>
+              </div>
             </div>
           </div>
         )}
