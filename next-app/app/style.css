@@ -5738,3 +5738,39 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
 
 /* コレクション: 覚えた/マスター合計（控えめな1行・#11） */
 .tc-substats { margin: 4px 0 0; font-size: 12px; color: var(--text-muted); }
+
+/* ───────────────────────────────────────────────────────────────
+   PC（≥769px）での予習ウォークスルー・復習カードの最適化。
+   モバイル基準の狭い固定幅(pw-panel 460 / review-panel 420)だと、
+   広いPC画面で小さく中央にぽつんと表示される → 幅と文字を拡大して
+   読みやすくする。モバイル(≤768px)のレイアウトには一切影響しない。
+   ─────────────────────────────────────────────────────────────── */
+@media (min-width: 769px) {
+  /* 予習ウォークスルー（今夜の予習） */
+  .pw-panel { max-width: 720px; }
+  .pw-card {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 32px 40px;
+    border-radius: 20px;
+  }
+  .pw-word { font-size: 42px; }
+  .pw-pos { font-size: 14px; margin-top: 10px; }
+  .pw-def { font-size: 20px; margin-top: 14px; line-height: 1.55; }
+  .pw-ex { margin-top: 20px; padding-left: 16px; border-left-width: 4px; }
+  .pw-ex-en { font-size: 20px; line-height: 1.7; }
+  .pw-ex-ja { font-size: 15px; margin-top: 8px; }
+  .pw-ex-src { font-size: 12px; margin-top: 10px; }
+  .pw-counter { font-size: 13px; }
+  .pw-ts { font-size: 14px; }
+
+  /* 復習カード（ページ表示・オーバーレイ共通） */
+  .review-panel { max-width: 600px; }
+  .review-content { min-height: 420px; padding: 32px 28px 36px; }
+  .review-word-big { font-size: 52px; margin: 12px 0 6px; }
+  .review-pos-tag { font-size: 14px; }
+  .review-def-text { font-size: 22px; padding: 16px 0 6px; }
+  .review-example-text { font-size: 16px; }
+  .review-example-ja { font-size: 14px; }
+  .review-example-source { font-size: 12px; }
+}
