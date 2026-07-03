@@ -32,7 +32,10 @@ function saveAll(profileId, arr) {
 }
 
 // 同一作品・同一話を1枚に畳むためのキー。
-const epKey = (t) => `${t.title}|${t.season}|${t.episode}`;
+// ★tmdbId を最優先★（英語原題「Suits」と邦題「SUITS/スーツ」で title が割れると
+//   同一話が別チケット化＝半券が二重発行される。tmdbId は表記に依らず一意）。
+// tmdbId が無い古いデータだけ title にフォールバックする。
+const epKey = (t) => `${t.tmdbId ?? t.title}|${t.season}|${t.episode}`;
 
 // 予習クイズ完了の launch payload から半券を1枚発行（同一話は最新で上書き＝混雑回避）。
 // payload は PrepQuiz が openPrepLaunch に渡す { variant:'quiz', quizWords, seat, drama, title, season, episode, isMovie, service } 形。

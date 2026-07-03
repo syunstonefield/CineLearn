@@ -286,8 +286,8 @@ function readStateLocal(key) {
   }
 }
 
-// 半券の同一話キー（lib/tickets.js の epKey と同じ定義）。
-const ticketEpKey = (t) => `${t.title}|${t.season}|${t.episode}`;
+// 半券の同一話キー（lib/tickets.js の epKey と同じ定義：tmdbId 最優先・title フォールバック）。
+const ticketEpKey = (t) => `${t.tmdbId ?? t.title}|${t.season}|${t.episode}`;
 const MAX_TICKETS = 30; // lib/tickets.js と同値
 
 // 種類別マージ。デバイスA/Bで別々に育ったデータを last-write-wins で潰さず統合する。
