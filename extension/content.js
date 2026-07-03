@@ -476,7 +476,14 @@ function getEpisodeContext() {
     if (!text) return null;
     for (const pat of sePatterns) {
       const m = text.match(pat);
-      if (m) return { season: parseInt(m[1]), episode: parseInt(m[2]) };
+      if (m) {
+        const season = parseInt(m[1]);
+        const episode = parseInt(m[2]);
+        // 妥当性境界: 解像度(1280x720)や年号などの偽検出を弾く（Shadow走査で実害・2026-07-03）
+        if (season >= 1 && season <= 60 && episode >= 1 && episode <= 400) {
+          return { season, episode };
+        }
+      }
     }
     return null;
   }
@@ -513,7 +520,8 @@ function getEpisodeContext() {
   if (IS_DISNEY) {
     const parts = document.title.split('|').map((s) => s.trim()).filter(Boolean);
     const titleParts = parts.filter((p) => !/^disney\s*\+/i.test(p) && !BANNED_TITLES.test(p));
-    const t = titleParts[0] || '';
+    // 「スター・ウォーズ／…を視聴」の接尾辞を除去（付いたままだとTMDB検索が0件・2026-07-03実測）
+    const t = (titleParts[0] || '').replace(/を(視聴|再生)$/, '').trim();
     if (t && !BANNED_TITLES.test(t)) {
       const se = extractSE(document.title) || disneyShadowSE();
       return { dramaTitle: t, season: se?.season ?? null, episode: se?.episode ?? null };
