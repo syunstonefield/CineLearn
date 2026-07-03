@@ -143,6 +143,21 @@ export default function TicketCollectionScreen() {
                 m.posterPath = p;
                 if (hit.id) m.tmdbId = hit.id;
                 mdChanged = true;
+              } else if (hit.id) {
+                // 履歴にだけ存在する作品（マイリスト外）にも tmdbId を持たせる受け皿を作る。
+                // 2026-07-02 の同期初日にマイリストが巻き戻り、履歴のみの作品は tmdbId を
+                // どこからも引けず総話数が「—」のままだった（解決器が id を見つけても
+                // md.find が外れて捨てていた）。最小エントリを追加すれば entries が
+                // tmdbId を得て seasons 取得が走り、saveProfiles でクラウドにも治癒が伝搬する。
+                md.push({
+                  title: e.title,
+                  englishTitle: e.drama?.englishTitle || e.enTitle || e.title,
+                  tmdbId: hit.id,
+                  posterPath: p,
+                  type: e.isMovie ? 'movie' : 'tv',
+                  genre: e.genre || '',
+                });
+                mdChanged = true;
               }
             } catch {
               /* 取得失敗は無視（onError フォールバックで頭文字表示） */
