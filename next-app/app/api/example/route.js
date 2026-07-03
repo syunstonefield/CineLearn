@@ -67,15 +67,36 @@ function allowedOrigin(req) {
 }
 
 // タイトル文字列 → TMDB ID（拡張は ID を持たないためここで解決）。失敗・曖昧は null。
+// タイトル文字列から TMDB ID を解決する。配信サービスの表示タイトルは
+// 「スター・ウォーズエピソード3／シスの復讐」のように区切り無しで詰まっていたり
+// サブタイトルが付いたりして、TMDB のあいまい検索が空振りする（2026-07-03 実測で確定）。
+// そこで複数の候補クエリを順に試し、最初に当たった ID を採用する。
+function titleQueryCandidates(title) {
+  const t = (title || '').trim();
+  if (!t) return [];
+  const cands = [t];
+  // 区切り（全角/半角スラッシュ・コロン・波ダッシュ・パイプ）を空白へ正規化
+  const spaced = t.replace(/[／/:：|｜〜~–—-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (spaced && spaced !== t) cands.push(spaced);
+  // 区切りで分割した各セグメント（長い順）＝サブタイトル単独が最も当たりやすい
+  const segs = t.split(/[／/:：|｜]+/).map((s) => s.trim()).filter((s) => s.length >= 2);
+  segs.sort((a, b) => b.length - a.length).forEach((s) => cands.push(s));
+  // 重複除去（順序保持）
+  return [...new Set(cands)];
+}
+
 async function resolveTmdbId(title, isMovie) {
-  try {
-    const data = await tmdb(
-      isMovie ? { action: 'search_movie', query: title } : { action: 'search', query: title }
-    );
-    return data?.results?.[0]?.id || null;
-  } catch {
-    return null;
+  const action = isMovie ? 'search_movie' : 'search';
+  for (const query of titleQueryCandidates(title)) {
+    try {
+      const data = await tmdb({ action, query });
+      const id = data?.results?.[0]?.id;
+      if (id) return id;
+    } catch {
+      /* この候補は失敗＝次の候補へ */
+    }
   }
+  return null;
 }
 
 // vocab_cache を anon で読む（公開読み）。
