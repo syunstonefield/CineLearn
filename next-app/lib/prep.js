@@ -3,7 +3,7 @@
 // UI を持たない小関数群に閉じる（PrepQuiz / PrepLaunch / VocabScreen から使う）。
 
 import { getWordVariants, exampleContainsWord } from './subtitles';
-import { loadSrs } from './storage';
+import { loadSrs, isMastered } from './storage';
 import { queueStatePush } from './supabase';
 
 const CEFR_ORDER = ['A2', 'B1', 'B2', 'C1', 'C2'];
@@ -32,8 +32,10 @@ function isQuizEligible(w) {
 //   フォールバック: 3未満なら「example有」のみ（含有チェックを緩める）で補い、
 //                   それでも足りなければ最終的に 0〜2 問で返す（無理に作問しない）。
 // 返り値は元配列の語オブジェクト（参照）をそのまま。重複語は除外。
-export function selectQuizWords(words, max = 3) {
-  const list = Array.isArray(words) ? words : [];
+export function selectQuizWords(words, max = 3, srs = null) {
+  // srs を渡すとマスター済み語を候補から除外（他作品で習得済みの語に予習枠を使わない・#7b）。
+  const notMastered = (w) => !srs || !isMastered(srs[(w.word || '').toLowerCase()]);
+  const list = (Array.isArray(words) ? words : []).filter(notMastered);
   const seen = new Set();
   const take = (cands) => {
     for (const w of cands) {

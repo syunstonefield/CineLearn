@@ -149,8 +149,16 @@ function ReviewCard({ word: w, idx, total, flipped, onFlip, onRate }) {
       <div className="review-counter">
         {idx + 1} / {total}
       </div>
-      {/* 本文（単語＋意味＋例文）＝画面中央に配置。採点/確認ボタンは下端(review-card-actions)。 */}
-      <div className="review-card-body">
+      {/* 本文（単語＋意味＋例文）＝画面中央に配置。採点/確認ボタンは下端(review-card-actions)。
+          カード本文のタップでも意味を表示できる（片手操作・2026-07-03 実使用フィードバック#1。
+          🔊等のボタンは除外。スワイプは移動量で click が抑止されるため干渉しない）。 */}
+      <div
+        className="review-card-body"
+        onClick={(e) => {
+          if (flipped || e.target.closest('button')) return;
+          onFlip();
+        }}
+      >
         <div className="review-word-big">
           {w.word}
           <button

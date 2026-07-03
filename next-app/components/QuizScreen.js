@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
-import { updateHistoryScore, updateHistoryQuizData, loadHistory } from '@/lib/storage';
+import { updateHistoryScore, updateHistoryQuizData, loadHistory, loadSrs, isMastered } from '@/lib/storage';
 import { generateQuiz } from '@/lib/vocab';
 
 // 既存 screen-5（renderQuiz / answer / renderScore）の再現。
@@ -34,7 +34,12 @@ export default function QuizScreen() {
     }
 
     let cancelled = false;
-    generateQuiz(drama, words, season, episode, settings.testTiers || ['core', 'advanced']).then(
+    // 他の作品/過去の学習でマスター済みの語は出題しない（既知の再テストは時間の無駄・
+    // 2026-07-03 実使用フィードバック#7b）。除外で5問組めない時だけ全語にフォールバック。
+    const srsAll = loadSrs();
+    const unmastered = words.filter((w) => !isMastered(srsAll[(w.word || '').toLowerCase()]));
+    const quizPool = unmastered.length >= 5 ? unmastered : words;
+    generateQuiz(drama, quizPool, season, episode, settings.testTiers || ['core', 'advanced']).then(
       ({ quizData: qd, rawQuiz }) => {
         if (cancelled) return;
         if (rawQuiz.length) {

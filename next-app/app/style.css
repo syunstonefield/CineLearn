@@ -5735,3 +5735,6 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
 
 /* クイズ対象外の階層注記（薄い表示の理由を明示・実使用フィードバック#3） */
 .tier-excluded-note { font-size: 10px; color: var(--text-muted); white-space: nowrap; }
+
+/* コレクション: 覚えた/マスター合計（控えめな1行・#11） */
+.tc-substats { margin: 4px 0 0; font-size: 12px; color: var(--text-muted); }

@@ -84,7 +84,7 @@ export default function PrepWalkthrough() {
     markPrepped(epId, seat);
     clearPos(posKey); // 次回は最初から
     closePrepWalk();
-    const quizWords = selectQuizWords(words, 3); // 0語でも完了は成立（半券は出る）。
+    const quizWords = selectQuizWords(words, 3, loadSrs()); // 0語でも完了は成立（半券は出る）。マスター済みは出題しない(#7b)
     openPrepLaunch({
       variant: 'quiz',
       seat,

@@ -7,6 +7,7 @@ import GenLoading from './GenLoading';
 import {
   loadSrs,
   loadHistory,
+  isDue,
   skipWord,
   unskipWord,
   episodeStats,
@@ -725,7 +726,7 @@ export default function VocabScreen() {
 
   // 主：「今夜のリハーサル」＝クイズ3問を起動（出題語を自動選定→3問を組む）。
   const startPrepQuiz = () => {
-    const quizWords = selectQuizWords(sortedVocab, 3);
+    const quizWords = selectQuizWords(sortedVocab, 3, srs); // マスター済みは出題しない(#7b)
     if (!quizWords.length) {
       // 出題できる実セリフ例文が無ければクイズは諦め、最小の watch ramp へ逃がす。
       openPrepLaunch({ variant: 'watch', ...prepMeta });
@@ -1057,11 +1058,18 @@ export default function VocabScreen() {
                   onClick={() =>
                     // 復習カードの出所明示用に、各語へ作品/話メタ（_src）を付帯（Dashboard経路と同形）。
                     // sortedVocab＋追加した単語(reviewWords)を渡す＝追加語も今日の復習に含める。
+                    // isDue で絞る＝「{stats.due}単語」表示と中身を一致させ、マスター済み
+                    // （他作品で習得済み含む）や今日復習済みを出さない（#7b）。
                     openReview(
-                      reviewWords.map((w) => ({
-                        ...w,
-                        _src: { title: drama.title, season, episode, type: drama.type },
-                      }))
+                      reviewWords
+                        .filter((w) => {
+                          const e = srs[w.word.toLowerCase()];
+                          return !e || isDue(e);
+                        })
+                        .map((w) => ({
+                          ...w,
+                          _src: { title: drama.title, season, episode, type: drama.type },
+                        }))
                     )
                   }
                 >

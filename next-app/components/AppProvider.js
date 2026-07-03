@@ -581,10 +581,14 @@ export default function AppProvider({ children }) {
 
   // 学習画面に居る間だけ、選択中ドラマに時間を帰属させるための参照（作品別学習時間）。
   const studyDramaRef = useRef(null);
+  // 全体学習時間も「学習画面に居る間」だけ計測する（コレクション/設定の閲覧は含めない・
+  // 2026-07-03 実使用フィードバック#13。それまでは前景の全時間を積算していた）。
+  const studyingRef = useRef(false);
   useEffect(() => {
     const studying =
       screen === 'vocab' || screen === 'quiz' || !!reviewWords || !!prepQuiz || !!prepLaunch || !!prepWalk;
     studyDramaRef.current = studying && drama ? drama.title : null;
+    studyingRef.current = studying;
   }, [screen, drama, reviewWords, prepQuiz, prepLaunch, prepWalk]);
 
   // 学習時間（今から計測）: アプリを前景で開いている時間を秒で積算する（過去分は0）。
@@ -601,8 +605,8 @@ export default function AppProvider({ children }) {
       const now = Date.now();
       const delta = (now - last) / 1000;
       last = now;
-      if (delta > 0 && delta < 90) {
-        addStudySeconds(profile.id, delta); // 90秒超は離席→捨てる
+      if (delta > 0 && delta < 90 && studyingRef.current) {
+        addStudySeconds(profile.id, delta); // 90秒超は離席→捨てる。学習画面滞在中のみ加算
         if (studyDramaRef.current) addDramaStudySeconds(profile.id, studyDramaRef.current, delta);
       }
     };

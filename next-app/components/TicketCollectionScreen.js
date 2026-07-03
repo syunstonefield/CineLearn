@@ -190,6 +190,18 @@ export default function TicketCollectionScreen() {
   const totalStudiedEps = decorated.reduce((a, e) => a + e.studiedEps, 0);
   const studyTime = mounted ? formatStudyTime(getStudySeconds(profile?.id)) : '0分';
 
+  // 全作品合計の 覚えた/マスター（ヘッダ下の1行・2026-07-03 実使用フィードバック#11）。
+  const srsTotals = useMemo(() => {
+    if (!mounted) return { learned: 0, mastered: 0 };
+    let learned = 0;
+    let mastered = 0;
+    learningStatsByTitle(loadHistory()).forEach((v) => {
+      learned += v.learned;
+      mastered += v.mastered;
+    });
+    return { learned, mastered };
+  }, [mounted, reviewVersion, cloudVersion, wordbookVersion]);
+
   const onFav = (title) => setFavs(toggleFavorite(profile?.id, title));
   const fmtDate = (s) => (s || '').replace(/-/g, '.');
 
@@ -221,6 +233,11 @@ export default function TicketCollectionScreen() {
         <div className="tc-head">
           <h1 className="tc-h1">🎟 半券コレクション</h1>
           <p className="tc-sub">あなたが学習したドラマの記録です</p>
+          {srsTotals.learned + srsTotals.mastered > 0 && (
+            <p className="tc-substats">
+              📗 覚えた {srsTotals.learned} ・ ⭐ マスター {srsTotals.mastered}
+            </p>
+          )}
         </div>
 
         <div className="tc-stats">
