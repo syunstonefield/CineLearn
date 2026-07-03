@@ -1053,6 +1053,10 @@ function scheduleSeek(video, time) {
   // トレーリングデバウンス：押すたびにタイマーを延長し、指が止まってから
   // 1回だけシークする。超連打で currentTime を何度も叩いてバッファを壊し
   // スタール（リロード表示で停止）するのを防ぐ。
+  // Disney+ は1シークごとに必ず rebuffer（読み込み）が入るため、意図的な連打
+  // （300〜600ms間隔）でも1回に畳めるよう窓を長くする。navStart 連鎖は
+  // NAV_CHAIN_MS(1200ms)まで蓄積するので、この窓内の連打は最終位置へ1回だけ飛ぶ。
+  const debounceMs = IS_DISNEY ? 550 : 180;
   clearTimeout(seekDebounceTimer);
   seekDebounceTimer = setTimeout(() => {
     seekDebounceTimer = null;
@@ -1088,7 +1092,7 @@ function scheduleSeek(video, time) {
       }, 600);
     }
     if (v.paused) v.play().catch(() => {});
-  }, 180);
+  }, debounceMs);
 }
 
 // ── 機能2: 文単位の字幕コピー ────────────────────────────────────
