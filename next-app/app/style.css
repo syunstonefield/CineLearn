@@ -5586,11 +5586,11 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
 
 /* 右スタブの数字（ラベル TOTAL EPISODES / PROGRESS は画像） */
 .tcimg-eps {
-  position: absolute; left: 78.8%; width: 19%; top: 45%;
+  position: absolute; left: 75.8%; width: 19%; top: 45%;
   text-align: center; font-size: 6.4cqw; font-weight: 800; color: #2c241e; line-height: 1;
 }
 .tcimg-prog {
-  position: absolute; left: 78.1%; width: 19%; top: 76%;
+  position: absolute; left: 75.1%; width: 19%; top: 76%;
   text-align: center; font-size: 4.2cqw; font-weight: 800; color: var(--accent); line-height: 1;
 }
 .tcimg-prog.is-partial { color: #d98324; }
