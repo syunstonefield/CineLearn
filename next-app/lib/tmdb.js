@@ -159,11 +159,12 @@ export const PROVIDER_MAP = {
 // （実ロゴは「非提携」方針に反する恐れがあるため使わない / mark は単なる頭文字）
 // 拡張の動作実態に合わせ Apple TV+/Hulu/U-NEXT は一旦UIから外す（2026-06-25・厳選）。
 // PROVIDER_MAP には残してあるので、再対応時はここに行を戻すだけでよい。
+// 視聴サービス選択の候補（拡張が対応するサービスのみ）。
+// YouTube は例文が付かず今は未対応のため除外（LP/オンボ/設定の「近日対応予定」方針と統一・2026-07-04）。
 export const ALL_SERVICES = [
   { name: 'Netflix', mark: 'N', color: '#E50914' },
   { name: 'Amazon Prime', mark: 'P', color: '#00A8E0' },
   { name: 'Disney+', mark: 'D', color: '#1A4BC4' },
-  { name: 'YouTube', mark: '▶', color: '#FF0000' },
 ];
 
 // 視聴可能サービス名の集合を取得する（loadDramaFromLibrary 内の providers 部分）
