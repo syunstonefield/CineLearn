@@ -5773,4 +5773,10 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
   .review-example-text { font-size: 16px; }
   .review-example-ja { font-size: 14px; }
   .review-example-source { font-size: 12px; }
+  /* 採点ボタン（😟🙂🔥）をPCで大きく＝押しやすく見やすく */
+  .review-card-actions { gap: 14px; }
+  .btn-rate { padding: 24px 12px; gap: 8px; border-radius: 16px; }
+  .btn-rate-emoji { font-size: 36px; }
+  .btn-rate-label { font-size: 19px; padding-bottom: 8px; }
+  .btn-rate-sub { font-size: 13px; }
 }
