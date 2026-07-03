@@ -194,7 +194,7 @@ function QuizHeader({ onBack }) {
         ← 単語リストに戻る
       </button>
       <div>
-        <div className="screen-title">視聴後テスト</div>
+        <div className="screen-title">視聴後クイズ</div>
         <div className="screen-desc">理解度と語彙を確認するクイズ</div>
       </div>
     </div>

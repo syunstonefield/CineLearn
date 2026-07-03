@@ -111,7 +111,7 @@ const MARKUP = `
           <div class="vs-icon">🎯</div>
           <div>
             <div class="vs-title">CineLearnのアプローチ</div>
-            <div class="vs-desc">視聴前に単語を予習 → ドラマに完全没入 → 科学的アルゴリズムで定着</div>
+            <div class="vs-desc">視聴前に単語を予習 → ドラマに完全没入 → 間隔反復で定着</div>
           </div>
         </div>
       </div>
@@ -186,7 +186,7 @@ const MARKUP = `
       <div class="feat-row flip">
         <div>
           <span class="feat-tag">Spaced Repetition</span>
-          <h3>忘却曲線に基づくアルゴリズムで確実に定着</h3>
+          <h3>忘れる前に、ちょうどいいタイミングで復習</h3>
           <p>
             科学的に実証されている「間隔反復法（SM-2アルゴリズム）」をシステムに組み込み。
             過去の記憶状態から「いつ復習すれば最も定着するか」を算出し、最適なタイミングで自動出題します。
@@ -322,7 +322,7 @@ const MARKUP = `
             <div style="width:36px;height:36px;background:#b8923a;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:18px">🎬</div>
             <div>
               <div style="color:#fff;font-size:13px;font-weight:600;margin-bottom:2px">次のエピソードを見る前に</div>
-              <div style="color:#aaa;font-size:12px;line-height:1.5">単語を復習してからドラマを楽しもう！学習効果が2倍に 📖✨</div>
+              <div style="color:#aaa;font-size:12px;line-height:1.5">観る前の3分復習。今夜のセリフが、聞き取れる 📖✨</div>
               <div style="color:#666;font-size:11px;margin-top:4px">CineLearn · 夜21:00</div>
             </div>
           </div>

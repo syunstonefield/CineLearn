@@ -1099,8 +1099,9 @@ export default function VocabScreen() {
           </>
         ) : (
           showVocab && sortedVocab.length > 0 && (
+            // 「テスト」の語感は避ける（視聴前のテスト予告は偶発学習を阻害しがち＝Montero Perez 2022系・docs/research-2026-07参照）
             <button className="btn-primary vocab-cta-sticky" onClick={() => goToQuiz()}>
-              テストを受ける →
+              クイズで腕試し →
             </button>
           )
         )}
