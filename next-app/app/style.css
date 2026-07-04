@@ -5709,7 +5709,14 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
   background: var(--border); border: 1px solid var(--border);
   border-radius: 14px; overflow: hidden; margin-bottom: 12px;
 }
-.wb-stat { background: var(--surface); padding: 12px 6px; text-align: center; }
+/* stats タイル＝絞り込みボタン（クリックでその分類だけ表示）。button リセット込み。 */
+.wb-stat {
+  background: var(--surface); padding: 12px 6px; text-align: center;
+  border: none; width: 100%; cursor: pointer; font-family: inherit;
+  transition: background 0.12s ease; position: relative;
+}
+.wb-stat:hover { background: color-mix(in srgb, var(--accent) 7%, var(--surface)); }
+.wb-stat.is-active { background: color-mix(in srgb, var(--accent) 14%, var(--surface)); box-shadow: inset 0 -3px 0 var(--accent); }
 .wb-stat-num { display: block; font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 800; line-height: 1.1; }
 .wb-stat-label { display: block; font-size: 11px; color: var(--text-muted); margin-top: 3px; }
 .wb-stat-learned .wb-stat-num { color: var(--green); }

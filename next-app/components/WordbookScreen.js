@@ -31,6 +31,7 @@ export default function WordbookScreen() {
   const pid = profile?.id;
   const [words, setWords] = useState(null); // null=読み込み中
   const [srs, setSrs] = useState({});
+  const [filter, setFilter] = useState('all'); // all|unlearned|learned|mastered（stats タイルで切替）
   const [syncing, setSyncing] = useState(false);
   const [exJa, setExJa] = useState({}); // word(小文字) → 例文の和訳（/api/translate）
   const [wordJa, setWordJa] = useState({}); // word(小文字) → 単語の和訳（意味を日本語に）
@@ -94,6 +95,20 @@ export default function WordbookScreen() {
     return { total: words.length, learned, mastered, unlearned: words.length - learned - mastered };
   })();
 
+  // stats タイルで選んだ状態だけに絞り込む（分類＝stats と同じ isMastered/isLearned 基準）。
+  const visibleWords = (() => {
+    if (!words) return words;
+    if (filter === 'all') return words;
+    return words.filter((w) => {
+      const e = srs[w.word.toLowerCase()];
+      if (filter === 'mastered') return isMastered(e);
+      if (filter === 'learned') return isLearned(e) && !isMastered(e);
+      return !isLearned(e) && !isMastered(e); // unlearned
+    });
+  })();
+  // タイルクリックで絞り込みトグル（同じタイルを再度押すと全件へ戻る）。
+  const toggleFilter = (key) => setFilter((f) => (f === key ? 'all' : key));
+
   const testTiers = settings.testTiers || ['core', 'advanced'];
   const handleSkip = (word, isSkip) => {
     isSkip ? unskipWord(word) : skipWord(word);
@@ -141,26 +156,44 @@ export default function WordbookScreen() {
           <>
             {stats && (
               <div className="wb-stats">
-                <div className="wb-stat">
+                <button
+                  type="button"
+                  className={'wb-stat' + (filter === 'all' ? ' is-active' : '')}
+                  onClick={() => setFilter('all')}
+                >
                   <span className="wb-stat-num">{stats.total}</span>
                   <span className="wb-stat-label">単語</span>
-                </div>
-                <div className="wb-stat">
+                </button>
+                <button
+                  type="button"
+                  className={'wb-stat' + (filter === 'unlearned' ? ' is-active' : '')}
+                  onClick={() => toggleFilter('unlearned')}
+                >
                   <span className="wb-stat-num">{stats.unlearned}</span>
                   <span className="wb-stat-label">未学習</span>
-                </div>
-                <div className="wb-stat wb-stat-learned">
+                </button>
+                <button
+                  type="button"
+                  className={'wb-stat wb-stat-learned' + (filter === 'learned' ? ' is-active' : '')}
+                  onClick={() => toggleFilter('learned')}
+                >
                   <span className="wb-stat-num">{stats.learned}</span>
                   <span className="wb-stat-label">覚えた</span>
-                </div>
-                <div className="wb-stat wb-stat-mastered">
+                </button>
+                <button
+                  type="button"
+                  className={'wb-stat wb-stat-mastered' + (filter === 'mastered' ? ' is-active' : '')}
+                  onClick={() => toggleFilter('mastered')}
+                >
                   <span className="wb-stat-num">{stats.mastered}</span>
                   <span className="wb-stat-label">マスター</span>
-                </div>
+                </button>
               </div>
             )}
             <div className="wb-toolbar">
-              <span className="wb-count">{words.length}単語</span>
+              <span className="wb-count">
+                {filter === 'all' ? `${words.length}単語` : `${visibleWords.length}単語（絞り込み中）`}
+              </span>
               <span className="wb-actions">
                 {loggedIn && (
                   <button className="btn-secondary wb-sync" disabled={syncing} onClick={onSync}>
@@ -173,7 +206,12 @@ export default function WordbookScreen() {
               </span>
             </div>
             <div className="vocab-list">
-              {words.map((w) => (
+              {visibleWords.length === 0 && (
+                <div className="empty-state" style={{ padding: '24px 8px' }}>
+                  この分類の単語はまだありません。
+                </div>
+              )}
+              {visibleWords.map((w) => (
                 <VocabItem
                   key={w.word}
                   word={{
