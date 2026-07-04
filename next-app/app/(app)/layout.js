@@ -1,8 +1,28 @@
 import '../style.css';
 
 export const metadata = {
+  // OGP画像URLを絶対化する基準。画像は public/og-image.png を明示指定
+  // （2ルートレイアウト構成のため規約ファイル方式は不可・(marketing)layout参照）。
+  metadataBase: new URL('https://cinelearn-next.vercel.app'),
   title: 'CineLearn — ドラマで英語を学ぶ',
   description: 'ドラマの字幕で英単語を予習・復習する語学学習アプリ',
+  openGraph: {
+    title: 'CineLearn — ドラマで英語を学ぶ',
+    description:
+      'Netflix・Amazon Prime・Disney+の字幕から、クリックだけで単語帳へ。間隔反復で復習まで。',
+    siteName: 'CineLearn',
+    type: 'website',
+    locale: 'ja_JP',
+    images: [
+      {
+        url: '/og-image.png',
+        width: 1200,
+        height: 630,
+        alt: 'CineLearn — ドラマで英語を学ぶ',
+      },
+    ],
+  },
+  twitter: { card: 'summary_large_image' },
   manifest: '/manifest.json',
   // ホーム画面に追加した時の表示（iOS/Android）
   appleWebApp: { capable: true, statusBarStyle: 'default', title: 'CineLearn' },
