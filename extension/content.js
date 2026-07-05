@@ -8,6 +8,16 @@ const CL_WORDS_KEY_BASE = 'cl_my_words';
 const ACCENT        = '#c17f3b';
 const LONG_PRESS_MS = 600; // 長押し判定ミリ秒
 
+// popup を innerHTML で組む際の HTML エスケープ。単語（クリックした字幕由来）・字幕行・
+// 第三者辞書API(dictionaryapi.dev)の定義文/品詞/発音を untrusted として無害化する。
+// content.js は ISOLATED world 実行のため <script> は発火しないが、onerror 等の
+// イベントハンドラは発火し得るので、外部・字幕由来の文字列は一律エスケープする。
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (c) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
+}
+
 // Amazon Prime Video は video.pause() の連続呼び出しで DRM 再生が落ちるため、
 // ホバー時の自動一時停止を無効化する（クリックでの単語保存は有効）
 const IS_AMAZON = /amazon\.|primevideo\./.test(location.hostname);
@@ -752,7 +762,7 @@ async function showWordPopup(word, sentence, rect) {
 
   popup.innerHTML = `
     <div style="padding:16px">
-      <div style="font-size:20px;font-weight:700;color:${ACCENT}">${word}</div>
+      <div style="font-size:20px;font-weight:700;color:${ACCENT}">${esc(word)}</div>
       <div style="font-size:12px;color:#aaa;margin-top:4px">辞書を検索中...</div>
     </div>`;
 
@@ -763,19 +773,19 @@ async function showWordPopup(word, sentence, rect) {
   popup.innerHTML = `
     <div style="padding:16px 16px 12px;border-bottom:1px solid #f0f0f0">
       <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px">
-        <span style="font-size:20px;font-weight:700;color:${ACCENT}">${word}</span>
-        <span style="font-size:12px;color:#aaa">${dict?.phonetic || ''}</span>
+        <span style="font-size:20px;font-weight:700;color:${ACCENT}">${esc(word)}</span>
+        <span style="font-size:12px;color:#aaa">${esc(dict?.phonetic || '')}</span>
       </div>
       ${dict?.pos ? `<span style="font-size:10px;color:#5b4fd4;
         border:1px solid rgba(91,79,212,0.3);border-radius:3px;padding:1px 6px">
-        ${dict.pos}</span>` : ''}
-      ${ja ? `<div style="margin-top:8px;font-size:15px;color:#222;font-weight:600;line-height:1.5">${ja}</div>` : ''}
+        ${esc(dict.pos)}</span>` : ''}
+      ${ja ? `<div style="margin-top:8px;font-size:15px;color:#222;font-weight:600;line-height:1.5">${esc(ja)}</div>` : ''}
       ${dict?.definition ? `<div style="margin-top:${ja ? '6px' : '8px'};font-size:13px;
-        color:${ja ? '#777' : '#333'};line-height:1.6">${dict.definition}</div>` : ''}
+        color:${ja ? '#777' : '#333'};line-height:1.6">${esc(dict.definition)}</div>` : ''}
       ${(!ja && !dict?.definition) ? `<div style="margin-top:8px;font-size:13px;color:#aaa">訳・定義が見つかりませんでした</div>` : ''}
       ${sentence ? `<div style="margin-top:8px;font-size:11px;color:#aaa;
         line-height:1.5;font-style:italic;
-        border-top:1px solid #f5f5f5;padding-top:8px">"${sentence}"</div>` : ''}
+        border-top:1px solid #f5f5f5;padding-top:8px">"${esc(sentence)}"</div>` : ''}
     </div>
     <div style="padding:10px 16px;display:flex;gap:8px">
       <button id="cl-save-btn" style="flex:1;background:${ACCENT};color:#fff;

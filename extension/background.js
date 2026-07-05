@@ -78,7 +78,15 @@ async function getFreshSession() {
           body: JSON.stringify({ refresh_token: session.refresh_token }),
         });
         const d = await res.json();
-        if (!d?.access_token) return null;
+        if (!d?.access_token) {
+          // refresh_token が無効（400/401）＝再ログインが必要。失効セッションを破棄して
+          // 使い捨て refresh_token の無駄撃ちを止める（bridge.js が Webアプリから再取得する）。
+          // ネットワーク一過性エラー（下の catch）ではセッションを温存する。
+          if (res.status === 400 || res.status === 401) {
+            await chrome.storage.local.remove(SB_SESSION_KEY);
+          }
+          return null;
+        }
         if (!d.expires_at) d.expires_at = Math.floor(Date.now() / 1000) + (d.expires_in || 3600);
         if (!d.user) d.user = session.user; // 応答に user が無い場合は引き継ぐ
         await chrome.storage.local.set({ [SB_SESSION_KEY]: d });
