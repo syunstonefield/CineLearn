@@ -39,10 +39,26 @@ export async function POST(req) {
     return json({ error: 'bad request' }, 400);
   }
 
+  const { action, query } = body;
+
+  // ID/番号はパスへそのまま埋め込むため整数へ強制（'123/../account' 等の
+  // 上流URLパス・クエリ注入を封じる。encodeURIComponent は '/' を素通しで代替にならない）。
+  // 鍵チェックより前に置き、不正入力は鍵の有無に関係なく 400 で弾く。
+  const intOrNull = (v) => {
+    if (v == null || v === '') return null;
+    const n = Number(v);
+    return Number.isInteger(n) && n > 0 ? n : NaN; // 不正値は NaN（下で400）
+  };
+  const tvId = intOrNull(body.tvId);
+  const movieId = intOrNull(body.movieId);
+  const season = intOrNull(body.season);
+  const episode = intOrNull(body.episode);
+  if ([tvId, movieId, season, episode].some((v) => Number.isNaN(v))) {
+    return json({ error: 'bad id' }, 400);
+  }
+
   const apiKey = process.env.TMDB_API_KEY;
   if (!apiKey) return json({ error: 'server_misconfigured' }, 500); // 鍵は設定済みの前提（旧経路フォールバックは撤去）
-
-  const { action, query, tvId, movieId, season, episode } = body;
 
   // エピソード/映画のあらすじ（日本語優先・無ければ英語にフォールバック）
   if (action === 'episode_overview') {

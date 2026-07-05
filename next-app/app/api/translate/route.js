@@ -9,6 +9,8 @@
 
 export const dynamic = 'force-dynamic';
 
+import { checkRateLimit } from '@/lib/ratelimit';
+
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://mndyexwdevkpdssglwpl.supabase.co';
 // translation_cache は service_role 専用（未設定ならキャッシュ無しでライブ翻訳は動く）。
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -119,6 +121,12 @@ async function azureTranslate(text) {
 
 export async function POST(req) {
   if (!allowedOrigin(req)) return json({ ja: null, error: 'forbidden' }, 403);
+
+  // 従量課金の翻訳API（DeepL/Azure）の濫用天井。単語帳を開くと未キャッシュ語を
+  // 一括翻訳するため上限は緩め（IP単位 120/分・1200/時）。Upstash 未設定なら no-op。
+  if (!(await checkRateLimit(req, 'translate', { perMin: 120, perHour: 1200 })).ok) {
+    return json({ ja: null, error: 'rate_limited' }, 429);
+  }
 
   let body = {};
   try {

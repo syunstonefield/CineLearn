@@ -57,8 +57,12 @@ export default function PrivacyPage() {
           性別・年代・健康状態などのセンシティブ情報は取得しません。
         </li>
         <li style={li}>
-          <strong>端末内データ：</strong>ログインせずに利用する場合、上記データはお使いの端末
-          （ブラウザの localStorage および拡張機能のストレージ）にのみ保存され、当社サーバーには送信されません。
+          <strong>端末内データ：</strong>ログインせずに利用する場合、学習データ（単語帳・進捗・
+          復習スケジュール等）はお使いの端末（ブラウザの localStorage および拡張機能のストレージ）に
+          のみ保存し、学習データそのものを当社サーバーに蓄積することはありません。
+          ただしログインの有無にかかわらず、機能提供のため、クリックした単語・作品名・照合用の字幕行を、
+          英語定義の取得・英日翻訳・例文の補完のために当社サーバーおよび下記の外部サービスへ
+          一時的に送信します（これらは応答の生成にのみ用い、学習データとして蓄積しません）。
         </li>
         <li style={li}>
           <strong>通知情報：</strong>復習リマインダーを有効にした場合、プッシュ通知の購読情報。
@@ -83,14 +87,18 @@ export default function PrivacyPage() {
       <ul>
         <li style={li}><strong>Supabase</strong>：クラウド保存および認証</li>
         <li style={li}><strong>TMDB（The Movie Database）</strong>：作品情報・画像の取得</li>
-        <li style={li}><strong>OpenSubtitles</strong>：学習用字幕の取得</li>
+        <li style={li}><strong>OpenSubtitles</strong>：学習用字幕・例文の取得</li>
+        <li style={li}>
+          <strong>Free Dictionary API（dictionaryapi.dev）</strong>：クリックした単語の
+          英語定義・発音の取得。クリックした単語のみを送信します。
+        </li>
         <li style={li}>
           <strong>Anthropic（Claude API）</strong>：単語リストの生成・AIによる文章処理。
           送信したテキストは Anthropic の方針により AI モデルの学習には利用されません。
         </li>
         <li style={li}>
-          <strong>Microsoft（Azure AI Translator）</strong>：単語の英日翻訳。
-          翻訳のためにクリックした単語のみを送信します（字幕の文は送信しません）。
+          <strong>DeepL / Microsoft（Azure AI Translator）</strong>：単語・短い例文の英日翻訳。
+          翻訳のためにクリックした単語または短い例文を送信します（設定に応じていずれかを利用します）。
         </li>
         <li style={li}><strong>Vercel</strong>：本サービスのホスティング</li>
         <li style={li}>

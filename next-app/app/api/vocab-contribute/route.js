@@ -151,9 +151,15 @@ export async function POST(req) {
         },
       ]),
     });
-    if (!res.ok) return json({ error: 'write-failed', status: res.status });
+    // 内部（Supabase/service_role）の生ステータス・例外文はクライアントに返さない
+    // （情報露出の遮断）。詳細はサーバーログにのみ残す。
+    if (!res.ok) {
+      console.error('[vocab-contribute] write failed', res.status);
+      return json({ error: 'write-failed' }, 500);
+    }
   } catch (err) {
-    return json({ error: 'exception', message: String(err) });
+    console.error('[vocab-contribute] exception', String(err));
+    return json({ error: 'write-failed' }, 500);
   }
 
   return json({ written: true, count: store.length });

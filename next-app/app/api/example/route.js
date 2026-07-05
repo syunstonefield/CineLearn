@@ -10,6 +10,7 @@
 
 export const dynamic = 'force-dynamic';
 
+import { checkRateLimit } from '@/lib/ratelimit';
 import { tmdb, searchSubtitles, downloadSubtitle } from '@/lib/api';
 import {
   getWordVariants,
@@ -160,6 +161,12 @@ function writeRawCache(key, id, s, e, raw) {
 
 export async function POST(req) {
   if (!allowedOrigin(req)) return json({ found: false, error: 'forbidden' }, 403);
+
+  // TMDB照会＋OS DL＋subtitle_raw_cache 書き込みを誘発する経路。字幕クリック起点の
+  // バックフィルなので上限は緩め（IP単位 60/分・600/時）。Upstash 未設定なら no-op。
+  if (!(await checkRateLimit(req, 'example', { perMin: 60, perHour: 600 })).ok) {
+    return json({ found: false, error: 'rate_limited' }, 429);
+  }
 
   let body = {};
   try {

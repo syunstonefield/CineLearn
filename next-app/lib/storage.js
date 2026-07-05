@@ -235,7 +235,8 @@ export function buildLibraryEntries(history, myDramas) {
   const byTitle = new Map((myDramas || []).map((d) => [d.title, d]));
   const map = new Map();
   history.forEach((h) => {
-    const key = h.drama.title;
+    const key = h.drama?.title;
+    if (!key) return; // drama 欠落エントリ（過去の同期巻き戻りの残骸）は走査対象外
     if (!map.has(key)) {
       // 履歴の drama は {title,genre,platform} のみ。myDramas 側の
       // tmdbId/posterPath/totalEpisodes を引き継ぎ、ポスター取得や進捗バーを出せるようにする。
@@ -527,7 +528,7 @@ export function saveHistoryEntry(ctx) {
   };
 
   const existingIdx = history.findIndex(
-    (h) => h.drama.title === entry.drama.title && h.season === entry.season && h.episode === entry.episode
+    (h) => h.drama?.title === entry.drama?.title && h.season === entry.season && h.episode === entry.episode
   );
 
   let resultId;

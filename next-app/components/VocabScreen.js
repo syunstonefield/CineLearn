@@ -213,7 +213,7 @@ export default function VocabScreen() {
       if (!drama) return false;
       const history = loadHistory();
       const entry = history.find(
-        (h) => h.drama.title === drama.title && h.season === se && h.episode === ep
+        (h) => h.drama?.title === drama.title && h.season === se && h.episode === ep
       );
       if (entry?.words?.length) {
         setVocab(entry.words);
