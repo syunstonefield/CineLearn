@@ -5848,3 +5848,53 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
   font-family: inherit;
 }
 .reunion-review-btn:active { transform: scale(0.99); }
+
+/* ── カタログ外＝リクエスト受付パネル（厳選カタログ戦略 §2-3）──────────
+   突き放さないトーン（「非対応」と言わない）。VocabScreen phase==='soon'。 */
+.soon-panel {
+  text-align: center;
+  padding: 36px 20px 28px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  margin: 16px 0;
+}
+.soon-emoji { font-size: 40px; margin-bottom: 10px; }
+.soon-title { font-size: 17px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+.soon-sub { font-size: 13px; color: var(--text-muted); line-height: 1.7; margin-bottom: 16px; }
+.soon-planned {
+  display: inline-block;
+  font-size: 13px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  border-radius: 999px;
+  padding: 6px 14px;
+  margin-bottom: 14px;
+}
+.soon-request-btn {
+  display: block;
+  width: 100%;
+  max-width: 360px;
+  margin: 0 auto 10px;
+  border: none;
+  border-radius: 12px;
+  padding: 13px 16px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+.soon-request-btn:disabled { background: color-mix(in srgb, var(--accent) 45%, var(--surface)); cursor: default; }
+.soon-votes { font-size: 12px; color: var(--text-muted); margin-bottom: 14px; }
+.soon-note {
+  font-size: 13px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: inline-block;
+  margin-top: 6px;
+}

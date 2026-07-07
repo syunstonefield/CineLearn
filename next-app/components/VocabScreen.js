@@ -33,6 +33,7 @@ import {
 import { generateSuperset, personalizeWords, fillMissingExampleJa } from '@/lib/vocab';
 import { fetchSharedVocab, contributeVocab } from '@/lib/api';
 import { getMyWordsForEpisode, resolveUnassignedWords, translateExtWordDefinitions } from '@/lib/words';
+import { getDeviceKey } from '@/lib/device';
 import { selectQuizWords, buildQuizQuestions, prepIntegrity, orderWordsForPrep, getPrepped } from '@/lib/prep';
 
 function speak(word) {
@@ -78,6 +79,9 @@ export default function VocabScreen() {
   const [statusText, setStatusText] = useState('シーズン情報を取得中...');
   const [phase, setPhase] = useState('loading'); // loading|empty|ready|generating|vocab|saved|nosub|error|choice
   const [message, setMessage] = useState(''); // empty-state / error text
+  // カタログ外（phase==='soon'）の作品リクエスト状態（docs/design-curated-catalog.md §3）。
+  // votes:null は票数取得不可（degrade）＝票数なしでリクエスト導線だけ出す。
+  const [catReq, setCatReq] = useState({ votes: null, planned: false, requested: false, sending: false });
   const [retryMsg, setRetryMsg] = useState('');
   const [genStatus, setGenStatus] = useState('単語を分析中...'); // 生成ローディングの状態文言
   const [genBtn, setGenBtn] = useState({ text: '予習をはじめる →', disabled: true, hidden: false });
@@ -543,15 +547,32 @@ export default function VocabScreen() {
       });
       if (myReq !== reqId.current) return; // 取得中にエピソードが切り替わったら破棄（別話の上書き防止）
 
-      if (cached?.blocked) {
-        // カタログ外 → 近日対応（生成しない）
+      if (cached?.blocked && localStorage.getItem('cl_catalog_admin') !== '1') {
+        // カタログ外 → リクエスト受付（生成しない）。cl_catalog_admin='1' の端末（運営）は
+        // 段階構築のため従来どおり生成に進む（週30話上限は運用で守る・legal R2）。
+        // 言葉の掟: 「非対応」と言わない・リクエストで巻き込む（user-voice討論）。
         setSubRaw('');
         setVocab([]);
         setSource('');
         setPrepFresh(false); // soon では下部3択を出さない
-        setMessage('🚧 この作品は近日対応予定です（カタログを順次拡大中）');
+        setMessage('');
         setPhase('soon');
         setGenBtn({ text: '予習をはじめる →', disabled: true, hidden: true });
+        // リクエスト状態（票数・対応予定・この端末の投票済み）を非同期で取得
+        setCatReq({ votes: null, planned: false, requested: false, sending: false });
+        try {
+          const res = await fetch('/api/catalog-request', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'status', tmdbId: drama.tmdbId, userKey: getDeviceKey() }),
+          });
+          const st = await res.json();
+          if (myReq === reqId.current && st && !st.error) {
+            setCatReq({ votes: st.votes ?? null, planned: !!st.planned, requested: !!st.requested, sending: false });
+          }
+        } catch {
+          /* 状態取得失敗はボタンだけ表示 */
+        }
         return;
       }
 
@@ -651,6 +672,32 @@ export default function VocabScreen() {
   const handleSkip = (word, isSkip) => {
     isSkip ? unskipWord(word) : skipWord(word);
     reloadSrs();
+  };
+  // カタログ外作品のリクエスト送信（1端末1票・重複はサーバ側 upsert で吸収）
+  const sendCatalogRequest = async () => {
+    if (!drama?.tmdbId || catReq.sending || catReq.requested) return;
+    setCatReq((c) => ({ ...c, sending: true }));
+    try {
+      const res = await fetch('/api/catalog-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'request',
+          tmdbId: drama.tmdbId,
+          title: drama.englishTitle || drama.title,
+          type: drama.type === 'movie' ? 'movie' : 'tv',
+          userKey: getDeviceKey(),
+        }),
+      });
+      const d = await res.json();
+      if (d?.ok) {
+        setCatReq((c) => ({ ...c, requested: true, votes: d.votes ?? c.votes, sending: false }));
+      } else {
+        setCatReq((c) => ({ ...c, sending: false }));
+      }
+    } catch {
+      setCatReq((c) => ({ ...c, sending: false }));
+    }
   };
   const handleCopyTime = (time) => {
     navigator.clipboard?.writeText(time).catch(() => {});
@@ -1082,6 +1129,32 @@ export default function VocabScreen() {
                 )
               )}
             </>
+          ) : phase === 'soon' ? (
+            /* カタログ外＝リクエスト受付。突き放さず巻き込む（design-curated-catalog §2-3）。
+               クリック保存は全作品で使えることを必ず添える（D0救済・改善4）。 */
+            <div className="soon-panel">
+              <div className="soon-emoji" aria-hidden="true">🎬</div>
+              <div className="soon-title">この作品は順次対応予定です</div>
+              <div className="soon-sub">リクエストの多い作品から、毎週カタログに追加しています</div>
+              {catReq.planned && <div className="soon-planned">📅 この作品は対応予定に入っています</div>}
+              <button
+                className="soon-request-btn"
+                disabled={catReq.requested || catReq.sending}
+                onClick={sendCatalogRequest}
+              >
+                {catReq.requested
+                  ? '✓ リクエストを受け付けました'
+                  : catReq.sending
+                    ? '送信中...'
+                    : '🙋 この作品をリクエストする'}
+              </button>
+              {catReq.votes != null && catReq.votes > 0 && (
+                <div className="soon-votes">現在 {catReq.votes} 票のリクエスト</div>
+              )}
+              <div className="soon-note">
+                🧩 字幕の単語クリック保存・意味表示は、この作品でも今すぐ使えます
+              </div>
+            </div>
           ) : (
             <div
               className="empty-state"

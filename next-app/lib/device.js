@@ -14,3 +14,18 @@ export function isMobileDevice() {
   }
   return false;
 }
+
+// 端末キー（作品リクエストの1端末1票などの匿名識別に使う・個人情報を含まない乱数）。
+// ログインの有無に依らず安定して同じ値を返す。localStorage 不可時は使い捨て値。
+export function getDeviceKey() {
+  try {
+    let k = localStorage.getItem('cl_device_key');
+    if (!k) {
+      k = 'd_' + Math.random().toString(36).slice(2, 12) + Date.now().toString(36);
+      localStorage.setItem('cl_device_key', k);
+    }
+    return k;
+  } catch {
+    return 'd_anon';
+  }
+}
