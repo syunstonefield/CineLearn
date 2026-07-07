@@ -217,6 +217,7 @@ export async function pullFromCloud(profileId = null) {
         phonetic: w.phonetic,
         pos: w.pos,
         definition: w.definition,
+        ja: w.ja ?? null, // 保存時の文脈訳（拡張v1.2.2から書き込み・旧行はnull）
         savedAt: w.saved_at,
         source: w.source,
         dramaTitle: w.drama_title,

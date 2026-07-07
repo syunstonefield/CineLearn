@@ -6,6 +6,7 @@ import VocabItem from './VocabItem';
 import { getActiveWords, deleteMyWord, clearAllWords } from '@/lib/words';
 import { loadSrs, skipWord, unskipWord, isLearned, isMastered, isStruggling } from '@/lib/storage';
 import { fetchJa } from '@/lib/jatranslate';
+import { fetchCtxJa } from '@/lib/ctxtranslate';
 import { speak } from '@/lib/speak';
 
 // マイ単語帳（ページ版・表示は単語リスト＝VocabItem と同じ折りたたみカード）。
@@ -64,10 +65,17 @@ export default function WordbookScreen() {
     (async () => {
       for (const w of words) {
         const wl = w.word.toLowerCase();
-        // 単語の和訳（意味を日本語に・英語定義しか無い保存語向け）
-        const wja = await fetchJa(w.word);
-        if (cancelled) return;
-        if (wja != null) setWordJa((m) => (m[wl] === wja ? m : { ...m, [wl]: wja }));
+        // 単語の和訳。優先順: ①保存時の文脈訳(w.ja・拡張v1.2.2〜) ②例文を添えた文脈訳
+        // (wordsense・多義語をその場面の意味に解決) ③従来の1語訳（文脈なし・最後の保険）。
+        // docs/design-context-translation.md
+        if (w.ja) {
+          setWordJa((m) => (m[wl] === w.ja ? m : { ...m, [wl]: w.ja }));
+        } else {
+          const sent0 = w.sentence || w.example;
+          const wja = (sent0 ? await fetchCtxJa(w.word, sent0) : null) ?? (await fetchJa(w.word));
+          if (cancelled) return;
+          if (wja != null) setWordJa((m) => (m[wl] === wja ? m : { ...m, [wl]: wja }));
+        }
         // 例文の和訳
         const sent = w.example || w.sentence;
         if (sent) {

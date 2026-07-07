@@ -11,7 +11,8 @@ const URL_ENV = 'UPSTASH_REDIS_REST_URL';
 const TOKEN_ENV = 'UPSTASH_REDIS_REST_TOKEN';
 
 // 既定上限：1 IP あたり 30/分・300/時（backlog の合意値・root 側と同値）。
-const DEFAULT_LIMITS = { perMin: 30, perHour: 300 };
+// perDay は任意（文脈訳 wordsense の「新規生成のみ日次50回」等・未指定なら日次無制限）。
+const DEFAULT_LIMITS = { perMin: 30, perHour: 300, perDay: 0 };
 
 // x-forwarded-for の先頭ホップを正規クライアント IP として使う（Vercel が付与）。
 function clientIp(req) {
@@ -26,23 +27,26 @@ export async function checkRateLimit(req, bucket, limits = {}) {
   const token = process.env[TOKEN_ENV];
   if (!url || !token) return { ok: true }; // env 未設定 → no-op
 
-  const { perMin, perHour } = { ...DEFAULT_LIMITS, ...limits };
+  const { perMin, perHour, perDay } = { ...DEFAULT_LIMITS, ...limits };
   const ip = clientIp(req);
   const now = Date.now();
   const minKey = `rl:${bucket}:${ip}:m:${Math.floor(now / 60000)}`;
   const hourKey = `rl:${bucket}:${ip}:h:${Math.floor(now / 3600000)}`;
+  const dayKey = `rl:${bucket}:${ip}:d:${Math.floor(now / 86400000)}`; // UTC日境界（JST厳密性は不要・上限器なので）
 
   try {
     // 固定ウィンドウ：INCR でカウントし、EXPIRE ... NX で初回ヒット時だけ TTL を張る。
+    const cmds = [
+      ['INCR', minKey],
+      ['EXPIRE', minKey, '60', 'NX'],
+      ['INCR', hourKey],
+      ['EXPIRE', hourKey, '3600', 'NX'],
+    ];
+    if (perDay > 0) cmds.push(['INCR', dayKey], ['EXPIRE', dayKey, '86400', 'NX']);
     const res = await fetch(`${url}/pipeline`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify([
-        ['INCR', minKey],
-        ['EXPIRE', minKey, '60', 'NX'],
-        ['INCR', hourKey],
-        ['EXPIRE', hourKey, '3600', 'NX'],
-      ]),
+      body: JSON.stringify(cmds),
     });
     if (!res.ok) return { ok: true }; // 非200 → fail-open
     const out = await res.json();
@@ -50,6 +54,10 @@ export async function checkRateLimit(req, bucket, limits = {}) {
     const hourCount = Number(out?.[2]?.result);
     if (Number.isFinite(minCount) && minCount > perMin) return { ok: false };
     if (Number.isFinite(hourCount) && hourCount > perHour) return { ok: false };
+    if (perDay > 0) {
+      const dayCount = Number(out?.[4]?.result);
+      if (Number.isFinite(dayCount) && dayCount > perDay) return { ok: false };
+    }
     return { ok: true };
   } catch {
     return { ok: true }; // Upstash 不調 → fail-open

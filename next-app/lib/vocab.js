@@ -224,10 +224,12 @@ ${levelSpec}
 ${tierGuide}
 
 【重要ルール】
-- drama の example は必ず字幕テキストから一字一句そのまま抜き出すこと（要約・言い換え禁止）
-- example には必ず "word" に指定した単語（または活用形）が含まれていること
-- example が見つからない場合は example を空文字 "" にすること（作文禁止）
-- plus の example のみ自由に作文してよいが、必ず "word" を含めること
+- キーは短縮形を使う: w=単語, l=レベル, p=品詞, d=日本語の意味, e=例文, t=tier
+- drama の e（例文）は必ず字幕テキストから一字一句そのまま抜き出すこと（要約・言い換え禁止）
+- e には必ず w に指定した単語（または活用形）が含まれていること
+- e が見つからない場合は e を空文字 "" にすること（作文禁止）
+- plus の e のみ自由に作文してよいが、必ず w を含めること
+- 例文の日本語訳は出力しないこと（別処理で行う）
 
 {
   "drama": [
@@ -244,21 +246,19 @@ ${tierGuide}
     特に次を積極的に拾うこと（字面の難易度が低くても学習者が調べたくなる）：
     句動詞・イディオム（例 pull off, get away with）、口語・スラング・比喩的な特殊用法（例 'shark'＝敏腕弁護士 のように、単語自体は平易でも文脈での意味を知らないと誤解する語を最優先）、現実に存在する分野の専門用語（法律・医療・ビジネス等。※架空世界の専門用語・造語は含めない）。
     重要：字幕の冒頭だけに偏らず、最初から最後まで全体を通して均等に選ぶこと。特に映画など長い字幕では、中盤・終盤に登場する単語も必ず含めること。
-    { "word": "英単語（原形）", "level": "A2|B1|B2|C1|C2", "pos": "品詞（名詞/動詞/形容詞/副詞）", "definition": "日本語の意味（簡潔に）", "example": "字幕からそのままコピーした文（必ずwordの活用形を含む。見つからなければ空文字。ダブルクォートは使わず、シングルクォートに置換すること）", "example_ja": "exampleの自然な日本語訳（exampleが空なら空文字）", "tier": "core"|"advanced"|"context" }
+    { "w": "英単語（原形）", "l": "A2|B1|B2|C1|C2", "p": "品詞（名詞/動詞/形容詞/副詞）", "d": "日本語の意味（簡潔に）", "e": "字幕からそのままコピーした文（必ずwの活用形を含む。見つからなければ空文字。ダブルクォートは使わず、シングルクォートに置換すること）", "t": "core"|"advanced"|"context" }
   ],
   "plus": [
     ${plusInstruction}
-    { "word": "英単語（原形）", "level": "A2|B1|B2|C1|C2", "pos": "品詞（名詞/動詞/形容詞/副詞）", "definition": "日本語の意味（簡潔に）", "example": "必ずwordを含む自然な英文を作文する（空にしないこと）", "example_ja": "exampleの自然な日本語訳（必須・空にしない）", "tier": "core"|"advanced"|"context" }
+    { "w": "英単語（原形）", "l": "A2|B1|B2|C1|C2", "p": "品詞（名詞/動詞/形容詞/副詞）", "d": "日本語の意味（簡潔に）", "e": "必ずwを含む自然な英文を作文する（空にしないこと）", "t": "core"|"advanced"|"context" }
   ]
 }`;
 
-  // 出力トークン上限。実測：実際の字幕（長い例文を逐語抽出）では 1単語あたり≈110〜120トークン。
+  // 出力トークン上限。短キー化＋example_ja分離（docs/design-context-translation.md §7）後の
+  // 見積り: 1単語あたり≈70〜80トークン（旧形式は≈110〜120）。安全側に90で計算。
   // Haiku 4.5 のモデル上限は 64K だが、api/claude.js は非ストリーミング＝Vercel関数の
-  // タイムアウトが実際の制約。現状 8000 は本番で稼働実績あり。スーパーセット(~90語)を
-  // 切り捨てずに出すため 12000 まで引き上げる（~100語相当）。万一タイムアウトするなら
-  // vercel.json の maxDuration 引き上げか生成2分割で対処。max_tokens は天井なので
-  // 大きくしても実出力ぶんしか課金されない。
-  const maxTokens = Math.min(12000, (genVocabCount + 25) * 120);
+  // タイムアウトが実際の制約。max_tokens は天井なので大きくしても実出力ぶんしか課金されない。
+  const maxTokens = Math.min(12000, (genVocabCount + 25) * 90);
   return { prompt, maxTokens };
 }
 
@@ -266,11 +266,36 @@ ${tierGuide}
 //  - 例文に単語が含まれなければ example を空に
 //  - ★柱1★ refineDramaWords：字幕に実在しない drama 語を除外・空exampleを字幕文で補完・
 //    実在する plus を drama へ再分類（Haikuが字幕外語を混ぜるのを決定的に排除）
+// 生成JSONの短キー（w/l/p/d/e/t＝出力トークン圧縮・§7）を従来のフィールド名へ復元する。
+// 旧形式（word等・過去キャッシュや旧プロンプトの出力）はそのまま通す＝後方互換。
+// example_ja は生成から分離済み＝常に空で初期化し、既存の fillMissingExampleJa が
+// 表示中のリスト分だけ後埋めする（スーパーセット全語を前払い翻訳しない）。
+function expandShortKeys(w) {
+  if (!w || typeof w !== 'object') return null;
+  if (w.word != null) return w; // 旧形式
+  if (w.w == null) return null; // 単語なしは捨てる
+  return {
+    word: w.w,
+    level: w.l || '',
+    pos: w.p || '',
+    definition: w.d || '',
+    example: w.e || '',
+    example_ja: '',
+    tier: w.t || 'core',
+  };
+}
+
 function parseAndRefineWords(text, subtitleText) {
   const rawJson = text.match(/\{[\s\S]*\}/)?.[0] || '{}';
   const parsed = extractWords(rawJson);
-  const dramaWords = (parsed.drama || []).map((w) => ({ ...w, source: 'drama', example_ja_ok: !!w.example_ja }));
-  const plusWords = (parsed.plus || []).map((w) => ({ ...w, source: 'plus', example_ja_ok: !!w.example_ja }));
+  const dramaWords = (parsed.drama || [])
+    .map(expandShortKeys)
+    .filter(Boolean)
+    .map((w) => ({ ...w, source: 'drama', example_ja_ok: !!w.example_ja }));
+  const plusWords = (parsed.plus || [])
+    .map(expandShortKeys)
+    .filter(Boolean)
+    .map((w) => ({ ...w, source: 'plus', example_ja_ok: !!w.example_ja }));
   let json = [...dramaWords, ...plusWords];
 
   json = json.map((w) => {
