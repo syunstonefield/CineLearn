@@ -12,6 +12,8 @@ import RecommendGrid from './RecommendGrid';
 import { getRecommendations } from '@/lib/recommended';
 import { isMobileDevice } from '@/lib/device';
 import { tmdb } from '@/lib/api';
+import { computeRecap } from '@/lib/reunion';
+import { getActiveWords } from '@/lib/words';
 import {
   DAILY_REVIEW_CAP,
   archiveDrama,
@@ -23,6 +25,7 @@ import {
   learningStatsByTitle,
   loadArchived,
   loadHistory,
+  loadSrs,
 } from '@/lib/storage';
 
 // まだ Next.js 版に移植していない画面・機能の仮ハンドラ
@@ -90,6 +93,25 @@ export default function Dashboard() {
       setPendingAddDrama(null);
     }
   }, [pendingAddDrama, setPendingAddDrama]);
+
+  // 視聴直後リキャップ（語彙リユニオンB案・lib/reunion.js）。
+  // getActiveWords が非同期（クラウド語の取り込みを含む）ため state で持つ。
+  // 課金導入時はここが「リユニオン初回発動」＝サブスクゲートの起点になる（今は全員に無料表示）。
+  const [recap, setRecap] = useState(null);
+  useEffect(() => {
+    if (!mounted) return;
+    let cancelled = false;
+    getActiveWords(profile?.id)
+      .then((words) => {
+        if (cancelled) return;
+        setRecap(computeRecap({ words, history: loadHistory(), srs: loadSrs() }));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted, profile, tick, cloudVersion, reviewVersion]);
 
   const myDramas = settings.myDramas || [];
 
@@ -303,6 +325,47 @@ export default function Dashboard() {
           openReview(getDueReviewWords().slice(0, DAILY_REVIEW_CAP));
         }}
       />
+
+      {/* 視聴直後リキャップ（語彙リユニオンB案）＝実際に起きた再会を祝う。
+          罪悪感UI禁止の原則: 祝いのみ・未視聴/未復習を責める文言は置かない。 */}
+      {recap && (
+        <div className="reunion-card">
+          <div className="reunion-head">
+            <span aria-hidden="true">🔁</span> 語との再会
+          </div>
+          <div className="reunion-lead">
+            『{recap.dramaTitle}』{recap.season != null && recap.episode != null ? ` S${recap.season}E${recap.episode}` : ''} で、
+            前に出会った <strong>{recap.items.length}語</strong> とまた会いました
+          </div>
+          <div className="reunion-words">
+            {recap.items.map((it) => (
+              <span key={it.word} className="reunion-chip">
+                <span className="reunion-word">{it.word}</span>
+                <span className="reunion-src">
+                  {it.past.via === 'history' && it.past.title
+                    ? `『${it.past.title}』${it.past.season != null ? `S${it.past.season}E${it.past.episode}` : ''}以来`
+                    : '復習で学習済み'}
+                </span>
+              </span>
+            ))}
+          </div>
+          <button
+            className="reunion-review-btn"
+            onClick={() => {
+              setCurrentHistoryId(null); // 横断復習（特定エピソードに紐づかない）
+              openReview(
+                recap.items.map((it) => ({
+                  ...it.entry,
+                  definition: it.ja || it.entry.definition || '',
+                  example: it.entry.example || it.entry.sentence || '',
+                }))
+              );
+            }}
+          >
+            この{recap.items.length}語をさっと復習する
+          </button>
+        </div>
+      )}
 
       {/* 累計の語彙進捗（別枠）。今日の復習とは分けて「これまでの積み上げ」を見せる。 */}
       <VocabProgress learned={data.totalLearned} mastered={data.totalMastered} total={data.totalWords} />

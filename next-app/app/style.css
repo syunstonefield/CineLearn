@@ -5787,3 +5787,64 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
   .btn-rate-label { font-size: 19px; padding-bottom: 8px; }
   .btn-rate-sub { font-size: 13px; }
 }
+
+/* ── 語との再会（語彙リユニオンB案・視聴直後リキャップ）─────────────────
+   ホーム上部に「実際に起きた再会」を祝うカード。lib/reunion.js + Dashboard.js。
+   祝いのトーン＝アクセント金を薄く敷く（罪悪感UI禁止・煽り文言なし）。 */
+.reunion-card {
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  border-radius: 16px;
+  padding: 16px 16px 14px;
+  margin: 0 0 14px;
+}
+.reunion-head {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+}
+.reunion-lead {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text);
+  margin-bottom: 10px;
+}
+.reunion-words {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.reunion-chip {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 6px 10px;
+}
+.reunion-word {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text);
+}
+.reunion-src {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.reunion-review-btn {
+  width: 100%;
+  border: none;
+  border-radius: 12px;
+  padding: 11px 12px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+.reunion-review-btn:active { transform: scale(0.99); }
