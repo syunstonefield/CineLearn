@@ -1154,6 +1154,9 @@ export default function VocabScreen() {
               <div className="soon-note">
                 🧩 字幕の単語クリック保存・意味表示は、この作品でも今すぐ使えます
               </div>
+              <button type="button" className="soon-browse-link" onClick={() => setScreen('recommend')}>
+                対応作品から予習をはじめる →
+              </button>
             </div>
           ) : (
             <div

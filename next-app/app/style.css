@@ -5898,3 +5898,15 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
   display: inline-block;
   margin-top: 6px;
 }
+.soon-browse-link {
+  display: block;
+  margin: 16px auto 0;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  text-decoration: underline;
+}
