@@ -1,8 +1,14 @@
 {
   "manifest_version": 3,
   "name": "CineLearn",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "ドラマで英語を学ぶ — Netflixなどの字幕単語をクリックして単語帳に保存",
+
+  "icons": {
+    "128": "icons/icon-128.png",
+    "192": "icons/icon-192.png",
+    "512": "icons/icon-512.png"
+  },
 
   "permissions": ["storage"],
 
@@ -30,7 +36,7 @@
         "https://www.amazon.co.jp/*/dp/*",
         "https://www.disneyplus.com/*"
       ],
-      "js": ["extension/content.js"],
+      "js": ["extension/common-words.js", "extension/content.js"],
       "css": ["extension/content.css"],
       "run_at": "document_start"
     },
@@ -55,6 +61,11 @@
 
   "background": {
     "service_worker": "extension/background.js"
+  },
+
+  "options_ui": {
+    "page": "extension/options.html",
+    "open_in_tab": false
   },
 
   "action": {

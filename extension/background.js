@@ -39,6 +39,19 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       .catch(() => sendResponse({ found: false }));
     return true; // 非同期レスポンス
   }
+  // 文脈つき語義（v1.2.2）: 字幕文＋語をサーバへ渡し「この場面では」の意味を得る。
+  // サーバ側（/api/claude mode:'wordsense'）でプロンプト構築・Haiku・sense_hash共有キャッシュ。
+  if (msg.type === 'CL_WORDSENSE') {
+    fetch(`${CINELEARN_NEXT_URL}/api/claude`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'wordsense', word: msg.word, sentence: msg.sentence }),
+    })
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status))))
+      .then(data => sendResponse(data))
+      .catch(() => sendResponse({ ja: null }));
+    return true; // 非同期レスポンス
+  }
   // 単語クリック時の英日訳（公式翻訳APIの鍵をサーバー側に隠すため /api/translate を代理）。
   // content.js から外部翻訳APIを直接叩かず、鍵はサーバーに保管・結果はサーバーでキャッシュする。
   if (msg.type === 'CL_TRANSLATE_JA') {
@@ -120,6 +133,8 @@ async function syncWordToSupabase(word) {
       phonetic:    word.phonetic    || '',
       pos:         word.pos         || '',
       definition:  word.definition  || '',
+      ja:          word.ja          || null, // v1.2.2: ポップアップで見せた文脈訳を固定保存
+      encounters:  Array.isArray(word.encounters) && word.encounters.length ? word.encounters : null, // v1.2.2: 遭遇ログ
       saved_at:    word.savedAt     || '',
       source:      word.source      || '',
       drama_title: word.dramaTitle  || '',

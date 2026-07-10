@@ -30,14 +30,24 @@ export function computeRecap({ words, history, srs, maxItems = 5, withinDays = 7
   for (const w of group) {
     const wl = w.word.toLowerCase();
     let past = null;
+    // 過去の遭遇⓪: 遭遇ログ（v1.2.2・クリック×クリックの再会＝最も具体的な場面メタ）
+    // 拡張が上書き保存時に旧メタを encounters へ退避したもの。最新の遭遇を採用。
+    if (Array.isArray(w.encounters) && w.encounters.length) {
+      const last = w.encounters[w.encounters.length - 1];
+      if (last?.dramaTitle) {
+        past = { via: 'click', title: last.dramaTitle, season: last.season ?? null, episode: last.episode ?? null };
+      }
+    }
     // 過去の遭遇①: 別エピソードの予習リストに載っていた語（場面メタつきで祝える）
-    for (const h of history || []) {
-      const t = h.drama?.title;
-      if (!t || !Array.isArray(h.words)) continue;
-      if (t === w.dramaTitle && h.season === w.season && h.episode === w.episode) continue;
-      if (h.words.some((x) => x?.word && x.word.toLowerCase() === wl)) {
-        past = { via: 'history', title: t, season: h.season ?? null, episode: h.episode ?? null };
-        break;
+    if (!past) {
+      for (const h of history || []) {
+        const t = h.drama?.title;
+        if (!t || !Array.isArray(h.words)) continue;
+        if (t === w.dramaTitle && h.season === w.season && h.episode === w.episode) continue;
+        if (h.words.some((x) => x?.word && x.word.toLowerCase() === wl)) {
+          past = { via: 'history', title: t, season: h.season ?? null, episode: h.episode ?? null };
+          break;
+        }
       }
     }
     // 過去の遭遇②: SRS に学習痕跡（復習・クイズ済み）がある語

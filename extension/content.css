@@ -204,3 +204,27 @@ html.cl-disabled #cl-controls { display: none !important; }
   cursor: pointer !important;
 }
 .cl-hint-ok:hover { background: #a96c2f !important; }
+
+/* ── v1.2.2 字幕マーカー（没入優先: 淡い下点線・停止中だけ強調）────────── */
+/* 保存済み語＝金の下点線 */
+.cl-word.cl-saved {
+  border-bottom: 2px dotted rgba(200, 169, 110, 0.5);
+  padding-bottom: 1px;
+}
+/* 難語（オプトイン）＝青系の下点線・保存済みより控えめ */
+.cl-word.cl-hard {
+  border-bottom: 2px dotted rgba(150, 168, 255, 0.38);
+  padding-bottom: 1px;
+}
+/* 一時停止中は少し明るく（学習の顔） */
+.cl-video-paused .cl-word.cl-saved { border-bottom-color: rgba(200, 169, 110, 0.95); }
+.cl-video-paused .cl-word.cl-hard  { border-bottom-color: rgba(150, 168, 255, 0.75); }
+/* 設定「しっかり」: 常時強め＋ほんのり背景 */
+.cl-marker-strong .cl-word.cl-saved {
+  border-bottom-color: rgba(200, 169, 110, 0.95);
+  background: rgba(200, 169, 110, 0.14);
+  border-radius: 3px;
+}
+.cl-marker-strong .cl-word.cl-hard {
+  border-bottom-color: rgba(150, 168, 255, 0.8);
+}

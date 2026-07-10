@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>CineLearn 設定</title>
+  <style>
+    body {
+      font-family: 'Hiragino Sans', system-ui, sans-serif;
+      width: 340px; margin: 0; padding: 18px 20px 20px;
+      color: #1a1612; background: #faf7f2;
+    }
+    h1 { font-size: 15px; margin: 0 0 14px; display: flex; align-items: center; gap: 8px; }
+    h1 img { width: 22px; height: 22px; border-radius: 5px; }
+    .row { margin-bottom: 16px; }
+    .label { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+    .hint { font-size: 11px; color: #8a8072; line-height: 1.6; margin-top: 4px; }
+    select {
+      width: 100%; padding: 8px 10px; font-size: 13px;
+      border: 1px solid #d8cfc0; border-radius: 8px; background: #fff;
+      font-family: inherit;
+    }
+    label.check { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+    .saved { font-size: 12px; color: #2e7d32; margin-top: 8px; visibility: hidden; }
+  </style>
+</head>
+<body>
+  <h1><img src="../icons/icon-128.png" alt="">CineLearn 字幕マーカー設定</h1>
+
+  <div class="row">
+    <div class="label">保存済み単語のマーカー</div>
+    <select id="marker-mode">
+      <option value="off">オフ（印を付けない）</option>
+      <option value="subtle">さりげなく（淡い下点線・停止中だけ強調）</option>
+      <option value="strong">しっかり（常に強調）</option>
+    </select>
+    <div class="hint">字幕の中で、すでに単語帳に保存した単語に印を付けます。再生中の没入を妨げない設計です。</div>
+  </div>
+
+  <div class="row">
+    <label class="check">
+      <input type="checkbox" id="hard-marker">
+      難しい単語にも印を付ける
+    </label>
+    <div class="hint">よく使われる4,000語に入らない単語（B2以上の目安）に控えめな印を付けます。判定は端末内で行い、外部送信はありません。</div>
+  </div>
+
+  <div class="saved" id="saved-note">✓ 保存しました</div>
+  <script src="options.js"></script>
+</body>
+</html>

@@ -18,6 +18,86 @@ function esc(s) {
   ));
 }
 
+// ── v1.2.2: 字幕マーカー設定と保存済み語セット ─────────────────────────
+// マーカーは没入優先の設計（docs/design-curated-catalog 討論・オーナー承認）:
+//   保存済み語=淡い金の下点線（デフォルト'subtle'）・一時停止中だけ少し強調・
+//   難語マーカー=デフォルトOFF（オプトイン）。設定は options.html → chrome.storage。
+let clMarkerMode = 'subtle'; // 'off' | 'subtle' | 'strong'
+let clHardMarker = false;    // 難語マーカー（CL_COMMON_WORDS 非掲載語に印）
+let savedWordsSet = new Set(); // 保存済み語（小文字）。マーカーと再会表示に使う
+
+function refreshSavedWords() {
+  if (!chrome.runtime?.id) return;
+  chrome.storage.local.get(['cl_active_profile'], (pr) => {
+    const pid = pr['cl_active_profile'];
+    const key = pid ? `${CL_WORDS_KEY_BASE}_${pid}` : CL_WORDS_KEY_BASE;
+    chrome.storage.local.get([key], (r) => {
+      const words = r[key] || [];
+      savedWordsSet = new Set(words.map((w) => String(w.word || '').toLowerCase()).filter(Boolean));
+      refreshMarkers(); // 表示中の字幕に反映
+    });
+  });
+}
+
+function loadMarkerSettings() {
+  if (!chrome.runtime?.id) return;
+  chrome.storage.local.get(['cl_marker_mode', 'cl_hard_marker'], (r) => {
+    clMarkerMode = r.cl_marker_mode || 'subtle';
+    clHardMarker = r.cl_hard_marker === '1';
+    document.documentElement.classList.toggle('cl-marker-strong', clMarkerMode === 'strong');
+    refreshMarkers();
+  });
+}
+
+// 単語spanにマーカークラスを付与（wrap時と設定変更時の両方から呼ばれる）
+function decorateWordSpan(span, word) {
+  span.classList.remove('cl-saved', 'cl-hard');
+  if (clMarkerMode === 'off') return;
+  const wl = String(word || '').toLowerCase();
+  if (savedWordsSet.has(wl)) {
+    span.classList.add('cl-saved');
+  } else if (
+    clHardMarker &&
+    typeof CL_COMMON_WORDS !== 'undefined' &&
+    wl.length >= 4 &&
+    !CL_COMMON_WORDS.has(wl)
+  ) {
+    span.classList.add('cl-hard');
+  }
+}
+
+// 表示中の全 cl-word にマーカーを付け直す（保存直後・設定変更時）
+function refreshMarkers() {
+  document.querySelectorAll('.cl-word').forEach((s) => decorateWordSpan(s, s.dataset.word));
+  if (clOverlay) clOverlay.querySelectorAll?.('.cl-word').forEach((s) => decorateWordSpan(s, s.dataset.word));
+}
+
+// ── v1.2.2: 文脈つき語義（「この場面では」訳）のクライアントキャッシュ ──
+// サーバ側は sense_hash キーの共有キャッシュ（/api/claude mode:'wordsense'）。
+// ここでは同一セッション内の再取得を避けるだけの軽いメモリキャッシュ。
+const ctxJaCache = new Map();
+function getCtxJaCached(word, sentence) {
+  const w = String(word || '').trim();
+  const s = String(sentence || '').trim();
+  if (!w || !s || !chrome.runtime?.id) return Promise.resolve(null);
+  const key = `${w.toLowerCase()}|${s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()}`;
+  if (ctxJaCache.has(key)) return Promise.resolve(ctxJaCache.get(key));
+  return new Promise((resolve) => {
+    try {
+      chrome.runtime.sendMessage({ type: 'CL_WORDSENSE', word: w, sentence: s }, (res) => {
+        if (chrome.runtime.lastError) return resolve(null);
+        const ja = res?.ja || null;
+        if (ja != null) ctxJaCache.set(key, ja);
+        resolve(ja);
+      });
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+const clSleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 // Amazon Prime Video は video.pause() の連続呼び出しで DRM 再生が落ちるため、
 // ホバー時の自動一時停止を無効化する（クリックでの単語保存は有効）
 const IS_AMAZON = /amazon\.|primevideo\./.test(location.hostname);
@@ -99,6 +179,7 @@ function handleDown(e) {
 
   longPressTriggered = false;
   clearTimeout(longPressTimer);
+  dragStartWordEl = wordEl; // v1.2.2 フレーズ保存: ドラッグ開始語を記録
 
   // 長押し：LONG_PRESS_MS 後にポップアップ表示
   longPressTimer = setTimeout(() => {
@@ -108,6 +189,43 @@ function handleDown(e) {
   }, LONG_PRESS_MS);
 }
 document.addEventListener('mousedown', handleDown, true);
+
+// ── v1.2.2: フレーズ／イディオムのドラッグ保存 ──────────────────────────
+// 単語Aでmousedown→単語Bでmouseup（同じ字幕行内）なら A〜B の連続語をフレーズとして
+// ポップアップ表示する（"pull off" "get away with" 等の句動詞・イディオム向け）。
+// ネイティブのテキスト選択には頼らない（mousedown で preventDefault 済みのため選択が発生
+// せず、動画オーバーレイ上の選択は不安定でもあるため、span の並びから自前で範囲を組む）。
+let dragStartWordEl = null;
+const PHRASE_MAX_WORDS = 6;
+
+function buildPhraseBetween(startEl, endEl) {
+  if (!startEl || !endEl || startEl === endEl) return null;
+  const sentence = startEl.dataset.sentence;
+  if (!sentence || endEl.dataset.sentence !== sentence) return null; // 同じ字幕行内のみ
+  // 同一行の cl-word を文書順で集め、開始〜終了の連続範囲を切り出す
+  const spans = [...document.querySelectorAll('.cl-word')].filter(
+    (s) => s.dataset.sentence === sentence
+  );
+  let i = spans.indexOf(startEl);
+  let j = spans.indexOf(endEl);
+  if (i < 0 || j < 0) return null;
+  if (i > j) [i, j] = [j, i]; // 右→左のドラッグも許容
+  const slice = spans.slice(i, j + 1);
+  if (slice.length < 2 || slice.length > PHRASE_MAX_WORDS) return null;
+  const phrase = slice.map((s) => s.dataset.word).join(' ');
+  // 範囲の外接矩形（ポップアップのアンカー）
+  const r0 = slice[0].getBoundingClientRect();
+  const r1 = slice[slice.length - 1].getBoundingClientRect();
+  const rect = {
+    top: Math.min(r0.top, r1.top),
+    bottom: Math.max(r0.bottom, r1.bottom),
+    left: Math.min(r0.left, r1.left),
+    right: Math.max(r0.right, r1.right),
+  };
+  rect.width = rect.right - rect.left;
+  rect.height = rect.bottom - rect.top;
+  return { phrase, sentence, rect };
+}
 
 // click / pointerup：プレイヤーの play/pause をブロックし、ポップアップを表示
 function handleClick(e) {
@@ -126,11 +244,24 @@ function handleClick(e) {
   // 長押しで既に表示済みの場合は何もしない
   if (longPressTriggered) {
     longPressTriggered = false;
+    dragStartWordEl = null;
     return;
   }
 
   clearTimeout(longPressTimer);
   longPressTimer = null;
+
+  // v1.2.2: 別の単語まで引っ張って離した＝フレーズ保存（同じ字幕行の連続語のみ）
+  if (dragStartWordEl && dragStartWordEl !== wordEl) {
+    const p = buildPhraseBetween(dragStartWordEl, wordEl);
+    dragStartWordEl = null;
+    if (p) {
+      showWordPopup(p.phrase, p.sentence, p.rect);
+      return;
+    }
+    // 範囲を組めなければ（行またぎ・長すぎ等）終点の単語として通常表示にフォールバック
+  }
+  dragStartWordEl = null;
 
   // 通常クリック：ポップアップ表示
   showWordPopup(wordEl.dataset.word, wordEl.dataset.sentence,
@@ -161,6 +292,12 @@ document.addEventListener('mousemove', (e) => {
       : (els.find(el => el.classList?.contains('cl-word')) || null);
 
     if (wordEl === hoveredWord) return;
+
+    // v1.2.2 フレーズ保存: ドラッグ中に開始語から離れたら長押しタイマーを打ち消す
+    // （引っ張っている最中に開始語の長押しポップアップが誤発火しないように）
+    if (dragStartWordEl && wordEl && wordEl !== dragStartWordEl) {
+      clearTimeout(longPressTimer);
+    }
 
     if (hoveredWord) hoveredWord.classList.remove('cl-word-active');
     hoveredWord = wordEl;
@@ -242,6 +379,23 @@ function init() {
 
   // ◀▶ タイムラインのローカル保持（後日再開時も観た範囲を巻き戻せる）
   initTimelinePersistence();
+
+  // v1.2.2 字幕マーカー: 設定と保存済み語をロードし、変更に追従する
+  loadMarkerSettings();
+  refreshSavedWords();
+  try {
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area !== 'local') return;
+      if (changes.cl_marker_mode || changes.cl_hard_marker) loadMarkerSettings();
+      // 単語保存・プロフィール切替で保存済みセットを更新
+      if (changes.cl_active_profile || Object.keys(changes).some((k) => k.startsWith(CL_WORDS_KEY_BASE))) {
+        refreshSavedWords();
+      }
+    });
+  } catch { /* 接続切れ時は無視 */ }
+  // 一時停止中はマーカーを少し強調（再生中=没入・停止中=学習の顔）
+  document.addEventListener('pause', () => document.documentElement.classList.add('cl-video-paused'), true);
+  document.addEventListener('play', () => document.documentElement.classList.remove('cl-video-paused'), true);
 
   // 字幕監視を開始
   if (IS_AMAZON) {
@@ -687,12 +841,30 @@ function saveWord(entry) {
       const words = result[key] || [];
       const idx = words.findIndex(w => w.word.toLowerCase() === entry.word.toLowerCase());
       if (idx >= 0) {
-        words[idx] = { ...words[idx], ...entry };
+        // v1.2.2 遭遇ログ: 別の場面での再保存は、上書きで消える前に旧メタを encounters へ退避。
+        // 「語との再会」カード（アプリ側 lib/reunion.js）がクリック×クリックの再会を
+        // 場面つきで祝えるようになる（語彙リユニオンの配管）。同一エピソードの保存し直しは積まない。
+        const old = words[idx];
+        const sameEp =
+          old.dramaTitle === entry.dramaTitle &&
+          old.season === entry.season &&
+          old.episode === entry.episode;
+        const prevEnc = Array.isArray(old.encounters) ? old.encounters : [];
+        const encounters = sameEp || !old.dramaTitle
+          ? prevEnc
+          : [...prevEnc, {
+              dramaTitle: old.dramaTitle,
+              season: old.season ?? null,
+              episode: old.episode ?? null,
+              savedAt: old.savedAt ?? null,
+              tsSec: old.tsSec ?? null,
+            }].slice(-10); // 直近10遭遇まで（肥大防止）
+        words[idx] = { ...old, ...entry, encounters };
       } else {
         words.unshift(entry);
       }
       // 1語≈300Bと軽量なため2000語まで保持（≈600KB。旧上限500は過剰に保守的だった）
-      chrome.storage.local.set({ [key]: words.slice(0, 2000) });
+      chrome.storage.local.set({ [key]: words.slice(0, 2000) }, () => refreshSavedWords());
     });
   });
 }
@@ -766,9 +938,31 @@ async function showWordPopup(word, sentence, rect) {
       <div style="font-size:12px;color:#aaa;margin-top:4px">辞書を検索中...</div>
     </div>`;
 
-  // 英英定義と英日訳を並行取得（どちらかが失敗してももう一方を表示）。
-  // 訳はホバーと同じキャッシュを使い、同じ語を二重に取得しない。
-  const [dict, ja] = await Promise.all([lookupWord(word), getJaCached(word)]);
+  // 英英定義・英日訳・文脈訳を並行取得。
+  // 文脈訳（「この場面では」）の段階表示: docs/design-context-translation.md §2
+  //   キャッシュ命中→即時 / ~800ms以内に来れば確定訳のみ表示（二度読みなし）/
+  //   遅ければ1語速報を薄色で暫定表示→1.5sタイムアウトで速報を無言で確定。
+  const dictP = lookupWord(word);
+  const quickP = getJaCached(word); // 1語速報（DeepL/Azure・文脈なし）
+  const ctxP = sentence ? getCtxJaCached(word, sentence) : Promise.resolve(null);
+
+  const ctxFast = await Promise.race([ctxP, clSleep(800).then(() => undefined)]);
+  const dict = await dictP;
+  let jaCtx = ctxFast || null;                       // 文脈訳（確定）
+  let jaQuick = jaCtx ? null : (await Promise.race([quickP, clSleep(300).then(() => undefined)])) || null;
+  let currentJa = jaCtx || jaQuick || null;          // 保存時に entry.ja に入る値
+
+  // 訳行のHTML（jaLine）。文脈訳=「この場面では」ラベル・速報暫定=薄色。
+  const jaLineHtml = () => {
+    if (jaCtx) {
+      return `<div id="cl-ja-line" style="margin-top:8px;font-size:15px;color:#222;font-weight:600;line-height:1.5">
+        <span style="font-size:10px;color:${ACCENT};border:1px solid ${ACCENT}55;border-radius:3px;padding:1px 5px;margin-right:6px;vertical-align:1px">この場面では</span>${esc(jaCtx)}</div>`;
+    }
+    if (jaQuick) {
+      return `<div id="cl-ja-line" style="margin-top:8px;font-size:15px;color:#999;font-weight:600;line-height:1.5">${esc(jaQuick)}</div>`;
+    }
+    return '';
+  };
 
   popup.innerHTML = `
     <div style="padding:16px 16px 12px;border-bottom:1px solid #f0f0f0">
@@ -779,10 +973,10 @@ async function showWordPopup(word, sentence, rect) {
       ${dict?.pos ? `<span style="font-size:10px;color:#5b4fd4;
         border:1px solid rgba(91,79,212,0.3);border-radius:3px;padding:1px 6px">
         ${esc(dict.pos)}</span>` : ''}
-      ${ja ? `<div style="margin-top:8px;font-size:15px;color:#222;font-weight:600;line-height:1.5">${esc(ja)}</div>` : ''}
-      ${dict?.definition ? `<div style="margin-top:${ja ? '6px' : '8px'};font-size:13px;
-        color:${ja ? '#777' : '#333'};line-height:1.6">${esc(dict.definition)}</div>` : ''}
-      ${(!ja && !dict?.definition) ? `<div style="margin-top:8px;font-size:13px;color:#aaa">訳・定義が見つかりませんでした</div>` : ''}
+      ${jaLineHtml()}
+      ${dict?.definition ? `<div style="margin-top:${currentJa ? '6px' : '8px'};font-size:13px;
+        color:${currentJa ? '#777' : '#333'};line-height:1.6">${esc(dict.definition)}</div>` : ''}
+      ${(!currentJa && !dict?.definition) ? `<div id="cl-ja-empty" style="margin-top:8px;font-size:13px;color:#aaa">訳・定義が見つかりませんでした</div>` : ''}
       ${sentence ? `<div style="margin-top:8px;font-size:11px;color:#aaa;
         line-height:1.5;font-style:italic;
         border-top:1px solid #f5f5f5;padding-top:8px">"${esc(sentence)}"</div>` : ''}
@@ -795,6 +989,39 @@ async function showWordPopup(word, sentence, rect) {
         border:none;padding:9px 14px;border-radius:10px;font-size:13px;
         cursor:pointer;font-family:inherit;">✕</button>
     </div>`;
+
+  // 文脈訳がまだなら残り時間（合計1.5s）だけ待って同じ位置で確定表示に差し替える。
+  // 締切後の到着は表示を差し替えない（「読んだ後に訳が変わる」不安を避ける・確定は一度だけ）。
+  // 到着分はメモリ/サーバキャッシュに残るので次回クリックは即時になる。
+  if (!jaCtx && sentence) {
+    const swapDeadline = Date.now() + 700; // 800ms は待機済み → 追加700ms（合計1.5s）
+    ctxP.then((late) => {
+      if (!late || Date.now() > swapDeadline) return;
+      jaCtx = late;
+      currentJa = late;
+      const line = document.getElementById('cl-ja-line');
+      const emptyLine = document.getElementById('cl-ja-empty');
+      const html = `<span style="font-size:10px;color:${ACCENT};border:1px solid ${ACCENT}55;border-radius:3px;padding:1px 5px;margin-right:6px;vertical-align:1px">この場面では</span>${esc(late)}`;
+      if (line) {
+        line.style.color = '#222';
+        line.innerHTML = html;
+      } else if (emptyLine) {
+        emptyLine.outerHTML = `<div id="cl-ja-line" style="margin-top:8px;font-size:15px;color:#222;font-weight:600;line-height:1.5">${html}</div>`;
+      }
+    });
+    // 速報がまだ間に合っていなければ遅延到着分も拾う（薄色のまま表示）
+    if (!jaQuick) {
+      quickP.then((q) => {
+        if (!q || jaCtx) return;
+        jaQuick = q;
+        if (!currentJa) currentJa = q;
+        const emptyLine = document.getElementById('cl-ja-empty');
+        if (emptyLine) {
+          emptyLine.outerHTML = `<div id="cl-ja-line" style="margin-top:8px;font-size:15px;color:#999;font-weight:600;line-height:1.5">${esc(q)}</div>`;
+        }
+      });
+    }
+  }
 
   document.getElementById('cl-save-btn').addEventListener('click', (e) => {
     e.stopImmediatePropagation();
@@ -815,6 +1042,7 @@ async function showWordPopup(word, sentence, rect) {
       phonetic:   dict?.phonetic || '',
       pos:        dict?.pos || '',
       definition: dict?.definition || '',
+      ja:         currentJa || '',  // ポップアップで見せた訳を固定保存（単語帳・復習と一致させる）
       savedAt:    new Date().toISOString().slice(0, 10), // ISO（アプリ側で表示変換）
       tsSec:      isFinite(_clickT) ? Math.round(_clickT) : null, // クリック時の再生位置（📍時刻表示用）
       source:     document.title.split(/[|\-–—]/)[0].trim(),
@@ -1442,6 +1670,7 @@ function wrapWordsInElement(el) {
         span.textContent      = part;
         span.dataset.word     = part.replace(/^'+|'+$/g, '');
         span.dataset.sentence = sentence;
+        decorateWordSpan(span, span.dataset.word); // v1.2.2 字幕マーカー（保存済み/難語）
         fragment.appendChild(span);
       } else {
         fragment.appendChild(document.createTextNode(part));
@@ -1546,6 +1775,7 @@ function buildOverlayWords(text) {
         span.className        = 'cl-word';
         span.dataset.word     = part.replace(/^'+|'+$/g, '');
         span.dataset.sentence = sentence;
+        decorateWordSpan(span, span.dataset.word); // v1.2.2 字幕マーカー（Amazon/Disneyオーバーレイ）
       }
       clOverlay.appendChild(span);
     });

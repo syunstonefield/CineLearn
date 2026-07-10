@@ -342,7 +342,7 @@ export default function Dashboard() {
               <span key={it.word} className="reunion-chip">
                 <span className="reunion-word">{it.word}</span>
                 <span className="reunion-src">
-                  {it.past.via === 'history' && it.past.title
+                  {it.past.title
                     ? `『${it.past.title}』${it.past.season != null ? `S${it.past.season}E${it.past.episode}` : ''}以来`
                     : '復習で学習済み'}
                 </span>

@@ -218,6 +218,7 @@ export async function pullFromCloud(profileId = null) {
         pos: w.pos,
         definition: w.definition,
         ja: w.ja ?? null, // 保存時の文脈訳（拡張v1.2.2から書き込み・旧行はnull）
+        encounters: Array.isArray(w.encounters) ? w.encounters : null, // 遭遇ログ（v1.2.2・再会カードの場面つき表示用）
         savedAt: w.saved_at,
         source: w.source,
         dramaTitle: w.drama_title,

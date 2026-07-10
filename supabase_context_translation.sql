@@ -43,3 +43,8 @@ ALTER TABLE my_words ADD COLUMN IF NOT EXISTS ja text;
 --   SELECT relrowsecurity FROM pg_class WHERE relname = 'translation_ctx_cache'; -- t
 --   SELECT column_name FROM information_schema.columns WHERE table_name='my_words' AND column_name='ja'; -- 1行
 --   /api/claude に {mode:'wordsense', word, sentence} を2回投げ、2回目が via:'cache' で返ること。
+
+-- ── ③ my_words.encounters 列追加（v1.2.2 遭遇ログ・2026-07-09追記）──
+-- 同じ語を別の場面で保存し直した時、上書きで消える旧メタ（作品/話数/時刻）の退避先。
+-- 「語との再会」カードがクリック×クリックの再会を場面つきで祝えるようになる（リユニオンの配管）。
+ALTER TABLE my_words ADD COLUMN IF NOT EXISTS encounters jsonb;
