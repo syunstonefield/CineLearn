@@ -136,6 +136,7 @@ const SUBTITLE_SELECTORS = [
 // UI 要素（DOMContentLoaded 後に作成）
 let toast = null;
 let popup = null;
+let popupToken = 0; // showWordPopup の世代番号（文脈訳の遅延到着を「開いている同じ語」にだけ反映するため）
 let clOverlay = null; // Amazon/Disney 字幕オーバーレイ（relocate が早期に参照するため先頭で宣言）
 let clControls       = null; // ◀ 📋 ▶ コントロール群
 let clMiniToast      = null; // コピー結果のミニトースト
@@ -1100,6 +1101,7 @@ function requestExampleBackfill(entry, lineText, isRetry = false) {
 // ─────────────────────────────────────────────────────────────────
 async function showWordPopup(word, sentence, rect) {
   if (!popup) return;
+  popupToken++; // 新しい表示世代（前の語あての遅延差し替えを無効化）
   hideHoverTip(); // 詳細ポップアップと重ねない
 
   // Netflix のオーバーレイが消える前に即座に取得
@@ -1181,13 +1183,15 @@ async function showWordPopup(word, sentence, rect) {
         cursor:pointer;font-family:inherit;">✕</button>
     </div>`;
 
-  // 文脈訳がまだなら残り時間（合計1.5s）だけ待って同じ位置で確定表示に差し替える。
-  // 締切後の到着は表示を差し替えない（「読んだ後に訳が変わる」不安を避ける・確定は一度だけ）。
-  // 到着分はメモリ/サーバキャッシュに残るので次回クリックは即時になる。
+  // 文脈訳が後から届いたら、このポップアップが同じ語で開いている限り自動で差し替える。
+  // （当初は1.5s締切で打ち切っていたが、コールドスタート時に「再クリックしないと
+  //   この場面での意味が出ない」ため、オーナー判断2026-07-11で常時自動更新に変更。
+  //   別の語のポップアップに切り替わった後は popupToken 不一致で反映しない。）
   if (!jaCtx && sentence) {
-    const swapDeadline = Date.now() + 700; // 800ms は待機済み → 追加700ms（合計1.5s）
+    const myToken = popupToken;
+    const stillMine = () => popupToken === myToken && popup && popup.style.display !== 'none';
     ctxP.then((late) => {
-      if (!late || Date.now() > swapDeadline) return;
+      if (!late || !stillMine()) return;
       jaCtx = late;
       currentJa = late;
       const line = document.getElementById('cl-ja-line');
@@ -1203,7 +1207,7 @@ async function showWordPopup(word, sentence, rect) {
     // 速報がまだ間に合っていなければ遅延到着分も拾う（薄色のまま表示）
     if (!jaQuick) {
       quickP.then((q) => {
-        if (!q || jaCtx) return;
+        if (!q || jaCtx || !stillMine()) return;
         jaQuick = q;
         if (!currentJa) currentJa = q;
         const emptyLine = document.getElementById('cl-ja-empty');
