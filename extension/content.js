@@ -179,7 +179,9 @@ function handleDown(e) {
 
   longPressTriggered = false;
   clearTimeout(longPressTimer);
-  dragStartWordEl = wordEl; // v1.2.2 フレーズ保存: ドラッグ開始語を記録
+  // v1.2.2 フレーズ保存: ドラッグ開始点を記録（行内位置で保持＝再ラップ耐性）
+  dragStart = captureDragStart(wordEl);
+  dragOverWordEl = null;
 
   // 長押し：LONG_PRESS_MS 後にポップアップ表示
   longPressTimer = setTimeout(() => {
@@ -195,23 +197,41 @@ document.addEventListener('mousedown', handleDown, true);
 // ポップアップ表示する（"pull off" "get away with" 等の句動詞・イディオム向け）。
 // ネイティブのテキスト選択には頼らない（mousedown で preventDefault 済みのため選択が発生
 // せず、動画オーバーレイ上の選択は不安定でもあるため、span の並びから自前で範囲を組む）。
-let dragStartWordEl = null;
+// 実機フィードバック(2026-07-11)による堅牢化:
+//   ・開始点は要素でなく「行テキスト＋行内位置」で保持＝ドラッグ中に字幕が再ラップされ
+//     span が差し替わっても範囲を復元できる
+//   ・単語間の空白や行末で離しても、最後に通過した単語を終点として補完する
+//   ・弾いた理由（行またぎ・語数超過）はミニトーストで知らせる（無言で消えない）
+let dragStart = null;      // { word, sentence, index } ドラッグ開始点（行内位置で保持）
+let dragOverWordEl = null; // ドラッグ中に最後に通過した単語（空白で離した時の終点補完）
 const PHRASE_MAX_WORDS = 6;
 
-function buildPhraseBetween(startEl, endEl) {
-  if (!startEl || !endEl || startEl === endEl) return null;
-  const sentence = startEl.dataset.sentence;
-  if (!sentence || endEl.dataset.sentence !== sentence) return null; // 同じ字幕行内のみ
-  // 同一行の cl-word を文書順で集め、開始〜終了の連続範囲を切り出す
-  const spans = [...document.querySelectorAll('.cl-word')].filter(
+function spansOfSentence(sentence) {
+  return [...document.querySelectorAll('.cl-word')].filter(
     (s) => s.dataset.sentence === sentence
   );
-  let i = spans.indexOf(startEl);
+}
+
+function captureDragStart(wordEl) {
+  const sentence = wordEl.dataset.sentence;
+  if (!sentence) return null;
+  const index = spansOfSentence(sentence).indexOf(wordEl);
+  return index < 0 ? null : { word: wordEl.dataset.word, sentence, index };
+}
+
+// 戻り値: { phrase, sentence, rect } | { error: 'line'|'toolong' } | null
+function buildPhraseFromDrag(start, endEl) {
+  if (!start || !endEl) return null;
+  if (endEl.dataset.sentence !== start.sentence) return { error: 'line' }; // 行またぎ
+  const spans = spansOfSentence(start.sentence);
+  if (!spans.length || start.index >= spans.length) return null; // 字幕が消えた
+  let i = start.index;
   let j = spans.indexOf(endEl);
-  if (i < 0 || j < 0) return null;
+  if (j < 0) return null;
+  if (i === j) return null; // 同一語＝通常クリック扱い
   if (i > j) [i, j] = [j, i]; // 右→左のドラッグも許容
   const slice = spans.slice(i, j + 1);
-  if (slice.length < 2 || slice.length > PHRASE_MAX_WORDS) return null;
+  if (slice.length > PHRASE_MAX_WORDS) return { error: 'toolong' };
   const phrase = slice.map((s) => s.dataset.word).join(' ');
   // 範囲の外接矩形（ポップアップのアンカー）
   const r0 = slice[0].getBoundingClientRect();
@@ -224,7 +244,7 @@ function buildPhraseBetween(startEl, endEl) {
   };
   rect.width = rect.right - rect.left;
   rect.height = rect.bottom - rect.top;
-  return { phrase, sentence, rect };
+  return { phrase, sentence: start.sentence, rect };
 }
 
 // click / pointerup：プレイヤーの play/pause をブロックし、ポップアップを表示
@@ -235,8 +255,13 @@ function handleClick(e) {
   if (clientX == null) return;
   const els    = document.elementsFromPoint(clientX, clientY);
   if (isOwnUI(els[0])) return; // 自前UI上のクリックは横取りしない（OK等のボタンを生かす）
-  const wordEl = els.find(el => el.classList?.contains('cl-word'));
-  if (!wordEl) return;
+  let wordEl = els.find(el => el.classList?.contains('cl-word'));
+  // v1.2.2 フレーズ保存: 単語間の空白・行末で離した場合は、直前に通過した単語を終点に補完
+  // （「離す場所が単語の上でないと何も出ない」問題の修正・2026-07-11実機フィードバック）
+  if (!wordEl && dragStart && dragOverWordEl && document.contains(dragOverWordEl)) {
+    wordEl = dragOverWordEl;
+  }
+  if (!wordEl) { dragStart = null; dragOverWordEl = null; return; }
 
   e.stopImmediatePropagation();
   e.preventDefault();
@@ -244,7 +269,8 @@ function handleClick(e) {
   // 長押しで既に表示済みの場合は何もしない
   if (longPressTriggered) {
     longPressTriggered = false;
-    dragStartWordEl = null;
+    dragStart = null;
+    dragOverWordEl = null;
     return;
   }
 
@@ -252,16 +278,25 @@ function handleClick(e) {
   longPressTimer = null;
 
   // v1.2.2: 別の単語まで引っ張って離した＝フレーズ保存（同じ字幕行の連続語のみ）
-  if (dragStartWordEl && dragStartWordEl !== wordEl) {
-    const p = buildPhraseBetween(dragStartWordEl, wordEl);
-    dragStartWordEl = null;
-    if (p) {
-      showWordPopup(p.phrase, p.sentence, p.rect);
-      return;
+  if (dragStart) {
+    const sameStart =
+      wordEl.dataset.sentence === dragStart.sentence &&
+      spansOfSentence(dragStart.sentence).indexOf(wordEl) === dragStart.index;
+    if (!sameStart) {
+      const p = buildPhraseFromDrag(dragStart, wordEl);
+      dragStart = null;
+      dragOverWordEl = null;
+      if (p?.phrase) {
+        showWordPopup(p.phrase, p.sentence, p.rect);
+        return;
+      }
+      // 弾いた理由を知らせてから終点の単語で通常表示にフォールバック（無言で消えない）
+      if (p?.error === 'toolong') showMiniToast(`フレーズは${PHRASE_MAX_WORDS}語までです`);
+      else if (p?.error === 'line') showMiniToast('フレーズは同じ行の中で選んでください');
     }
-    // 範囲を組めなければ（行またぎ・長すぎ等）終点の単語として通常表示にフォールバック
   }
-  dragStartWordEl = null;
+  dragStart = null;
+  dragOverWordEl = null;
 
   // 通常クリック：ポップアップ表示
   showWordPopup(wordEl.dataset.word, wordEl.dataset.sentence,
@@ -293,10 +328,16 @@ document.addEventListener('mousemove', (e) => {
 
     if (wordEl === hoveredWord) return;
 
-    // v1.2.2 フレーズ保存: ドラッグ中に開始語から離れたら長押しタイマーを打ち消す
-    // （引っ張っている最中に開始語の長押しポップアップが誤発火しないように）
-    if (dragStartWordEl && wordEl && wordEl !== dragStartWordEl) {
-      clearTimeout(longPressTimer);
+    // v1.2.2 フレーズ保存: ドラッグ中は通過した単語を終点候補として記録し、
+    // 開始語から離れたら長押しタイマーを打ち消す（引っ張り中の誤発火防止）
+    if (dragStart && wordEl) {
+      if (wordEl.dataset.sentence === dragStart.sentence) {
+        dragOverWordEl = wordEl;
+        const idx = spansOfSentence(dragStart.sentence).indexOf(wordEl);
+        if (idx !== dragStart.index) clearTimeout(longPressTimer);
+      } else {
+        clearTimeout(longPressTimer);
+      }
     }
 
     if (hoveredWord) hoveredWord.classList.remove('cl-word-active');
@@ -615,6 +656,114 @@ window.addEventListener('message', (e) => {
 // サービス名そのもの（作品名が取れなかった時の誤フォールバック）を弾く
 const BANNED_TITLES = /^(netflix|prime\s*video|amazon|disney\+?|apple\s*tv\+?|hulu|u-?next|youtube)$/i;
 
+const sePatterns = [
+  // 区切りは記号/空白のみ最大6文字（"Season 2 | Episode 5" のパイプ等は拾い、
+  // "Season 2 recap Episode 5" のような自然文は英字を許さず弾く）
+  /[Ss]eason\s*(\d+)[^A-Za-z0-9]{1,6}[Ee]pisode\s*(\d+)/,
+  /[Ss](\d+)\s*[:：]?\s*[Ee](\d+)/,   // "S1E1" / "S1:E1"（Netflix表記）
+  /(\d+)\s*[×x]\s*(\d+)/,
+  /シーズン\s*(\d+)[^\d]+エピソード\s*(\d+)/,
+  /シーズン\s*(\d+)[^\d]+第\s*(\d+)\s*話/,
+];
+
+function extractSE(text) {
+  if (!text) return null;
+  for (const pat of sePatterns) {
+    const m = text.match(pat);
+    if (m) {
+      const season = parseInt(m[1]);
+      const episode = parseInt(m[2]);
+      // 妥当性境界: 解像度(1280x720)や年号などの偽検出を弾く（Shadow走査で実害・2026-07-03）
+      if (season >= 1 && season <= 60 && episode >= 1 && episode <= 400) {
+        return { season, episode };
+      }
+    }
+  }
+  return null;
+}
+
+// Disney+ のプレイヤーUI（Shadow DOM）から S/E を拾う。タブタイトルには S/E が
+// 出ないため、これが無いとシリーズが映画扱いになり例文が付かない（2026-07-03実測）。
+function disneyShadowSE() {
+  const seen = new Set();
+  const scan = (root, depth) => {
+    if (!root || depth > 6) return null;
+    for (const el of root.querySelectorAll('*')) {
+      const sr = el.shadowRoot;
+      if (!sr || seen.has(sr)) continue;
+      seen.add(sr);
+      const se = extractSE(sr.textContent || '');
+      if (se) return se;
+      const deep = scan(sr, depth + 1);
+      if (deep) return deep;
+    }
+    return null;
+  };
+  try {
+    return scan(document, 0);
+  } catch {
+    return null;
+  }
+}
+
+// ── Disney+ の S/E 常時キャッシュ＋自己修復（マンダロリアンS2E5例文欠落の根本対策・2026-07-11）──
+//   S/E テキストはコントロールUI表示中しか Shadow DOM に無いことがあり、保存クリック時
+//   1回きりの走査では取り逃す → season=null で送られ /api/example が映画扱い
+//   → TMDB が誤作品（例:「マンダロリアン」→映画 The Mandalorian and Grogu）に解決
+//   → 例文が沈黙失敗する。対策は「取れた瞬間を捕まえてエピソード（URL）単位で覚える」
+//   ＋「S/E不明のまま保存された語を確定時に自己修復」の2段構え。
+let lastKnownSE = null;       // { season, episode, href, at }
+let _seHintNextScanAt = 0;    // 未確定時の全Shadow走査の間引き（findDisneyCaptionの150ms走査より遥かに軽い頻度）
+let _seHintForceGateAt = 0;   // force走査の最小間隔（pauseイベント＋paused遷移検知の二重発火抑制）
+const SE_HINT_SCAN_GAP_MS = 10000;
+
+function captureSEHint(force = false) {
+  if (!IS_DISNEY) return;
+  if (lastKnownSE && lastKnownSE.href === location.href) return; // このエピソードでは確定済み
+  const now = Date.now();
+  if (!force && now < _seHintNextScanAt) return;
+  if (force && now < _seHintForceGateAt) return;
+  _seHintForceGateAt = now + 800;
+  _seHintNextScanAt = now + SE_HINT_SCAN_GAP_MS;
+  const se = extractSE(document.title) || disneyShadowSE();
+  if (se) {
+    lastKnownSE = { season: se.season, episode: se.episode, href: location.href, at: now };
+    console.debug('[CL:SE] hint captured', lastKnownSE.season, lastKnownSE.episode);
+    flushPendingSEWords();
+  }
+}
+
+// S/E 不明のまま保存された語。S/E 確定時に season/episode を patch して例文を取り直す。
+let pendingSEWords = [];
+const PENDING_SE_MAX = 50;
+
+// 積んだら true（呼び出し元は即時バックフィルを遅延判断に切り替える）。同 href×同語は最新で置換。
+function queuePendingSEWord(entry, lineText) {
+  if (!IS_DISNEY || entry.season != null || !entry.dramaTitle) return false;
+  pendingSEWords = pendingSEWords.filter(
+    (p) => !(p.href === location.href && p.entry.word === entry.word)
+  );
+  pendingSEWords.push({ entry, lineText, href: location.href });
+  if (pendingSEWords.length > PENDING_SE_MAX) pendingSEWords.shift();
+  console.debug('[CL:SE] queued for self-heal (S/E unknown)', entry.word);
+  return true;
+}
+
+function flushPendingSEWords() {
+  if (!lastKnownSE) return;
+  const mine = pendingSEWords.filter((p) => p.href === lastKnownSE.href);
+  if (!mine.length) return;
+  pendingSEWords = pendingSEWords.filter((p) => p.href !== lastKnownSE.href);
+  mine.forEach((p, i) => {
+    const fixed = { ...p.entry, season: lastKnownSE.season, episode: lastKnownSE.episode };
+    console.debug('[CL:SE] self-heal retry', fixed.word, `S${fixed.season}E${fixed.episode}`);
+    // patchOnly: ユーザーが単語帳から削除済みの語をキュー経由で復活させない
+    saveWord(fixed, { patchOnly: true });
+    // 語間を空けて 60/分レート制限への一斉衝突を避ける
+    setTimeout(() => requestExampleBackfill(fixed, p.lineText), i * 500);
+  });
+}
+
 function getEpisodeContext() {
   // Netflix 内部メタが取れていれば最優先（DOMにタイトルが出ていない時の決定打）
   if (netflixMeta && netflixMeta.title && !BANNED_TITLES.test(netflixMeta.title.trim())) {
@@ -629,66 +778,38 @@ function getEpisodeContext() {
   let season    = null;
   let episode   = null;
 
-  const sePatterns = [
-    /[Ss]eason\s*(\d+)[\s:·•,]+[Ee]pisode\s*(\d+)/,
-    /[Ss](\d+)\s*[:：]?\s*[Ee](\d+)/,   // "S1E1" / "S1:E1"（Netflix表記）
-    /(\d+)\s*[×x]\s*(\d+)/,
-    /シーズン\s*(\d+)[^\d]+エピソード\s*(\d+)/,
-    /シーズン\s*(\d+)[^\d]+第\s*(\d+)\s*話/,
-  ];
-
-  function extractSE(text) {
-    if (!text) return null;
-    for (const pat of sePatterns) {
-      const m = text.match(pat);
-      if (m) {
-        const season = parseInt(m[1]);
-        const episode = parseInt(m[2]);
-        // 妥当性境界: 解像度(1280x720)や年号などの偽検出を弾く（Shadow走査で実害・2026-07-03）
-        if (season >= 1 && season <= 60 && episode >= 1 && episode <= 400) {
-          return { season, episode };
-        }
-      }
-    }
-    return null;
-  }
-
   // Disney+ は Shadow DOM で DOM セレクタが空振りするが、document.title に作品名が入る
   // （例: "ファインディング・ニモ | Disney+(ディズニープラス)"）。"|" で区切ってサービス名側
   //  （Disney+(ディズニープラス) 等）を捨て、先頭の作品名を採用する。S/E はシリーズなら
-  //  document.title から拾う（映画は null＝/api/example は映画扱い）。
-  // Disney+ のプレイヤーUI（Shadow DOM）から S/E を拾う。タブタイトルには S/E が
-  // 出ないため、これが無いとシリーズが映画扱いになり例文が付かない（2026-07-03実測）。
-  // 保存クリック時にだけ呼ばれるので全shadow走査でも実害なし。
-  function disneyShadowSE() {
-    const seen = new Set();
-    const scan = (root, depth) => {
-      if (!root || depth > 6) return null;
-      for (const el of root.querySelectorAll('*')) {
-        const sr = el.shadowRoot;
-        if (!sr || seen.has(sr)) continue;
-        seen.add(sr);
-        const se = extractSE(sr.textContent || '');
-        if (se) return se;
-        const deep = scan(sr, depth + 1);
-        if (deep) return deep;
-      }
-      return null;
-    };
-    try {
-      return scan(document, 0);
-    } catch {
-      return null;
-    }
-  }
-
+  //  document.title → Shadow DOM → 直近確定キャッシュ（lastKnownSE）の3段で拾う
+  //  （映画は null＝/api/example は映画扱い）。
   if (IS_DISNEY) {
     const parts = document.title.split('|').map((s) => s.trim()).filter(Boolean);
     const titleParts = parts.filter((p) => !/^disney\s*\+/i.test(p) && !BANNED_TITLES.test(p));
     // 「スター・ウォーズ／…を視聴」の接尾辞を除去（付いたままだとTMDB検索が0件・2026-07-03実測）
     const t = (titleParts[0] || '').replace(/を(視聴|再生)$/, '').trim();
     if (t && !BANNED_TITLES.test(t)) {
-      const se = extractSE(document.title) || disneyShadowSE();
+      let se = extractSE(document.title);
+      // 確定済みキャッシュがあれば全Shadow走査をスキップ（getEpisodeContext は保存時以外に
+      // VODアンカー・タイムラインキーからも呼ばれるため、毎回の走査は避ける）。未確定時の
+      // 走査も captureSEHint と同じ10秒間引きを共有する（映画＝永久に未確定でも走査し続けない）。
+      if (!se && lastKnownSE && lastKnownSE.href === location.href) se = lastKnownSE;
+      if (!se && Date.now() >= _seHintNextScanAt) {
+        _seHintNextScanAt = Date.now() + SE_HINT_SCAN_GAP_MS;
+        se = disneyShadowSE();
+        if (se) {
+          lastKnownSE = { season: se.season, episode: se.episode, href: location.href, at: Date.now() };
+          // ここで確定したら自己修復も発火させる（captureSEHint は確定後に早期returnするため、
+          // この経路が唯一の確定契機だと flush 契機が永久に来ない・レビュー指摘の必須修正）。
+          setTimeout(flushPendingSEWords, 0);
+        }
+      }
+      // 診断ログは値が変わった時だけ（毎ティックのスパム防止）
+      const seLabel = se ? `S${se.season}E${se.episode}` : 'S/E不明';
+      if (getEpisodeContext._lastLog !== t + seLabel) {
+        getEpisodeContext._lastLog = t + seLabel;
+        console.debug('[CL:SE] context', t, seLabel);
+      }
       return { dramaTitle: t, season: se?.season ?? null, episode: se?.episode ?? null };
     }
   }
@@ -832,41 +953,87 @@ function captureVodAnchor(rawText) {
 // ─────────────────────────────────────────────────────────────────
 // 単語保存（chrome.storage.local）
 // ─────────────────────────────────────────────────────────────────
-function saveWord(entry) {
+// 直列化チェーン: saveWord は get→merge→set の read-modify-write なので、連続呼び出し
+// （自己修復flushの複数語・保存直後のbackfillパッチ等）が並走すると後発が先発のパッチを
+// 含まない旧スナップショットで上書きする（ロストアップデート）。1本ずつ順に流す。
+let _saveChain = Promise.resolve();
+
+function saveWord(entry, opts = {}) {
   if (!chrome.runtime?.id) return; // 接続切れ（リロード後の残留タブ）では何もしない
-  chrome.storage.local.get(['cl_active_profile'], (profileResult) => {
-    const profileId = profileResult['cl_active_profile'];
-    const key = profileId ? `${CL_WORDS_KEY_BASE}_${profileId}` : CL_WORDS_KEY_BASE;
-    chrome.storage.local.get([key], (result) => {
-      const words = result[key] || [];
-      const idx = words.findIndex(w => w.word.toLowerCase() === entry.word.toLowerCase());
-      if (idx >= 0) {
-        // v1.2.2 遭遇ログ: 別の場面での再保存は、上書きで消える前に旧メタを encounters へ退避。
-        // 「語との再会」カード（アプリ側 lib/reunion.js）がクリック×クリックの再会を
-        // 場面つきで祝えるようになる（語彙リユニオンの配管）。同一エピソードの保存し直しは積まない。
-        const old = words[idx];
-        const sameEp =
-          old.dramaTitle === entry.dramaTitle &&
-          old.season === entry.season &&
-          old.episode === entry.episode;
-        const prevEnc = Array.isArray(old.encounters) ? old.encounters : [];
-        const encounters = sameEp || !old.dramaTitle
-          ? prevEnc
-          : [...prevEnc, {
-              dramaTitle: old.dramaTitle,
-              season: old.season ?? null,
-              episode: old.episode ?? null,
-              savedAt: old.savedAt ?? null,
-              tsSec: old.tsSec ?? null,
-            }].slice(-10); // 直近10遭遇まで（肥大防止）
-        words[idx] = { ...old, ...entry, encounters };
-      } else {
-        words.unshift(entry);
-      }
-      // 1語≈300Bと軽量なため2000語まで保持（≈600KB。旧上限500は過剰に保守的だった）
-      chrome.storage.local.set({ [key]: words.slice(0, 2000) }, () => refreshSavedWords());
-    });
-  });
+  _saveChain = _saveChain.then(() => new Promise((resolve) => {
+    let settled = false;
+    const done = () => { if (!settled) { settled = true; clearTimeout(guard); resolve(); } };
+    const guard = setTimeout(done, 3000); // コンテキスト失効等でコールバックが来ない時の解放弁
+    try {
+      chrome.storage.local.get(['cl_active_profile'], (profileResult) => {
+        const profileId = profileResult['cl_active_profile'];
+        const key = profileId ? `${CL_WORDS_KEY_BASE}_${profileId}` : CL_WORDS_KEY_BASE;
+        chrome.storage.local.get([key], (result) => {
+          const words = result[key] || [];
+          const idx = words.findIndex(w => w.word.toLowerCase() === entry.word.toLowerCase());
+          if (idx >= 0) {
+            // v1.2.2 遭遇ログ: 別の場面での再保存は、上書きで消える前に旧メタを encounters へ退避。
+            // 「語との再会」カード（アプリ側 lib/reunion.js）がクリック×クリックの再会を
+            // 場面つきで祝えるようになる（語彙リユニオンの配管）。同一エピソードの保存し直しは積まない。
+            const old = words[idx];
+            // どちらかの S/E が不明（検出失敗）なら「別の場面」と断定できない → 同一エピソード扱いに
+            // 倒す（ジャンク遭遇ログを積まない・既存例文を消さない。S/E確定後の自己修復で上書きされる。
+            // old側のnull許容は自己修復パッチ〔null→確定値〕を再会として誤計上しないため）。
+            const sameEp =
+              old.dramaTitle === entry.dramaTitle &&
+              ((old.season === entry.season && old.episode === entry.episode) ||
+                entry.season == null ||
+                old.season == null);
+            // 作品が変わった再保存では、旧作品の場面座標（S/E・時刻）を新タイトルに持ち越さない
+            const titleChanged = !!entry.dramaTitle && old.dramaTitle !== entry.dramaTitle;
+            const prevEnc = Array.isArray(old.encounters) ? old.encounters : [];
+            const encounters = sameEp || !old.dramaTitle
+              ? prevEnc
+              : [...prevEnc, {
+                  dramaTitle: old.dramaTitle,
+                  season: old.season ?? null,
+                  episode: old.episode ?? null,
+                  savedAt: old.savedAt ?? null,
+                  tsSec: old.tsSec ?? null,
+                }].slice(-10); // 直近10遭遇まで（肥大防止）
+            // 「取れなかった値で確定値を潰さない」マージ規則:
+            //   - null/undefined は既存値を守る（S/E検出失敗の再保存対策）。ただし作品が変わった時の
+            //     season/episode/tsSec は null をそのまま採用（旧作品のS/Eが新タイトルに残る虚偽を防ぐ）
+            //   - sentence:'' は別場面の意図的リセットのみ通し、同一エピソードでは既存例文を残す
+            //   - ja/phonetic/pos/definition の '' は取得失敗なので既存値を残す
+            const patch = {};
+            for (const [k, v] of Object.entries(entry)) {
+              if (v == null) {
+                if (titleChanged && (k === 'season' || k === 'episode' || k === 'tsSec')) patch[k] = null;
+                continue;
+              }
+              if (v === '') {
+                if (k === 'sentence') { if (sameEp && old.sentence) continue; }
+                else if ((k === 'ja' || k === 'phonetic' || k === 'pos' || k === 'definition') && old[k]) continue;
+              }
+              patch[k] = v;
+            }
+            words[idx] = { ...old, ...patch, encounters };
+          } else if (opts.patchOnly) {
+            // 自己修復/バックフィルの後追い更新は既存レコードの patch のみ。
+            // 削除済みの語を復活させない（ローカルにもクラウドにも再作成しない）。
+            done();
+            return;
+          } else {
+            words.unshift(entry);
+          }
+          // 1語≈300Bと軽量なため2000語まで保持（≈600KB。旧上限500は過剰に保守的だった）
+          chrome.storage.local.set({ [key]: words.slice(0, 2000) }, () => { refreshSavedWords(); done(); });
+          // クラウドには「マージ後の姿」を送る（呼び出し元の生 entry ではなく）。
+          // ローカルで守った既存値（例文・S/E・遭遇ログ）がクラウドで潰れる不一致を構造的に無くす。
+          const rec = idx >= 0 ? words[idx] : entry;
+          try {
+            chrome.runtime.sendMessage({ type: 'SAVE_WORD_TO_CLOUD', word: rec }).catch(() => {});
+          } catch {}
+        });
+      });
+    } catch { done(); }
+  }));
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -875,7 +1042,7 @@ function saveWord(entry) {
 //   /api/example（background 経由）から取得し、保存済みの同単語に後から埋める。
 //   不一致・字幕なし・TMDB未解決・通信失敗は bare（例文なし）のまま＝逆戻りさせない。
 // ─────────────────────────────────────────────────────────────────
-function requestExampleBackfill(entry, lineText) {
+function requestExampleBackfill(entry, lineText, isRetry = false) {
   if (!chrome.runtime?.id) return;
   const payload = {
     title:   entry.dramaTitle,
@@ -883,8 +1050,9 @@ function requestExampleBackfill(entry, lineText) {
     episode: entry.episode,
     word:    entry.word,
   };
-  // 複数一致の絞り込み用に現在の再生位置を添える。
-  const t = getActiveVideo()?.currentTime;
+  // 複数一致の絞り込み用に再生位置を添える。保存時に記録したクリック位置（entry.tsSec）を最優先
+  // （自己修復・429リトライは後から走るため「今の位置」だと ±45秒窓がずれる）。
+  const t = entry.tsSec ?? getActiveVideo()?.currentTime;
   if (isFinite(t)) payload.currentTimeSec = Math.round(t);
   // クリック語を含む「画面に出ている字幕行」をアンカーとして添える。サーバーはこれを OS 側の
   // 該当行特定（時計ズレに依存しない照合）にのみ使い、保存しない。画面字幕は端末側に保存しない
@@ -894,12 +1062,35 @@ function requestExampleBackfill(entry, lineText) {
   try {
     chrome.runtime.sendMessage({ type: 'CL_FETCH_EXAMPLE', payload }, (res) => {
       if (chrome.runtime.lastError) return;       // 接続切れ等は黙って諦める
+      // サイレント失敗の撲滅: 例文が付かない時に「どこで落ちたか」を必ず残す
+      // （TMDB未解決/映画扱い誤解決/字幕なし/アンカー不一致… 4回パッチを重ねた反省）。
+      console.debug(
+        '[CL:SE] backfill', payload.word,
+        payload.season != null ? `S${payload.season}E${payload.episode}` : '映画扱い(S/E無し)',
+        res?.found ? `✓ via:${res.via}` : `✗ reason:${res?.reason || 'unknown'}`
+      );
+      // 鮮度ガード: S/E不明のまま送った要求の結果は、その後 S/E が確定していたら破棄する。
+      // 映画扱い→誤作品（例: The Mandalorian and Grogu）解決の例文が、自己修復が取ってくる
+      // 正しい例文を後着で上書きするレースを塞ぐ（真の映画は S/E が確定しないので影響なし）。
+      if (IS_DISNEY && payload.season == null && lastKnownSE && lastKnownSE.href === location.href) {
+        console.debug('[CL:SE] backfill result discarded (S/E resolved after send)', payload.word);
+        return;
+      }
+      if (res && !res.found && res.reason === 'rate_limited' && !isRetry) {
+        const delay = 70000 + Math.floor(Math.random() * 20000); // ジッタ: 一斉リトライで再429を踏まない
+        setTimeout(() => {
+          // リトライ時点で S/E が確定していれば詰め直す（映画扱いのまま再送しない）
+          const e2 = (IS_DISNEY && entry.season == null && lastKnownSE && lastKnownSE.href === location.href)
+            ? { ...entry, season: lastKnownSE.season, episode: lastKnownSE.episode }
+            : entry;
+          requestExampleBackfill(e2, lineText, true);
+        }, delay);
+        return;
+      }
       if (!res || !res.found || !res.sentence) return;
       const updated = { ...entry, sentence: res.sentence };
-      saveWord(updated);                           // ローカルを patch（同単語を上書き）
-      try {
-        chrome.runtime.sendMessage({ type: 'SAVE_WORD_TO_CLOUD', word: updated }).catch(() => {});
-      } catch {}
+      // patchOnly: 応答が返る前にユーザーが語を削除していたら復活させない
+      saveWord(updated, { patchOnly: true }); // クラウド同期は saveWord がマージ後の姿で行う
     });
   } catch { /* 送信失敗は無視 */ }
 }
@@ -1050,13 +1241,26 @@ async function showWordPopup(word, sentence, rect) {
       season:     ctx.season,
       episode:    ctx.episode,
     };
-    saveWord(entry);
-    try {
-      chrome.runtime.sendMessage({ type: 'SAVE_WORD_TO_CLOUD', word: entry }).catch(() => {});
-    } catch {}
-    requestExampleBackfill(entry, sentence); // OS 由来の例文を非同期で補完（#3・画面字幕行をアンカーに）
+    // Disney+: ctx はポップアップを開いた瞬間のスナップショット。開いた時の pause で
+    // コントロールUIが出て S/E が確定していることが多いので、クリック時点の値で補正する。
+    if (IS_DISNEY && entry.season == null && lastKnownSE && lastKnownSE.href === location.href) {
+      entry.season = lastKnownSE.season;
+      entry.episode = lastKnownSE.episode;
+    }
+    saveWord(entry); // クラウド同期は saveWord がマージ後の姿で行う
+    const queued = queuePendingSEWord(entry, sentence); // Disney+でS/E不明のまま保存 → 確定時に自己修復
+    if (queued) {
+      // S/E不明: すぐ映画扱いで照会すると誤作品（例: The Mandalorian and Grogu）に解決し得る。
+      // 捕捉猶予を置き、まだ不明なら「真の映画」として従来経路で照会（確定済みなら flush が処理済み）。
+      setTimeout(() => {
+        if (lastKnownSE && lastKnownSE.href === location.href) return;
+        requestExampleBackfill(entry, sentence);
+      }, 5000);
+    } else {
+      requestExampleBackfill(entry, sentence); // OS 由来の例文を非同期で補完（#3・画面字幕行をアンカーに）
+    }
     closePopupAndResume();
-    const epInfo = ctx.season != null ? ` S${ctx.season}E${ctx.episode}` : '';
+    const epInfo = entry.season != null ? ` S${entry.season}E${entry.episode}` : '';
     showToast(`「${word}」を保存しました${epInfo} ✓`);
   });
 
@@ -1805,7 +2009,16 @@ function createDisneyOverlay() {
   });
   document.body.appendChild(clOverlay);
   setInterval(updateDisneyOverlay, 150);
+  // S/E ヒント捕捉: pause/play はコントロールUI（S/Eテキスト）が Shadow DOM に現れる瞬間。
+  // media イベントはバブリングしないためキャプチャ段で拾う（composed:false でもあるため
+  // video が light DOM にある現状のみ届く。Shadow 化への保険は updateDisneyOverlay の
+  // paused 遷移検知が担う）。pause は UI 描画を少し待つ。
+  document.addEventListener('pause', () => setTimeout(() => captureSEHint(true), 400), true);
+  document.addEventListener('play', () => captureSEHint(true), true);
 }
+
+// paused 状態の直近値（イベント伝播に依存しない S/E 捕捉トリガー用・150ms ループで検知）
+let _lastPausedState = null;
 
 // Shadow DOM を貫通して hive 字幕要素を探す（host はキャッシュし、次回以降は中だけ見て軽くする）
 function findDisneyCaption() {
@@ -1855,6 +2068,14 @@ function findDisneyTextEl(wrapper) {
 function updateDisneyOverlay() {
   if (!clOverlay) return;
   if (!clEnabled) { clOverlay.style.display = 'none'; return; } // OFF 時は隠す
+  // pause/play の composed:false 対策: paused 状態の遷移を検知して S/E 捕捉を試みる
+  // （コントロールUIが出る/消えるタイミングとほぼ一致。captureSEHint 側の force ゲートで
+  //   イベントリスナーとの二重発火は抑制される）
+  const vidForSE = getActiveVideo();
+  if (vidForSE && vidForSE.paused !== _lastPausedState) {
+    _lastPausedState = vidForSE.paused;
+    setTimeout(() => captureSEHint(true), 400);
+  }
   const cap = findDisneyCaption();
   if (!cap) {
     if (clOverlay.style.display !== 'none') { clOverlay.style.display = 'none'; lastOverlayText = ''; }
@@ -1867,6 +2088,7 @@ function updateDisneyOverlay() {
     lastOverlayText = text;
     buildOverlayWords(text);   // クリック可能な .cl-word を生成（Amazon と共通）
     recordCaptionBlock(text);  // ◀▶📋 用の字幕タイムラインに記録
+    captureSEHint();           // S/E 未確定なら間引きつきで走査（確定後は即 return）
   }
 
   // オーバーレイは「実際に字幕が表示されている要素」に重ねる。
