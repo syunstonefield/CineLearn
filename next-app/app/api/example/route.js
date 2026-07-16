@@ -159,25 +159,28 @@ function writeRawCache(key, id, s, e, raw) {
   }).catch(() => {});
 }
 
+// 例文が付かない時に「どこで落ちたか」を拡張の console から追えるよう、found:false には
+// 必ず reason を添える（Disney+ 例文欠落で4回パッチを重ねた原因＝全経路サイレント失敗の反省）。
+// reason は診断用の定数文字列のみ・字幕本文等は含まない。
 export async function POST(req) {
-  if (!allowedOrigin(req)) return json({ found: false, error: 'forbidden' }, 403);
+  if (!allowedOrigin(req)) return json({ found: false, error: 'forbidden', reason: 'forbidden' }, 403);
 
   // TMDB照会＋OS DL＋subtitle_raw_cache 書き込みを誘発する経路。字幕クリック起点の
   // バックフィルなので上限は緩め（IP単位 60/分・600/時）。Upstash 未設定なら no-op。
   if (!(await checkRateLimit(req, 'example', { perMin: 60, perHour: 600 })).ok) {
-    return json({ found: false, error: 'rate_limited' }, 429);
+    return json({ found: false, error: 'rate_limited', reason: 'rate_limited' }, 429);
   }
 
   let body = {};
   try {
     body = await req.json();
   } catch {
-    return json({ found: false });
+    return json({ found: false, reason: 'bad_request' });
   }
 
   const word = String(body.word || '').trim();
   const title = String(body.title || '').trim();
-  if (!word || !title) return json({ found: false });
+  if (!word || !title) return json({ found: false, reason: 'missing_params' });
 
   // S/E がある＝TV、無い＝映画扱い（拡張の getEpisodeContext は映画/未検出で season=null）。
   const hasSE =
@@ -188,7 +191,7 @@ export async function POST(req) {
   const e = hasSE ? Number(body.episode) : 0;
 
   const id = await resolveTmdbId(title, isMovie);
-  if (!id) return json({ found: false }); // TMDB 未解決 → 拡張は bare のまま
+  if (!id) return json({ found: false, reason: 'tmdb_unresolved', type }); // TMDB 未解決 → 拡張は bare のまま
 
   // ── 層1: vocab_cache の語一致（無料）──
   //   ★ drama 語のみを対象にする。drama の example は字幕の逐語文（= OpenSubtitles 引用/32条）だが、
@@ -226,7 +229,9 @@ export async function POST(req) {
   const near = Number(body.currentTimeSec);
   // 照合専用のアンカー。長さを制限して保存はしない（lineText は OS の行特定にのみ使う）。
   const anchorLine = String(body.lineText || '').slice(0, 300).trim();
-  if (!anchorLine && !isFinite(near)) return json({ found: false }); // 手がかり無し → bare（OS DL せず）
+  if (!anchorLine && !isFinite(near)) {
+    return json({ found: false, reason: 'no_anchor_no_near', tmdbId: id, type }); // 手がかり無し → bare（OS DL せず）
+  }
 
   const rawKey = `tmdb${id}:s${s}e${e}`;
   let raw = await readRawCache(rawKey);
@@ -235,11 +240,11 @@ export async function POST(req) {
       const results = await searchSubtitles(title, s, e, type, id);
       const sorted = selectSubtitleCandidates(results || [], isMovie, s, e);
       const fileId = sorted?.[0]?.attributes?.files?.[0]?.file_id;
-      if (!fileId) return json({ found: false });
+      if (!fileId) return json({ found: false, reason: 'no_subtitle_file', tmdbId: id, type });
       raw = await downloadSubtitle(fileId);
       if (raw) writeRawCache(rawKey, id, s, e, raw);
     } catch {
-      return json({ found: false }); // OS 不調・字幕なし → bare
+      return json({ found: false, reason: 'subtitle_fetch_failed', tmdbId: id, type }); // OS 不調・字幕なし → bare
     }
   }
 
@@ -250,7 +255,7 @@ export async function POST(req) {
     : null;
   const via = hit ? 'anchor' : 'raw';
   if (!hit && isFinite(near)) hit = findExampleForWord(raw, word, near, EXAMPLE_WINDOW_SEC);
-  if (!hit) return json({ found: false }); // アンカー不一致＋窓内該当なし → bare
+  if (!hit) return json({ found: false, reason: 'no_match', tmdbId: id, type }); // アンカー不一致＋窓内該当なし → bare
 
   return json({
     found: true,

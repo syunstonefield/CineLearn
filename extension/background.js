@@ -34,9 +34,15 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(msg.payload || {}),
     })
-      .then(r => (r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status))))
+      .then(r => {
+        if (r.ok) return r.json();
+        // 非2xxでも route.js が付けた reason（rate_limited/forbidden 等）を拡張のログへ透過する
+        return r.json()
+          .then(b => ({ found: false, reason: b?.reason || ('http_' + r.status) }))
+          .catch(() => ({ found: false, reason: 'http_' + r.status }));
+      })
       .then(data => sendResponse(data))
-      .catch(() => sendResponse({ found: false }));
+      .catch(() => sendResponse({ found: false, reason: 'network' }));
     return true; // 非同期レスポンス
   }
   // 文脈つき語義（v1.2.2）: 字幕文＋語をサーバへ渡し「この場面では」の意味を得る。
@@ -118,6 +124,31 @@ async function syncWordToSupabase(word) {
   const session = await getFreshSession();
   if (!session?.access_token || !session?.user?.id) return;
 
+  // my_words の一意キーは (user_id, word) で merge-duplicates は「送った列だけ」更新する。
+  // 値が取れなかった列（S/E検出失敗の season/episode・未取得の ja/encounters・空の drama_title）
+  // はキーごと省き、クラウド側に残っている正しい値を null/'' で潰さない
+  // （Disney+でS/E検出が失敗した再保存が、確定済みの season/episode を消していた）。
+  const row = {
+    user_id:    session.user.id,
+    word:       word.word,
+    sentence:   word.sentence   || '',
+    phonetic:   word.phonetic   || '',
+    pos:        word.pos        || '',
+    definition: word.definition || '',
+    saved_at:   word.savedAt    || '',
+    source:     word.source     || '',
+  };
+  if (word.ja) row.ja = word.ja; // v1.2.2: ポップアップで見せた文脈訳を固定保存
+  if (Array.isArray(word.encounters) && word.encounters.length) row.encounters = word.encounters; // v1.2.2: 遭遇ログ
+  // 場面座標（作品タイトル・S/E）は一組で送る。saveWord がマージ後の姿を渡してくるため、
+  // タイトル付きで S/E が null なのは「作品が変わった等で場面座標が本当に無い」＝クラウドも
+  // クリアするのが正（旧作品の S/E が新タイトルに残る虚偽レコードを防ぐ）。
+  if (word.dramaTitle) {
+    row.drama_title = word.dramaTitle;
+    row.season      = word.season  ?? null;
+    row.episode     = word.episode ?? null;
+  }
+
   await fetch(`${SUPABASE_URL}/rest/v1/my_words`, {
     method: 'POST',
     headers: {
@@ -126,20 +157,6 @@ async function syncWordToSupabase(word) {
       'Authorization': `Bearer ${session.access_token}`,
       'Prefer':        'resolution=merge-duplicates',
     },
-    body: JSON.stringify([{
-      user_id:     session.user.id,
-      word:        word.word,
-      sentence:    word.sentence    || '',
-      phonetic:    word.phonetic    || '',
-      pos:         word.pos         || '',
-      definition:  word.definition  || '',
-      ja:          word.ja          || null, // v1.2.2: ポップアップで見せた文脈訳を固定保存
-      encounters:  Array.isArray(word.encounters) && word.encounters.length ? word.encounters : null, // v1.2.2: 遭遇ログ
-      saved_at:    word.savedAt     || '',
-      source:      word.source      || '',
-      drama_title: word.dramaTitle  || '',
-      season:      word.season      ?? null,
-      episode:     word.episode     ?? null,
-    }]),
+    body: JSON.stringify([row]),
   });
 }
