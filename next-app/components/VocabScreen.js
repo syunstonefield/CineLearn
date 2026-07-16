@@ -25,6 +25,8 @@ import {
 import {
   fetchEpisodeSubtitle,
   getCachedRawSrt,
+  fetchRawSrtIfMissing,
+  findExampleForWord,
   subtitleCacheKey,
   computeTimestamps,
   attachBaseTimestamps,
@@ -32,7 +34,16 @@ import {
 } from '@/lib/subtitles';
 import { generateSuperset, personalizeWords, fillMissingExampleJa } from '@/lib/vocab';
 import { fetchSharedVocab, contributeVocab } from '@/lib/api';
-import { getMyWordsForEpisode, resolveUnassignedWords, translateExtWordDefinitions } from '@/lib/words';
+import {
+  getMyWordsForEpisode,
+  resolveUnassignedWords,
+  translateExtWordDefinitions,
+  addManualWord,
+  deleteMyWord,
+} from '@/lib/words';
+import { pushMyWord } from '@/lib/supabase';
+import { fetchJa } from '@/lib/jatranslate';
+import { fetchCtxJa } from '@/lib/ctxtranslate';
 import { getDeviceKey } from '@/lib/device';
 import { selectQuizWords, buildQuizQuestions, prepIntegrity, orderWordsForPrep, getPrepped } from '@/lib/prep';
 
@@ -56,6 +67,7 @@ export default function VocabScreen() {
     setSeason,
     episode,
     setEpisode,
+    rememberEpisode,
     setScreen,
     setQuizData,
     setCurrentHistoryId,
@@ -88,6 +100,10 @@ export default function VocabScreen() {
   const [vocab, setVocab] = useState([]);
   const [source, setSource] = useState('');
   const [extWords, setExtWords] = useState([]);
+  // #20 手動追加（スマホ等・拡張なしでこの話に単語を足す）
+  const [addWordText, setAddWordText] = useState('');
+  const [addBusy, setAddBusy] = useState(false);
+  const [addMsg, setAddMsg] = useState('');
   const [srs, setSrs] = useState({});
   const [mediaChoice, setMediaChoice] = useState(null); // {tv, movie}
   // タイプ（ドラマ/映画）確定・シーズン構築が済むまでエピソード選択枠を隠す
@@ -276,6 +292,7 @@ export default function VocabScreen() {
           definition: w.definition || '',
           example: w.sentence || '',
           example_ja: w.example_ja || '',
+          tsSec: w.tsSec ?? null, // 📍時刻（手動追加#20はローカルに保持・tsFor のフォールバックで表示）
           tier: w.tier || 'core',
           source: 'ext',
         }));
@@ -366,6 +383,7 @@ export default function VocabScreen() {
   const loadEpisode = useCallbackSafe(
     async (se, ep) => {
       const myReq = ++reqId.current;
+      rememberEpisode(drama?.title, se, ep); // #18: 最後に開いた S/E を作品ごとに記憶
       setVocab([]);
       setExtWords([]);
       setHistoryId(null);
@@ -385,7 +403,7 @@ export default function VocabScreen() {
       setGenBtn({ text: '読み込み中...', disabled: true, hidden: false });
       await preload(se, ep, myReq);
     },
-    [drama, checkSaved, preload]
+    [drama, checkSaved, preload, rememberEpisode]
   );
 
   // 解決済みタイトル情報（type/seasons 等）を state・drama・myDramas に反映する
@@ -437,6 +455,20 @@ export default function VocabScreen() {
     [drama]
   );
 
+  // マウント/タイプ確定時に開く S/E（#18）。ハードコード S1E1 ではなく、遷移元が設定した
+  // コンテキスト値（openDrama の「最後に開いた S/E」復元・半券のエピソード指定）を尊重し、
+  // 解決済みシーズン構成の範囲内に丸める（構成変更・別作品の残骸で範囲外なら S1E1 へ）。
+  // シーズン一覧は applyTitleInfo と同じ規則で info から直接導出する（setSeasons は非同期のため）。
+  const clampInitialSE = (info) => {
+    if (info?.type === 'movie') return { se: 1, ep: 1 };
+    const list = info
+      ? info.seasons || [{ season: 1, episodes: 10 }]
+      : [{ season: 1, episodes: 10 }, { season: 2, episodes: 10 }, { season: 3, episodes: 10 }];
+    const row = list.find((s) => s.season === season);
+    if (!row) return { se: 1, ep: 1 };
+    return { se: season, ep: episode >= 1 && episode <= (row.episodes || 1) ? episode : 1 };
+  };
+
   // ドラマ/映画の選択ボタンのクリック（通常のイベントハンドラ。
   // 以前の Promise+resolve 方式は StrictMode の二重実行でキャンセル済み実行に
   // resolve が束縛され「押しても無反応」になることがあったため廃止）。
@@ -455,11 +487,12 @@ export default function VocabScreen() {
       if (myReq !== reqId.current) return;
       applyTitleInfo(info);
       setSelectorReady(true); // タイプ確定・シーズン構築済み → 選択枠を表示
-      setSeason(1);
-      setEpisode(1);
-      await loadEpisode(1, 1);
+      const { se, ep } = clampInitialSE(info);
+      setSeason(se);
+      setEpisode(ep);
+      await loadEpisode(se, ep);
     },
-    [resolvePicked, applyTitleInfo, loadEpisode]
+    [resolvePicked, applyTitleInfo, loadEpisode, clampInitialSE]
   );
 
   // ── 画面マウント：タイトル情報取得 → シーズン構築 → 初回ロード ──
@@ -507,9 +540,10 @@ export default function VocabScreen() {
       if (cancelled || myReq !== reqId.current) return;
       applyTitleInfo(info);
       setSelectorReady(true); // タイプ確定・シーズン構築済み → 選択枠を表示
-      setSeason(1);
-      setEpisode(1);
-      await loadEpisode(1, 1);
+      const { se, ep } = clampInitialSE(info);
+      setSeason(se);
+      setEpisode(ep);
+      await loadEpisode(se, ep);
     })();
     return () => {
       cancelled = true;
@@ -701,6 +735,90 @@ export default function VocabScreen() {
   };
   const handleCopyTime = (time) => {
     navigator.clipboard?.writeText(time).catch(() => {});
+  };
+
+  // ── #20 単語の手動追加（スマホ等・拡張なしでこの話に語を足す）──
+  //   例文の優先順: ①端末の生SRT（無ければ取得）から照合＝この話の実セリフ
+  //                ②共有キャッシュ（/api/example 層1・vocab_cache の語一致）
+  //   訳: 例文があれば文脈つき語義（「この場面では」fetchCtxJa）→ 無ければ1語訳（fetchJa）。
+  //   保存: ローカル（addManualWord）＋ログイン時はクラウド（pushMyWord）。
+  //   表示は既存の「✏️ 追加した単語」セクション（loadExtWords 再読込）に合流する。
+  const handleAddWord = async () => {
+    if (addBusy) return;
+    const w = addWordText.trim().replace(/\s+/g, ' ');
+    if (!w) {
+      setAddMsg('追加したい英単語を入力してください'); // 空タップを黙殺しない（無反応に見せない）
+      return;
+    }
+    if (!/^[a-zA-Z][a-zA-Z' -]{0,39}$/.test(w)) {
+      setAddMsg('英単語（またはフレーズ）を入力してください');
+      return;
+    }
+    const lower = w.toLowerCase();
+    if (
+      sortedVocab.some((x) => x.word.toLowerCase() === lower) ||
+      extWords.some((x) => x.word.toLowerCase() === lower)
+    ) {
+      setAddMsg('すでにこの話のリストにあります');
+      return;
+    }
+    setAddBusy(true);
+    setAddMsg('');
+    try {
+      let raw = subRaw || getCachedRawSrt(drama, season, episode);
+      if (!raw) raw = (await fetchRawSrtIfMissing(drama, season, episode)) || '';
+      let hit = raw ? findExampleForWord(raw, w) : null;
+      if (!hit) {
+        try {
+          const res = await fetch('/api/example', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: drama.englishTitle || drama.title,
+              season: isMovie ? null : season,
+              episode: isMovie ? null : episode,
+              word: w,
+            }),
+          });
+          const d = res.ok ? await res.json() : null;
+          if (d?.found && d.sentence) hit = { sentence: d.sentence, sec: d.tsSec ?? null };
+        } catch {
+          /* 例文なしで続行 */
+        }
+      }
+      const ja = (hit?.sentence ? await fetchCtxJa(w, hit.sentence) : null) ?? (await fetchJa(w)) ?? '';
+      const exampleJa = hit?.sentence ? (await fetchJa(hit.sentence)) || '' : '';
+      const entry = {
+        word: w,
+        sentence: hit?.sentence || '',
+        phonetic: '',
+        pos: '',
+        definition: ja, // 単語リストの意味欄（VocabItem は definition を表示する）
+        ja: ja || null, // 単語帳の文脈訳と同じ欄（WordbookScreen が優先表示）
+        example_ja: exampleJa,
+        tsSec: hit?.sec ?? null,
+        savedAt: new Date().toISOString().slice(0, 10),
+        source: 'manual',
+        dramaTitle: drama.title,
+        season: isMovie ? null : season,
+        episode: isMovie ? null : episode,
+      };
+      const merged = await addManualWord(pid, entry);
+      pushMyWord(merged || entry); // マージ後の姿をクラウドへ（遭遇ログ・既存値保護をローカルと一致させる）
+      setAddWordText('');
+      setAddMsg(hit ? `「${w}」を追加しました ✓` : `「${w}」を追加しました（この話の字幕に見つからず例文なし）`);
+      loadExtWords(season, episode, vocab); // ✏️セクションへ即反映
+    } finally {
+      setAddBusy(false);
+    }
+  };
+
+  // 追加した単語の削除（タイポ救済）。ローカル両キー＋ログイン時はクラウドの行も消す
+  // （deleteMyWord 内で伝搬）。表示は即時に間引く。
+  const handleDeleteExtWord = async (word) => {
+    if (!confirm(`「${word}」を単語帳から削除しますか？`)) return;
+    await deleteMyWord(pid, word);
+    setExtWords((list) => list.filter((w) => w.word.toLowerCase() !== word.toLowerCase()));
   };
   const pickSeason = (se) => {
     if (se === season) return;
@@ -1075,29 +1193,88 @@ export default function VocabScreen() {
                 </div>
               )}
 
-              {/* 拡張機能で追加した単語（今日の復習・テストボタンの上に配置） */}
-              {extWords.length > 0 && (
-                <div id="ext-words-section">
-                  <div className="source-label" style={{ marginTop: 14 }}>
-                    ✏️ 追加した単語
-                  </div>
-                  <div className="vocab-list">
-                    {extWords.map((w) => (
-                      <VocabItem
-                        key={w.word}
-                        word={w}
-                        srs={srs}
-                        testTiers={testTiers}
-                        ts={tsFor(w)}
-                        exampleSource={exampleCredit}
-                        onSpeak={speak}
-                        onSkip={handleSkip}
-                        onCopyTime={handleCopyTime}
-                      />
-                    ))}
-                  </div>
+              {/* 追加した単語（拡張クリック保存＋手動追加・今日の復習・テストボタンの上に配置） */}
+              <div id="ext-words-section">
+                {extWords.length > 0 && (
+                  <>
+                    <div className="source-label" style={{ marginTop: 14 }}>
+                      ✏️ 追加した単語
+                    </div>
+                    <div className="vocab-list">
+                      {extWords.map((w) => (
+                        <VocabItem
+                          key={w.word}
+                          word={w}
+                          srs={srs}
+                          testTiers={testTiers}
+                          ts={tsFor(w)}
+                          exampleSource={exampleCredit}
+                          onSpeak={speak}
+                          onSkip={handleSkip}
+                          onCopyTime={handleCopyTime}
+                          onDelete={handleDeleteExtWord}
+                        />
+                      ))}
+                    </div>
+                  </>
+                )}
+                {/* #20 手動追加（スマホ等・拡張なしでこの話に単語を足す） */}
+                <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'center' }}>
+                  <input
+                    // type="email"+lang="en" は「英語(ASCII)キーボードを既定表示」のための実務トリック。
+                    // キーボード言語の完全な強制は Web 仕様上不可能で、email 型が iOS/Android とも
+                    // 最も確実にラテン配列を出す（副作用: @ キーが見える・メール autofill 候補は
+                    // autoComplete="off" で抑制。中間スペースは維持されるためフレーズ入力も可）。
+                    type="email"
+                    lang="en"
+                    autoComplete="off"
+                    value={addWordText}
+                    onChange={(e) => {
+                      setAddWordText(e.target.value);
+                      if (addMsg) setAddMsg('');
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleAddWord();
+                    }}
+                    placeholder="この話の単語を追加（例: retainer）"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    disabled={addBusy}
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      padding: '9px 12px',
+                      border: '1px solid var(--border, #ddd)',
+                      borderRadius: 10,
+                      fontSize: 14,
+                      fontFamily: 'inherit',
+                      background: 'var(--card-bg, #fff)',
+                      color: 'inherit',
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={handleAddWord}
+                    disabled={addBusy}
+                    style={{
+                      // .btn-secondary の width:100% を打ち消す（フル幅化すると flex 行の
+                      // 入力欄が数pxに圧殺され、スマホで「入力できない→空で押して無反応」になる）
+                      width: 'auto',
+                      flexShrink: 0,
+                      whiteSpace: 'nowrap',
+                      padding: '9px 14px',
+                      borderRadius: 10,
+                    }}
+                  >
+                    {addBusy ? '追加中…' : '＋ 追加'}
+                  </button>
                 </div>
-              )}
+                {addMsg && (
+                  <div style={{ marginTop: 6, fontSize: 12, color: '#888' }}>{addMsg}</div>
+                )}
+              </div>
 
               {stats.due > 0 ? (
                 <button

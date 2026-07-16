@@ -384,6 +384,56 @@ export async function pushSrsWords(entries) {
   });
 }
 
+// 手動追加した単語を my_words へ upsert（#20 スマホからの単語追加）。
+// my_words の書込は従来拡張のみだったが、手動追加はアプリ本体からも書く
+// （pull はクラウド全量で cl_my_words を上書きするため、ローカル保存だけだと
+// 次の pull で消える＝ログイン時はクラウド反映が必須）。
+// 一意キーは (user_id, word)。値の無い列はキーごと省き、クラウド側の既存値を潰さない
+// （拡張 background.js の同名規則と揃える）。
+export async function pushMyWord(w) {
+  if (!isLoggedIn()) return false;
+  const uid = getCurrentUser()?.id;
+  if (!uid || !w?.word) return false;
+  const row = {
+    user_id: uid,
+    word: w.word,
+    sentence: w.sentence || '',
+    saved_at: w.savedAt || '',
+    source: w.source || 'manual',
+  };
+  if (w.ja) row.ja = w.ja;
+  if (w.definition) row.definition = w.definition;
+  if (Array.isArray(w.encounters) && w.encounters.length) row.encounters = w.encounters; // 遭遇ログ（拡張と同じ）
+  if (w.dramaTitle) {
+    // 場面座標（作品・S/E）は一組で送る（拡張 background.js と同じ規則）
+    row.drama_title = w.dramaTitle;
+    row.season = w.season ?? null;
+    row.episode = w.episode ?? null;
+  }
+  await sbFetch('/rest/v1/my_words', {
+    method: 'POST',
+    headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify([row]),
+  });
+  return true;
+}
+
+// 単語の削除をクラウドへ伝搬（🗑削除ボタン用）。ローカル削除だけだと、pull がクラウド全量で
+// cl_my_words を上書き→getActiveWords の「再保存された語は削除リストから外す」掃除が発動し、
+// 削除した語（タイポ等）が必ず復活する。ユーザーの明示削除は行ごと消すのが正。
+export async function deleteMyWordCloud(word) {
+  if (!isLoggedIn()) return false;
+  const uid = getCurrentUser()?.id;
+  if (!uid || !word) return false;
+  // ilike（ワイルドカード無し＝大小無視の完全一致）: PK は case-sensitive のため、
+  // 保存経路のケース違い（"Objection"/"objection"）で行が並存しても全部消す。
+  await sbFetch(
+    `/rest/v1/my_words?user_id=eq.${uid}&word=ilike.${encodeURIComponent(word)}`,
+    { method: 'DELETE', headers: { Prefer: 'return=minimal' } }
+  );
+  return true;
+}
+
 // プロフィール一覧をクラウドへ upsert（pid のデバイス跨ぎ安定化）。
 // updatedAt にはローカル保存時の時刻（cl_profiles_updated_at と同値）を渡す。
 // pull 側が同じ時刻軸で「新しい方が勝つ」比較をするため、push 時に時刻を作り直さない。

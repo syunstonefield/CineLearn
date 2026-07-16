@@ -88,6 +88,9 @@ function hasOnboardedSeen() {
 export default function AppProvider({ children }) {
   const [profile, setProfile] = useState(null);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  // useCallback(deps: []) の中から最新 settings を同期参照するためのミラー（openDrama の S/E 復元用）
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
   // 'profile-select'（だれが観ますか）から開始。選択後に 'main' へ。
   const [screen, setScreen] = useState('profile-select'); // | 'service-select' | 'vocab' | 'quiz' | 'settings'
   const [wordbookVersion, setWordbookVersion] = useState(0); // 削除後のバッジ/一覧再集計
@@ -383,8 +386,12 @@ export default function AppProvider({ children }) {
   // clearService=true（新規追加時）は前回の視聴サービスをクリアする（既存 selectDrama 準拠）。
   const openDrama = useCallback((d, clearService = false) => {
     setDrama(d);
-    setSeason(1);
-    setEpisode(1);
+    // #18: この作品で最後に開いていた S/E を復元（無ければ従来どおり S1E1）。
+    // 記憶は VocabScreen の loadEpisode → rememberEpisode が myDramas に書く
+    // （viewingService と同じ作品別パターン＝設定同期でクラウドにも乗る）。
+    const saved = (settingsRef.current.myDramas || []).find((x) => x.title === d.title);
+    setSeason(saved?.lastSeason || 1);
+    setEpisode(saved?.lastEpisode || 1);
     // 棚から外していた作品を開き直したら自動で棚に戻す（アーカイブ解除）
     unarchiveDrama(d.title);
     // 2回目以降（ライブラリから再オープン＝clearService=false）で、前回の視聴サービスが
@@ -399,6 +406,19 @@ export default function AppProvider({ children }) {
       return next;
     });
     setScreen(remembered ? 'vocab' : 'service-select');
+  }, []);
+
+  // 単語リストで開いた S/E を作品ごとに記憶する（次回 openDrama で復元）。
+  // ライブラリ外の作品（myDramas に無い）は書かない＝空エントリを作らない。
+  const rememberEpisode = useCallback((title, s, e) => {
+    if (!title || !s || !e) return;
+    setSettings((prev) => {
+      const list = prev.myDramas || [];
+      const cur = list.find((x) => x.title === title);
+      if (!cur || (cur.lastSeason === s && cur.lastEpisode === e)) return prev; // 無変更は再レンダしない
+      const myDramas = list.map((x) => (x.title === title ? { ...x, lastSeason: s, lastEpisode: e } : x));
+      return { ...prev, myDramas };
+    });
   }, []);
 
   // ジャンルタグのトグル（関数型更新で連続クリックにも耐える）。
@@ -659,6 +679,7 @@ export default function AppProvider({ children }) {
     cloudVersion,
     refreshFromCloud,
     openDrama,
+    rememberEpisode,
     chooseService,
     openRecommend,
     searchQuery,

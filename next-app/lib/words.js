@@ -2,6 +2,7 @@
 // 拡張機能・Supabase が無い試作環境でも localStorage だけで完結するよう、
 // chrome.storage / cloudSync 依存は app.js 同様にガードして無効化する。
 import { tmdb, callClaude } from './api';
+import { deleteMyWordCloud } from './supabase';
 import { myWordsKey, deletedWordsKey } from './storage';
 import { subtitleCacheKey } from './subtitles';
 import { repairJson } from './vocab';
@@ -60,11 +61,72 @@ function addToDeletedWords(profileId, wordTexts) {
   localStorage.setItem(deletedWordsKey(profileId), JSON.stringify([...new Set([...current, ...list])]));
 }
 
-// 単語を1件削除（既存 deleteMyWord 相当）
+// 単語を1件削除（既存 deleteMyWord 相当）。
+// 2026-07-15拡充: ①グローバル/プロフィール両キーから消す（selectProfile のグローバル→
+// プロフィールコピーで復活しないように）②ログイン時はクラウドの行も消す（pull 全量上書きで
+// タイポ語が復活する既知の穴を、明示削除に限り塞ぐ）。
 export async function deleteMyWord(profileId, wordText) {
   addToDeletedWords(profileId, wordText);
-  const words = (await store.get(myWordsKey(profileId))) || [];
-  await store.set(myWordsKey(profileId), words.filter((w) => w.word !== wordText));
+  const lower = String(wordText || '').toLowerCase();
+  const keys = [myWordsKey(null)];
+  if (profileId) keys.push(myWordsKey(profileId));
+  for (const key of keys) {
+    const words = (await store.get(key)) || [];
+    // 大文字小文字を区別しない（保存経路によりケース違いで入っていても取り逃さない）
+    await store.set(key, words.filter((w) => String(w.word).toLowerCase() !== lower));
+  }
+  deleteMyWordCloud(wordText); // fire-and-forget（未ログインは内部で no-op）
+}
+
+// 手動追加した単語をローカル単語帳へ upsert する（#20 スマホからの単語追加・拡張の保存と同形）。
+// グローバル/プロフィール別の両キーへ書く（pull・selectProfile がグローバルを正とするため）。
+// 削除済みリストからの復帰は getActiveWords の resaved 自動掃除に任せる。
+// my_words は1語1レコード（PK=user_id,word）のため、既存レコードとのマージは拡張 saveWord と
+// 同じ規則を守る: ①別の場面での再保存は旧場面を encounters へ退避（リユニオン用・直近10）
+// ②取れなかった値（空sentence/ja等）で既存の確定値を潰さない。
+// 戻り値=マージ後のレコード（呼び出し側はこれを pushMyWord でクラウドへ送る＝ローカルと一致）。
+export async function addManualWord(profileId, entry) {
+  if (!entry?.word) return null;
+  let merged = entry;
+  const upsert = async (key) => {
+    const words = (await store.get(key)) || [];
+    const idx = words.findIndex((w) => w.word.toLowerCase() === entry.word.toLowerCase());
+    if (idx >= 0) {
+      const old = words[idx];
+      const sameEp =
+        old.dramaTitle === entry.dramaTitle &&
+        ((old.season === entry.season && old.episode === entry.episode) ||
+          entry.season == null ||
+          old.season == null);
+      const prevEnc = Array.isArray(old.encounters) ? old.encounters : [];
+      const encounters = sameEp || !old.dramaTitle
+        ? prevEnc
+        : [...prevEnc, {
+            dramaTitle: old.dramaTitle,
+            season: old.season ?? null,
+            episode: old.episode ?? null,
+            savedAt: old.savedAt ?? null,
+            tsSec: old.tsSec ?? null,
+          }].slice(-10);
+      const patch = {};
+      for (const [k, v] of Object.entries(entry)) {
+        if (v == null) continue;
+        if (v === '') {
+          if (k === 'sentence') { if (sameEp && old.sentence) continue; } // 別場面は意図的リセット
+          else if ((k === 'ja' || k === 'definition' || k === 'phonetic' || k === 'pos' || k === 'example_ja') && old[k]) continue;
+        }
+        patch[k] = v;
+      }
+      words[idx] = { ...old, ...patch, encounters };
+      merged = words[idx];
+    } else {
+      words.unshift(entry);
+    }
+    await store.set(key, words.slice(0, 2000));
+  };
+  await upsert(myWordsKey(null));
+  if (profileId) await upsert(myWordsKey(profileId));
+  return merged;
 }
 
 // 単語をすべて削除（既存 clearAllWords 相当）
