@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
 import { speak } from '@/lib/speak';
+import { chunkParts } from '@/lib/chunk';
 import {
   loadSrs,
   isDue,
@@ -159,20 +160,38 @@ function ReviewCard({ word: w, idx, total, flipped, onFlip, onRate }) {
           onFlip();
         }}
       >
-        <div className="review-word-big">
-          {w.word}
-          <button
-            type="button"
-            className="review-speak"
-            aria-label="発音を聞く"
-            onClick={(ev) => {
-              ev.stopPropagation();
-              speak(w.word);
-            }}
-          >
-            🔊
-          </button>
-        </div>
+        {/* #19: チャンクがあれば「look forward to」のような連語で表示（対象語を強調）。
+            単語単体より実際の使われ方の塊で覚える方が応用が効く。無い語は従来どおり単語のみ。 */}
+        {(() => {
+          const cp = chunkParts(w.chunk, w.word);
+          const label = cp ? w.chunk : w.word;
+          return (
+            // チャンク表示: 対象語はフルサイズ・accent のまま、周辺語だけ小さく淡く
+            // （カード全体を縮めると単語が小さく感じる・実機フィードバック 2026-07-16）
+            <div className="review-word-big" style={cp ? { lineHeight: 1.25 } : undefined}>
+              {cp && cp.hit ? (
+                <>
+                  <span style={{ fontSize: '0.5em', color: 'var(--text-muted)', fontWeight: 600 }}>{cp.before}</span>
+                  {cp.hit}
+                  <span style={{ fontSize: '0.5em', color: 'var(--text-muted)', fontWeight: 600 }}>{cp.after}</span>
+                </>
+              ) : (
+                w.word
+              )}
+              <button
+                type="button"
+                className="review-speak"
+                aria-label="発音を聞く"
+                onClick={(ev) => {
+                  ev.stopPropagation();
+                  speak(label);
+                }}
+              >
+                🔊
+              </button>
+            </div>
+          );
+        })()}
         {w.pos && <div className="review-pos-tag">{w.pos}</div>}
         {flipped && (
           <div className="review-answer" style={{ display: 'block' }}>

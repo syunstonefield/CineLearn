@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
 import { buildCloze, selectQuizWords, nextSeat, getPrepped, markPrepped } from '@/lib/prep';
+import { chunkParts } from '@/lib/chunk';
 
 // 予習（＝生成直後）専用の「1枚ずつめくって見る」ウォークスルー。
 // 長い一覧スクロールの代わりに、全語を1枚ずつ通し見してもらう（＝一通り見る を“形式”で担保）。
@@ -179,12 +180,31 @@ export default function PrepWalkthrough() {
           )}
           {/* key で語が変わるたびカードを再生成＝めくり感（reduced-motion では無効化） */}
           <div className="pw-card" key={w.word}>
-            <div className="pw-card-top">
-              <span className="pw-word">{w.word}</span>
-              <button className="pw-speak" onClick={() => speak(w.word)} aria-label="発音を聞く">
-                🔊
-              </button>
-            </div>
+            {/* #19: チャンクがあれば連語で表示（対象語を強調）・🔊もチャンクを読む */}
+            {(() => {
+              const cp = chunkParts(w.chunk, w.word);
+              const label = cp ? w.chunk : w.word;
+              return (
+                <div className="pw-card-top">
+                  {/* 対象語はフルサイズ維持・周辺語（チャンクの残り）は小さく淡く（実機フィードバック:
+                      カード全体を縮めると単語が小さく感じる） */}
+                  <span className="pw-word" style={cp ? { lineHeight: 1.25 } : undefined}>
+                    {cp && cp.hit ? (
+                      <>
+                        <span style={{ fontSize: '0.55em', color: 'var(--text-muted)', fontWeight: 600 }}>{cp.before}</span>
+                        <span style={{ color: 'var(--accent)', fontWeight: 800 }}>{cp.hit}</span>
+                        <span style={{ fontSize: '0.55em', color: 'var(--text-muted)', fontWeight: 600 }}>{cp.after}</span>
+                      </>
+                    ) : (
+                      w.word
+                    )}
+                  </span>
+                  <button className="pw-speak" onClick={() => speak(label)} aria-label="発音を聞く">
+                    🔊
+                  </button>
+                </div>
+              );
+            })()}
             {w.pos && <span className="pw-pos">{w.pos}</span>}
             {w.definition && <div className="pw-def">{w.definition}</div>}
             {w.example && (
