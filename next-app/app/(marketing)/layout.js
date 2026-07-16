@@ -8,7 +8,7 @@ export const metadata = {
   // 明示指定（ルートレイアウトが2グループ構成のため app/ 直下の規約ファイルは
   // メタデータ解決に乗らない・2026-07-05実測）。
   metadataBase: new URL('https://cinelearn-next.vercel.app'),
-  title: 'CineLearn — ドラマで学ぶ、究極の英語習得',
+  title: 'CineLearn — 観たいドラマが教材になる',
   description:
     'Netflix・Amazon Prime・Disney+を観ながら英語が身につく。AIと間隔反復が、あなたの視聴体験を学習ルーティンに変える。',
   openGraph: {

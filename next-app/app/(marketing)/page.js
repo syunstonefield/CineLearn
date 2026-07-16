@@ -19,8 +19,9 @@ const MARKUP = `
   <div class="hero-eyebrow">⭐ TOEIC 900点の壁を越えるために生まれた</div>
   <h1>ドラマを観るだけで<br><em>生きた英語</em>が身につく</h1>
   <p class="hero-sub">
-    AIと忘却曲線アルゴリズムが、あなたのエンタメ時間を最強の英語学習ルーティンへ。
-    没入感を一切損なわず、教科書には載っていない実践的な語彙を確実に習得します。
+    AIと間隔反復が、あなたのエンタメ時間をそのまま英語学習ルーティンに。
+    「勉強だから続かない」を「観たいから続く」に変えて、
+    教科書には載っていない生きた語彙を積み上げます。
   </p>
 
   <!-- STREAMING BADGES -->
@@ -141,19 +142,19 @@ const MARKUP = `
         <div class="step-num">1</div>
         <div class="step-icon">🤖</div>
         <h3>AIが単語を自動生成</h3>
-        <p>観たいドラマとエピソードを選ぶだけ。AIと字幕APIが字幕を解析し、あなたのレベルに合わせた未知単語リストを自動で作成します。</p>
+        <p>観たいドラマとエピソードを選ぶだけ。AIと字幕APIが字幕を解析し、あなたのレベルに合わせた未知単語リストを自動で作成。人気作品はキャッシュ済みで、待ち時間ほぼゼロで表示されます。</p>
       </div>
       <div class="step-card">
         <div class="step-num">2</div>
         <div class="step-icon">📖</div>
         <h3>予習してドラマに没入</h3>
-        <p>フラッシュカードで単語を予習したら、再生ボタンを押すだけ。あとはドラマのストーリーに熱中するだけでOKです。</p>
+        <p>「予習をはじめる」でカードを1枚ずつめくったら、あとは再生ボタンを押してストーリーに熱中するだけ。観終わった夜には"半券"が残ります。</p>
       </div>
       <div class="step-card">
         <div class="step-num">3</div>
         <div class="step-icon">📈</div>
         <h3>最適タイミングで復習</h3>
-        <p>SM-2アルゴリズムが「忘れかけたタイミング」を算出。視聴済みドラマの単語テストが自動スケジューリングされます。</p>
+        <p>SM-2アルゴリズムが「忘れかけたタイミング」を算出。観たドラマの単語の復習が、ちょうどいい日に自動で並びます。</p>
       </div>
     </div>
   </div>
@@ -235,7 +236,7 @@ const MARKUP = `
       <div class="feat-row">
         <div>
           <span class="feat-tag">Chrome Extension</span>
-          <h3>Netflix視聴中に単語を1クリック保存</h3>
+          <h3>ドラマ視聴中に単語を1クリック保存</h3>
           <p>
             Chrome拡張機能を使えば、字幕に表示される単語をクリックするだけで保存。
             辞書検索・意味確認・単語帳への追加がワンアクションで完了します。
@@ -341,6 +342,34 @@ const MARKUP = `
         </div>
       </div>
 
+      <!-- NEW: 半券コレクション -->
+      <div class="feat-row flip">
+        <div>
+          <span class="feat-tag">Ticket Stub Collection</span>
+          <h3>観るたびに、"半券"がたまる</h3>
+          <p>
+            予習を終えてドラマを観ると、その夜の半券が発行されます。
+            たまった半券はコレクションでいつでも見返せて、そのままその回の復習の入口に。
+            <strong style="color:var(--text)">ノルマも連続記録もありません。観た夜だけに残る、小さな記念品です。</strong>
+          </p>
+        </div>
+        <div class="feat-visual" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px">
+          <!-- ticket stub mock -->
+          <div style="max-width:290px;width:100%;background:linear-gradient(135deg,#fffdf8,#f7ecd6);border:1px solid #e8d5b0;border-radius:14px;overflow:hidden;box-shadow:0 10px 28px rgba(184,146,58,0.2)">
+            <div style="padding:16px 18px 12px">
+              <div style="font-size:10px;letter-spacing:2px;color:#b8923a;text-transform:uppercase;margin-bottom:6px">🎟 Cinelearn Ticket</div>
+              <div style="font-size:17px;font-weight:700;color:#1a1a1a">Suits</div>
+              <div style="font-size:12px;color:#888">S3E4</div>
+            </div>
+            <div style="border-top:2px dashed #e8d5b0;display:flex;align-items:center;justify-content:space-between;padding:10px 18px;background:rgba(255,255,255,0.65)">
+              <span style="font-size:11px;color:#999">予習 12語 → 視聴</span>
+              <span style="font-size:12px;font-weight:600;color:#2da87c">✓ 観た証</span>
+            </div>
+          </div>
+          <div style="font-size:12px;color:var(--text-light)">予習を終えて観た夜に、1枚だけ発行</div>
+        </div>
+      </div>
+
     </div>
   </div>
 </section>
@@ -376,7 +405,7 @@ const MARKUP = `
       <p>
         そう考え、情報工学の知見をフル活用して自らの課題を解決するために開発したのがこのプロダクトです。
         目指したのは、学習における無駄な作業をテクノロジーで完全に自動化すること。
-        没入感を一切損なわず、それでいて確実に語彙が積み上がっていく体験を実現することでした。
+        没入感を一切損なわず、それでいて自然と語彙が積み上がっていく体験を実現することでした。
       </p>
     </div>
   </div>
@@ -387,7 +416,7 @@ const MARKUP = `
   <div class="container">
     <span class="section-tag">導入方法</span>
     <h2>今すぐ使い始める</h2>
-    <p class="section-lead" style="margin-bottom:36px">Webアプリはブラウザで開くだけ。Netflix連携にはChrome拡張機能（無料）が必要です。</p>
+    <p class="section-lead" style="margin-bottom:36px">Webアプリはブラウザで開くだけ。Netflix等の字幕連携にはChrome拡張機能（無料）が必要です。</p>
 
     <div class="setup-tabs">
       <button class="tab-btn active" data-tab="web">① Webアプリを開く</button>
@@ -411,7 +440,7 @@ const MARKUP = `
           </div>
           <div class="illus-body" style="text-align:center;padding:28px 20px">
             <div style="font-family:'Playfair Display',serif;font-size:28px;font-weight:700;color:#1a1a1a;margin-bottom:6px">Cine<span style="color:#b8923a">Learn</span></div>
-            <div style="font-size:13px;color:#999;margin-bottom:20px">ドラマで学ぶ、究極の英語習得</div>
+            <div style="font-size:13px;color:#999;margin-bottom:20px">観たいドラマが、教材になる。</div>
             <div style="display:flex;flex-direction:column;gap:8px;max-width:200px;margin:0 auto">
               <div style="background:#f4f2ee;border-radius:10px;padding:10px;font-size:12px;color:#666;border:1px solid #e8e4dc">👤 プロフィールを選ぶ</div>
               <div style="background:#f4f2ee;border-radius:10px;padding:10px;font-size:12px;color:#666;border:1px solid #e8e4dc">🎬 ドラマを追加する</div>
@@ -460,16 +489,16 @@ const MARKUP = `
           <span class="step-badge">STEP 1</span>
           <h3>GitHubからzipファイルをダウンロード</h3>
           <p>下のリンクからCineLearnのリリースページを開き、<code style="background:#f4f2ee;padding:2px 6px;border-radius:4px;font-size:13px">CineLearn-extension.zip</code> をダウンロードしてください。</p>
-          <div class="note"><strong>📎 ダウンロード：</strong>github.com/syunstonefield/CineLearn/releases/tag/v1.0.0</div>
+          <div class="note"><strong>📎 ダウンロード：</strong>github.com/syunstonefield/CineLearn/releases/latest</div>
         </div>
         <div class="illus">
           <div class="illus-bar">
             <div class="illus-dot"></div><div class="illus-dot"></div><div class="illus-dot"></div>
-            <div class="illus-url">github.com/syunstonefield/CineLearn/releases/tag/v1.0.0</div>
+            <div class="illus-url">github.com/syunstonefield/CineLearn/releases/latest</div>
           </div>
           <div class="illus-body">
             <div class="gh-release">
-              <div class="gh-release-head">🏷 <span class="gh-tag">v1.0.0</span> CineLearn Extension — Latest</div>
+              <div class="gh-release-head">🏷 <span class="gh-tag">Latest</span> CineLearn Extension — 最新版</div>
               <div class="gh-asset">
                 <span class="gh-icon">📦</span>
                 <span class="gh-name">CineLearn-extension.zip</span>
@@ -639,7 +668,7 @@ const MARKUP = `
 <section class="cta">
   <div class="container">
     <span class="section-tag">Get Started</span>
-    <h2>あなたの趣味の時間を、<br>最強の学習ルーティンに</h2>
+    <h2>あなたの趣味の時間を、<br>そのまま学習ルーティンに</h2>
     <p class="section-lead">
       学習の準備はすべてシステムに任せてください。
       あなたはただ、お気に入りのドラマを楽しむだけです。
@@ -651,7 +680,7 @@ const MARKUP = `
 <!-- FOOTER -->
 <footer>
   <div class="logo">Cine<span>Learn</span></div>
-  <small>© 2026 CineLearn. ドラマで学ぶ、究極の英語習得。</small>
+  <small>© 2026 CineLearn. 観たいドラマが、教材になる。</small>
   <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
     <div style="display:flex;gap:14px;flex-wrap:wrap;justify-content:flex-end">
       <a href="/app">アプリを開く →</a>
