@@ -15,6 +15,8 @@ import { tmdb } from '@/lib/api';
 import { computeRecap, computeWatchGroup } from '@/lib/reunion';
 import { confirmWatch, isWatchConfirmed, isWatchSnoozed, snoozeWatchPrompt, watchEpKey } from '@/lib/watchlog';
 import { speak } from '@/lib/speak';
+import { fetchCtxJa } from '@/lib/ctxtranslate';
+import { fetchJa } from '@/lib/jatranslate';
 import { getActiveWords } from '@/lib/words';
 import {
   DAILY_REVIEW_CAP,
@@ -120,6 +122,9 @@ export default function Dashboard() {
   const [justConfirmed, setJustConfirmed] = useState(null);
   // 「まだ途中」した epKey（この画面滞在中の抑止・セッション跨ぎは sessionStorage の snooze が担う）
   const [askDismissed, setAskDismissed] = useState(null);
+  // 旧形式の保存語の表示補完（v1.2.2以前=ja無し→英英定義に落ちる／ごく初期=sentence無し→例文空）。
+  // wordLower → { ja?, example? }。祝い状態になってから非同期で埋める。
+  const [wordFills, setWordFills] = useState({});
   useEffect(() => {
     if (!mounted) return;
     let cancelled = false;
@@ -159,11 +164,14 @@ export default function Dashboard() {
   const quickReviewWords = useMemo(() => {
     if (!watchMeta) return [];
     const reunionSet = new Set((recap?.items || []).map((it) => it.word.toLowerCase()));
-    const toCard = (w) => ({
-      ...w,
-      definition: w.ja || w.definition || '',
-      example: w.example || w.sentence || '',
-    });
+    const toCard = (w) => {
+      const fill = wordFills[String(w.word).toLowerCase()] || {};
+      return {
+        ...w,
+        definition: w.ja || fill.ja || w.definition || '',
+        example: w.example || w.sentence || fill.example || '',
+      };
+    };
     return [...watchMeta.words]
       .sort(
         (a, b) =>
@@ -171,7 +179,7 @@ export default function Dashboard() {
           (reunionSet.has(String(a.word).toLowerCase()) ? 1 : 0)
       )
       .map(toCard);
-  }, [watchMeta, recap]);
+  }, [watchMeta, recap, wordFills]);
 
   // v2リッチ祝い（タップ直後のみ）用: 全語の単語カード（再会語先頭・再会は出どころつき）と統計。
   // NEWはバッジを付けない（大半が新規＝バッジは情報量ゼロ・光らせるのは再会だけ）。
@@ -185,10 +193,11 @@ export default function Dashboard() {
           (byWord.has(String(a.word).toLowerCase()) ? 1 : 0)
       )
       .map((w) => {
-        const r = byWord.get(String(w.word).toLowerCase());
-        return { word: w.word, ja: w.ja || w.definition || '', past: r ? r.past : null };
+        const wl = String(w.word).toLowerCase();
+        const r = byWord.get(wl);
+        return { word: w.word, ja: w.ja || wordFills[wl]?.ja || w.definition || '', past: r ? r.past : null };
       });
-  }, [watchMeta, recap]);
+  }, [watchMeta, recap, wordFills]);
   // 統計は「実際に起きたことだけ」: 0の項目は表示しない。「覚えてきた」=isLearned(2回以上正解)。
   const watchStats = useMemo(() => {
     if (!watchMeta) return null;
@@ -403,6 +412,58 @@ export default function Dashboard() {
     snoozeWatchPrompt(watchMeta.epKey);
     setAskDismissed(watchMeta.epKey);
   };
+  // 旧語の補完取得（祝い状態になってから・1グループ1回）。
+  // 訳: 単語帳と同じ経路（文脈訳→単語訳・どちらも端末キャッシュつき・失敗はnull＝英英のまま）。
+  // 例文: sentenceも無いごく初期の語のみ、/api/example を位置情報なしで叩く
+  //       ＝サーバ設計上vocab_cache一致（層1）だけが通る安全経路。見つからなければ例文なしのまま。
+  const filledEpRef = useRef(null);
+  useEffect(() => {
+    if (!watchMeta || !watchConfirmed) return;
+    if (filledEpRef.current === watchMeta.epKey) return;
+    filledEpRef.current = watchMeta.epKey;
+    let cancelled = false;
+    (async () => {
+      const fills = {};
+      await Promise.all(
+        watchMeta.words.map(async (w) => {
+          const wl = String(w.word).toLowerCase();
+          const fill = {};
+          if (!w.ja) {
+            try {
+              fill.ja = (w.sentence ? await fetchCtxJa(w.word, w.sentence) : null) ?? (await fetchJa(w.word));
+            } catch {
+              /* 補完失敗は英英のまま */
+            }
+          }
+          if (!w.example && !w.sentence) {
+            try {
+              const res = await fetch('/api/example', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  word: w.word,
+                  title: watchMeta.dramaTitle,
+                  season: watchMeta.season,
+                  episode: watchMeta.episode,
+                }),
+              });
+              const json = await res.json().catch(() => null);
+              if (json?.found && json.sentence) fill.example = json.sentence;
+            } catch {
+              /* 例文なしのまま */
+            }
+          }
+          if (fill.ja || fill.example) fills[wl] = fill;
+        })
+      );
+      if (!cancelled && Object.keys(fills).length) setWordFills((prev) => ({ ...prev, ...fills }));
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchMeta, watchConfirmed]);
+
   const startQuickReview = () => {
     setCurrentHistoryId(null); // 横断復習（特定エピソードに紐づかない）
     openReview(quickReviewWords.slice(0, 5), { all: true });
