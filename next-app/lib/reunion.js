@@ -12,16 +12,24 @@
 // （docs/design-recap-endroll.md §1・視聴申告方式）。
 // 再会の有無に関わらず、鮮度内の保存があれば返す。保存すら無い夜は null＝カード自体を出さない。
 // words: getActiveWords() の配列（word/dramaTitle/season/episode/savedAt/ja/definition/sentence…）
+// savedAt は実データで「2026/6/7」（旧拡張・スラッシュ）と「2026-07-19」（ISO）が混在する。
+// 文字列比較だと '/' > '-' で旧形式が常に「最新」勝ちする（2026-07-20 実機で発覚）ため、
+// 必ず Date として解釈して比較する。解釈できないものは最古扱い。
+const savedAtMs = (w) => {
+  const t = new Date(w.savedAt).getTime();
+  return isFinite(t) ? t : 0;
+};
+
 export function computeWatchGroup({ words, withinDays = 7 }) {
   if (!Array.isArray(words) || !words.length) return null;
   const dated = words.filter((w) => w.word && w.savedAt && w.dramaTitle);
   if (!dated.length) return null;
 
   // 最新の保存語が属するエピソードを「今回の視聴」とみなす（同日複数話は最新話を採用）
-  dated.sort((a, b) => String(b.savedAt).localeCompare(String(a.savedAt)));
+  dated.sort((a, b) => savedAtMs(b) - savedAtMs(a));
   const newest = dated[0];
-  const ageDays = (Date.now() - new Date(newest.savedAt).getTime()) / 86400000;
-  if (!isFinite(ageDays) || ageDays > withinDays) return null; // 鮮度切れは出さない
+  const ageDays = (Date.now() - savedAtMs(newest)) / 86400000;
+  if (!isFinite(ageDays) || ageDays > withinDays || !savedAtMs(newest)) return null; // 鮮度切れは出さない
 
   const group = dated.filter(
     (w) => w.dramaTitle === newest.dramaTitle && w.season === newest.season && w.episode === newest.episode
