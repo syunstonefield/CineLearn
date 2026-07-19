@@ -5796,7 +5796,12 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
   border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
   border-radius: 16px;
   padding: 16px 16px 14px;
-  margin: 0 0 14px;
+  /* ライブラリ（.library-sections）と左右の基準線を揃える（--content-max 中央寄せ・最低40px） */
+  margin: 0 max(40px, calc((100% - var(--content-max)) / 2)) 14px;
+}
+@media (max-width: 768px) {
+  /* モバイルは .library-sections の padding 16px と揃える */
+  .reunion-card { margin: 0 16px 14px; }
 }
 .reunion-head {
   font-size: 13px;
