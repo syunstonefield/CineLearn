@@ -12,7 +12,8 @@ import RecommendGrid from './RecommendGrid';
 import { getRecommendations } from '@/lib/recommended';
 import { isMobileDevice } from '@/lib/device';
 import { tmdb } from '@/lib/api';
-import { computeRecap } from '@/lib/reunion';
+import { computeRecap, computeWatchGroup } from '@/lib/reunion';
+import { confirmWatch, isWatchConfirmed, isWatchSnoozed, snoozeWatchPrompt, watchEpKey } from '@/lib/watchlog';
 import { getActiveWords } from '@/lib/words';
 import {
   DAILY_REVIEW_CAP,
@@ -94,10 +95,18 @@ export default function Dashboard() {
     }
   }, [pendingAddDrama, setPendingAddDrama]);
 
-  // 視聴直後リキャップ（語彙リユニオンB案・lib/reunion.js）。
+  // 視聴直後リキャップ（語彙リユニオンB案・docs/design-recap-endroll.md）。
+  // watchGroup=最新の保存グループ（質問カードの対象）／recap=そのうち再会が起きた語（祝いの中身）。
   // getActiveWords が非同期（クラウド語の取り込みを含む）ため state で持つ。
   // 課金導入時はここが「リユニオン初回発動」＝サブスクゲートの起点になる（今は全員に無料表示）。
   const [recap, setRecap] = useState(null);
+  const [watchGroup, setWatchGroup] = useState(null);
+  // 「観終わった」タップ直後の epKey（獲得演出＋localStorage を再読せず祝い状態へ）。
+  // boolean でなく epKey で持つ: 表示中にクラウド同期で別エピソードのグループへ替わっても、
+  // 未申告の新グループが祝い状態に化けない。
+  const [justConfirmed, setJustConfirmed] = useState(null);
+  // 「まだ途中」した epKey（この画面滞在中の抑止・セッション跨ぎは sessionStorage の snooze が担う）
+  const [askDismissed, setAskDismissed] = useState(null);
   useEffect(() => {
     if (!mounted) return;
     let cancelled = false;
@@ -105,6 +114,7 @@ export default function Dashboard() {
       .then((words) => {
         if (cancelled) return;
         setRecap(computeRecap({ words, history: loadHistory(), srs: loadSrs() }));
+        setWatchGroup(computeWatchGroup({ words }));
       })
       .catch(() => {});
     return () => {
@@ -114,6 +124,40 @@ export default function Dashboard() {
   }, [mounted, profile, tick, cloudVersion, reviewVersion]);
 
   const myDramas = settings.myDramas || [];
+
+  // 質問カード用メタ: epKey は半券と同キー体系（保存語は tmdbId を持たないため myDramas から補完）
+  const watchMeta = useMemo(() => {
+    if (!watchGroup) return null;
+    const tmdbId = myDramas.find((d) => d.title === watchGroup.dramaTitle)?.tmdbId ?? null;
+    return {
+      ...watchGroup,
+      tmdbId,
+      epKey: watchEpKey({
+        tmdbId,
+        title: watchGroup.dramaTitle,
+        season: watchGroup.season,
+        episode: watchGroup.episode,
+      }),
+    };
+  }, [watchGroup, myDramas]);
+
+  // さっと復習: グループ全語（再会語を先頭に）上限5・ReviewModal が読める形へ整える
+  const quickReviewWords = useMemo(() => {
+    if (!watchMeta) return [];
+    const reunionSet = new Set((recap?.items || []).map((it) => it.word.toLowerCase()));
+    const toCard = (w) => ({
+      ...w,
+      definition: w.ja || w.definition || '',
+      example: w.example || w.sentence || '',
+    });
+    return [...watchMeta.words]
+      .sort(
+        (a, b) =>
+          (reunionSet.has(String(b.word).toLowerCase()) ? 1 : 0) -
+          (reunionSet.has(String(a.word).toLowerCase()) ? 1 : 0)
+      )
+      .map(toCard);
+  }, [watchMeta, recap]);
 
   // localStorage 由来の集計（マウント後のみ・profile/myDramas/tick で再計算）。
   // SSR/初回レンダーは空で統一してハイドレーション不一致を防ぐ。
@@ -282,6 +326,44 @@ export default function Dashboard() {
     setTick((t) => t + 1);
   };
 
+  // ── 観たあとにカード（質問→祝いの2状態・docs/design-recap-endroll.md §2）──
+  const watchConfirmed = useMemo(
+    () => !!(watchMeta && (justConfirmed === watchMeta.epKey || isWatchConfirmed(profile?.id, watchMeta))),
+    [watchMeta, justConfirmed, profile]
+  );
+  const showWatchAsk =
+    !!watchMeta && !watchConfirmed && askDismissed !== watchMeta.epKey && !isWatchSnoozed(watchMeta.epKey);
+  const showWatchCelebrate = !!watchMeta && watchConfirmed;
+  const watchSeLabel =
+    watchMeta && watchMeta.season != null && watchMeta.episode != null
+      ? ` S${watchMeta.season}E${watchMeta.episode}`
+      : '';
+  // この話の半券（予習クイズ済みなら存在）。祝い状態から「あの場面を思い出す」導線に使う。
+  // epKey文字列でなくフィールド照合（tmdbId一致 or タイトル一致）＝片側だけtmdbId未解決でも外れない。
+  const epTicket = useMemo(() => {
+    if (!watchMeta) return null;
+    return (
+      (tickets || []).find(
+        (t) =>
+          (t.words || []).length &&
+          t.season === watchMeta.season &&
+          t.episode === watchMeta.episode &&
+          ((watchMeta.tmdbId != null && t.tmdbId === watchMeta.tmdbId) || t.title === watchMeta.dramaTitle)
+      ) || null
+    );
+  }, [tickets, watchMeta]);
+
+  const handleWatchDone = () => {
+    if (!watchMeta) return;
+    confirmWatch(profile?.id, watchMeta);
+    setJustConfirmed(watchMeta.epKey); // 祝い状態へ（獲得演出つき）
+  };
+  const handleWatchLater = () => {
+    if (!watchMeta) return;
+    snoozeWatchPrompt(watchMeta.epKey);
+    setAskDismissed(watchMeta.epKey);
+  };
+
   return (
     <div className="screen active" id="screen-main">
       {!extBannerDismissed &&
@@ -326,52 +408,95 @@ export default function Dashboard() {
         }}
       />
 
-      {/* 視聴直後リキャップ（語彙リユニオンB案）＝実際に起きた再会を祝う。
-          罪悪感UI禁止の原則: 祝いのみ・未視聴/未復習を責める文言は置かない。 */}
-      {recap && (
+      {/* 観たあとにカード＝視聴直後リキャップ（docs/design-recap-endroll.md）。
+          質問状態: 視聴完了の自己申告を静かに聞く（誤爆ゼロの根拠）。無視・まだ途中に罰なし。
+          祝い状態: 申告後に同じカードが変化＝再会チップ＋さっと復習。
+          罪悪感UI禁止の原則: 催促・バッジ・未記録カウントは置かない。 */}
+      {showWatchAsk && (
         <div className="reunion-card">
           <div className="reunion-head">
-            <span aria-hidden="true">🔁</span> 語との再会
+            <span aria-hidden="true">🎬</span> 観たあとに
           </div>
           <div className="reunion-lead">
-            『{recap.dramaTitle}』{recap.season != null && recap.episode != null ? ` S${recap.season}E${recap.episode}` : ''} で、
-            前に出会った <strong>{recap.items.length}語</strong> とまた会いました
+            『{watchMeta.dramaTitle}』{watchSeLabel}、観終わりましたか？
           </div>
-          <div className="reunion-words">
-            {recap.items.map((it) => (
-              <span key={it.word} className="reunion-chip">
-                <span className="reunion-word">{it.word}</span>
-                <span className="reunion-src">
-                  {it.past.title
-                    ? `『${it.past.title}』${it.past.season != null ? `S${it.past.season}E${it.past.episode}` : ''}以来`
-                    : '復習で学習済み'}
+          <span className="recap-ask-chip">
+            <span aria-hidden="true">🔖</span> 保存した語 {watchMeta.words.length}
+          </span>
+          <div className="recap-ask-actions">
+            <button className="reunion-review-btn recap-btn-done" onClick={handleWatchDone}>
+              観終わった
+            </button>
+            <button className="recap-btn-later" onClick={handleWatchLater}>
+              まだ途中
+            </button>
+          </div>
+        </div>
+      )}
+      {showWatchCelebrate && (
+        <div className={`reunion-card${justConfirmed === watchMeta.epKey ? ' recap-celebrate' : ''}`}>
+          <div className="reunion-head">
+            <span aria-hidden="true">🎟</span> 観たあとに
+          </div>
+          <div className="reunion-lead">
+            『{watchMeta.dramaTitle}』{watchSeLabel} を観終わりました。
+            {recap ? (
+              <>
+                前に出会った <strong>{recap.items.length}語</strong> との再会です
+              </>
+            ) : (
+              <>保存した {watchMeta.words.length}語 が待っています</>
+            )}
+          </div>
+          {recap && (
+            <div className="reunion-words">
+              {recap.items.map((it) => (
+                <span key={it.word} className="reunion-chip">
+                  <span className="reunion-word">{it.word}</span>
+                  <span className="reunion-src">
+                    {it.past.title
+                      ? `『${it.past.title}』${it.past.season != null ? `S${it.past.season}E${it.past.episode}` : ''}以来`
+                      : '復習で学習済み'}
+                  </span>
                 </span>
-              </span>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
           <button
             className="reunion-review-btn"
             onClick={() => {
               setCurrentHistoryId(null); // 横断復習（特定エピソードに紐づかない）
-              openReview(
-                recap.items.map((it) => ({
-                  ...it.entry,
-                  definition: it.ja || it.entry.definition || '',
-                  example: it.entry.example || it.entry.sentence || '',
-                }))
-              );
+              openReview(quickReviewWords.slice(0, 5), { all: true });
             }}
           >
-            この{recap.items.length}語をさっと復習する
+            この{Math.min(5, quickReviewWords.length)}語をさっと復習する
           </button>
+          {quickReviewWords.length > 5 && (
+            <button
+              className="recap-more-link"
+              onClick={() => {
+                setCurrentHistoryId(null);
+                openReview(quickReviewWords, { all: true });
+              }}
+            >
+              すべての{quickReviewWords.length}語を復習する →
+            </button>
+          )}
+          {epTicket && (
+            <button className="recap-more-link" onClick={() => openSceneCards(epTicket)}>
+              🃏 あの場面の聞きどころを思い出す →
+            </button>
+          )}
         </div>
       )}
 
       {/* 累計の語彙進捗（別枠）。今日の復習とは分けて「これまでの積み上げ」を見せる。 */}
       <VocabProgress learned={data.totalLearned} mastered={data.totalMastered} total={data.totalWords} />
 
-      {/* 半券（観た証）＝観た後に戻る入口。シーン記憶カードへ。最新1枚だけ出して混雑を避ける。 */}
+      {/* 半券（観た証）＝観た後に戻る入口。シーン記憶カードへ。最新1枚だけ出して混雑を避ける。
+          「観たあとに」カードが出ている間は重複表示になるため隠す（カード統合・混雑回避）。 */}
       {(() => {
+        if (showWatchAsk || showWatchCelebrate) return null;
         const withWords = (tickets || []).filter((t) => (t.words || []).length > 0);
         if (!withWords.length) return null;
         const latest = withWords[withWords.length - 1];

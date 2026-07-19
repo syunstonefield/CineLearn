@@ -8,10 +8,11 @@
 // 「クリック×クリック」の再会は過去メタが消えて検出できない。完全版は拡張 v1.2.2 の
 // 遭遇ログ（encounters 退避）で強化する。本モジュールは既存データだけで成立する範囲。
 
+// 視聴確認（質問カード）用: 最新の保存グループ＝「今回の視聴」候補を返す
+// （docs/design-recap-endroll.md §1・視聴申告方式）。
+// 再会の有無に関わらず、鮮度内の保存があれば返す。保存すら無い夜は null＝カード自体を出さない。
 // words: getActiveWords() の配列（word/dramaTitle/season/episode/savedAt/ja/definition/sentence…）
-// history: loadHistory() の配列（drama.title/season/episode/words[]）
-// srs: loadSrs() のマップ（wordLower → {repetitions, skipped, ...}）
-export function computeRecap({ words, history, srs, maxItems = 5, withinDays = 7 }) {
+export function computeWatchGroup({ words, withinDays = 7 }) {
   if (!Array.isArray(words) || !words.length) return null;
   const dated = words.filter((w) => w.word && w.savedAt && w.dramaTitle);
   if (!dated.length) return null;
@@ -22,9 +23,24 @@ export function computeRecap({ words, history, srs, maxItems = 5, withinDays = 7
   const ageDays = (Date.now() - new Date(newest.savedAt).getTime()) / 86400000;
   if (!isFinite(ageDays) || ageDays > withinDays) return null; // 鮮度切れは出さない
 
-  const sameEp = (w) =>
-    w.dramaTitle === newest.dramaTitle && w.season === newest.season && w.episode === newest.episode;
-  const group = dated.filter(sameEp);
+  const group = dated.filter(
+    (w) => w.dramaTitle === newest.dramaTitle && w.season === newest.season && w.episode === newest.episode
+  );
+  return {
+    dramaTitle: newest.dramaTitle,
+    season: newest.season ?? null,
+    episode: newest.episode ?? null,
+    savedAt: newest.savedAt,
+    words: group,
+  };
+}
+
+// history: loadHistory() の配列（drama.title/season/episode/words[]）
+// srs: loadSrs() のマップ（wordLower → {repetitions, skipped, ...}）
+export function computeRecap({ words, history, srs, maxItems = 5, withinDays = 7 }) {
+  const g = computeWatchGroup({ words, withinDays });
+  if (!g) return null;
+  const group = g.words;
 
   const items = [];
   for (const w of group) {
@@ -61,10 +77,10 @@ export function computeRecap({ words, history, srs, maxItems = 5, withinDays = 7
   if (!items.length) return null;
 
   return {
-    dramaTitle: newest.dramaTitle,
-    season: newest.season ?? null,
-    episode: newest.episode ?? null,
-    savedAt: newest.savedAt,
+    dramaTitle: g.dramaTitle,
+    season: g.season,
+    episode: g.episode,
+    savedAt: g.savedAt,
     items,
   };
 }

@@ -5849,6 +5849,51 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
 }
 .reunion-review-btn:active { transform: scale(0.99); }
 
+/* ── 観たあとにカード＝視聴確認→祝いの2状態（docs/design-recap-endroll.md §2）────
+   質問状態は静かに（演出なし）。祝い状態はプレミアパスの獲得演出（prepTicketEarn）を流用。 */
+.recap-ask-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 10px;
+  margin-bottom: 12px;
+}
+.recap-ask-actions { display: flex; gap: 8px; }
+.recap-ask-actions .reunion-review-btn { flex: 1; width: auto; }
+.recap-btn-later {
+  flex: 1;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 11px 12px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 14px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.recap-btn-later:active { transform: scale(0.99); }
+.recap-celebrate { animation: prepTicketEarn 0.5s cubic-bezier(0.18, 0.9, 0.3, 1.25) both; }
+@media (prefers-reduced-motion: reduce) {
+  .recap-celebrate { animation: none; }
+}
+.recap-more-link {
+  display: block;
+  margin-top: 10px;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 13px;
+  color: var(--accent);
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+
 /* ── カタログ外＝リクエスト受付パネル（厳選カタログ戦略 §2-3）──────────
    突き放さないトーン（「非対応」と言わない）。VocabScreen phase==='soon'。 */
 .soon-panel {
