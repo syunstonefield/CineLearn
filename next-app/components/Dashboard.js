@@ -456,7 +456,9 @@ export default function Dashboard() {
                   <span className="reunion-src">
                     {it.past.title
                       ? `『${it.past.title}』${it.past.season != null ? `S${it.past.season}E${it.past.episode}` : ''}以来`
-                      : '復習で学習済み'}
+                      : it.past.daysSince != null && it.past.daysSince >= 2
+                        ? `${it.past.daysSince}日ぶり・復習${it.past.repetitions || 1}回`
+                        : `復習で${it.past.repetitions || 1}回学習済み`}
                   </span>
                 </span>
               ))}

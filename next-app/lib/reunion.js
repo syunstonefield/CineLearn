@@ -74,10 +74,16 @@ export function computeRecap({ words, history, srs, maxItems = 5, withinDays = 7
         }
       }
     }
-    // 過去の遭遇②: SRS に学習痕跡（復習・クイズ済み）がある語
+    // 過去の遭遇②: SRS に学習痕跡（復習・クイズ済み）がある語。
+    // 場面情報は持たないが「何回・何日ぶり」は言える（v1.2.2以前の保存は上書きで
+    // 旧場面メタが失われており、この語たちは遭遇ログが貯まるまで場所を出せない）。
     if (!past) {
       const e = srs?.[wl];
-      if (e && !e.skipped && (e.repetitions || 0) >= 1) past = { via: 'srs' };
+      if (e && !e.skipped && (e.repetitions || 0) >= 1) {
+        const last = e.lastReview ? new Date(e.lastReview).getTime() : NaN;
+        const daysSince = isFinite(last) ? Math.floor((Date.now() - last) / 86400000) : null;
+        past = { via: 'srs', repetitions: e.repetitions || 0, daysSince };
+      }
     }
     if (past) items.push({ word: w.word, ja: w.ja || null, past, entry: w });
     if (items.length >= maxItems) break;
