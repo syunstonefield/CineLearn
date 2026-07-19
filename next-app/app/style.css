@@ -5894,6 +5894,78 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
   text-align: left;
 }
 
+/* ── 祝い状態v2（タップ直後のみ）: 単語カード＋可変統計（/decide R1裁定 2026-07-20）── */
+.recap-cardrow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.recap-cardrow.recap-scroll {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
+}
+.recap-wordcard {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 0 0 auto;
+  min-width: 118px;
+  max-width: 170px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 9px 12px;
+  scroll-snap-align: start;
+}
+.recap-wordcard-reunion {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+}
+.recap-badge {
+  align-self: flex-start;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #fff;
+  background: var(--accent);
+  border-radius: 999px;
+  padding: 1px 8px;
+  margin-bottom: 2px;
+}
+.recap-wordline {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.recap-word {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--text);
+}
+.recap-speak {
+  border: none;
+  background: none;
+  padding: 0 2px;
+  font-size: 13px;
+  cursor: pointer;
+  line-height: 1;
+}
+.recap-speak:active { transform: scale(0.92); }
+.recap-ja { font-size: 12px; color: var(--text-muted); }
+.recap-src { font-size: 11px; color: var(--accent); }
+.recap-stats {
+  display: flex;
+  gap: 14px;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+.recap-stat strong { color: var(--text); font-size: 14px; font-weight: 700; }
+
 /* ── カタログ外＝リクエスト受付パネル（厳選カタログ戦略 §2-3）──────────
    突き放さないトーン（「非対応」と言わない）。VocabScreen phase==='soon'。 */
 .soon-panel {

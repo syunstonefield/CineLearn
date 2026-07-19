@@ -14,6 +14,7 @@ import { isMobileDevice } from '@/lib/device';
 import { tmdb } from '@/lib/api';
 import { computeRecap, computeWatchGroup } from '@/lib/reunion';
 import { confirmWatch, isWatchConfirmed, isWatchSnoozed, snoozeWatchPrompt, watchEpKey } from '@/lib/watchlog';
+import { speak } from '@/lib/speak';
 import { getActiveWords } from '@/lib/words';
 import {
   DAILY_REVIEW_CAP,
@@ -23,6 +24,7 @@ import {
   getDueReviewWords,
   getStreak,
   getWeekStats,
+  isLearned,
   learningStatsByTitle,
   loadArchived,
   loadHistory,
@@ -32,6 +34,17 @@ import {
 // まだ Next.js 版に移植していない画面・機能の仮ハンドラ
 function notYet(name) {
   alert(`「${name}」は次のステップで移植予定です（Next.js版 試作中）`);
+}
+
+// 再会の出どころ表示（チップ・単語カード共用）。場面メタ > 日数 > 回数 の順で具体的に。
+function pastLabel(past) {
+  if (past.title) {
+    return `『${past.title}』${past.season != null ? `S${past.season}E${past.episode}` : ''}以来`;
+  }
+  if (past.daysSince != null && past.daysSince >= 2) {
+    return `${past.daysSince}日ぶり・復習${past.repetitions || 1}回`;
+  }
+  return `復習で${past.repetitions || 1}回学習済み`;
 }
 
 export default function Dashboard() {
@@ -113,7 +126,8 @@ export default function Dashboard() {
     getActiveWords(profile?.id)
       .then((words) => {
         if (cancelled) return;
-        setRecap(computeRecap({ words, history: loadHistory(), srs: loadSrs() }));
+        // maxItems: Infinity＝グループ全語を分類（v2の単語カード/統計用）。表示側で必要数に絞る。
+        setRecap(computeRecap({ words, history: loadHistory(), srs: loadSrs(), maxItems: Infinity }));
         setWatchGroup(computeWatchGroup({ words }));
       })
       .catch(() => {});
@@ -158,6 +172,32 @@ export default function Dashboard() {
       )
       .map(toCard);
   }, [watchMeta, recap]);
+
+  // v2リッチ祝い（タップ直後のみ）用: 全語の単語カード（再会語先頭・再会は出どころつき）と統計。
+  // NEWはバッジを付けない（大半が新規＝バッジは情報量ゼロ・光らせるのは再会だけ）。
+  const richCards = useMemo(() => {
+    if (!watchMeta) return [];
+    const byWord = new Map((recap?.items || []).map((it) => [it.word.toLowerCase(), it]));
+    return [...watchMeta.words]
+      .sort(
+        (a, b) =>
+          (byWord.has(String(b.word).toLowerCase()) ? 1 : 0) -
+          (byWord.has(String(a.word).toLowerCase()) ? 1 : 0)
+      )
+      .map((w) => {
+        const r = byWord.get(String(w.word).toLowerCase());
+        return { word: w.word, ja: w.ja || w.definition || '', past: r ? r.past : null };
+      });
+  }, [watchMeta, recap]);
+  // 統計は「実際に起きたことだけ」: 0の項目は表示しない。「覚えてきた」=isLearned(2回以上正解)。
+  const watchStats = useMemo(() => {
+    if (!watchMeta) return null;
+    const srs = loadSrs();
+    const reunion = richCards.filter((c) => c.past).length;
+    const learned = watchMeta.words.filter((w) => isLearned(srs[String(w.word).toLowerCase()])).length;
+    return { fresh: watchMeta.words.length - reunion, reunion, learned };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchMeta, richCards, reviewVersion]);
 
   // localStorage 由来の集計（マウント後のみ・profile/myDramas/tick で再計算）。
   // SSR/初回レンダーは空で統一してハイドレーション不一致を防ぐ。
@@ -363,6 +403,14 @@ export default function Dashboard() {
     snoozeWatchPrompt(watchMeta.epKey);
     setAskDismissed(watchMeta.epKey);
   };
+  const startQuickReview = () => {
+    setCurrentHistoryId(null); // 横断復習（特定エピソードに紐づかない）
+    openReview(quickReviewWords.slice(0, 5), { all: true });
+  };
+  const startFullReview = () => {
+    setCurrentHistoryId(null);
+    openReview(quickReviewWords, { all: true });
+  };
 
   return (
     <div className="screen active" id="screen-main">
@@ -433,8 +481,67 @@ export default function Dashboard() {
           </div>
         </div>
       )}
-      {showWatchCelebrate && (
-        <div className={`reunion-card${justConfirmed === watchMeta.epKey ? ' recap-celebrate' : ''}`}>
+      {/* 祝い状態は二段構え（/decide R1裁定 2026-07-20）: タップ直後だけリッチ版（単語カード＋統計）、
+          再訪時は軽量版に畳む＝毎晩ミニエンドロール化してP3の節目演出の希少性を殺さない。 */}
+      {showWatchCelebrate && justConfirmed === watchMeta.epKey && (
+        <div className="reunion-card recap-celebrate">
+          <div className="reunion-head">
+            <span aria-hidden="true">🎟</span> 観たあとに
+          </div>
+          <div className="reunion-lead">
+            『{watchMeta.dramaTitle}』{watchSeLabel} を観終わりました。今回出会った語彙です
+          </div>
+          <div className={`recap-cardrow${richCards.length > 3 ? ' recap-scroll' : ''}`}>
+            {richCards.map((c) => (
+              <div key={c.word} className={`recap-wordcard${c.past ? ' recap-wordcard-reunion' : ''}`}>
+                {c.past && <span className="recap-badge">再会</span>}
+                <span className="recap-wordline">
+                  <span className="recap-word">{c.word}</span>
+                  <button className="recap-speak" onClick={() => speak(c.word)} aria-label={`${c.word} を発音`}>
+                    🔊
+                  </button>
+                </span>
+                {c.ja && <span className="recap-ja">{c.ja}</span>}
+                {c.past && <span className="recap-src">{pastLabel(c.past)}</span>}
+              </div>
+            ))}
+          </div>
+          {watchStats && (
+            <div className="recap-stats">
+              {watchStats.fresh > 0 && (
+                <span className="recap-stat">
+                  新規 <strong>{watchStats.fresh}</strong>
+                </span>
+              )}
+              {watchStats.reunion > 0 && (
+                <span className="recap-stat">
+                  再会 <strong>{watchStats.reunion}</strong>
+                </span>
+              )}
+              {watchStats.learned > 0 && (
+                <span className="recap-stat">
+                  覚えてきた <strong>{watchStats.learned}</strong>
+                </span>
+              )}
+            </div>
+          )}
+          <button className="reunion-review-btn" onClick={startQuickReview}>
+            この{Math.min(5, quickReviewWords.length)}語をさっと復習する
+          </button>
+          {quickReviewWords.length > 5 && (
+            <button className="recap-more-link" onClick={startFullReview}>
+              すべての{quickReviewWords.length}語を復習する →
+            </button>
+          )}
+          {epTicket && (
+            <button className="recap-more-link" onClick={() => openSceneCards(epTicket)}>
+              🃏 あの場面の聞きどころを思い出す →
+            </button>
+          )}
+        </div>
+      )}
+      {showWatchCelebrate && justConfirmed !== watchMeta.epKey && (
+        <div className="reunion-card">
           <div className="reunion-head">
             <span aria-hidden="true">🎟</span> 観たあとに
           </div>
@@ -450,37 +557,19 @@ export default function Dashboard() {
           </div>
           {recap && (
             <div className="reunion-words">
-              {recap.items.map((it) => (
+              {recap.items.slice(0, 5).map((it) => (
                 <span key={it.word} className="reunion-chip">
                   <span className="reunion-word">{it.word}</span>
-                  <span className="reunion-src">
-                    {it.past.title
-                      ? `『${it.past.title}』${it.past.season != null ? `S${it.past.season}E${it.past.episode}` : ''}以来`
-                      : it.past.daysSince != null && it.past.daysSince >= 2
-                        ? `${it.past.daysSince}日ぶり・復習${it.past.repetitions || 1}回`
-                        : `復習で${it.past.repetitions || 1}回学習済み`}
-                  </span>
+                  <span className="reunion-src">{pastLabel(it.past)}</span>
                 </span>
               ))}
             </div>
           )}
-          <button
-            className="reunion-review-btn"
-            onClick={() => {
-              setCurrentHistoryId(null); // 横断復習（特定エピソードに紐づかない）
-              openReview(quickReviewWords.slice(0, 5), { all: true });
-            }}
-          >
+          <button className="reunion-review-btn" onClick={startQuickReview}>
             この{Math.min(5, quickReviewWords.length)}語をさっと復習する
           </button>
           {quickReviewWords.length > 5 && (
-            <button
-              className="recap-more-link"
-              onClick={() => {
-                setCurrentHistoryId(null);
-                openReview(quickReviewWords, { all: true });
-              }}
-            >
+            <button className="recap-more-link" onClick={startFullReview}>
               すべての{quickReviewWords.length}語を復習する →
             </button>
           )}
