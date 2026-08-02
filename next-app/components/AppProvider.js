@@ -382,9 +382,16 @@ export default function AppProvider({ children }) {
     setSettings((prev) => ({ ...prev, ...patch }));
   }, []);
 
+  // 単語リスト/サービス選択の「戻る」の行き先（'main' | 'search'）。
+  // 検索から誤タップで開いた時にホームへ戻されるのが不便、の修正（2026-08-02）。
+  // vocab への入口は openDrama に一本化されているので毎回上書きされ、汚染しない。
+  const [vocabReturn, setVocabReturn] = useState('main');
+
   // ライブラリのカード/検索結果をクリック → サービス選択画面へ。
   // clearService=true（新規追加時）は前回の視聴サービスをクリアする（既存 selectDrama 準拠）。
-  const openDrama = useCallback((d, clearService = false) => {
+  // opts.returnTo: 戻るボタンの行き先（検索経由なら 'search'・省略時 'main'）。
+  const openDrama = useCallback((d, clearService = false, opts) => {
+    setVocabReturn(opts?.returnTo || 'main');
     setDrama(d);
     // #18: この作品で最後に開いていた S/E を復元（無ければ従来どおり S1E1）。
     // 記憶は VocabScreen の loadEpisode → rememberEpisode が myDramas に書く
@@ -683,6 +690,8 @@ export default function AppProvider({ children }) {
     chooseService,
     openRecommend,
     searchQuery,
+    setSearchQuery,
+    vocabReturn,
     openSearch,
     startFromRecommend,
     toggleGenre,

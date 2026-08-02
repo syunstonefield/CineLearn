@@ -55,8 +55,11 @@ export async function POST(req) {
   if (!id) return jsonResponse({ miss: true }); // tmdb_id 不明 → 従来生成へ
 
   const type = body.type;
-  const s = Number(body.season) || (type === 'movie' ? 0 : 1);
-  const e = Number(body.episode) || (type === 'movie' ? 0 : 1);
+  // 映画は常に s0e0 に強制。クライアントはS/E状態値=1のまま送ってくるため、
+  // 「|| 0」のフォールバックだけだと映画が s1e1 でキー化され、シード済み映画キャッシュ
+  // （s0e0・seed-vocab.mjs）や /api/example 層1と永遠に不一致になる（2026-08-02実データで確認）。
+  const s = type === 'movie' ? 0 : Number(body.season) || 1;
+  const e = type === 'movie' ? 0 : Number(body.episode) || 1;
 
   // 1) カタログ照合（enabled な行のみ anon に見える＝RLSポリシー）
   const cat = await sbSelect(`catalog?tmdb_id=eq.${id}&select=tmdb_id&limit=1`);

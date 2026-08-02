@@ -313,6 +313,12 @@ function parseAndRefineWords(text, subtitleText) {
     .map((w) => ({ ...w, source: 'plus', example_ja_ok: !!w.example_ja }));
   let json = [...dramaWords, ...plusWords];
 
+  // 0語＝Claude応答の拒否/形式崩れの可能性。沈黙させず一次切り分け材料をconsoleに残す
+  // （実機のconsoleで原因を確定できるように・debug-with-real-data）。
+  if (!json.length) {
+    console.warn('[CL:GEN] 生成0語: 応答先頭200字 =', String(text).slice(0, 200));
+  }
+
   json = json.map((w) => {
     if (!w.example) return w;
     return exampleContainsWord(w.example, w.word) ? w : { ...w, example: '' };

@@ -56,7 +56,7 @@ const GENRE_ICONS = {
 };
 
 export default function SearchScreen() {
-  const { searchQuery, setScreen, openDrama, settings } = useApp();
+  const { searchQuery, setSearchQuery, setScreen, openDrama, settings } = useApp();
   const userLevel = settings.userLevel || 'B1';
 
   const [query, setQuery] = useState(searchQuery || '');
@@ -157,9 +157,15 @@ export default function SearchScreen() {
     [activeGenre]
   );
 
-  const pickSearch = (s) => openDrama(candidateToDrama(s, userLevel), true);
-  const pickPool = (item) => openDrama(recommendedToDrama(item, userLevel), true);
-  const pickAi = (d) => openDrama(d, true);
+  // 誤タップで開いても「戻る」で検索結果に帰れるよう、クエリを常駐stateへ書き戻してから開く
+  // （SearchScreen は再マウント時に searchQuery で自動再検索＝結果一覧が復元される）。
+  const pickWith = (d) => {
+    setSearchQuery(query);
+    openDrama(d, true, { returnTo: 'search' });
+  };
+  const pickSearch = (s) => pickWith(candidateToDrama(s, userLevel));
+  const pickPool = (item) => pickWith(recommendedToDrama(item, userLevel));
+  const pickAi = (d) => pickWith(d);
 
   // 検索結果 or AIおすすめを表示中か（どちらでもなければブラウズ）。
   const showingSearch = phase !== 'idle' || results.length > 0;

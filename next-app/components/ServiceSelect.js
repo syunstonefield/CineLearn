@@ -6,7 +6,7 @@ import { ALL_SERVICES, fetchAvailableServices } from '@/lib/tmdb';
 
 // 既存 screen-service-select の再現。
 export default function ServiceSelect() {
-  const { drama, settings, chooseService, setScreen, updateSettings } = useApp();
+  const { drama, settings, chooseService, setScreen, updateSettings, vocabReturn } = useApp();
   const [available, setAvailable] = useState(null); // null=確認中, Set=確認済み
 
   useEffect(() => {
@@ -79,8 +79,8 @@ export default function ServiceSelect() {
     <div className="screen active" id="screen-service-select">
       <div className="screen-inner">
         <div className="screen-header">
-          <button className="btn-back" onClick={() => setScreen('main')}>
-            ← マイドラマ
+          <button className="btn-back" onClick={() => setScreen(vocabReturn)}>
+            {vocabReturn === 'search' ? '← 検索結果' : '← マイドラマ'}
           </button>
           <div>
             <div className="screen-title">視聴サービスを選択</div>

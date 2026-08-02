@@ -74,8 +74,9 @@ export async function POST(req) {
   if (!id || !words.length || words.length > MAX_WORDS) return json({ skipped: 'bad-input' });
 
   const type = body.type;
-  const s = Number(body.season) || (type === 'movie' ? 0 : 1);
-  const e = Number(body.episode) || (type === 'movie' ? 0 : 1);
+  // 映画は常に s0e0（/api/vocab と同じ正規化・シード/例文層1とキーを揃える）
+  const s = type === 'movie' ? 0 : Number(body.season) || 1;
+  const e = type === 'movie' ? 0 : Number(body.episode) || 1;
   const cacheKey = `v${CACHE_VERSION}:tmdb${id}:s${s}e${e}`;
 
   // 冪等：既に在れば上書きしない（良いキャッシュ／シードを守る）

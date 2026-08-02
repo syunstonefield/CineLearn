@@ -69,6 +69,7 @@ export default function VocabScreen() {
     setEpisode,
     rememberEpisode,
     setScreen,
+    vocabReturn,
     setQuizData,
     setCurrentHistoryId,
     goToQuiz,
@@ -639,6 +640,11 @@ export default function VocabScreen() {
           (attempt, waitSec) => setRetryMsg(`混雑中... ${waitSec}秒後に再試行 (${attempt}/3)`)
         );
         words = personalizeWords(superset, personalizeOpts);
+        // 生成0語は成功扱いにしない（空リスト＋ボタン消滅で沈黙する既知の穴・2026-08-02
+        // スパイダーマン:ホームカミングで実症状）。error phase に落として再生成ボタンを残す。
+        if (!words.length) {
+          throw new Error('単語リストを作れませんでした。時間をおいて「単語を再生成」をお試しください（字幕は取得済みです）。');
+        }
         srcLabel = source || '実際の字幕データから';
 
         // フェーズ1: スーパーセットを共有キャッシュへ寄与（fire-and-forget・サーバー側で品質ゲート）
@@ -980,8 +986,8 @@ export default function VocabScreen() {
     <div className="screen active" id="screen-4">
       <div className="screen-inner">
         <div className="screen-header">
-          <button className="btn-back" onClick={() => setScreen('main')}>
-            ← マイドラマ
+          <button className="btn-back" onClick={() => setScreen(vocabReturn)}>
+            {vocabReturn === 'search' ? '← 検索結果' : '← マイドラマ'}
           </button>
           <div>
             <div className="screen-title">視聴前の準備</div>

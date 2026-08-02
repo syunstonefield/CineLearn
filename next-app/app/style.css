@@ -3410,7 +3410,9 @@ header {
 
 /* 人気の作品 / AIおすすめ結果 グリッド（ポスター） */
 .discover-pop-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-.disc-card { background: none; border: none; padding: 0; cursor: pointer; text-align: left; }
+/* min-width:0 … 1frグリッドの暗黙min-width:autoを殺す。nowrapタイトルの原題が長いと
+   列幅が文字幅に引きずられ、ポスターサイズが列ごとにバラける（スマホ検索で実測） */
+.disc-card { background: none; border: none; padding: 0; cursor: pointer; text-align: left; min-width: 0; }
 .disc-card-poster {
   position: relative;
   width: 100%;
@@ -3587,6 +3589,7 @@ header {
 }
 
 .recommend-card {
+  min-width: 0; /* nowrapタイトルで列幅が崩れる同型バグの防御（.disc-card 参照） */
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -4245,6 +4248,7 @@ header {
   margin-top: 8px;
 }
 .select-card {
+  min-width: 0; /* nowrapタイトル（英語原題）に列幅が引きずられポスターがバラける真因の修正 */
   background: none;
   border: none;
   padding: 0;
