@@ -3479,6 +3479,24 @@ header {
 }
 .gen-step-done   { color: var(--green); }
 .gen-step-active { color: var(--accent); font-weight: 600; }
+/* 準備完了→本人のタップで開く（ロビーの出口・reunion-review-btn と同系の金） */
+.gen-reveal-btn {
+  width: 100%;
+  border: none;
+  border-radius: 12px;
+  padding: 13px 12px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  animation: prepTicketEarn 0.45s cubic-bezier(0.18, 0.9, 0.3, 1.25) both;
+}
+.gen-reveal-btn:active { transform: scale(0.99); }
+@media (prefers-reduced-motion: reduce) {
+  .gen-reveal-btn { animation: none; }
+}
 
 /* あらすじカード：16:9サムネイル＋本文の横並び（コンパクト・切り抜きなし） */
 .gen-synopsis-card {

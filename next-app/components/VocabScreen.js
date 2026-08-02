@@ -97,6 +97,8 @@ export default function VocabScreen() {
   const [catReq, setCatReq] = useState({ votes: null, planned: false, requested: false, sending: false });
   const [retryMsg, setRetryMsg] = useState('');
   const [genStatus, setGenStatus] = useState('単語を分析中...'); // 生成ローディングの状態文言
+  // 準備完了→「リストを見る」待ち（自動遷移しないロビー・2026-08-02）
+  const [revealReady, setRevealReady] = useState(false);
   const [genBtn, setGenBtn] = useState({ text: '予習をはじめる →', disabled: true, hidden: false });
   const [vocab, setVocab] = useState([]);
   const [source, setSource] = useState('');
@@ -558,9 +560,11 @@ export default function VocabScreen() {
   const onGenerate = useCallbackSafe(async () => {
     if (!drama) return;
     const myReq = reqId.current;
+    const lobbyT0 = Date.now(); // ロビー最低滞在の起点（キャッシュ命中の即抜け防止）
+    setRevealReady(false);
     setGenBtn({ text: '生成中...', disabled: true, hidden: false });
     setPhase('generating');
-    setGenStatus('単語を分析中...');
+    setGenStatus('字幕を確認中...');
     setRetryMsg('');
 
     const personalizeOpts = {
@@ -675,13 +679,28 @@ export default function VocabScreen() {
       setGenStatus('仕上げ中...');
       setRetryMsg('');
 
+      // ロビー最低滞在（2026-08-02 オーナー決定）: キャッシュ命中だと一瞬で終わり、
+      // 個人化（既知語除外・レベル帯選定）の実感もあらすじ/Tipsを読む間も無いため、
+      // 実処理に対応した段階ステータスで最低 MIN_LOBBY_MS は留める。生成が遅かった時は追加で待たせない。
+      const MIN_LOBBY_MS = 4500;
+      const lobbySleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      if (Date.now() - lobbyT0 < MIN_LOBBY_MS) {
+        setGenStatus('あなたのレベルに合わせて選定中...');
+        await lobbySleep(Math.max(0, Math.min(1800, lobbyT0 + MIN_LOBBY_MS - 1500 - Date.now())));
+        if (myReq !== reqId.current) return;
+        setGenStatus('リストを仕上げ中...');
+        await lobbySleep(Math.max(0, lobbyT0 + MIN_LOBBY_MS - Date.now()));
+        if (myReq !== reqId.current) return;
+      }
+
       setVocab(words);
       setSource(srcLabel);
-      setPhase('vocab');
       setPrepFresh(true); // 新規生成成功 → 下部「予習する」（再入場用）を残す
       setPrepModes(false);
-      setJustGenerated(true); // 生成直後は予習ウォークスルーへ直行（effect が新出語の揃った瞬間に開く）
       setGenBtn({ text: '単語を再生成', disabled: false, hidden: true });
+      // 自動でリストへ遷移しない: 「準備ができました — リストを見る →」を出して本人のタップで開く
+      // （phase は 'generating' のまま・GenLoading が ready 表示に切り替わる）。
+      setRevealReady(true);
 
       // 履歴に保存
       const id = saveHistoryEntry({
@@ -709,6 +728,12 @@ export default function VocabScreen() {
   }, [drama, season, episode, settings, source, preload, reloadSrs, loadExtWords]);
 
   // ── ハンドラ ──
+  // ロビーの「リストを見る →」: ここで初めてリスト表示＋予習ウォークスルー直行が発火する
+  const revealList = () => {
+    setRevealReady(false);
+    setPhase('vocab');
+    setJustGenerated(true); // 生成直後は予習ウォークスルーへ直行（effect が新出語の揃った瞬間に開く）
+  };
   const handleSkip = (word, isSkip) => {
     isSkip ? unskipWord(word) : skipWord(word);
     reloadSrs();
@@ -1122,6 +1147,8 @@ export default function VocabScreen() {
               drama={drama}
               season={season}
               episode={episode}
+              ready={revealReady}
+              onReveal={revealList}
             />
           ) : showVocab && sortedVocab.length ? (
             <>

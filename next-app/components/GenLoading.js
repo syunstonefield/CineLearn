@@ -25,7 +25,9 @@ function genPhaseFloorOf(status) {
   return 5;
 }
 
-export default function GenLoading({ status, drama, season, episode }) {
+// ready=true でスピナーを完了表示に替え「リストを見る →」ボタンを出す（自動遷移しない）。
+// あらすじ/Tipsを読み終わってから本人のタップで進む＝強制の待ちを増やさずロビー滞在を本人の選択にする。
+export default function GenLoading({ status, drama, season, episode, ready = false, onReveal }) {
   // Tips：ランダム開始で4秒ごとにローテーション
   const [tipIdx, setTipIdx] = useState(() => Math.floor(Math.random() * LEARNING_TIPS.length));
   const [synopsis, setSynopsis] = useState(null);
@@ -93,26 +95,35 @@ export default function GenLoading({ status, drama, season, episode }) {
       {/* ステータス帯：スピナー＋文言＋工程インジケーター */}
       <div className="gen-strip">
         <div className="gen-strip-status">
-          <div className="spinner"></div>
-          <span>{status}</span>
+          {ready ? <span aria-hidden="true">✅</span> : <div className="spinner"></div>}
+          <span>{ready ? '準備ができました' : status}</span>
         </div>
         <div className="gen-steps">
           {STEPS.map((s, i) => (
             <span
               key={s}
-              className={'gen-step' + (i < step ? ' gen-step-done' : i === step ? ' gen-step-active' : '')}
+              className={
+                'gen-step' + (ready || i < step ? ' gen-step-done' : i === step ? ' gen-step-active' : '')
+              }
             >
-              {i < step ? '✓ ' : ''}
+              {ready || i < step ? '✓ ' : ''}
               {s}
             </span>
           ))}
         </div>
       </div>
 
-      {/* 進捗バー（経過時間で95%まで漸近。完了時は画面ごと単語リストに置き換わる） */}
+      {/* 進捗バー（経過時間で95%まで漸近。ready で100%＝ボタン待ち） */}
       <div className="gen-progress">
-        <div className="gen-progress-fill" style={{ width: `${progress.toFixed(1)}%` }}></div>
+        <div className="gen-progress-fill" style={{ width: ready ? '100%' : `${progress.toFixed(1)}%` }}></div>
       </div>
+
+      {/* 完了 → 自動遷移せず本人のタップで開く（あらすじ/Tipsの読了は本人のペース） */}
+      {ready && (
+        <button className="gen-reveal-btn" onClick={onReveal}>
+          リストを見る →
+        </button>
+      )}
 
       {/* あらすじカード：16:9サムネイル（エピソードスチル優先→作品画像）＋本文の横並び。
           画像は比率を保ったまま縮小表示（切り抜きなし）。無ければテキストのみ */}
