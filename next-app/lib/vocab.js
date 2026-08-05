@@ -382,15 +382,18 @@ export function personalizeWords(words, { toeicScore = 0, targetToeicScore = 0, 
 // レベル非依存に CEFR A2〜C2 を広く生成（シード/共有キャッシュ用）。
 // personalizeWords で読み取り時に学習者レベルへ絞る前提なので、ここでは
 // 除外/帯/plus間引きをしない（各語に level/tier タグだけ付けて広く保存する）。
-// ctx = { drama, season, episode, subtitleText, vocabCount? }
-export async function generateSuperset(ctx, onRetry) {
-  const { drama, season, episode, subtitleText, vocabCount } = ctx;
+// ctx = { drama, season, episode, subtitleText, vocabCount?, onProgress? }
+async function generateSupersetOnce(ctx, onRetry) {
+  const { drama, season, episode, subtitleText, vocabCount, quotaDiv = 1 } = ctx;
   const isMovieGen = drama.type === 'movie';
   const baseCount = vocabCount || 40;
   // 各帯(A2〜C2)を網羅し、上級者の帯(B2〜C1)でも floor(最大50)に届くよう多めに採る。
   // drama ~70 + plus 18〜20 で合計 ~90。cap 12000(≈100語)に収まる。
-  const genVocabCount = isMovieGen ? Math.min(150, baseCount * 3) : 70;
-  const minTotal = isMovieGen ? Math.min(80, genVocabCount) : 50;
+  // quotaDiv=分割生成時の按分（結合後の総語数が従来と同水準になるように）。
+  const fullCount = isMovieGen ? Math.min(150, baseCount * 3) : 70;
+  const fullMin = isMovieGen ? Math.min(80, fullCount) : 50;
+  const genVocabCount = Math.max(20, Math.ceil(fullCount / quotaDiv));
+  const minTotal = Math.max(12, Math.ceil(fullMin / quotaDiv));
 
   // superset は levelSpec が A2〜C2 固定のため cur/upper（バンド絞り用）は使わない。
   const { prompt, maxTokens } = buildVocabPrompt({
@@ -398,6 +401,39 @@ export async function generateSuperset(ctx, onRetry) {
   });
   const text = await callClaude(prompt, maxTokens, onRetry);
   return parseAndRefineWords(text, subtitleText);
+}
+
+// 長編（映画等）は字幕を等分チャンクに割り、語数を按分して生成→結合する。
+// 2026-08-05 実測（スパイダーマン:ホームカミング）: 2時間分の字幕全文を一括で渡すと
+// 選定が前半に偏る（0-60分に63語・60-133分に2語の崖）。切り詰めはどこにも無く、
+// 長い入力でモデルが前半から選ぶ癖が原因＝入力側を割って全編から選ばせるのが対策。
+// TV1話（字幕≦25k字程度）は1チャンク＝従来と完全に同じ挙動・コスト。
+const CHUNK_CHARS = 45000;
+
+export async function generateSuperset(ctx, onRetry) {
+  const subText = ctx.subtitleText || '';
+  const nChunks = Math.min(3, Math.max(1, Math.ceil(subText.length / CHUNK_CHARS)));
+  if (nChunks === 1) return generateSupersetOnce(ctx, onRetry);
+
+  const size = Math.ceil(subText.length / nChunks);
+  const merged = [];
+  const seen = new Set();
+  for (let i = 0; i < nChunks; i++) {
+    ctx.onProgress?.(i + 1, nChunks);
+    // チャンク境界の文切れは許容（refineDramaWords の逐語チェックは各チャンク文に対して働く）。
+    // 直列実行＝APIレート制限内に収める（映画1本=2〜3コール・初回のみ・以後は共有キャッシュ）。
+    const part = await generateSupersetOnce(
+      { ...ctx, subtitleText: subText.slice(i * size, (i + 1) * size), quotaDiv: nChunks },
+      onRetry
+    );
+    for (const w of part) {
+      const k = String(w.word || '').toLowerCase();
+      if (!k || seen.has(k)) continue;
+      seen.add(k);
+      merged.push(w);
+    }
+  }
+  return merged;
 }
 
 // 従来の都度生成（クライアントfallback）。targeted生成 → 学習者レベルで絞る。

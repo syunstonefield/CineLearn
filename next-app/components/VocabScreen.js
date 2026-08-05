@@ -647,7 +647,15 @@ export default function VocabScreen() {
         }
 
         const superset = await generateSuperset(
-          { drama, season, episode, subtitleText: subText, vocabCount: settings.vocabCount || 30 },
+          {
+            drama,
+            season,
+            episode,
+            subtitleText: subText,
+            vocabCount: settings.vocabCount || 30,
+            // 長編の分割生成（映画=2〜3チャンク）の進捗をロビーの状態文言に反映
+            onProgress: (i, n) => setGenStatus(`単語を分析中... (${i}/${n})`),
+          },
           (attempt, waitSec) => setRetryMsg(`混雑中... ${waitSec}秒後に再試行 (${attempt}/3)`)
         );
         words = personalizeWords(superset, personalizeOpts);
