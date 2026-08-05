@@ -111,7 +111,13 @@ async function azureTranslate(text) {
       'https://api.cognitive.microsofttranslator.com/translate?api-version=3.0&from=en&to=ja',
       { method: 'POST', headers, body: JSON.stringify([{ Text: text }]), cache: 'no-store' }
     );
-    if (!res.ok) return null;
+    if (!res.ok) {
+      // 失敗理由をサーバーログにだけ残す（レスポンスには載せない）。
+      // 401=鍵失効/リージョン不一致・403=枠切れ/停止・429=スロットル の切り分け用。
+      const detail = await res.text().catch(() => '');
+      console.warn('[CL:AZURE] translate failed', res.status, detail.slice(0, 200));
+      return null;
+    }
     const data = await res.json();
     return data?.[0]?.translations?.[0]?.text?.trim() || null;
   } catch {
