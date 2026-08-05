@@ -337,7 +337,7 @@ export default function VocabScreen() {
           setPhase('ready');
           setMessage('「予習をはじめる」を押してください');
           setGenBtn({ text: '予習をはじめる →', disabled: false, hidden: false });
-          resolveUnassignedWords(pid, result.parsed, drama.englishTitle || drama.title, se, ep)
+          (isMovie ? Promise.resolve() : resolveUnassignedWords(pid, result.parsed, drama.englishTitle || drama.title, se, ep))
             .then(() => loadExtWords(se, ep, vocab))
             .catch(() => {});
         } else {
@@ -379,7 +379,7 @@ export default function VocabScreen() {
         const key = subtitleCacheKey(drama.englishTitle || drama.title, se, ep);
         subMem.current = { key, text: result.parsed, raw: result.raw };
         setSubRaw(result.raw); // 📍タイムスタンプ補完（成功時のみ）
-        resolveUnassignedWords(pid, result.parsed, drama.englishTitle || drama.title, se, ep)
+        (isMovie ? Promise.resolve() : resolveUnassignedWords(pid, result.parsed, drama.englishTitle || drama.title, se, ep))
           .then(() => loadExtWords(se, ep, vocab))
           .catch(() => {});
       } catch {

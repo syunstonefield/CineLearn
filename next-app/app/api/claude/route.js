@@ -143,6 +143,52 @@ export async function POST(req) {
     }
   }
 
+  // ── mode:'sentence'＝例文（1文）の和訳（2026-08-05 追加）──
+  //   本番の /api/translate（DeepL/Azure）が鍵切れで ja:null しか返せなくなり、単語帳の
+  //   例文和訳が出なくなっていた（実測）。Anthropic 鍵は生きているので Haiku を代替経路にする。
+  //   wordsense と同じ立て付け: 共有キャッシュ（word='__sentence__'）命中は無条件配布、
+  //   新規生成のみ IP 日次で絞る。max_tokens 200（1文の和訳に十分）。
+  if (body.mode === 'sentence') {
+    const sentence = String(body.text || body.sentence || '').trim().slice(0, 300);
+    if (!sentence) return json({ ja: null, error: 'bad request' }, 400);
+
+    const SENT_KEY = '__sentence__';
+    const hash = senseHash(sentence);
+    const cached = await readCtxCache(SENT_KEY, hash);
+    if (cached) return json({ ja: cached, via: 'cache' });
+
+    if (!(await checkRateLimit(req, 'sentence', { perMin: 30, perHour: 200, perDay: 300 })).ok) {
+      return json({ ja: null, error: 'rate_limited' }, 429);
+    }
+
+    const prompt =
+      `次の英語のセリフを自然な日本語に訳してください。訳文だけを出力し、説明・引用符・原文は付けないでください。\n` +
+      `セリフ: "${sentence}"`;
+    try {
+      const r = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 200,
+          messages: [{ role: 'user', content: prompt }],
+        }),
+      });
+      if (!r.ok) return json({ ja: null });
+      const data = await r.json();
+      const ja = (data?.content?.[0]?.text || '').trim().replace(/^["「『]|["」』]$/g, '');
+      if (!ja || ja.length > 200) return json({ ja: null }); // 形式崩れは配らない
+      writeCtxCache(SENT_KEY, hash, ja, sentence);
+      return json({ ja, via: 'haiku' });
+    } catch {
+      return json({ ja: null });
+    }
+  }
+
   // ── 既定モード＝単語リスト/クイズ生成 ──
   // ゲート通過後の課金天井：IP単位 30/分・300/時（Upstash env 未設定なら no-op）。
   if (!(await checkRateLimit(req, 'claude')).ok) return json({ error: 'rate_limited' }, 429);

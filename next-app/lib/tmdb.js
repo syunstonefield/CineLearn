@@ -16,8 +16,8 @@ export async function fetchSeasonInfoFromTMDb(title) {
       .map((s) => ({ season: s.season_number, episodes: s.episode_count }));
 
     const englishTitle = detail.name || show.original_name || title;
-    const imgPath = show.backdrop_path || show.poster_path;
-    const posterPath = imgPath ? `https://image.tmdb.org/t/p/w780${imgPath}` : null;
+    const imgPath = show.poster_path || show.backdrop_path;
+    const posterPath = imgPath ? `https://image.tmdb.org/t/p/w342${imgPath}` : null;
     return seasons.length ? { seasons, englishTitle, tmdbId: show.id, posterPath } : null;
   } catch {
     return null;
@@ -31,8 +31,8 @@ export async function fetchMovieInfoFromTMDb(title) {
     const movie = data.results?.[0];
     if (!movie) return null;
     const englishTitle = movie.title || movie.original_title || title;
-    const imgPath = movie.backdrop_path || movie.poster_path;
-    const posterPath = imgPath ? `https://image.tmdb.org/t/p/w780${imgPath}` : null;
+    const imgPath = movie.poster_path || movie.backdrop_path;
+    const posterPath = imgPath ? `https://image.tmdb.org/t/p/w342${imgPath}` : null;
     return { englishTitle, tmdbId: movie.id, posterPath };
   } catch {
     return null;
@@ -42,8 +42,8 @@ export async function fetchMovieInfoFromTMDb(title) {
 // /search/multi で TVと映画の最上位候補をそれぞれ取得
 export async function fetchTitleCandidatesFromTMDb(title) {
   const posterOf = (x) => {
-    const p = x.backdrop_path || x.poster_path;
-    return p ? `https://image.tmdb.org/t/p/w780${p}` : null;
+    const p = x.poster_path || x.backdrop_path;
+    return p ? `https://image.tmdb.org/t/p/w342${p}` : null;
   };
   const yearOf = (x) => (x.first_air_date || x.release_date || '').slice(0, 4);
   try {
@@ -183,9 +183,9 @@ export async function fetchAvailableServices(drama) {
       }
       tmdbId = firstResult?.id;
       if (tmdbId) drama.tmdbId = tmdbId;
-      if ((firstResult?.backdrop_path || firstResult?.poster_path) && !drama.posterPath) {
-        const imgPath = firstResult.backdrop_path || firstResult.poster_path;
-        drama.posterPath = `https://image.tmdb.org/t/p/w780${imgPath}`;
+      if ((firstResult?.poster_path || firstResult?.backdrop_path) && !drama.posterPath) {
+        const imgPath = firstResult.poster_path || firstResult.backdrop_path;
+        drama.posterPath = `https://image.tmdb.org/t/p/w342${imgPath}`;
       }
     }
     if (tmdbId) {

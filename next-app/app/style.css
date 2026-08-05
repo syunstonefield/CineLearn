@@ -5353,7 +5353,7 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
 .stub-card-poster {
   flex-shrink: 0;
   width: 44px;
-  height: 62px;
+  aspect-ratio: 2 / 3; /* 44×66。旧 height:62px は 0.710 で微妙に潰れていた */
   object-fit: cover;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
@@ -5412,9 +5412,12 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
 .continue-card-poster-wrap {
   position: relative;
   flex-shrink: 0;
-  width: 74px;
-  align-self: stretch;
-  min-height: 104px;
+  /* ポスター比率(2:3)を枠に固定。align-self:stretch + min-height だと枠の高さが
+     カード本文（語数行やバーの有無で変わる）に追従し、実測 74×130=0.569 で
+     ポスターの左右が15%切れていた（2026-08-05 実測・オーナー報告）。 */
+  width: 86px;
+  aspect-ratio: 2 / 3;
+  align-self: center;
   border-radius: 10px;
   overflow: hidden;
   display: flex;

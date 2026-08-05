@@ -235,14 +235,20 @@ export async function getMyWordsForEpisode(drama, season, episode, profileId, me
     .filter(Boolean)
     .map((t) => t.toLowerCase());
 
-  const seWords = words.filter(
-    (w) =>
-      w.dramaTitle &&
-      w.season != null &&
-      w.episode != null &&
-      w.season == season &&
-      w.episode == episode
-  );
+  // 映画は S/E の概念が無く、保存側が season/episode=null で書く（VocabScreen/拡張とも）。
+  // 一方この画面の state は映画でも 1/1 なので、S/E 一致で絞ると映画の語が1つも拾えない
+  // （2026-08-05 オーナー報告「追加した単語がリストに出ない」の実原因）。映画はタイトル一致で判定する。
+  const isMovie = drama?.type === 'movie' || drama?.mediaType === 'movie';
+  const seWords = isMovie
+    ? words.filter((w) => w.dramaTitle)
+    : words.filter(
+        (w) =>
+          w.dramaTitle &&
+          w.season != null &&
+          w.episode != null &&
+          w.season == season &&
+          w.episode == episode
+      );
   const aliasCache = getTitleAliasMap();
   const toResolve = [
     ...new Set(
@@ -267,6 +273,7 @@ export async function getMyWordsForEpisode(drama, season, episode, profileId, me
   return words.filter((w) => {
     if (!w.dramaTitle) return false;
     if (!titleMatches(w)) return false;
+    if (isMovie) return true; // 映画はタイトル一致で十分（S/E は無い）
     if (w.season != null && w.episode != null) {
       return w.season == season && w.episode == episode;
     }
