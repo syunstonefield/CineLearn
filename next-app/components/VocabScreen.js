@@ -246,6 +246,13 @@ export default function VocabScreen() {
         setQuizData(entry.quiz || []);
         setSource('');
         setPhase('saved');
+        // 生成後に予習せず離れても再入場できるように（2026-08-05 オーナー要望）:
+        // 予習未完了（ウォークスルー半券なし かつ クイズ未受験）の保存リストは
+        // 「予習する →」バーを新規生成時と同様に出す（完了済みは従来どおり「クイズで腕試し」）。
+        const prepDone =
+          getPrepped(episodeId(drama, se, ep, drama.type === 'movie')) || !!entry.quizDate;
+        setPrepFresh(!prepDone);
+        setPrepModes(false);
         setGenBtn((b) => ({ ...b, hidden: true }));
         setStatusText(
           drama.type === 'movie'
@@ -1182,6 +1189,62 @@ export default function VocabScreen() {
                 {completeMsg && <div className="srs-complete">{completeMsg}</div>}
               </div>
 
+              {/* #20 手動追加。リストの一番上に置く（2026-08-05 オーナー要望: 追加しやすく）。
+                  追加した単語の表示自体は下の「✏️ 追加した単語」セクションのまま。 */}
+              <div style={{ display: 'flex', gap: 8, marginTop: 12, alignItems: 'center' }}>
+                <input
+                  // type="email"+lang="en" は「英語(ASCII)キーボードを既定表示」のための実務トリック。
+                  // キーボード言語の完全な強制は Web 仕様上不可能で、email 型が iOS/Android とも
+                  // 最も確実にラテン配列を出す（副作用: @ キーが見える・メール autofill 候補は
+                  // autoComplete="off" で抑制。中間スペースは維持されるためフレーズ入力も可）。
+                  type="email"
+                  lang="en"
+                  autoComplete="off"
+                  value={addWordText}
+                  onChange={(e) => {
+                    setAddWordText(e.target.value);
+                    if (addMsg) setAddMsg('');
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleAddWord();
+                  }}
+                  placeholder="この話の単語を追加（例: retainer）"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  disabled={addBusy}
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    padding: '9px 12px',
+                    border: '1px solid var(--border, #ddd)',
+                    borderRadius: 10,
+                    fontSize: 14,
+                    fontFamily: 'inherit',
+                    background: 'var(--card-bg, #fff)',
+                    color: 'inherit',
+                  }}
+                />
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={handleAddWord}
+                  disabled={addBusy}
+                  style={{
+                    // .btn-secondary の width:100% を打ち消す（フル幅化すると flex 行の
+                    // 入力欄が数pxに圧殺され、スマホで「入力できない→空で押して無反応」になる）
+                    width: 'auto',
+                    flexShrink: 0,
+                    whiteSpace: 'nowrap',
+                    padding: '9px 14px',
+                    borderRadius: 10,
+                  }}
+                >
+                  {addBusy ? '追加中…' : '＋ 追加'}
+                </button>
+              </div>
+              {addMsg && <div style={{ marginTop: 6, fontSize: 12, color: '#888' }}>{addMsg}</div>}
+
               {source && phase === 'vocab' && (
                 <div className="source-label" style={{ marginBottom: 8 }}>
                   📝 {source}から生成
@@ -1250,62 +1313,6 @@ export default function VocabScreen() {
                       ))}
                     </div>
                   </>
-                )}
-                {/* #20 手動追加（スマホ等・拡張なしでこの話に単語を足す） */}
-                <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'center' }}>
-                  <input
-                    // type="email"+lang="en" は「英語(ASCII)キーボードを既定表示」のための実務トリック。
-                    // キーボード言語の完全な強制は Web 仕様上不可能で、email 型が iOS/Android とも
-                    // 最も確実にラテン配列を出す（副作用: @ キーが見える・メール autofill 候補は
-                    // autoComplete="off" で抑制。中間スペースは維持されるためフレーズ入力も可）。
-                    type="email"
-                    lang="en"
-                    autoComplete="off"
-                    value={addWordText}
-                    onChange={(e) => {
-                      setAddWordText(e.target.value);
-                      if (addMsg) setAddMsg('');
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleAddWord();
-                    }}
-                    placeholder="この話の単語を追加（例: retainer）"
-                    autoCapitalize="none"
-                    autoCorrect="off"
-                    spellCheck={false}
-                    disabled={addBusy}
-                    style={{
-                      flex: 1,
-                      minWidth: 0,
-                      padding: '9px 12px',
-                      border: '1px solid var(--border, #ddd)',
-                      borderRadius: 10,
-                      fontSize: 14,
-                      fontFamily: 'inherit',
-                      background: 'var(--card-bg, #fff)',
-                      color: 'inherit',
-                    }}
-                  />
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={handleAddWord}
-                    disabled={addBusy}
-                    style={{
-                      // .btn-secondary の width:100% を打ち消す（フル幅化すると flex 行の
-                      // 入力欄が数pxに圧殺され、スマホで「入力できない→空で押して無反応」になる）
-                      width: 'auto',
-                      flexShrink: 0,
-                      whiteSpace: 'nowrap',
-                      padding: '9px 14px',
-                      borderRadius: 10,
-                    }}
-                  >
-                    {addBusy ? '追加中…' : '＋ 追加'}
-                  </button>
-                </div>
-                {addMsg && (
-                  <div style={{ marginTop: 6, fontSize: 12, color: '#888' }}>{addMsg}</div>
                 )}
               </div>
 
