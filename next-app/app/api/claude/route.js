@@ -110,7 +110,11 @@ export async function POST(req) {
     const cached = await readCtxCache(word.toLowerCase(), hash);
     if (cached) return json({ ja: cached, via: 'cache' });
 
-    if (!(await checkRateLimit(req, 'wordsense', { perMin: 20, perHour: 100, perDay: 50 })).ok) {
+    // 日次は 50→300（2026-08-06 オーナー判断）。50 は「安い1語訳(/api/translate)が受け皿にある」
+    // 前提の数字だったが Azure 失効でその受け皿が消え、正規利用（1話20〜40語）で2話も持たずに
+    // 枯れて訳が丸ごと出なくなった（実測429）。wordsense は max_tokens 64 固定＝1回≈¥0.03なので
+    // 300 でも天井は ¥9/日/IP。キャッシュ命中はこの計数より先に返るので既訳語は無制限のまま。
+    if (!(await checkRateLimit(req, 'wordsense', { perMin: 20, perHour: 100, perDay: 300 })).ok) {
       return json({ ja: null, error: 'rate_limited' }, 429);
     }
 

@@ -86,6 +86,9 @@ function getCtxJaCached(word, sentence) {
     try {
       chrome.runtime.sendMessage({ type: 'CL_WORDSENSE', word: w, sentence: s }, (res) => {
         if (chrome.runtime.lastError) return resolve(null);
+        // 失敗理由をコンソールに出す（http_429=日次上限 / http_403=Origin弾き / network）。
+        // 無言で null になると画面上は「訳が見つかりません」と区別が付かない。
+        if (res?.reason) console.warn('[CL:WORDSENSE]', w, res.reason);
         const ja = res?.ja || null;
         if (ja != null) ctxJaCache.set(key, ja);
         resolve(ja);
@@ -535,12 +538,18 @@ function showToast(msg) {
 // ─────────────────────────────────────────────────────────────────
 // 辞書 API（Free Dictionary API）
 // ─────────────────────────────────────────────────────────────────
+//   ⚠先方が断続的に 502 を返す（2026-08-06 実測12件中8件・同じ語が502→200と揺れる＝
+//   語の問題ではなくサーバー側の一時不調）。リトライ無しだと半分の語で定義が消え、
+//   訳も落ちている時に「訳・定義が見つかりませんでした」になる。5xx のときだけ1回だけ
+//   聞き直す（404＝辞書に無い語は再試行しても無駄なので対象外）。成功率 約50%→75%。
 async function lookupWord(word) {
+  const url = `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word.toLowerCase())}`;
   try {
-    const res = await fetch(
-      `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word.toLowerCase())}`,
-      { signal: AbortSignal.timeout(5000) }
-    );
+    let res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    if (res.status >= 500) {
+      await clSleep(300);
+      res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    }
     if (!res.ok) return null;
     const [entry] = await res.json();
     const meaning = entry?.meanings?.[0];
@@ -566,6 +575,7 @@ function translateToJa(word) {
     try {
       chrome.runtime.sendMessage({ type: 'CL_TRANSLATE_JA', word }, (res) => {
         if (chrome.runtime.lastError) return resolve(null); // 接続切れ等は黙って諦める
+        if (res?.reason) console.warn('[CL:TRANSLATE]', word, res.reason);
         resolve(res?.ja || null);
       });
     } catch {

@@ -53,9 +53,12 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ mode: 'wordsense', word: msg.word, sentence: msg.sentence }),
     })
-      .then(r => (r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status))))
+      // 非2xx（429=日次上限 / 403=Origin弾き / 5xx）を黙って {ja:null} に潰すと、画面には
+      // 「訳・定義が見つかりませんでした」としか出ず原因が分からない（2026-08-06 の切り分けで
+      // 実際に詰まった）。CL_FETCH_EXAMPLE と同じく reason を透過し content.js 側でログに出す。
+      .then(r => (r.ok ? r.json() : { ja: null, reason: 'http_' + r.status }))
       .then(data => sendResponse(data))
-      .catch(() => sendResponse({ ja: null }));
+      .catch(() => sendResponse({ ja: null, reason: 'network' }));
     return true; // 非同期レスポンス
   }
   // 単語クリック時の英日訳（公式翻訳APIの鍵をサーバー側に隠すため /api/translate を代理）。
@@ -66,9 +69,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ word: msg.word }),
     })
-      .then(r => (r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status))))
+      .then(r => (r.ok ? r.json() : { ja: null, reason: 'http_' + r.status }))
       .then(data => sendResponse(data))
-      .catch(() => sendResponse({ ja: null }));
+      .catch(() => sendResponse({ ja: null, reason: 'network' }));
     return true; // 非同期レスポンス
   }
 });
