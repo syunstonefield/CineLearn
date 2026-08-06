@@ -71,7 +71,7 @@ function json(obj, status = 200) {
 // 正規アプリ（next-app / cine-learn / localhost / 拡張）からの呼び出しのみ許可。
 function allowedOrigin(req) {
   const s = req.headers.get('origin') || req.headers.get('referer') || '';
-  if (!s) return true; // 同一オリジン fetch や拡張 background で origin 無しのことがある
+  if (!s) return false; // 空 Origin の正規経路は無い（拡張は chrome-extension:// を付ける・seedはCINELEARN_API_ORIGIN）
   if (s.startsWith('chrome-extension://')) return true;
   try {
     const u = new URL(s);
@@ -190,8 +190,14 @@ export async function POST(req) {
   }
 
   // ── 既定モード＝単語リスト/クイズ生成 ──
-  // ゲート通過後の課金天井：IP単位 30/分・300/時（Upstash env 未設定なら no-op）。
-  if (!(await checkRateLimit(req, 'claude')).ok) return json({ error: 'rate_limited' }, 429);
+  // ⚠このモードは任意プロンプトを実行できる（プロンプトを組むのはクライアント）。
+  //   日次上限が無いと 1 IP で 300回/時 × 12,000 out tok ＝ 約¥67,000/日 を焼ける財布攻撃が成立する
+  //   （2026-08-06 公開前討論で発見）。正規利用は 1話=1コール・映画=最大3コール（分割生成）なので
+  //   日100あれば重い使い方でも足り、共有IP（NAT）でも数人ぶんの余裕がある。
+  //   本命はプロンプトのサーバ側生成（mode:'vocab' 化）。それまでの天井として日次を張る。
+  if (!(await checkRateLimit(req, 'claude', { perMin: 10, perHour: 40, perDay: 100 })).ok) {
+    return json({ error: 'rate_limited' }, 429);
+  }
 
   const { prompt } = body;
   if (!prompt) return json({ error: 'prompt is required' }, 400);

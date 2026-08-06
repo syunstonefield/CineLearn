@@ -18,7 +18,7 @@ function json(obj, status = 200) {
 // 正規アプリ（next-app / cine-learn / localhost / 拡張）からの呼び出しのみ許可。
 function allowedOrigin(req) {
   const s = req.headers.get('origin') || req.headers.get('referer') || '';
-  if (!s) return true;
+  if (!s) return false; // 空 Origin の正規経路は無い（拡張は chrome-extension:// を付ける・seedはCINELEARN_API_ORIGIN）
   if (s.startsWith('chrome-extension://')) return true;
   try {
     const u = new URL(s);
