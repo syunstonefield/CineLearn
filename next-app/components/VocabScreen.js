@@ -28,6 +28,7 @@ import {
   fetchRawSrtIfMissing,
   findExampleForWord,
   subtitleCacheKey,
+  readCachedSubtitleText,
   computeTimestamps,
   attachBaseTimestamps,
   secToTimeLabel,
@@ -401,9 +402,9 @@ export default function VocabScreen() {
       setGenBtn({ text: '予習をはじめる →', disabled: true, hidden: false });
       if (await checkSaved(se, ep)) {
         // 保存済みでも字幕キャッシュが無ければ「無音版」で静かに取得
-        // （タイムスタンプ＋拡張単語照合用。失敗してもリスト表示を壊さない）
-        const key = subtitleCacheKey(drama.englishTitle || drama.title, se, ep);
-        if (!localStorage.getItem(key)) preloadSilent(se, ep, myReq);
+        // （タイムスタンプ＋拡張単語照合用。失敗してもリスト表示を壊さない。
+        //  旧邦題キーのキャッシュも「あり」とみなす＝englishTitle切替でOS DLを再消費しない）
+        if (!readCachedSubtitleText(drama, se, ep)) preloadSilent(se, ep, myReq);
         return;
       }
       if (myReq !== reqId.current) return;
@@ -631,7 +632,8 @@ export default function VocabScreen() {
       } else {
         // 2) ミス → 字幕取得 → スーパーセット生成（全レベル分）→ レベル絞りで表示
         const key = subtitleCacheKey(drama.englishTitle || drama.title, season, episode);
-        let subText = subMem.current.key === key ? subMem.current.text : localStorage.getItem(key) || '';
+        let subText =
+          subMem.current.key === key ? subMem.current.text : readCachedSubtitleText(drama, season, episode);
         if (!subText) {
           setGenBtn({ text: '字幕を読み込み中...', disabled: true, hidden: false });
           setGenStatus('字幕を読み込み中...');

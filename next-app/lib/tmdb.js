@@ -51,11 +51,22 @@ export async function fetchTitleCandidatesFromTMDb(title) {
     const results = (data.results || []).filter(
       (x) => x.media_type === 'movie' || x.media_type === 'tv'
     );
+    // englishTitle は「ラテン文字の原題」を最優先で採用する。検索は日本語設定のため
+    // x.title / x.name は邦題＝従来は映画の englishTitle が邦題のままになり、
+    // OSフォールバック検索の質とタイトル照合の英語alias経路を損ねていた
+    // （2026-08-06 スパイダーマン表記ゆれ問題の遠因）。TVは後段 resolveTitleCandidate の
+    // 詳細取得で上書きされ得るが、初期値もここで正しくしておく。
+    // 非ラテン原題（韓国語・中国語等）は従来どおり邦題フォールバック（OS検索は基本
+    // tmdbId 厳密検索のため実害は小さい）。
+    const latinTitle = (s) =>
+      s && /^[\x20-\x7EÀ-ɏ‘’“”–—…]+$/.test(s) ? s : null;
     const shape = (x) =>
       x && {
         type: x.media_type,
         tmdbId: x.id,
-        englishTitle: x.title || x.name || x.original_title || x.original_name || title,
+        englishTitle:
+          latinTitle(x.original_title || x.original_name) ||
+          x.title || x.name || x.original_title || x.original_name || title,
         year: yearOf(x),
         posterPath: posterOf(x),
       };

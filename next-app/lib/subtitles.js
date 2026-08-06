@@ -668,12 +668,31 @@ export async function fetchEpisodeSubtitle(drama, season, episode) {
   return { parsed, raw: srtText, source: '実際の字幕データから' };
 }
 
+// 移行フォールバック（2026-08-06）: englishTitle を邦題→ラテン原題に切り替えたため、
+// 切替前に邦題キーで保存された字幕キャッシュが新キーでミスする。読み取りは
+// 英題キー→邦題キーの順で両方を見る（書き込みは新キーのみ・OS DL枠の再消費を防ぐ）。
+function readSubCacheWithFallback(keyFn, drama, season, episode) {
+  const title = drama?.englishTitle || drama?.title;
+  const key = keyFn(title, season, episode);
+  let val = localStorage.getItem(key);
+  let hitKey = key;
+  if (!val && drama?.title && drama.title !== title) {
+    const oldKey = keyFn(drama.title, season, episode);
+    val = localStorage.getItem(oldKey);
+    if (val) hitKey = oldKey;
+  }
+  if (val) touchSubCache(hitKey);
+  return val || '';
+}
+
+// エピソードの整形済み字幕テキストを localStorage から取得（旧邦題キーもフォールバック）
+export function readCachedSubtitleText(drama, season, episode) {
+  return readSubCacheWithFallback(subtitleCacheKey, drama, season, episode);
+}
+
 // 現在のエピソードの生SRTを localStorage から取得（タイムスタンプ用）
 export function getCachedRawSrt(drama, season, episode) {
-  const title = drama?.englishTitle || drama?.title;
-  const rawKey = subtitleRawCacheKey(title, season, episode);
-  const raw = localStorage.getItem(rawKey) || '';
-  if (raw) touchSubCache(rawKey);
+  const raw = readSubCacheWithFallback(subtitleRawCacheKey, drama, season, episode);
   return raw;
 }
 
@@ -683,7 +702,8 @@ export async function fetchRawSrtIfMissing(drama, season, episode) {
   if (!drama || !season || !episode) return null;
   const title = drama.englishTitle || drama.title;
   const rawKey = subtitleRawCacheKey(title, season, episode);
-  if (localStorage.getItem(rawKey)) return null; // すでにキャッシュ済み
+  // 旧邦題キーのキャッシュも「あり」とみなす（englishTitle切替でOS DLを再消費しない）
+  if (readSubCacheWithFallback(subtitleRawCacheKey, drama, season, episode)) return null;
 
   try {
     // 映画/TVの区別と候補選別を本取得（fetchEpisodeSubtitle）と同一にする

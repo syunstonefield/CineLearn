@@ -2,7 +2,7 @@
 // 拡張機能・Supabase が無い試作環境でも localStorage だけで完結するよう、
 // chrome.storage / cloudSync 依存は app.js 同様にガードして無効化する。
 import { tmdb, callClaude } from './api';
-import { deleteMyWordCloud } from './supabase';
+import { deleteMyWordCloud, pushMyWord } from './supabase';
 import { myWordsKey, deletedWordsKey } from './storage';
 import { subtitleCacheKey } from './subtitles';
 import { repairJson } from './vocab';
@@ -295,15 +295,26 @@ export async function getMyWordsForEpisode(drama, season, episode, profileId, me
 }
 
 // 未割当単語をキャッシュ済み字幕から自動解決してストアを更新する
+// 2026-08-06 fail-closed 設計へ変更。旧実装は日本語タイトルが safe キー化（[^a-z0-9]→_）で
+// 全て "_" に潰れ、先頭5文字比較が日本語作品同士で常に一致→他作品の字幕に語があれば
+// 誤った S/E を付与し得た。新設計の原則は「確信がある時だけ書く」:
+//   ① 作品照合は英語 alias（resolveEnglishTitle）を解決してから safe キーの実質比較
+//      （"_" を除いて3文字未満のキーは照合に使わない＝英題が取れない作品は付与しない）
+//   ② 語が複数エピソードの字幕にヒットしたら付与しない（一意な時だけ）
+//   ③ 確定した付与は pushMyWord でクラウドへも永続化
+//      （従来はローカルのみ＝ログイン中は次の pull 全量上書きで消えていて実質無効だった）
 export async function resolveUnassignedWords(profileId, memSub = '', memTitle = '', memSeason = null, memEpisode = null) {
   const words = await getActiveWords(profileId);
   const unassigned = words.filter((w) => w.dramaTitle && w.season == null);
   if (!unassigned.length) return;
 
+  const safeKey = (t) => String(t || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
+  const meaningful = (k) => k.replace(/_/g, '').length >= 3;
+
   const subEntries = [];
   if (memSub && memTitle && memSeason && memEpisode) {
     subEntries.push({
-      titleKey: memTitle.toLowerCase(),
+      titleKey: safeKey(memTitle),
       season: memSeason,
       episode: memEpisode,
       sub: memSub.toLowerCase(),
@@ -323,19 +334,32 @@ export async function resolveUnassignedWords(profileId, memSub = '', memTitle = 
       sub: sub.toLowerCase(),
     });
   }
+  if (!subEntries.length) return;
+
+  // 日本語タイトルは英語 alias に解決してからキー比較（safe キーは日本語を保持できない）
+  const aliasCache = getTitleAliasMap();
+  const toResolve = [
+    ...new Set(
+      unassigned.map((w) => w.dramaTitle).filter((t) => !/^[\x00-\x7F]+$/.test(t) && !aliasCache[t])
+    ),
+  ];
+  for (const t of toResolve) await resolveEnglishTitle(t);
+  const alias = getTitleAliasMap();
 
   let changed = false;
   for (const w of unassigned) {
-    const tl = w.dramaTitle.toLowerCase().replace(/[^a-z0-9]/g, '_');
-    for (const entry of subEntries) {
-      if (!entry.titleKey.includes(tl.slice(0, 5)) && !tl.includes(entry.titleKey.slice(0, 5))) continue;
-      if (entry.sub.includes(w.word.toLowerCase())) {
-        w.season = entry.season;
-        w.episode = entry.episode;
-        changed = true;
-        break;
-      }
-    }
+    const cands = [w.dramaTitle, alias[w.dramaTitle]].map(safeKey).filter(meaningful);
+    if (!cands.length) continue; // 実質キーが作れない（英題未解決の日本語作品）→ 付与しない
+    const scoped = subEntries.filter(
+      (e) => meaningful(e.titleKey) && cands.some((c) => e.titleKey.includes(c) || c.includes(e.titleKey))
+    );
+    const hits = scoped.filter((e) => e.sub.includes(w.word.toLowerCase()));
+    const uniqEps = [...new Set(hits.map((e) => `${e.season}-${e.episode}`))];
+    if (uniqEps.length !== 1) continue; // 0件 or 複数エピソード該当 → 見送り
+    w.season = hits[0].season;
+    w.episode = hits[0].episode;
+    changed = true;
+    pushMyWord(w); // ログイン時はクラウドへ永続化（fire-and-forget・未ログインは内部 no-op）
   }
 
   if (changed) await store.set(myWordsKey(profileId), words);
