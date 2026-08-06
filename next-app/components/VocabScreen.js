@@ -38,7 +38,7 @@ import { fetchSharedVocab, contributeVocab } from '@/lib/api';
 import {
   getMyWordsForEpisode,
   resolveUnassignedWords,
-  translateExtWordDefinitions,
+  fillExtWordJa,
   addManualWord,
   deleteMyWord,
 } from '@/lib/words';
@@ -300,7 +300,11 @@ export default function VocabScreen() {
         .map((w) => ({
           word: w.word,
           pos: w.pos || '',
-          definition: w.definition || '',
+          // 意味は「保存時の文脈訳(ja)」を最優先（拡張v1.2.2〜／多義語をその場面の意味に解決済み）。
+          // 旧実装は ja をマッピングから落としていたため、単語リストで和訳が出ていなかった
+          // （単語帳は ja を見るので出る＝2026-08-06 オーナー報告の直接原因）。
+          ja: w.ja || '',
+          definition: w.ja || w.definition || '',
           example: w.sentence || '',
           example_ja: w.example_ja || '',
           tsSec: w.tsSec ?? null, // 📍時刻（手動追加#20はローカルに保持・tsFor のフォールバックで表示）
@@ -308,9 +312,10 @@ export default function VocabScreen() {
           source: 'ext',
         }));
       setExtWords(newExt);
-      // 英語定義をバックグラウンドで日本語に翻訳（既存 translateExtWordDefinitions）
+      // 未取得の和訳（単語の意味・例文）をバックグラウンドで後埋めし、my_words へ永続化する。
+      // 共有キャッシュ経路のみを使うので2人目以降は0円・同じ端末では2回目からネットワーク無し。
       if (newExt.length) {
-        translateExtWordDefinitions(newExt, pid)
+        fillExtWordJa(newExt, pid)
           .then((changed) => {
             if (changed && myReq === reqId.current) setExtWords([...newExt]);
           })

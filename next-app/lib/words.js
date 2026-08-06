@@ -1,11 +1,12 @@
 // マイ単語帳（拡張機能由来）と履歴単語のエピソード照合。js/app.js から移植。
 // 拡張機能・Supabase が無い試作環境でも localStorage だけで完結するよう、
 // chrome.storage / cloudSync 依存は app.js 同様にガードして無効化する。
-import { tmdb, callClaude } from './api';
+import { tmdb } from './api';
 import { deleteMyWordCloud, pushMyWord } from './supabase';
+import { fetchJa } from './jatranslate';
+import { fetchCtxJa } from './ctxtranslate';
 import { myWordsKey, deletedWordsKey } from './storage';
 import { subtitleCacheKey } from './subtitles';
-import { repairJson } from './vocab';
 
 // ── ストレージ抽象化（chrome.storage があれば使う・無ければ localStorage）──
 export const store = {
@@ -136,55 +137,68 @@ export async function clearAllWords(profileId) {
   await store.set(myWordsKey(profileId), []);
 }
 
-// 拡張機能単語の英語定義をバックグラウンドで日本語に翻訳して保存する
-// （既存 translateExtWordDefinitions）。変更があれば true を返す。
-export async function translateExtWordDefinitions(extWords, profileId) {
-  // 日本語文字を含まない定義（＝英語）を持つ単語だけ対象
-  const needsTranslation = extWords.filter((w) => w.definition && !/[぀-ヿ一-鿿]/.test(w.definition));
-  if (!needsTranslation.length) return false;
-
-  const BATCH = 10;
-  let anyChanged = false;
-  for (let i = 0; i < needsTranslation.length; i += BATCH) {
-    const batch = needsTranslation.slice(i, i + BATCH);
-    const inputArr = batch.map((w) => ({ word: w.word, definition: w.definition, definition_ja: '' }));
-    const prompt = `以下のJSON配列の各単語について、definition（英語の意味説明）を簡潔な日本語に翻訳してdefinition_jaに入れてください。
-- 簡潔に（10文字以内が理想）
-- JSON配列のみ返答（説明不要）
-
-${JSON.stringify(inputArr)}`;
-
-    try {
-      const text = await callClaude(prompt, 800);
-      const rawArr = text.match(/\[[\s\S]*\]/)?.[0] || '[]';
-      let arr = [];
-      try {
-        arr = JSON.parse(rawArr);
-      } catch {
-        arr = JSON.parse(repairJson(rawArr));
-      }
-
-      const allWords = (await store.get(myWordsKey(profileId))) || [];
-      let changed = false;
-      arr.forEach((item) => {
-        if (!item?.word || !item?.definition_ja?.trim()) return;
-        const orig = extWords.find((w) => w.word.toLowerCase() === item.word.toLowerCase());
-        if (orig) orig.definition = item.definition_ja.trim();
-        const stored = allWords.find((w) => w.word?.toLowerCase() === item.word.toLowerCase());
-        if (stored) {
-          stored.definition = item.definition_ja.trim();
-          changed = true;
-        }
-      });
-      if (changed) {
-        await store.set(myWordsKey(profileId), allWords);
-        anyChanged = true;
-      }
-    } catch {
-      /* バッチ失敗は無視 */
-    }
+// 後から付いた和訳を my_words へ書き戻す（同じ訳を二度と生成しないための永続化）。
+// グローバル/プロフィール別の両キー＋クラウド（pushMyWord）へ同時に反映する。
+// 例文の和訳は「その例文」の訳なので、必ず同じ行の sentence とペアで保存される
+// （例文が差し替わった行は pull 側で古い訳を捨てる → 新しい例文で取り直す）。
+export async function saveWordTranslation(profileId, wordText, patch) {
+  if (!wordText || !patch || !Object.keys(patch).length) return false;
+  const lower = String(wordText).toLowerCase();
+  const keys = [myWordsKey(null)];
+  if (profileId) keys.push(myWordsKey(profileId));
+  let merged = null;
+  for (const key of keys) {
+    const words = (await store.get(key)) || [];
+    const idx = words.findIndex((w) => String(w.word || '').toLowerCase() === lower);
+    if (idx < 0) continue;
+    words[idx] = { ...words[idx], ...patch };
+    merged = words[idx];
+    await store.set(key, words);
   }
-  return anyChanged;
+  if (!merged) return false;
+  pushMyWord(merged); // ログイン時のみクラウドへ（fire-and-forget・未ログインは内部 no-op）
+  return true;
+}
+
+// 追加語（拡張のクリック保存・手動追加）の和訳を後埋めして永続化する。
+// 旧 translateExtWordDefinitions は独自のバッチプロンプトを callClaude に投げていたため
+// サーバの共有キャッシュ（sense_hash）に一切乗らず、端末やユーザーが変わるたびに再課金され、
+// さらにクラウドへ書き戻さないので毎回作り直しになっていた（2026-08-06 実測）。
+// 新実装は共有キャッシュに乗る経路だけを使い、結果を my_words に保存する:
+//   - 単語の意味 : fetchCtxJa(語, 例文)＝多義語をその場面の意味に解決 → 取れなければ1語訳
+//   - 例文の和訳 : fetchJa(例文)
+// どちらもキーは (語, 文) 単位なので、同じ語でも場面が違えば別の訳が生成・保存される。
+export async function fillExtWordJa(extWords, profileId) {
+  let changed = false;
+  for (const w of extWords) {
+    if (!w?.word) continue;
+    const sentence = w.example || w.sentence || '';
+    const patch = {};
+
+    // 意味（日本語）が未取得＝ ja が無く、definition も日本語を含まない（英語辞書定義 or 空）
+    const hasJa = !!w.ja || (!!w.definition && /[぀-ヿ一-鿿]/.test(w.definition));
+    if (!hasJa) {
+      const ja = (sentence ? await fetchCtxJa(w.word, sentence) : null) ?? (await fetchJa(w.word));
+      if (ja) {
+        patch.ja = ja;
+        w.ja = ja;
+        w.definition = ja; // 表示（VocabItem）は definition を見る
+        changed = true;
+      }
+    }
+
+    if (!w.example_ja && sentence) {
+      const exJa = await fetchJa(sentence);
+      if (exJa) {
+        patch.example_ja = exJa;
+        w.example_ja = exJa;
+        changed = true;
+      }
+    }
+
+    if (Object.keys(patch).length) await saveWordTranslation(profileId, w.word, patch);
+  }
+  return changed;
 }
 
 // ── タイトル名寄せ（日本語 → 英語）─────────────────────────

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useApp } from './AppProvider';
 import VocabItem from './VocabItem';
-import { getActiveWords, deleteMyWord, clearAllWords } from '@/lib/words';
+import { getActiveWords, deleteMyWord, clearAllWords, saveWordTranslation } from '@/lib/words';
 import { loadSrs, skipWord, unskipWord, isLearned, isMastered, isStruggling } from '@/lib/storage';
 import { fetchJa } from '@/lib/jatranslate';
 import { fetchCtxJa } from '@/lib/ctxtranslate';
@@ -65,6 +65,10 @@ export default function WordbookScreen() {
     (async () => {
       for (const w of words) {
         const wl = w.word.toLowerCase();
+        // 取得できた訳は my_words へ書き戻す（2026-08-06〜）。従来は画面の状態にしか置いておらず、
+        // 開き直すたびに取り直していた（共有キャッシュのおかげで課金はほぼ無かったが、
+        // 端末を変えるたびに再取得＝新規ユーザーぶんの生成は毎回発生していた）。
+        const patch = {};
         // 単語の和訳。優先順: ①保存時の文脈訳(w.ja・拡張v1.2.2〜) ②例文を添えた文脈訳
         // (wordsense・多義語をその場面の意味に解決) ③従来の1語訳（文脈なし・最後の保険）。
         // docs/design-context-translation.md
@@ -74,15 +78,22 @@ export default function WordbookScreen() {
           const sent0 = w.sentence || w.example;
           const wja = (sent0 ? await fetchCtxJa(w.word, sent0) : null) ?? (await fetchJa(w.word));
           if (cancelled) return;
-          if (wja != null) setWordJa((m) => (m[wl] === wja ? m : { ...m, [wl]: wja }));
+          if (wja != null) {
+            setWordJa((m) => (m[wl] === wja ? m : { ...m, [wl]: wja }));
+            patch.ja = wja;
+          }
         }
         // 例文の和訳
         const sent = w.example || w.sentence;
-        if (sent) {
+        if (sent && !w.example_ja) {
           const ja = await fetchJa(sent);
           if (cancelled) return;
-          if (ja != null) setExJa((m) => (m[wl] === ja ? m : { ...m, [wl]: ja }));
+          if (ja != null) {
+            setExJa((m) => (m[wl] === ja ? m : { ...m, [wl]: ja }));
+            patch.example_ja = ja;
+          }
         }
+        if (Object.keys(patch).length) saveWordTranslation(pid, w.word, patch).catch(() => {});
       }
     })();
     return () => {

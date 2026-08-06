@@ -210,21 +210,37 @@ export async function pullFromCloud(profileId = null) {
     `/rest/v1/my_words?user_id=eq.${uid}&select=*&order=created_at.desc&limit=2000`
   );
   if (Array.isArray(words)) {
+    // example_ja は「その例文」の訳なので、例文と必ずペアで扱う。拡張が別の場面で例文を
+    // 差し替えた行では訳だけ古いまま残り得るため、ローカルの旧レコードと例文を突き合わせ、
+    // 変わっていたら訳を捨てる（＝新しい例文で取り直す。同じ文なら端末キャッシュ命中で無料）。
+    const prevSentence = new Map();
+    try {
+      JSON.parse(localStorage.getItem('cl_my_words') || '[]').forEach((p) => {
+        if (p?.word) prevSentence.set(String(p.word).toLowerCase(), p.sentence || '');
+      });
+    } catch {
+      /* 旧データの破損は無視（例文訳を捨てる方向に倒れるだけ） */
+    }
     const wordsList = JSON.stringify(
-      words.map((w) => ({
-        word: w.word,
-        sentence: w.sentence,
-        phonetic: w.phonetic,
-        pos: w.pos,
-        definition: w.definition,
-        ja: w.ja ?? null, // 保存時の文脈訳（拡張v1.2.2から書き込み・旧行はnull）
-        encounters: Array.isArray(w.encounters) ? w.encounters : null, // 遭遇ログ（v1.2.2・再会カードの場面つき表示用）
-        savedAt: w.saved_at,
-        source: w.source,
-        dramaTitle: w.drama_title,
-        season: w.season,
-        episode: w.episode,
-      }))
+      words.map((w) => {
+        const before = prevSentence.get(String(w.word || '').toLowerCase());
+        const sentenceChanged = before !== undefined && before !== (w.sentence || '');
+        return {
+          word: w.word,
+          sentence: w.sentence,
+          phonetic: w.phonetic,
+          pos: w.pos,
+          definition: w.definition,
+          ja: w.ja ?? null, // 保存時の文脈訳（拡張v1.2.2から書き込み・旧行はnull）
+          example_ja: sentenceChanged ? '' : w.example_ja || '', // 例文の和訳（アプリが後埋め・2026-08-06〜）
+          encounters: Array.isArray(w.encounters) ? w.encounters : null, // 遭遇ログ（v1.2.2・再会カードの場面つき表示用）
+          savedAt: w.saved_at,
+          source: w.source,
+          dramaTitle: w.drama_title,
+          season: w.season,
+          episode: w.episode,
+        };
+      })
     );
     localStorage.setItem('cl_my_words', wordsList);
     // 選択中プロフィールがあればプロフィール別キーにも反映
@@ -402,6 +418,7 @@ export async function pushMyWord(w) {
     source: w.source || 'manual',
   };
   if (w.ja) row.ja = w.ja;
+  if (w.example_ja) row.example_ja = w.example_ja; // 例文の和訳（同じ行の sentence とペア）
   if (w.definition) row.definition = w.definition;
   if (Array.isArray(w.encounters) && w.encounters.length) row.encounters = w.encounters; // 遭遇ログ（拡張と同じ）
   if (w.dramaTitle) {
