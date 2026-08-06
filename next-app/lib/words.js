@@ -226,14 +226,27 @@ async function resolveEnglishTitle(jpTitle) {
 
 // 拡張機能で保存した単語のうち、現ドラマ・エピソードに一致するものを返す。
 // drama = 選択中ドラマ（title / englishTitle）, memSub = メモリ上の字幕（任意）
+// タイトル照合用の正規化: 配信サービス由来と TMDB 由来の表記ゆれを吸収する。
+// 実害例（2026-08-06 実機報告・クラウド実データで確定）: Netflix の document.title 由来
+// 「スパイダーマン: ホームカミング」（半角コロン+スペース）と TMDB 由来
+// 「スパイダーマン：ホームカミング」（全角コロン）が includes 双方向とも不一致になり、
+// 映画の追加語が単語リストに一切出なかった（単語帳は照合なしのため出る）。
+// 小文字化＋全半角スペース除去＋区切り記号（コロン/スラッシュ/中黒/ダッシュ等）除去で比較する。
+function normTitleForMatch(s) {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/[\s　]+/g, '')
+    .replace(/[：:／/・･｜|〜~‐‑–—\-!！?？.。,、'’"”“…]+/g, '');
+}
+
 export async function getMyWordsForEpisode(drama, season, episode, profileId, memSub = '') {
   const dramaTitle = drama?.title;
   if (!dramaTitle) return [];
   const words = await getActiveWords(profileId);
 
   const titleCandidates = [dramaTitle, drama?.title, drama?.englishTitle]
-    .filter(Boolean)
-    .map((t) => t.toLowerCase());
+    .map(normTitleForMatch)
+    .filter(Boolean);
 
   // 映画は S/E の概念が無く、保存側が season/episode=null で書く（VocabScreen/拡張とも）。
   // 一方この画面の state は映画でも 1/1 なので、S/E 一致で絞ると映画の語が1つも拾えない
@@ -259,7 +272,7 @@ export async function getMyWordsForEpisode(drama, season, episode, profileId, me
   const alias = getTitleAliasMap();
 
   const titleMatches = (w) => {
-    const names = [w.dramaTitle, alias[w.dramaTitle]].filter(Boolean).map((s) => s.toLowerCase());
+    const names = [w.dramaTitle, alias[w.dramaTitle]].map(normTitleForMatch).filter(Boolean);
     return names.some((wl) => titleCandidates.some((tc) => wl.includes(tc) || tc.includes(wl)));
   };
 
