@@ -564,6 +564,77 @@ async function lookupWord(word) {
 }
 
 // ─────────────────────────────────────────────────────────────────
+// ローカル英和辞書（EJDict-hand・パブリックドメイン・約35,000語を同梱）
+//   ホバー速訳と1語速報の第一経路。APIコスト¥0・オフライン動作・鍵失効の影響なし
+//   （2026-08 に Azure 試用切れでホバー訳が全滅した再発防止。生成は seed/build-ejdict.mjs）。
+//   初回参照時に遅延ロード（~1.7MB・ホバーしないタブにメモリを使わせない）。
+//   辞書に無い語（俗語・新語）は従来どおり /api/translate へフォールバックする。
+// ─────────────────────────────────────────────────────────────────
+let ejdict = null;      // ロード完了後 { word: '語義' }
+let ejdictP = null;     // ロード中の Promise（多重fetch防止）
+function loadEjdict() {
+  if (ejdict) return Promise.resolve(ejdict);
+  if (!ejdictP) {
+    ejdictP = (async () => {
+      try {
+        const res = await fetch(chrome.runtime.getURL('extension/ejdict-ja.json'));
+        ejdict = await res.json();
+      } catch {
+        ejdict = {}; // 取得失敗（拡張更新直後等）は空辞書＝全語APIフォールバック
+      }
+      return ejdict;
+    })();
+  }
+  return ejdictP;
+}
+
+// 規則変化の還元候補（walked→walk / hoping→hope / bigger→big / studies→study）。
+// 不規則変化（ran/went等）は EJDict 自体が見出しに持つため exact でヒットする。
+// 順序が重要: -e 復元を先に試す（hoping→hop の誤解決を防ぐ・実測20/20）。
+function ejLemmaCandidates(w) {
+  const c = [];
+  if (w.endsWith('ies') && w.length > 4) c.push(w.slice(0, -3) + 'y');
+  if (w.endsWith('es') && w.length > 3) c.push(w.slice(0, -2));
+  if (w.endsWith('s') && w.length > 3) c.push(w.slice(0, -1));
+  if (w.endsWith('ied') && w.length > 4) c.push(w.slice(0, -3) + 'y');
+  if (w.endsWith('ed') && w.length > 3) {
+    c.push(w.slice(0, -1), w.slice(0, -2));
+    if (w.length > 4 && w[w.length - 3] === w[w.length - 4]) c.push(w.slice(0, -3));
+  }
+  if (w.endsWith('ing') && w.length > 4) {
+    c.push(w.slice(0, -3) + 'e', w.slice(0, -3));
+    if (w.length > 5 && w[w.length - 4] === w[w.length - 5]) c.push(w.slice(0, -4));
+  }
+  if (w.endsWith('ier') && w.length > 4) c.push(w.slice(0, -3) + 'y');
+  if (w.endsWith('iest') && w.length > 5) c.push(w.slice(0, -4) + 'y');
+  if (w.endsWith('er') && w.length > 3) {
+    c.push(w.slice(0, -1), w.slice(0, -2));
+    if (w.length > 4 && w[w.length - 3] === w[w.length - 4]) c.push(w.slice(0, -3));
+  }
+  if (w.endsWith('est') && w.length > 4) {
+    c.push(w.slice(0, -2), w.slice(0, -3));
+    if (w.length > 5 && w[w.length - 4] === w[w.length - 5]) c.push(w.slice(0, -4));
+  }
+  return c;
+}
+
+function ejLookup(word) {
+  if (!ejdict) return null;
+  const w = (word || '').toLowerCase();
+  const hit = ejdict[w];
+  if (hit) {
+    // 「runの過去形」のような参照だけの語義は本体の意味に解決して添える
+    const m = hit.match(/^([a-z-]+)の(過去|過去分詞|現在分詞|複数|三人称)/);
+    if (m && ejdict[m[1]]) return ejdict[m[1]] + '（' + hit.split('、')[0] + '）';
+    return hit;
+  }
+  for (const cand of ejLemmaCandidates(w)) {
+    if (ejdict[cand]) return ejdict[cand];
+  }
+  return null;
+}
+
+// ─────────────────────────────────────────────────────────────────
 // 英日訳（公式翻訳API＝DeepL/Azure を background 経由で）
 //   鍵をサーバー側に隠すため content.js からは外部APIを直接叩かず、
 //   background → cinelearn-next /api/translate に中継する（結果はサーバーでキャッシュ）。
@@ -585,12 +656,20 @@ function translateToJa(word) {
 }
 
 // 訳をクライアント側でもキャッシュ（ホバーとクリックで二重に取得しない・連続ホバーの抑制）。
+// 経路: ①同梱ローカル辞書（即時・¥0） → 辞書に無い語のみ ②/api/translate（従来）。
 function getJaCached(word) {
   const key = (word || '').toLowerCase();
   if (jaCache.has(key)) return Promise.resolve(jaCache.get(key));
-  return translateToJa(word).then((ja) => {
-    jaCache.set(key, ja);
-    return ja;
+  return loadEjdict().then(() => {
+    const local = ejLookup(key);
+    if (local) {
+      jaCache.set(key, local);
+      return local;
+    }
+    return translateToJa(word).then((ja) => {
+      jaCache.set(key, ja);
+      return ja;
+    });
   });
 }
 
@@ -982,6 +1061,7 @@ function saveWord(entry, opts = {}) {
         chrome.storage.local.get([key], (result) => {
           const words = result[key] || [];
           const idx = words.findIndex(w => w.word.toLowerCase() === entry.word.toLowerCase());
+          const prevSentence = idx >= 0 ? (words[idx].sentence || '') : ''; // 例文が変わったか判定用
           if (idx >= 0) {
             // v1.2.2 遭遇ログ: 別の場面での再保存は、上書きで消える前に旧メタを encounters へ退避。
             // 「語との再会」カード（アプリ側 lib/reunion.js）がクリック×クリックの再会を
@@ -1038,6 +1118,12 @@ function saveWord(entry, opts = {}) {
           // クラウドには「マージ後の姿」を送る（呼び出し元の生 entry ではなく）。
           // ローカルで守った既存値（例文・S/E・遭遇ログ）がクラウドで潰れる不一致を構造的に無くす。
           const rec = idx >= 0 ? words[idx] : entry;
+          // 例文が差し替わった時は、アプリが付けた例文和訳(example_ja)を道連れに破棄させる。
+          // example_ja は「その例文」の訳なので、古い訳が新しい例文に付いたまま残るのを防ぐ
+          // （拡張は example_ja を作らないので、ここでの無効化だけがペアを保つ手段）。
+          if (idx >= 0 && (words[idx].sentence || '') !== (prevSentence || '')) {
+            rec._clearExampleJa = true;
+          }
           try {
             chrome.runtime.sendMessage({ type: 'SAVE_WORD_TO_CLOUD', word: rec }).catch(() => {});
           } catch {}
