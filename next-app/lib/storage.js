@@ -339,6 +339,33 @@ export function learningStatsByTitle(history = loadHistory(), srs = loadSrs()) {
   return out;
 }
 
+// ホーム（VocabProgress）用の累計語彙統計。
+//   母数＝「予習で生成した語（履歴）」＋「追加した語（マイ単語帳＝拡張クリック保存・手動追加）」
+//   の和集合を、語で名寄せして数える（2026-08-07 オーナー要望「追加した単語も含めた最新の数を
+//   常に出す」）。旧実装は作品ごとの集計（learningStatsByTitle）の単純合算で、
+//     ① 単語帳に追加しただけの語が母数から丸ごと抜ける
+//     ② 同じ語を2作品で保存すると2語として二重計上される
+//   の2点で単語帳の件数と食い違っていた。単語帳の stats と同じ「語で1つ」に揃える。
+// learned は mastered を含む（VocabProgress の従来表示と同じ意味・2つのゲージは独立）。
+export function overallVocabStats(history = loadHistory(), myWords = [], srs = loadSrs()) {
+  const seen = new Set();
+  let total = 0;
+  let learned = 0;
+  let mastered = 0;
+  const count = (word) => {
+    const k = String(word || '').toLowerCase();
+    if (!k || seen.has(k)) return;
+    seen.add(k);
+    total++;
+    const e = srs[k];
+    if (isMastered(e)) mastered++;
+    if (isLearned(e)) learned++;
+  };
+  (history || []).forEach((h) => (h.words || []).forEach((w) => count(w.word)));
+  (myWords || []).forEach((w) => count(w.word));
+  return { total, learned, mastered };
+}
+
 // プロフィールの settings に部分的な変更をマージして保存する
 export function patchProfileSettings(profileId, patch) {
   if (!profileId) return;

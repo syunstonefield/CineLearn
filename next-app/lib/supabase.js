@@ -419,6 +419,9 @@ export async function pushMyWord(w) {
   };
   if (w.ja) row.ja = w.ja;
   if (w.example_ja) row.example_ja = w.example_ja; // 例文の和訳（同じ行の sentence とペア）
+  // 例文を差し替えた保存では古い訳を明示的に消す。送らない＝据え置き（merge-duplicates）なので、
+  // 黙っていると新しい例文に前の例文の訳が付いたままクラウドに残る（拡張 background.js と同じ規則）。
+  else if (w._clearExampleJa) row.example_ja = null;
   if (w.definition) row.definition = w.definition;
   if (Array.isArray(w.encounters) && w.encounters.length) row.encounters = w.encounters; // 遭遇ログ（拡張と同じ）
   if (w.dramaTitle) {

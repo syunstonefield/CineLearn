@@ -18,6 +18,7 @@ import {
   selectSubtitleCandidates,
   findExampleForWord,
   findExampleByAnchor,
+  trimExampleToSentence,
 } from '@/lib/subtitles';
 
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://mndyexwdevkpdssglwpl.supabase.co';
@@ -210,7 +211,9 @@ export async function POST(req) {
     if (pick) {
       return json({
         found: true,
-        sentence: pick.example,
+        // vocab_cache の example は生成時に複数キューがつながって段落化していることがある
+        // （実データで391字＝話者4人分）。配る前に語を含む1文へ詰める。
+        sentence: trimExampleToSentence(pick.example, word),
         source: 'opensubtitles',
         tmdbId: id,
         season: s,

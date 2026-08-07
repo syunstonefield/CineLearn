@@ -6,7 +6,7 @@ import { deleteMyWordCloud, pushMyWord } from './supabase';
 import { fetchJa } from './jatranslate';
 import { fetchCtxJa } from './ctxtranslate';
 import { myWordsKey, deletedWordsKey } from './storage';
-import { subtitleCacheKey } from './subtitles';
+import { subtitleCacheKey, trimExampleToSentence, EXAMPLE_MAX_CHARS } from './subtitles';
 
 // ── ストレージ抽象化（chrome.storage があれば使う・無ければ localStorage）──
 export const store = {
@@ -146,18 +146,42 @@ export async function saveWordTranslation(profileId, wordText, patch) {
   const lower = String(wordText).toLowerCase();
   const keys = [myWordsKey(null)];
   if (profileId) keys.push(myWordsKey(profileId));
+  // "_" 始まりは push への制御フラグ（_clearExampleJa 等）＝端末には保存しない。
+  const stored = Object.fromEntries(Object.entries(patch).filter(([k]) => !k.startsWith('_')));
   let merged = null;
   for (const key of keys) {
     const words = (await store.get(key)) || [];
     const idx = words.findIndex((w) => String(w.word || '').toLowerCase() === lower);
     if (idx < 0) continue;
-    words[idx] = { ...words[idx], ...patch };
-    merged = words[idx];
+    words[idx] = { ...words[idx], ...stored };
+    merged = { ...words[idx], ...patch };
     await store.set(key, words);
   }
   if (!merged) return false;
   pushMyWord(merged); // ログイン時のみクラウドへ（fire-and-forget・未ログインは内部 no-op）
   return true;
+}
+
+// 保存済みの語で、例文が段落まるごと（複数話者の会話が数百字）になっているものを
+// 「その語を含む1文」へ詰め直して永続化する（2026-08-07・実データで391字の例文を確認）。
+// 例文が変われば和訳は無効になるので example_ja を落とし、既存の後埋め経路に取り直させる。
+// クラウドへは _clearExampleJa で明示的に null を送る（送らない＝据え置きで古い訳が残るため）。
+export async function repairLongExamples(words, profileId) {
+  let changed = false;
+  for (const w of words || []) {
+    if (!w?.word) continue;
+    const ex = w.example || w.sentence || '';
+    if (!ex || ex.length <= EXAMPLE_MAX_CHARS) continue;
+    const trimmed = trimExampleToSentence(ex, w.word);
+    if (!trimmed || trimmed === ex) continue; // 1文に割れない＝触らない（壊さない）
+    const patch = { example_ja: '' };
+    if (w.sentence) patch.sentence = trimmed;
+    if (w.example) patch.example = trimmed;
+    Object.assign(w, patch); // 呼び出し元が今表示している行にも即反映
+    await saveWordTranslation(profileId, w.word, { ...patch, _clearExampleJa: true });
+    changed = true;
+  }
+  return changed;
 }
 
 // 追加語（拡張のクリック保存・手動追加）の和訳を後埋めして永続化する。
@@ -168,8 +192,9 @@ export async function saveWordTranslation(profileId, wordText, patch) {
 //   - 単語の意味 : fetchCtxJa(語, 例文)＝多義語をその場面の意味に解決 → 取れなければ1語訳
 //   - 例文の和訳 : fetchJa(例文)
 // どちらもキーは (語, 文) 単位なので、同じ語でも場面が違えば別の訳が生成・保存される。
+// 訳を取る前に、段落化した例文を1文へ詰め直す（詰めた行は訳を取り直す＝ペアを保つ）。
 export async function fillExtWordJa(extWords, profileId) {
-  let changed = false;
+  let changed = await repairLongExamples(extWords, profileId);
   for (const w of extWords) {
     if (!w?.word) continue;
     const sentence = w.example || w.sentence || '';

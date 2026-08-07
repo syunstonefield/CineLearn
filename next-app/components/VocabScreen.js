@@ -47,15 +47,8 @@ import { fetchJa } from '@/lib/jatranslate';
 import { fetchCtxJa } from '@/lib/ctxtranslate';
 import { getDeviceKey } from '@/lib/device';
 import { selectQuizWords, buildQuizQuestions, prepIntegrity, orderWordsForPrep, getPrepped } from '@/lib/prep';
-
-function speak(word) {
-  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(word);
-    u.lang = 'en-US';
-    window.speechSynthesis.speak(u);
-  }
-}
+// 読み上げは lib/speak に一本化（独自コピーは cancel 直後 speak で無音になる既知バグ持ちだった）
+import { speak } from '@/lib/speak';
 
 export default function VocabScreen() {
   const app = useApp();
@@ -193,6 +186,15 @@ export default function VocabScreen() {
   useEffect(() => {
     setSrs(loadSrs());
   }, [reviewVersion]);
+
+  // 単語帳側で語が増減したら（拡張の保存・単語帳での削除・クラウド取り込み）この話の
+  // 「追加した単語」も引き直す。上部の「覚えた/マスター n/総数」は追加語込みで数えているので、
+  // これが無いと画面を開き直すまで件数が古いままになる（2026-08-07 オーナー要望）。
+  useEffect(() => {
+    if (!drama || !app.wordbookVersion) return;
+    loadExtWords(season, episode, vocab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [app.wordbookVersion]);
 
   // ── 生成直後＝予習ウォークスルーへ直行（justGenerated の一回限りトリガ）──
   // 新出語（sortedVocab）が揃い phase==='vocab' になった瞬間に1回だけ開く。

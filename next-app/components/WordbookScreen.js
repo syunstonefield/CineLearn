@@ -3,7 +3,13 @@
 import { useEffect, useState } from 'react';
 import { useApp } from './AppProvider';
 import VocabItem from './VocabItem';
-import { getActiveWords, deleteMyWord, clearAllWords, saveWordTranslation } from '@/lib/words';
+import {
+  getActiveWords,
+  deleteMyWord,
+  clearAllWords,
+  saveWordTranslation,
+  repairLongExamples,
+} from '@/lib/words';
 import { loadSrs, skipWord, unskipWord, isLearned, isMastered, isStruggling } from '@/lib/storage';
 import { fetchJa } from '@/lib/jatranslate';
 import { fetchCtxJa } from '@/lib/ctxtranslate';
@@ -63,6 +69,12 @@ export default function WordbookScreen() {
     if (!words || !words.length) return;
     let cancelled = false;
     (async () => {
+      // 段落まるごとの例文（旧データ）を1文へ詰め直してから翻訳する。詰めた行は example_ja を
+      // 落としてあるので、下のループがそのまま新しい例文の訳を取り直す。
+      if (await repairLongExamples(words, pid)) {
+        if (cancelled) return;
+        setWords([...words]);
+      }
       for (const w of words) {
         const wl = w.word.toLowerCase();
         // 取得できた訳は my_words へ書き戻す（2026-08-06〜）。従来は画面の状態にしか置いておらず、

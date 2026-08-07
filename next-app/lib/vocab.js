@@ -1,7 +1,7 @@
 // 単語生成オーケストレーション（字幕→Claude→パース→フィルター）。
 // js/app.js: generateVocabFromEpisode / generateQuiz から移植。
 import { callClaude } from './api';
-import { exampleContainsWord } from './subtitles';
+import { exampleContainsWord, trimExampleToSentence } from './subtitles';
 import { getExcludeSet } from './wordlist';
 
 // ── TOEIC/CEFR ヘルパー（app.js から移植）──────────────────
@@ -227,6 +227,7 @@ ${tierGuide}
 - キーは短縮形を使う: w=単語, l=レベル, p=品詞, d=日本語の意味, e=例文, t=tier, c=チャンク
 - drama の e（例文）は必ず字幕テキストから一字一句そのまま抜き出すこと（要約・言い換え禁止）
 - e には必ず w に指定した単語（または活用形）が含まれていること
+- e は「w を含む1文」だけにすること（前後のセリフや別の話者の発言までつなげない・目安200字以内）
 - e が見つからない場合は e を空文字 "" にすること（作文禁止）
 - plus の e のみ自由に作文してよいが、必ず w を含めること
 - 例文の日本語訳は出力しないこと（別処理で行う）
@@ -321,7 +322,10 @@ function parseAndRefineWords(text, subtitleText) {
 
   json = json.map((w) => {
     if (!w.example) return w;
-    return exampleContainsWord(w.example, w.word) ? w : { ...w, example: '' };
+    if (!exampleContainsWord(w.example, w.word)) return { ...w, example: '' };
+    // 「字幕から一字一句抜き出す」指示の副作用で、複数キューがつながった段落（数百字）が
+    // 返ることがある。カードとして読める1文へ詰める（2026-08-07・実データ391字）。
+    return { ...w, example: trimExampleToSentence(w.example, w.word) };
   });
 
   return refineDramaWords(json, subtitleText);

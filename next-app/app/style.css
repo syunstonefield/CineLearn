@@ -4053,6 +4053,22 @@ header {
   color: var(--accent);
 }
 
+/* 単語そのものの発音ボタン（行内・折りたたみ中も押せる）。行が <button> のため span で作る。
+   タップ判定はアイコンより広く取る（指で押しても行の開閉に化けないよう margin で相殺）。 */
+.vocab-word-speak {
+  flex-shrink: 0;
+  font-size: 13px;
+  line-height: 1;
+  padding: 6px;
+  margin: -6px -4px -6px -8px;
+  opacity: 0.6;
+  cursor: pointer;
+  user-select: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.vocab-word-speak:hover { opacity: 1; }
+.vocab-word-speak:active { transform: scale(0.9); }
+
 .vocab-meaning {
   flex: 1;
   min-width: 0;

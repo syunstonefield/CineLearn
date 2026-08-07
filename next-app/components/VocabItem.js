@@ -55,6 +55,28 @@ export default function VocabItem({ word, srs, testTiers, ts, priority, exampleS
       >
         <span className="vocab-dot" style={dotColor ? { background: dotColor, borderColor: dotColor } : undefined} aria-hidden="true" />
         <span className="vocab-word">{w.word}</span>
+        {/* 単語そのものの発音（例文の🔊と対）。折りたたみ中も押せる位置に置く＝一覧を眺めながら
+            発音できるのが単語帳の主用途（2026-08-07 オーナー報告「単語の音声ボタンが無い」）。
+            ★行全体が <button> なので入れ子の <button> は使えない（📍時刻と同じく span で作る）。 */}
+        <span
+          className="vocab-word-speak"
+          role="button"
+          tabIndex={0}
+          title="発音を聞く"
+          aria-label={`${w.word} を発音`}
+          onClick={(ev) => {
+            ev.stopPropagation();
+            onSpeak(w.word);
+          }}
+          onKeyDown={(ev) => {
+            if (ev.key !== 'Enter' && ev.key !== ' ') return;
+            ev.preventDefault();
+            ev.stopPropagation();
+            onSpeak(w.word);
+          }}
+        >
+          🔊
+        </span>
         {priority && (
           <span className="vocab-star" title="よく忘れる単語（要復習）" aria-label="要復習">
             ⭐

@@ -17,10 +17,17 @@ const SUPABASE_URL = process.env.SUPABASE_URL || 'https://mndyexwdevkpdssglwpl.s
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
 // 字幕文の正規化（空白・大小・引用符の揺れで別キーにならないように）→ 16hex。
-function senseHash(sentence) {
+// ver は「語義プロンプトの版」。プロンプトを変えたら版を上げてキャッシュを切り替える
+// （旧行は残るが読まれない＝作り直しは新版の初回1回だけ）。
+function senseHash(sentence, ver = '') {
   const norm = String(sentence).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-  return createHash('sha256').update(norm).digest('hex').slice(0, 16);
+  return createHash('sha256').update(ver ? `${ver}\n${norm}` : norm).digest('hex').slice(0, 16);
 }
+
+// 文脈つき語義プロンプトの版。v2（2026-08-07）＝「基本の語義」を主にし、場面特有の意味は
+// 括弧で添える形式へ変更した（旧 v1 は場面での意味だけを返すため merchandise が
+// 「違法な商品」になり、単語帳の語義として一般性を失っていた＝オーナー報告）。
+const WORDSENSE_PROMPT_VER = 'v3';
 
 async function readCtxCache(word, hash) {
   if (!SUPABASE_SERVICE_KEY) return null;
@@ -107,7 +114,7 @@ export async function POST(req) {
     // 80 = フレーズ対応（拡張のドラッグ保存は最大6語＝理論上50字を超え得る）
     if (!word || word.length > 80 || !sentence) return json({ ja: null, error: 'bad request' }, 400);
 
-    const hash = senseHash(sentence);
+    const hash = senseHash(sentence, WORDSENSE_PROMPT_VER);
     const cached = await readCtxCache(word.toLowerCase(), hash);
     if (cached) return json({ ja: cached, via: 'cache' });
 
@@ -122,10 +129,26 @@ export async function POST(req) {
       return json({ ja: null, error: 'rate_limited' }, 429);
     }
 
+    // 語義は「辞書の基本義」を主・「この場面での意味」を従にする（単語帳＝語を覚える道具なので、
+    // 場面限定の意味だけを覚えさせない）。ずれが無い語では括弧を付けさせない＝短さを保つ。
+    //   例 merchandise: ×「違法な商品、密輸品」→ ○「商品（この場面では密輸品）」
+    //   例 personnel  : ×「資格を持った職員や人員」→ ○「職員・要員」
+    // ★v3: 規則の言葉だけでは効かなかった（v2 を本番実測: merchandise が36字の辞書調・
+    //   personnel は「必要な資格や技能を持つ職員や要員。」と場面が混ざったまま・句点つき）。
+    //   出力の見本（few-shot）を付け、字数と禁止事項を具体化して形を固定する。
     const prompt =
-      `字幕のセリフ: "${sentence}"\n` +
-      `このセリフにおける "${word}" の意味を日本語で答えてください。` +
-      `名詞句または短い語句で15字以内。説明・記号・引用符は付けず、意味だけを出力してください。`;
+      `字幕のセリフ: "${sentence}"\n\n` +
+      `このセリフに出てくる "${word}" を、英単語帳の語義欄に載せる短い日本語にしてください。\n\n` +
+      `規則:\n` +
+      `- 基本の語義（辞書の中心的な意味）を12字以内で書く。類義語の列挙・説明文・句点(。)は書かない。\n` +
+      `- このセリフの事情（誰が何をしているか）を基本の語義そのものに混ぜない。\n` +
+      `- セリフでの使われ方が基本の意味からずれる時（隠語・比喩・皮肉・専門用法）だけ、続けて「（この場面では◯◯）」を10字以内で足す。ずれていなければ足さない。\n\n` +
+      `出力の見本:\n` +
+      `  merchandise / "You said, move the merchandise." → 商品（この場面では密輸品）\n` +
+      `  personnel / "Qualified personnel." → 職員・要員\n` +
+      `  jurisdiction / "...now under our jurisdiction." → 管轄権\n` +
+      `  cold / "He gave me the cold shoulder." → 冷たい（この場面では冷淡な態度）\n\n` +
+      `語義だけを1行で出力してください。`;
     try {
       const r = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -136,14 +159,21 @@ export async function POST(req) {
         },
         body: JSON.stringify({
           model: 'claude-haiku-4-5-20251001',
-          max_tokens: 64,
+          max_tokens: 96, // v2 は「基本義（この場面では〜）」の2部構成ぶん少し長い
           messages: [{ role: 'user', content: prompt }],
         }),
       });
       if (!r.ok) return json({ ja: null }); // Haiku不調 → クライアントは速報訳へフォールバック
       const data = await r.json();
-      const ja = (data?.content?.[0]?.text || '').trim().replace(/^["「『]|["」』]$/g, '');
-      if (!ja || ja.length > 30) return json({ ja: null }); // 形式崩れは配らない（誤配布防止）
+      const ja = (data?.content?.[0]?.text || '')
+        .split('\n')[0] // 1行目だけ採る（稀に補足行が付く）
+        .trim()
+        .replace(/^["「『]|["」』]$/g, '')
+        .replace(/[。．]+$/, '') // 語義欄に句点は要らない（指示しても付いてくることがある）
+        .trim();
+      // 上限は v2 の2部構成に合わせて 36 字（旧30字だと「基本義（この場面では〜）」が
+      // 形式崩れ扱いで捨てられ、訳なしに落ちる）。
+      if (!ja || ja.length > 36) return json({ ja: null }); // 形式崩れは配らない（誤配布防止）
       writeCtxCache(word.toLowerCase(), hash, ja, sentence);
       return json({ ja, via: 'haiku' });
     } catch {

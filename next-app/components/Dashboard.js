@@ -31,6 +31,7 @@ import {
   loadArchived,
   loadHistory,
   loadSrs,
+  overallVocabStats,
 } from '@/lib/storage';
 
 // まだ Next.js 版に移植していない画面・機能の仮ハンドラ
@@ -66,6 +67,7 @@ export default function Dashboard() {
     openGuide,
     tickets,
     openSceneCards,
+    wordbookVersion,
   } = useApp();
   const [tick, setTick] = useState(0); // 再読込トリガ
   // 拡張機能の導入バナー（最初の関門対策で常設）。拡張未検出の判定はできないため、
@@ -125,12 +127,16 @@ export default function Dashboard() {
   // 旧形式の保存語の表示補完（v1.2.2以前=ja無し→英英定義に落ちる／ごく初期=sentence無し→例文空）。
   // wordLower → { ja?, example? }。祝い状態になってから非同期で埋める。
   const [wordFills, setWordFills] = useState({});
+  // マイ単語帳の語（拡張クリック保存・手動追加）。累計ゲージの母数に足すため state で保持する
+  // （getActiveWords は非同期＝クラウド取り込みを含むので data の useMemo からは呼べない）。
+  const [myWords, setMyWords] = useState([]);
   useEffect(() => {
     if (!mounted) return;
     let cancelled = false;
     getActiveWords(profile?.id)
       .then(async (words) => {
         if (cancelled) return;
+        setMyWords(words);
         const history = loadHistory();
         // 再会判定の同一作品除外（sameWorkTitle）は同期でキャッシュしか見ないため、
         // 保存語・履歴の日本語タイトルの英語 alias を先に解決してから計算する
@@ -157,8 +163,9 @@ export default function Dashboard() {
     return () => {
       cancelled = true;
     };
+    // 単語帳の増減（追加/削除＝wordbookVersion）でも引き直す＝累計ゲージが常に最新になる。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mounted, profile, tick, cloudVersion, reviewVersion]);
+  }, [mounted, profile, tick, cloudVersion, reviewVersion, wordbookVersion]);
 
   const myDramas = settings.myDramas || [];
 
@@ -234,30 +241,24 @@ export default function Dashboard() {
     }
     const history = loadHistory();
     const archived = new Set(loadArchived()); // 「棚から外した」作品は一覧から隠す（履歴は残す）
-    // 全作品合算の「覚えた／マスター」語数（ホームの達成感＝復習モチベ用）。per-drama統計と同じ数え方で集計。
-    const learnStats = learningStatsByTitle(history);
-    let totalLearned = 0;
-    let totalMastered = 0;
-    let totalWords = 0;
-    learnStats.forEach((s) => {
-      totalLearned += s.learned;
-      totalMastered += s.mastered;
-      totalWords += s.total;
-    });
+    const learnStats = learningStatsByTitle(history); // カード内の per-drama 統計（作品ごとの数え方は従来のまま）
+    // 累計の「覚えた／マスター」（ホームの達成感＝復習モチベ用）。履歴の語＋追加した語を
+    // 語で名寄せして数える＝単語帳の件数と一致する（追加した語が母数から抜けない）。
+    const overall = overallVocabStats(history, myWords);
     return {
       history,
       entries: buildLibraryEntries(history, myDramas).filter((e) => !archived.has(e.drama.title)),
       learnStats,
-      totalLearned,
-      totalMastered,
-      totalWords,
+      totalLearned: overall.learned,
+      totalMastered: overall.mastered,
+      totalWords: overall.total,
       streak: getStreak(),
-      hasAnyWord: getAllVocabWords(history).length > 0,
+      hasAnyWord: overall.total > 0,
       dueCount: getDueReviewWords(history).length,
       weekStats: getWeekStats(),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mounted, profile, myDramas, tick, reviewVersion, cloudVersion]);
+  }, [mounted, profile, myDramas, tick, reviewVersion, cloudVersion, myWords]);
 
   // posterPath が未設定 or 古い縦長画像（w500）のドラマを再取得。
   // クラウド pull で後からドラマが増えても（cloudVersion 経由で data が変わる）

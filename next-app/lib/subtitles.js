@@ -249,6 +249,33 @@ export function exampleContainsWord(example, word) {
   });
 }
 
+// 例文を「その語を含む1〜2文」に詰める。
+//   単語帳の例文が段落まるごと（複数人の会話が数百字）になっていた実データがあり
+//   （2026-08-07 オーナー報告: personnel の例文が391字＝話者4人分）、
+//     ・カードとして読めない（学習の役に立たない）
+//     ・和訳ルートが入力300字で頭打ち＝訳が途中で切れる
+//     ・引用（32条）としても「必要な範囲」を超える
+//   の3点で有害。生成・バックフィルの出口でここを通し、語を含む1文へ落とす。
+//   1文が見つからない／もともと短いときは原文をそのまま返す（壊さない・落とさない）。
+export const EXAMPLE_MAX_CHARS = 200;
+export function trimExampleToSentence(example, word, maxLen = EXAMPLE_MAX_CHARS) {
+  const s = String(example || '').trim();
+  if (!s || s.length <= maxLen || !word) return s;
+  const parts = s
+    .split(/(?<=[.!?])\s+/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (parts.length < 2) return s; // 分割できない＝1文が長いだけ（切ると意味が壊れる）
+  const idx = parts.findIndex((p) => exampleContainsWord(p, word));
+  if (idx < 0) return s;
+  let out = parts[idx];
+  // 単体だと短すぎて場面が分からない時だけ、直前の1文を足す（それでも上限内に収める）。
+  if (out.length < 40 && idx > 0 && parts[idx - 1].length + out.length + 1 <= maxLen) {
+    out = `${parts[idx - 1]} ${out}`;
+  }
+  return out;
+}
+
 // 秒数を📍表示用ラベルへ。60分超の作品（映画・パイロット版など）でも
 // 分が60を超えないよう、1時間以上は H:MM:SS に繰り上げる。
 export function secToTimeLabel(sec) {

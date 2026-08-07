@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
 import { buildCloze, selectQuizWords, nextSeat, getPrepped, markPrepped } from '@/lib/prep';
 import { chunkParts } from '@/lib/chunk';
+// 読み上げは lib/speak に一本化（独自コピーは cancel 直後 speak で無音になる既知バグ持ちだった）
+import { speak } from '@/lib/speak';
 
 // 予習（＝生成直後）専用の「1枚ずつめくって見る」ウォークスルー。
 // 長い一覧スクロールの代わりに、全語を1枚ずつ通し見してもらう（＝一通り見る を“形式”で担保）。
@@ -16,15 +18,6 @@ import { chunkParts } from '@/lib/chunk';
 //   - スワイプ／矢印キー／終盤の「あと◯枚」momentum。
 // 整合性：完了で半券（プレミアパス）発行。席番号は初回のみ採番（再予習で増えない）＝markPrepped で固定。
 const CORE = 15; // まず見せる「重要語」枚数。これを超える分は任意で「残りも見る」。
-
-function speak(word) {
-  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(word);
-    u.lang = 'en-US';
-    window.speechSynthesis.speak(u);
-  }
-}
 
 const posKeyOf = (epId) => (epId ? `cl_prep_pos_${epId}` : '');
 function loadPos(key) {
