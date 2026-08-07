@@ -2097,9 +2097,38 @@ function buildOverlayWords(text) {
 //   元字幕を隠す style は「字幕が属する shadow root」に注入する（document.head では隔離され効かない）。
 // ─────────────────────────────────────────────────────────────────
 let disneyCapHost = null; // 字幕を含む shadow host（Web Component）をキャッシュして再探索を避ける
-// 字幕オーバーレイを上げてプレイヤーのスキップ等ボタンとの重なりを避ける（px・調整可）。
-// 2行字幕でも下端がボタンに被らないよう、やや大きめに取る。
-const DISNEY_SUB_RAISE_PX = 120;
+// 字幕オーバーレイの位置・幅は「実際に映像が描かれている矩形」を基準に決める
+// （字幕DOMからは font だけ借りる）。比率にするのは窓/全画面で見た目の位置を揃えるため。
+// ⚠この2つは**未実測の暫定値**。実機で追い込む時は拡張を再読み込みせずに、コンソールで
+//   window.CL_SUB_BOTTOM_RATIO = 0.12  のように上書きすれば 150ms 後に反映される。
+const DISNEY_SUB_BOTTOM_RATIO = 0.22; // 映像の下端から映像高さの何割上に字幕の下端を置くか
+const DISNEY_SUB_WIDTH_RATIO  = 0.8;  // 映像幅の何割を字幕の折り返し幅にするか
+// コントロールバー/スキップボタンはほぼ固定pxなので、小窓では比率だけだと余白が足りない。
+// 最低限これだけは持ち上げる（旧 DISNEY_SUB_RAISE_PX=120 の目的を比率化後も保つ）。
+const DISNEY_SUB_MIN_RISE_PX = 110;
+
+// video 要素の箱から、実際に映像が描かれている矩形を返す（レターボックス補正）。
+// 箱そのままだと 2.39:1 の映画で上下の黒帯を含むため、「映像高さの何割」の意味が
+// 作品のアスペクト比と画面のアスペクト比の組み合わせで変わってしまう
+// （全画面と窓で黒帯の厚みが変わる＝位置を揃えるという目的が達成できない）。
+function getVideoPictureRect(v) {
+  if (!v) return null;
+  const vr = v.getBoundingClientRect();
+  if (!vr.width || !vr.height) return null;
+  const iw = v.videoWidth, ih = v.videoHeight;
+  const fit = getComputedStyle(v).objectFit;
+  // 実寸が未取得（読み込み中）や contain 以外の描画では補正できないので箱をそのまま使う
+  if (!iw || !ih || (fit && fit !== 'contain' && fit !== 'scale-down')) return vr;
+  const s  = Math.min(vr.width / iw, vr.height / ih);
+  const pw = iw * s, ph = ih * s;
+  return {
+    left:   vr.left + (vr.width - pw) / 2,
+    top:    vr.top + (vr.height - ph) / 2,
+    width:  pw,
+    height: ph,
+    bottom: vr.top + (vr.height + ph) / 2,
+  };
+}
 
 function createDisneyOverlay() {
   clOverlay = document.createElement('div');
@@ -2157,7 +2186,9 @@ function ensureDisneyHideStyle(capEl) {
   root.appendChild(s);
 }
 
-// フォントサイズ取得用に、字幕 wrapper 内で「直接テキストノードを持つ最深要素」を返す
+// フォント取得用に、字幕 wrapper 内で「直接テキストノードを持つ要素」を返す。
+// ⚠document 順で**最初**にヒットしたものを返す（最深ではない）＝複数行の字幕では1行目。
+//   位置や幅をここから取ると行数で変わってしまうので、幾何には使わないこと。
 function findDisneyTextEl(wrapper) {
   for (const el of wrapper.querySelectorAll('*')) {
     for (const n of el.childNodes) {
@@ -2193,20 +2224,50 @@ function updateDisneyOverlay() {
     captureSEHint();           // S/E 未確定なら間引きつきで走査（確定後は即 return）
   }
 
-  // オーバーレイは「実際に字幕が表示されている要素」に重ねる。
-  // wrapper(cap) は大きな容器で上部基準のことがあり位置もサイズもズレる →
-  // 直接テキストを持つ最深要素の座標・フォントに合わせる（＝Disney+ が出している下部の位置）。
+  // 位置と幅は映像の矩形から決め、字幕DOMからはフォントだけ借りる。
+  // 旧実装は findDisneyTextEl（＝document順で最初にテキストを持つ要素＝複数行なら1行目）の
+  // rect を幾何にも使っていたため、2026-08-07 オーナー報告の①②が出ていた:
+  //   ① 1行目の幅がオーバーレイ全体の折り返し幅になる。"-Really?" のような短い行に当たると
+  //      幅が数十pxになり、全文が1〜2語ずつ極端に折り返される。
+  //   ② 1行目の top を基準に固定pxだけ持ち上げていたため、行数が変わると1行分ジャンプする。
+  //      （※当初 wrapper フォールバックのせいと考えたが、findDisneyTextEl は子孫のみ走査する
+  //        ＝フォールバック時の wrapper 自身がテキストを持つ要素なので、その説は誤り。
+  //        ②の真因が行数ジャンプなのか、Disney がコントロールバー表示時に字幕を上げている
+  //        のかは**未確定**。実機計測で切り分けること。）
+  // 映像の矩形は行数にも全画面にも左右されないので、幾何の不安定さは断てる。
   const textEl = findDisneyTextEl(cap);
-  const rect   = textEl.getBoundingClientRect();
   const cs     = getComputedStyle(textEl);
-  Object.assign(clOverlay.style, {
-    display:    'block',
-    left:       `${rect.left}px`,
-    top:        `${rect.top - DISNEY_SUB_RAISE_PX}px`,
-    width:      `${rect.width}px`,
-    fontSize:   cs.fontSize,
-    fontWeight: cs.fontWeight,
-  });
+  const pic    = getVideoPictureRect(vidForSE); // 上で取得済みの video を再利用（1tickに2回呼ばない）
+
+  if (pic && pic.width > 0 && pic.height > 0) {
+    // 下端基準にする。top 基準だと行数が増えるたびに下へ伸び、視線を置く位置が動いてしまう。
+    // 下端を固定すれば、何行になっても上へ伸びるだけで済む（本物の字幕と同じ挙動）。
+    const w     = Math.round(pic.width * DISNEY_SUB_WIDTH_RATIO);
+    const ratio = Number(window.CL_SUB_BOTTOM_RATIO) || DISNEY_SUB_BOTTOM_RATIO;
+    const rise  = Math.max(pic.height * ratio, DISNEY_SUB_MIN_RISE_PX);
+    Object.assign(clOverlay.style, {
+      display:    'block',
+      left:       `${Math.round(pic.left + (pic.width - w) / 2)}px`,
+      width:      `${w}px`,
+      top:        'auto',
+      bottom:     `${Math.round(window.innerHeight - pic.bottom + rise)}px`,
+      fontSize:   cs.fontSize,
+      fontWeight: cs.fontWeight,
+      fontFamily: cs.fontFamily, // 字形の幅が違うと折り返し位置がズレるので font も揃える
+    });
+  } else {
+    // video が取れない異常時のみ字幕側へ重ねる。ここでも幅は 1行目ではなく
+    // 字幕リージョン全体(cap)から取る（①の再発を防ぐ）。持ち上げも残す（ボタン回避）。
+    const rect = cap.getBoundingClientRect();
+    Object.assign(clOverlay.style, {
+      display: 'block',
+      left:    `${Math.round(rect.left)}px`,
+      width:   `${Math.round(rect.width)}px`,
+      top:     `${Math.round(rect.top - DISNEY_SUB_MIN_RISE_PX)}px`,
+      bottom:  'auto',
+      fontSize: cs.fontSize, fontWeight: cs.fontWeight, fontFamily: cs.fontFamily,
+    });
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────
