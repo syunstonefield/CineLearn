@@ -270,7 +270,12 @@ export default function VocabScreen() {
         return true;
       }
       // 履歴なし → 拡張機能単語のみチェック
+      // getMyWordsForEpisode はタイトル名寄せで TMDB を待つことがある。await 中に別
+      // エピソードへ移った場合は何もしない（true=処理済み扱いで stale 側の後続も止める。
+      // 放置すると古い世代の setPhase/setVocab が新しい画面を上書きする）。
+      const myReq = reqId.current;
       const ext = await getMyWordsForEpisode(drama, se, ep, pid, subMem.current.text);
+      if (myReq !== reqId.current) return true;
       if (ext.length) {
         setStatusText(drama.type === 'movie' ? '🎬 映画' : `Season ${se} Episode ${ep}`);
         setVocab([]);
@@ -344,7 +349,11 @@ export default function VocabScreen() {
           setMessage('「予習をはじめる」を押してください');
           setGenBtn({ text: '予習をはじめる →', disabled: false, hidden: false });
           (isMovie ? Promise.resolve() : resolveUnassignedWords(pid, result.parsed, drama.englishTitle || drama.title, se, ep))
-            .then(() => loadExtWords(se, ep, vocab))
+            .then(() => {
+              // 名寄せ解決の待ち時間中に別エピソードへ移っていたら読み込まない
+              // （loadExtWords 自身の世代捕捉は呼び出し時点の値になるためここで判定する）
+              if (myReq === reqId.current) loadExtWords(se, ep, vocab);
+            })
             .catch(() => {});
         } else {
           setStatusText(
@@ -386,7 +395,9 @@ export default function VocabScreen() {
         subMem.current = { key, text: result.parsed, raw: result.raw };
         setSubRaw(result.raw); // 📍タイムスタンプ補完（成功時のみ）
         (isMovie ? Promise.resolve() : resolveUnassignedWords(pid, result.parsed, drama.englishTitle || drama.title, se, ep))
-          .then(() => loadExtWords(se, ep, vocab))
+          .then(() => {
+            if (myReq === reqId.current) loadExtWords(se, ep, vocab); // 世代ずれの stale 読込を防ぐ
+          })
           .catch(() => {});
       } catch {
         /* 失敗しても保存済みリストの表示は維持（UIを一切触らない）*/
