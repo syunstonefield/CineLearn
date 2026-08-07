@@ -6,7 +6,7 @@ import { statusBadge, nextReviewLabel } from '@/lib/storage';
 // 1単語カード。モバイルは折りたたみ（語＋和訳＋状態ドット＋📍時刻のみ）→タップで詳細展開。
 // PCでは常時展開（display制御は style.css のメディアクエリ）。
 // 詳細は常にDOMに描画し、開閉は is-expanded クラスで切り替える（PC常時表示を両立するため）。
-export default function VocabItem({ word, srs, testTiers, ts, priority, exampleSource, onSpeak, onSkip, onCopyTime, onDelete }) {
+export default function VocabItem({ word, srs, testTiers, ts, priority, exampleSource, added, onSpeak, onSkip, onCopyTime, onDelete }) {
   const [expanded, setExpanded] = useState(false);
   const w = word;
   const e = srs[w.word.toLowerCase()];
@@ -80,6 +80,12 @@ export default function VocabItem({ word, srs, testTiers, ts, priority, exampleS
         {priority && (
           <span className="vocab-star" title="よく忘れる単語（要復習）" aria-label="要復習">
             ⭐
+          </span>
+        )}
+        {/* 本編の語と混ぜて時刻順に並べる時、どれが自分で足した語かを示す（セクション見出しの代わり） */}
+        {added && (
+          <span className="vocab-added-chip" title="自分で追加した単語">
+            ✏️ 追加
           </span>
         )}
         <span className="vocab-meaning">{w.definition || ''}</span>

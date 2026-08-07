@@ -4069,6 +4069,18 @@ header {
 .vocab-word-speak:hover { opacity: 1; }
 .vocab-word-speak:active { transform: scale(0.9); }
 
+/* 「追加した単語」印（本編の語と混ぜて時刻順に並べる時の目印）。控えめに、語の直後へ。 */
+.vocab-added-chip {
+  flex-shrink: 0;
+  font-size: 10px;
+  line-height: 1;
+  padding: 3px 6px;
+  border-radius: 10px;
+  color: var(--text-muted);
+  background: rgba(120, 120, 128, 0.12);
+  white-space: nowrap;
+}
+
 .vocab-meaning {
   flex: 1;
   min-width: 0;

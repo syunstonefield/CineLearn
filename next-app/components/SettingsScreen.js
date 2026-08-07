@@ -37,6 +37,9 @@ export default function SettingsScreen() {
   const vocabCount = settings.vocabCount || 30;
   const services = settings.selectedServices || [];
   const tiers = settings.testTiers || ['core', 'advanced'];
+  // 単語リストで「追加した単語」を本編の語と混ぜて📍時刻順に並べるか（既定=混ぜる）。
+  // オフなら従来どおり「✏️ 追加した単語」セクションとして末尾にまとめる。
+  const mergeAdded = settings.mergeAddedWords !== false;
 
   const [notifyMsg, setNotifyMsg] = useState('');
   const [notifyBtn, setNotifyBtn] = useState(null); // null=通常, それ以外はラベル上書き
@@ -255,6 +258,29 @@ export default function SettingsScreen() {
                   />
                 </label>
               ))}
+            </div>
+          </div>
+
+          {/* 単語リストの並び（追加した語の扱い）*/}
+          <div className="settings-section">
+            <div className="settings-section-title">📝 単語リストの並び</div>
+            <div className="tier-toggle-list">
+              <label className="tier-toggle-row">
+                <div className="tier-toggle-left">
+                  <div>
+                    <div className="tier-toggle-name">追加した単語も時刻順にまぜる</div>
+                    <div className="tier-toggle-desc">
+                      オフにすると、追加した単語はリストの最後にまとめて表示されます
+                    </div>
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  className="tier-checkbox"
+                  checked={mergeAdded}
+                  onChange={() => updateSettings({ mergeAddedWords: !mergeAdded })}
+                />
+              </label>
             </div>
           </div>
 

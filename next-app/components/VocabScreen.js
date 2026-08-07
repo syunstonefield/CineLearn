@@ -925,6 +925,17 @@ export default function VocabScreen() {
     ...extWords.filter((w) => w.word && !seenForReview.has(w.word.toLowerCase())),
   ];
   const stats = episodeStats(reviewWords, srs);
+  // 追加した単語の並べ方（設定・既定=混ぜる／2026-08-07 オーナー要望）。
+  //   混ぜる  : 本編の語と一本のリストにして📍時刻順（時刻なしは末尾）。どれが追加語かは
+  //             行の「追加」チップで分かるので、セクションで隔てる必要はない。
+  //   混ぜない: 従来どおり「✏️ 追加した単語」として末尾にまとめる。
+  const mergeAdded = settings.mergeAddedWords !== false;
+  const extOnly = extWords.filter((w) => w.word && !seenForReview.has(w.word.toLowerCase()));
+  const mainWords = mergeAdded
+    ? [...dramaWords, ...extOnly].sort(
+        (a, b) => (tsFor(a)?.sec ?? Infinity) - (tsFor(b)?.sec ?? Infinity)
+      )
+    : dramaWords;
   // 今日の復習セッション数（srs/reviewVersion 変化で再レンダーされるため毎回読み直す）
   const doneToday = historyId ? todaySessionCount(historyId) : 0;
   const testTiers = settings.testTiers || ['core', 'advanced'];
@@ -1281,7 +1292,7 @@ export default function VocabScreen() {
               )}
 
               <div className="vocab-list">
-                {dramaWords.map((w) => (
+                {mainWords.map((w) => (
                   <VocabItem
                     key={w.word}
                     word={w}
@@ -1289,9 +1300,11 @@ export default function VocabScreen() {
                     testTiers={testTiers}
                     ts={tsFor(w)}
                     exampleSource={exampleCredit}
+                    added={w.source === 'ext'}
                     onSpeak={speak}
                     onSkip={handleSkip}
                     onCopyTime={handleCopyTime}
+                    onDelete={w.source === 'ext' ? handleDeleteExtWord : undefined}
                   />
                 ))}
               </div>
@@ -1318,9 +1331,10 @@ export default function VocabScreen() {
                 </div>
               )}
 
-              {/* 追加した単語（拡張クリック保存＋手動追加・今日の復習・テストボタンの上に配置） */}
+              {/* 追加した単語（拡張クリック保存＋手動追加・今日の復習・テストボタンの上に配置）。
+                  設定で「時刻順にまぜる」がオンの時は上のリストに統合済みなのでここは出さない。 */}
               <div id="ext-words-section">
-                {extWords.length > 0 && (
+                {!mergeAdded && extWords.length > 0 && (
                   <>
                     <div className="source-label" style={{ marginTop: 14 }}>
                       ✏️ 追加した単語
