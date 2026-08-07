@@ -233,8 +233,16 @@ function saveTitleAlias(jp, en, media) {
   }
   if (media) {
     const mm = getTitleMediaMap();
-    if (mm[jp] !== media) {
-      mm[jp] = media;
+    // 日本語キーに加えて解決先の英題キーでも引けるように登録する（history スナップ
+    // ショット等は英題しか持たないことがあり、そこから「映画か？」を判定したいため）。
+    let changed = false;
+    for (const k of [jp, en]) {
+      if (k && mm[k] !== media) {
+        mm[k] = media;
+        changed = true;
+      }
+    }
+    if (changed) {
       try {
         localStorage.setItem('cl_title_media2', JSON.stringify(mm));
       } catch {
@@ -244,49 +252,62 @@ function saveTitleAlias(jp, en, media) {
   }
 }
 // セッション内メモ（TMDB障害・検索0件・非完全一致の結果を毎レンダー再照会しないため。
-// 永続の負キャッシュにはしない＝次セッションで再試行の余地を残す）
+// 永続の負キャッシュにはしない＝次セッションで再試行の余地を残す）。
+// 値は string | null | Promise。照会開始と同時に Promise を同期登録することで、
+// 同一 tick 内の連続呼び出し（再会判定の語×履歴ループ等）が同じタイトルへ
+// 並列リクエストを多重発火させない（in-flight dedup）。
 const _aliasMem = new Map();
 async function resolveEnglishTitle(jpTitle) {
   if (!jpTitle) return null;
   if (/^[\x00-\x7F]+$/.test(jpTitle)) return jpTitle;
   const cache = getTitleAliasMap();
   if (cache[jpTitle]) return cache[jpTitle];
-  if (_aliasMem.has(jpTitle)) return _aliasMem.get(jpTitle);
-  try {
-    // 旧実装は /search/tv 固定＝映画タイトルが構造的に名寄せ不能だった
-    // （2026-08-07 実機再現で確定: 作品側が英題・保存語側が邦題のスパイダーマンで
-    //   追加語が単語リストに1件も出ない）。映画/TV横断の search_multi へ変更。
-    const searchData = await tmdb({ action: 'search_multi', query: jpTitle });
-    const results = (searchData.results || []).filter(
-      (r) => r.media_type === 'tv' || r.media_type === 'movie'
-    );
-    // 同名異作の誤爆防止: 日本語タイトルの正規化完全一致を優先し、映画/TV 両方が
-    // 完全一致する同名作（ドラマ⇄映画化）は TV を採る（TV 側の S/E 用途が壊れやすい）。
-    const norm = normTitleForMatch(jpTitle);
-    const exact = results.filter((r) => normTitleForMatch(r.name || r.title) === norm);
-    const hit = exact.find((r) => r.media_type === 'tv') || exact[0] || results[0];
-    if (!hit) {
-      _aliasMem.set(jpTitle, null);
-      return null;
+  if (_aliasMem.has(jpTitle)) return _aliasMem.get(jpTitle); // 確定値 or 解決中 Promise
+  const p = (async () => {
+    try {
+      // 旧実装は /search/tv 固定＝映画タイトルが構造的に名寄せ不能だった
+      // （2026-08-07 実機再現で確定: 作品側が英題・保存語側が邦題のスパイダーマンで
+      //   追加語が単語リストに1件も出ない）。映画/TV横断の search_multi へ変更。
+      const searchData = await tmdb({ action: 'search_multi', query: jpTitle });
+      const results = (searchData.results || []).filter(
+        (r) => r.media_type === 'tv' || r.media_type === 'movie'
+      );
+      // 同名異作の誤爆防止: 日本語タイトルの正規化完全一致を優先し、映画/TV 両方が
+      // 完全一致する同名作（ドラマ⇄映画化）は TV を採る（TV 側の S/E 用途が壊れやすい）。
+      const norm = normTitleForMatch(jpTitle);
+      const exact = results.filter((r) => normTitleForMatch(r.name || r.title) === norm);
+      const hit = exact.find((r) => r.media_type === 'tv') || exact[0] || results[0];
+      if (!hit) return null;
+      let en = null;
+      if (hit.media_type === 'tv') {
+        const detail = await tmdb({ action: 'seasons', tvId: hit.id });
+        en = detail.name || hit.original_name || null;
+      } else {
+        // 映画はラテン文字の原題を英題として使う（englishTitle のラテン原題化と同じ規則）。
+        // 原題が非ラテン（邦画等）は localized title のままで実害なし＝直接照合と同値。
+        const orig = hit.original_title || '';
+        en = orig && /^[\x00-\x7F]+$/.test(orig) ? orig : hit.title || null;
+      }
+      // 恒久キャッシュは正規化完全一致で作品を特定できた時だけ。先頭ヒットへの
+      // フォールバックを永続化すると、誤作品を無効化手段なしで抱え込むため。
+      if (en && exact.length) saveTitleAlias(jpTitle, en, hit.media_type);
+      return en;
+    } catch {
+      return null; // 失敗もメモ化される（毎レンダー再発火防止・永続はしない）
     }
-    let en = null;
-    if (hit.media_type === 'tv') {
-      const detail = await tmdb({ action: 'seasons', tvId: hit.id });
-      en = detail.name || hit.original_name || null;
-    } else {
-      // 映画はラテン文字の原題を英題として使う（englishTitle のラテン原題化と同じ規則）。
-      // 原題が非ラテン（邦画等）は localized title のままで実害なし＝直接照合と同値。
-      const orig = hit.original_title || '';
-      en = orig && /^[\x00-\x7F]+$/.test(orig) ? orig : hit.title || null;
-    }
-    // 恒久キャッシュは正規化完全一致で作品を特定できた時だけ。先頭ヒットへの
-    // フォールバックを永続化すると、誤作品を無効化手段なしで抱え込むため。
-    if (en && exact.length) saveTitleAlias(jpTitle, en, hit.media_type);
-    _aliasMem.set(jpTitle, en);
-    return en;
-  } catch {
-    return null;
-  }
+  })();
+  _aliasMem.set(jpTitle, p);
+  const v = await p;
+  _aliasMem.set(jpTitle, v);
+  return v;
+}
+
+// 同期のタイトル照合（sameWorkTitle）の前に、日本語タイトルの英語 alias をまとめて
+// 解決してキャッシュへ載せておく。解決済み・ASCII は即返り、失敗はセッション内
+// 負キャッシュ＝呼び放題で安全（in-flight dedup により同時多重発火もしない）。
+export async function prewarmTitleAliases(titles) {
+  const jp = [...new Set((titles || []).filter((t) => t && !/^[\x00-\x7F]+$/.test(t)))];
+  await Promise.all(jp.map((t) => resolveEnglishTitle(t).catch(() => {})));
 }
 
 // 拡張機能で保存した単語のうち、現ドラマ・エピソードに一致するものを返す。
@@ -297,11 +318,40 @@ async function resolveEnglishTitle(jpTitle) {
 // 「スパイダーマン：ホームカミング」（全角コロン）が includes 双方向とも不一致になり、
 // 映画の追加語が単語リストに一切出なかった（単語帳は照合なしのため出る）。
 // 小文字化＋全半角スペース除去＋区切り記号（コロン/スラッシュ/中黒/ダッシュ等）除去で比較する。
-function normTitleForMatch(s) {
+export function normTitleForMatch(s) {
   return String(s || '')
     .toLowerCase()
     .replace(/[\s　]+/g, '')
     .replace(/[：:／/・･｜|〜~‐‑–—\-!！?？.。,、'’"”“…]+/g, '');
+}
+
+// 正規化済みタイトル同士の一致判定。短い正規化タイトル（Up／It 等の原題）を includes で
+// 比べると "upload"⊃"up" のような包含誤爆で無関係作品が同一視されるため、4文字未満は
+// 完全一致のみとする。
+function titleHitNorm(a, b) {
+  return a === b || (a.length >= 4 && b.length >= 4 && (a.includes(b) || b.includes(a)));
+}
+
+// 同一作品判定（日英・表記ゆれ横断／同期）。再会判定など「同じ作品か」を軽量に知りたい
+// 場所向け。alias は解決済みの永続キャッシュのみ参照し、未解決の日本語タイトルは
+// fire-and-forget で解決を蒔いておく（結果はキャッシュされ次回の判定から効く）。
+export function sameWorkTitle(a, b) {
+  if (!a || !b) return false;
+  const alias = getTitleAliasMap();
+  const names = (t) => {
+    const out = [normTitleForMatch(t)];
+    if (alias[t]) out.push(normTitleForMatch(alias[t]));
+    else if (!/^[\x00-\x7F]+$/.test(t)) resolveEnglishTitle(t);
+    return out;
+  };
+  const A = names(a);
+  const B = names(b);
+  return A.some((x) => B.some((y) => titleHitNorm(x, y)));
+}
+
+// 名寄せ結果から「映画と判明しているタイトルか」（日英どちらのキーでも引ける）
+export function isKnownMovieTitle(t) {
+  return !!t && getTitleMediaMap()[t] === 'movie';
 }
 
 export async function getMyWordsForEpisode(drama, season, episode, profileId, memSub = '') {
@@ -344,13 +394,9 @@ export async function getMyWordsForEpisode(drama, season, episode, profileId, me
   for (const t of toResolve) await resolveEnglishTitle(t);
   const alias = getTitleAliasMap();
 
-  // 短い正規化タイトル（Up／It 等の原題）を includes で比べると "upload"⊃"up" のような
-  // 包含誤爆で無関係作品の語が混入するため、4文字未満は完全一致のみとする。
-  const titleHit = (a, b) =>
-    a === b || (a.length >= 4 && b.length >= 4 && (a.includes(b) || b.includes(a)));
   const titleMatches = (w) => {
     const names = [w.dramaTitle, alias[w.dramaTitle]].map(normTitleForMatch).filter(Boolean);
-    return names.some((wl) => titleCandidates.some((tc) => titleHit(wl, tc)));
+    return names.some((wl) => titleCandidates.some((tc) => titleHitNorm(wl, tc)));
   };
 
   const episodeSub = (

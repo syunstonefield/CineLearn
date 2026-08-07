@@ -17,7 +17,7 @@ import { confirmWatch, isWatchConfirmed, isWatchSnoozed, snoozeWatchPrompt, watc
 import { speak } from '@/lib/speak';
 import { fetchCtxJa } from '@/lib/ctxtranslate';
 import { fetchJa } from '@/lib/jatranslate';
-import { getActiveWords } from '@/lib/words';
+import { getActiveWords, normTitleForMatch, prewarmTitleAliases } from '@/lib/words';
 import {
   DAILY_REVIEW_CAP,
   archiveDrama,
@@ -129,10 +129,28 @@ export default function Dashboard() {
     if (!mounted) return;
     let cancelled = false;
     getActiveWords(profile?.id)
-      .then((words) => {
+      .then(async (words) => {
+        if (cancelled) return;
+        const history = loadHistory();
+        // 再会判定の同一作品除外（sameWorkTitle）は同期でキャッシュしか見ないため、
+        // 保存語・履歴の日本語タイトルの英語 alias を先に解決してから計算する
+        // （解決済みは即返り。これが無いと alias 未整備の端末で初回セッションだけ
+        //   日英表記ゆれの同一作品を別作品と誤認＝疑似再会が出る）。
+        await prewarmTitleAliases([
+          ...words.map((w) => w.dramaTitle),
+          ...history.map((h) => h.drama?.title),
+        ]);
         if (cancelled) return;
         // maxItems: Infinity＝グループ全語を分類（v2の単語カード/統計用）。表示側で必要数に絞る。
-        setRecap(computeRecap({ words, history: loadHistory(), srs: loadSrs(), maxItems: Infinity }));
+        // 映画作品のタイトル集合（日英とも）: 再会表示で映画に S/E を出さないための判定源
+        const movieTitles = new Set(
+          (settings.myDramas || [])
+            .filter((d) => d.type === 'movie' || d.mediaType === 'movie')
+            .flatMap((d) => [d.title, d.englishTitle].filter(Boolean).map(normTitleForMatch))
+        );
+        setRecap(
+          computeRecap({ words, history: loadHistory(), srs: loadSrs(), maxItems: Infinity, movieTitles })
+        );
         setWatchGroup(computeWatchGroup({ words }));
       })
       .catch(() => {});
