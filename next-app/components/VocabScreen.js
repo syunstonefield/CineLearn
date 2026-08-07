@@ -244,9 +244,10 @@ export default function VocabScreen() {
       if (entry?.words?.length) {
         setVocab(entry.words);
         setHistoryId(entry.id);
-        // テスト画面用：保存済みクイズと履歴IDを共有
+        // テスト画面用に履歴IDを共有。クイズは QuizScreen がローカルで毎回組み直すので
+        // 保存済み（旧AI生成）の entry.quiz は読まない＝受けるたびに違う出題になる。
         setCurrentHistoryId(entry.id);
-        setQuizData(entry.quiz || []);
+        setQuizData([]);
         setSource('');
         setPhase('saved');
         // 生成後に予習せず離れても再入場できるように（2026-08-05 オーナー要望）:

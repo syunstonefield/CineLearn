@@ -502,41 +502,9 @@ function refineDramaWords(words, subtitleText) {
   return out;
 }
 
-// ── クイズ生成（バックグラウンド）──────────────────────────
-// testTiers に含まれる単語のみ対象。戻り値: { quizData, rawQuiz }
-export async function generateQuiz(drama, words, season, episode, testTiers) {
-  const testableWords = words.filter((w) => testTiers.includes(w.tier || 'core'));
-  const useWords = testableWords.length > 0 ? testableWords : words;
-  const wordList = useWords.map((w) => w.word).join(', ');
-  const workLabel =
-    drama?.type === 'movie'
-      ? `「${drama.title}」（映画）`
-      : `「${drama.title}」Season ${season} Episode ${episode}`;
-  const prompt = `英語学習クイズを作成してください。
-作品：${workLabel}
-単語リスト：${wordList}
-
-上記の単語から5問の4択穴埋め問題を作成してください。
-
-以下のJSON形式のみで返答（説明不要）:
-[
-  {
-    "question": "穴埋め問題の文（____を使う）",
-    "answer": "正解の単語",
-    "choices": ["正解", "不正解1", "不正解2", "不正解3"],
-    "explanation": "正解の解説（日本語・1文）"
-  }
-]`;
-
-  try {
-    const text = await callClaude(prompt);
-    const rawQuiz = JSON.parse(text.match(/\[[\s\S]*\]/)[0]);
-    const quizData = rawQuiz.map((q) => ({ ...q, choices: q.choices.sort(() => Math.random() - 0.5) }));
-    return { quizData, rawQuiz };
-  } catch {
-    return { quizData: [], rawQuiz: [] };
-  }
-}
+// クイズ生成は 2026-08-07 にローカル作問（lib/prep.js の buildLocalQuiz）へ移行した。
+// 穴埋め文・選択肢は単語リストの実セリフ例文から組めるため、Claude 呼び出し
+// （1回≈¥1・レート制限あり・生成待ちあり）は不要になった。旧 generateQuiz は削除。
 
 // ── example_ja のバックグラウンド補完（既存 fillMissingExampleJa）──────────
 // example_ja_ok フラグがない単語をAIで翻訳して補完する。

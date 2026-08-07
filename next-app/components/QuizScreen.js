@@ -2,12 +2,16 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
-import { updateHistoryScore, updateHistoryQuizData, loadHistory, loadSrs, isMastered } from '@/lib/storage';
-import { generateQuiz } from '@/lib/vocab';
+import { updateHistoryScore, loadHistory, loadSrs } from '@/lib/storage';
+import { buildLocalQuiz } from '@/lib/prep';
 
 // 既存 screen-5（renderQuiz / answer / renderScore）の再現。
 export default function QuizScreen() {
-  const { quizData, setQuizData, currentHistoryId, drama, season, episode, settings, setScreen, goHome } = useApp();
+  const { quizData, setQuizData, quizReturn, currentHistoryId, setScreen, goHome } = useApp();
+  // 戻り先は入口によって変わる（単語リスト経由＝'vocab' / 復習ハブ経由＝'review-hub'）。
+  const backToHub = quizReturn === 'review-hub';
+  const onBack = () => setScreen(backToHub ? 'review-hub' : 'vocab');
+  const backLabel = backToHub ? '← 復習に戻る' : '← 単語リストに戻る';
 
   const [currentQ, setCurrentQ] = useState(0);
   const [score, setScore] = useState(0);
@@ -17,43 +21,23 @@ export default function QuizScreen() {
   const [failed, setFailed] = useState(false);
   const genIdRef = useRef(null); // 二重生成ガード（生成済み/生成中の historyId）
 
-  // テストを開いた時にクイズを遅延生成する（事前生成はしない）。
-  // 既に quizData がある（保存済み or 生成済み）場合は何もしない。
+  // テストを開いた時にクイズをローカルで組む（AI生成はしない・2026-08-07）。
+  //   材料（語・実セリフ例文・品詞・レベル）は履歴の words に全部あるので、
+  //   穴埋め＋4択はその場で作れる＝APIコスト¥0・待ち時間ゼロ・毎回違う出題。
+  //   出題語の優先順（苦手>期日到来>新出）とダミーの選び方は lib/prep.js を参照。
   useEffect(() => {
     if (quizData.length > 0) return;
     if (!currentHistoryId) return;
-    if (genIdRef.current === currentHistoryId) return; // この履歴は生成試行済み
+    if (genIdRef.current === currentHistoryId) return; // この履歴は作問試行済み
     genIdRef.current = currentHistoryId;
     setFailed(false);
 
     const entry = loadHistory().find((h) => h.id === currentHistoryId);
     const words = entry?.words || [];
-    if (!words.length) {
-      setFailed(true);
-      return;
-    }
-
-    let cancelled = false;
-    // 他の作品/過去の学習でマスター済みの語は出題しない（既知の再テストは時間の無駄・
-    // 2026-07-03 実使用フィードバック#7b）。除外で5問組めない時だけ全語にフォールバック。
-    const srsAll = loadSrs();
-    const unmastered = words.filter((w) => !isMastered(srsAll[(w.word || '').toLowerCase()]));
-    const quizPool = unmastered.length >= 5 ? unmastered : words;
-    generateQuiz(drama, quizPool, season, episode, settings.testTiers || ['core', 'advanced']).then(
-      ({ quizData: qd, rawQuiz }) => {
-        if (cancelled) return;
-        if (rawQuiz.length) {
-          updateHistoryQuizData(currentHistoryId, rawQuiz);
-          setQuizData(qd);
-        } else {
-          setFailed(true);
-        }
-      }
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, [quizData.length, currentHistoryId, drama, season, episode, settings, setQuizData]);
+    const qd = buildLocalQuiz(words, loadSrs(), { count: 5, choiceCount: 4 });
+    if (qd.length) setQuizData(qd);
+    else setFailed(true); // 実セリフ例文つきの未習得語が1つも無い＝作問できない
+  }, [quizData.length, currentHistoryId, setQuizData]);
 
   // 全問終了時にスコアを履歴へ保存（1回だけ）
   useEffect(() => {
@@ -77,15 +61,22 @@ export default function QuizScreen() {
     return (
       <div className="screen active" id="screen-5">
         <div className="screen-inner">
-          <QuizHeader onBack={() => setScreen('vocab')} />
+          <QuizHeader onBack={onBack} label={backLabel} />
           <div id="quizSection">
             {failed ? (
-              <div className="empty-state" style={{ color: 'var(--red)' }}>
-                クイズの生成に失敗しました。単語リストに戻って再試行してください。
+              // 作問には「実セリフ例文つきの未習得語」が要る。全語マスター済み or
+              // 例文が付いていない古いリストだと1問も作れない（AI不使用のため生成失敗は起きない）。
+              <div className="empty-state">
+                出題できる単語がありません。
+                <br />
+                このエピソードの単語はすべて習得済みか、例文が付いていません。
+                <br />
+                <br />
+                {backToHub ? '復習' : '単語リスト'}に戻って別のエピソードを選んでください。
               </div>
             ) : (
               <div className="loading">
-                <div className="spinner"></div>クイズを生成中...
+                <div className="spinner"></div>クイズを準備中...
               </div>
             )}
           </div>
@@ -106,7 +97,7 @@ export default function QuizScreen() {
     return (
       <div className="screen active" id="screen-5">
         <div className="screen-inner">
-          <QuizHeader onBack={() => setScreen('vocab')} />
+          <QuizHeader onBack={onBack} label={backLabel} />
           <div id="quizSection">
             <div className="quiz-card">
               <div className="score-display">
@@ -143,18 +134,27 @@ export default function QuizScreen() {
     else setCurrentQ((i) => i + 1);
   };
 
+  // 穴埋め（____あり）と意味当て（「word」の意味は？）の2形式が混在する。
+  // 後者に空欄を描くと文が壊れるので、____ を含むときだけ blank を挿す。
   const parts = q.question.split('____');
+  const isCloze = parts.length > 1;
 
   return (
     <div className="screen active" id="screen-5">
       <div className="screen-inner">
-        <QuizHeader onBack={() => setScreen('vocab')} />
+        <QuizHeader onBack={onBack} label={backLabel} />
         <div id="quizSection">
           <div className="quiz-card">
             <div className="quiz-q">
-              {parts[0]}
-              <span className="quiz-blank">____</span>
-              {parts.slice(1).join('____')}
+              {isCloze ? (
+                <>
+                  {parts[0]}
+                  <span className="quiz-blank">____</span>
+                  {parts.slice(1).join('____')}
+                </>
+              ) : (
+                q.question
+              )}
             </div>
             <div className="quiz-choices">
               {q.choices.map((c, i) => {
@@ -181,7 +181,7 @@ export default function QuizScreen() {
               )}
             </div>
             {answered && (
-              <div className="explanation-box" style={{ display: 'block' }}>
+              <div className="explanation-box" style={{ display: 'block', whiteSpace: 'pre-line' }}>
                 {q.explanation}
               </div>
             )}
@@ -192,11 +192,11 @@ export default function QuizScreen() {
   );
 }
 
-function QuizHeader({ onBack }) {
+function QuizHeader({ onBack, label }) {
   return (
     <div className="screen-header">
       <button className="btn-back" onClick={onBack}>
-        ← 単語リストに戻る
+        {label || '← 単語リストに戻る'}
       </button>
       <div>
         <div className="screen-title">視聴後クイズ</div>
