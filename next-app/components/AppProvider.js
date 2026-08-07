@@ -103,6 +103,8 @@ export default function AppProvider({ children }) {
   const [episode, setEpisode] = useState(1);
   // テスト（screen-5）・復習モーダルの共有状態
   const [quizData, setQuizData] = useState([]); // 表示用（シャッフル済み）
+  // クイズを閉じた/戻った時の行き先。単語リスト経由は 'vocab'、復習ハブ経由は 'review-hub'。
+  const [quizReturn, setQuizReturn] = useState('vocab');
   const [currentHistoryId, setCurrentHistoryId] = useState(null);
   const [reviewWords, setReviewWords] = useState(null); // null=復習閉
   const [reviewAll, setReviewAll] = useState(false); // true=SRS期日に関係なく全語をカード化（半券のシーン記憶カード用）
@@ -514,9 +516,37 @@ export default function AppProvider({ children }) {
   }, []);
   const closeCollection = useCallback(() => setScreen('main'), []);
   const bumpWordbook = useCallback(() => setWordbookVersion((v) => v + 1), []);
+  // 復習ハブ（ボトムナビ「復習」）：エピソード選択／全作品ランダムの入口。
+  // 以前はタブを押すと即・横断復習が始まっていたが、単語リスト最下部まで
+  // スクロールしないと復習/クイズに入れない問題（2026-08-07 実使用フィードバック）を
+  // ここで受け止める。
+  const openReviewHub = useCallback(() => {
+    exitReviewPage();
+    setScreen('review-hub');
+  }, []);
 
   // テスト画面へ（VocabScreen の「テストを受ける」）
-  const goToQuiz = useCallback(() => setScreen('quiz'), []);
+  const goToQuiz = useCallback(() => {
+    setQuizReturn('vocab');
+    setScreen('quiz');
+  }, []);
+
+  // 復習ハブから、履歴のエピソードを指定してクイズを開く。
+  // 履歴の drama は {title,genre,platform} だけなので、ライブラリ(myDramas)に
+  // 同名があれば tmdbId/type を含む完全版とマージする（映画判定・出所表示のため）。
+  // クイズ自体は QuizScreen がローカルで組む（AI不使用・毎回違う出題）。
+  const startEpisodeQuiz = useCallback((entry) => {
+    if (!entry) return;
+    exitReviewPage();
+    const full = (settingsRef.current.myDramas || []).find((x) => x.title === entry.drama?.title);
+    setDrama({ ...(full || {}), ...(entry.drama || {}) });
+    setSeason(entry.season);
+    setEpisode(entry.episode);
+    setCurrentHistoryId(entry.id);
+    setQuizData([]);
+    setQuizReturn('review-hub');
+    setScreen('quiz');
+  }, []);
 
   // 復習モーダルの開閉（ダッシュボード・単語リストの両方から呼ぶ）
   // opts.all=true で SRS の期日フィルタを通さず全語をカード化（半券のシーン記憶カード用）。
@@ -675,6 +705,7 @@ export default function AppProvider({ children }) {
     closeWordbook,
     openCollection,
     closeCollection,
+    openReviewHub,
     wordbookVersion,
     bumpWordbook,
     authOpen,
@@ -699,6 +730,8 @@ export default function AppProvider({ children }) {
     mounted,
     quizData,
     setQuizData,
+    quizReturn,
+    startEpisodeQuiz,
     currentHistoryId,
     setCurrentHistoryId,
     reviewWords,

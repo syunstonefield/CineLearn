@@ -5,7 +5,6 @@
 // PC幅でも常時表示（バー全幅・タブ群は中央寄せ）。ヘッダーの単語帳/設定は集約のため隠す。
 
 import { useApp } from './AppProvider';
-import { getDueReviewWords, DAILY_REVIEW_CAP } from '@/lib/storage';
 
 const ICON = {
   strokeWidth: 1.8,
@@ -67,22 +66,18 @@ export default function BottomNav({ dueCount = 0, wordCount = 0 }) {
     goHome,
     openWordbook,
     openSettings,
-    openReview,
-    setCurrentHistoryId,
+    openReviewHub,
     settingsOpen,
     openCollection,
     reviewWords,
   } = useApp();
 
-  const onReview = () => {
-    // 横断復習（特定エピソードに紐づかない）→ historyId は null（Dashboard と同形）
-    setCurrentHistoryId(null);
-    openReview(getDueReviewWords().slice(0, DAILY_REVIEW_CAP));
-  };
+  // 復習タブは即・横断復習ではなく復習ハブへ（エピソード選択／ランダムを選ばせる）。
+  const onReview = openReviewHub;
 
   // アクティブ判定：モーダル系（復習/単語帳/設定）が開いていればそれを優先、
   // それ以外でメイン系画面ならホームを点灯する。
-  const reviewActive = !!reviewWords;
+  const reviewActive = !!reviewWords || screen === 'review-hub';
   const wordbookActive = !reviewActive && screen === 'wordbook';
   const collectionActive = !reviewActive && screen === 'collection';
   const settingsActive = !reviewActive && settingsOpen;

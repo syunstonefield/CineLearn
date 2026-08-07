@@ -351,7 +351,8 @@ function ReviewDone({ queue, ratings, promo, currentHistoryId, sessionInfo, setS
         </button>
       )}
       <button className="btn-primary" style={{ maxWidth: '100%', width: '100%' }} onClick={onDone}>
-        完了して単語リストへ
+        {/* 戻り先は入口によって変わる（単語リスト/ホーム/復習ハブ）ので行き先を名指ししない */}
+        復習を終える
       </button>
     </div>
   );

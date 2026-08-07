@@ -6073,3 +6073,104 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
   font-family: inherit;
   text-decoration: underline;
 }
+
+/* ── 復習ハブ（ボトムナビ「復習」）──────────────────────────
+   単語リスト最下部まで到達しないと復習/クイズに入れない問題の受け皿。
+   ①今日の復習（ダーク・ヒーローと同トーン）②全作品ランダム ③エピソード別。 */
+.rh-screen { max-width: 680px; margin: 0 auto; padding: 16px 16px 24px; }
+.rh-head { margin-bottom: 14px; }
+.rh-h1 { font-size: 22px; font-weight: 800; margin: 4px 0; }
+.rh-sub { font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+
+.rh-hero {
+  display: flex; align-items: center; gap: 14px;
+  border-radius: 18px; padding: 16px 18px; margin-bottom: 12px;
+  background:
+    radial-gradient(135% 150% at 86% 10%, rgba(232, 183, 102, 0.28), transparent 56%),
+    linear-gradient(135deg, #241d15 0%, #16110b 100%);
+  border: 1px solid rgba(232, 183, 102, 0.18);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
+  color: #f3ece0;
+}
+.rh-hero.is-done {
+  background: color-mix(in srgb, var(--green) 8%, var(--surface));
+  border-color: color-mix(in srgb, var(--green) 28%, var(--border));
+  box-shadow: none; color: var(--text);
+}
+.rh-hero-main { flex: 1; min-width: 0; }
+.rh-hero-title { font-size: 16px; font-weight: 800; }
+.rh-hero-sub { font-size: 12px; margin-top: 3px; color: rgba(243, 236, 224, 0.72); }
+.rh-hero.is-done .rh-hero-sub { color: var(--text-muted); }
+.rh-hero-btn {
+  flex-shrink: 0; border: none; cursor: pointer; font-family: inherit;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 84%, white), var(--accent));
+  color: #fff; border-radius: 12px; padding: 11px 18px; font-size: 14px; font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 3px 12px color-mix(in srgb, var(--accent) 36%, transparent);
+  transition: transform 0.12s ease, filter 0.12s ease;
+}
+.rh-hero-btn:hover { transform: translateY(-1px); filter: brightness(1.04); }
+.rh-hero-btn:active { transform: translateY(0) scale(0.98); }
+
+/* 全作品からランダム出題（1タップ導線） */
+.rh-random {
+  width: 100%; display: flex; align-items: center; gap: 12px; text-align: left;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+  padding: 14px 16px; cursor: pointer; font-family: inherit; color: inherit;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.rh-random:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
+}
+.rh-random:disabled { opacity: 0.55; cursor: default; }
+.rh-random-icon { font-size: 22px; line-height: 1; flex-shrink: 0; }
+.rh-random-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.rh-random-title { font-size: 15px; font-weight: 700; }
+.rh-random-sub { font-size: 12px; color: var(--text-muted); }
+
+.rh-section-label {
+  font-size: 12px; font-weight: 700; color: var(--text-muted);
+  margin: 20px 0 8px; letter-spacing: 0.04em;
+}
+.rh-groups { display: flex; flex-direction: column; gap: 14px; }
+.rh-group { border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--surface); }
+.rh-group-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 14px; background: var(--surface2, var(--surface));
+  border-bottom: 1px solid var(--border);
+}
+.rh-group-title { font-size: 14px; font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rh-group-meta { font-size: 12px; color: var(--text-muted); flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; }
+
+.rh-ep-row { display: flex; align-items: stretch; border-top: 1px solid var(--border); }
+.rh-ep-row:first-of-type { border-top: none; }
+.rh-ep-main {
+  flex: 1; min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  background: none; border: none; cursor: pointer; font-family: inherit; color: inherit;
+  padding: 13px 14px; text-align: left;
+  transition: background 0.12s ease;
+}
+.rh-ep-main:hover { background: color-mix(in srgb, var(--accent) 6%, var(--surface)); }
+.rh-ep-label { font-size: 14px; font-weight: 700; }
+.rh-ep-meta { font-size: 12px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.rh-ep-done { color: var(--green); }
+.rh-due-badge {
+  display: inline-block; padding: 2px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 700; color: #fff; background: var(--accent);
+}
+.rh-ep-quiz {
+  flex-shrink: 0; margin: 8px 10px 8px 0; align-self: center;
+  background: none; border: 1px solid var(--border); border-radius: 10px;
+  padding: 7px 12px; font-size: 12px; font-weight: 700; font-family: inherit;
+  color: var(--text-muted); cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+.rh-ep-quiz:hover { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+
+@media (max-width: 600px) {
+  .rh-screen { padding: 12px 12px 24px; }
+  .rh-hero { padding: 14px 15px; gap: 10px; }
+  .rh-hero-btn { padding: 10px 14px; font-size: 13px; }
+  .rh-ep-main { padding: 12px 12px; }
+}
