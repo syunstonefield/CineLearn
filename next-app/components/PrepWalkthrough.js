@@ -214,6 +214,17 @@ export default function PrepWalkthrough() {
                     w.example
                   )}
                   ”
+                  {/* 例文にも読み上げを付ける（単語だけだと「その語が文の中でどう鳴るか」が
+                      分からない・2026-08-07 オーナー要望）。読むのは原文＝ハイライト等の
+                      装飾を含まない w.example。 */}
+                  <button
+                    type="button"
+                    className="pw-speak pw-speak-sm"
+                    onClick={() => speak(w.example)}
+                    aria-label="例文を聞く"
+                  >
+                    🔊
+                  </button>
                 </div>
                 {w.example_ja && <div className="pw-ex-ja">{w.example_ja}</div>}
                 {showCredit && <div className="pw-ex-src">{meta.credit}</div>}

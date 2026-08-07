@@ -6174,3 +6174,25 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
   .rh-hero-btn { padding: 10px 14px; font-size: 13px; }
   .rh-ep-main { padding: 12px 12px; }
 }
+
+/* 例文の読み上げ🔊（予習ウォークスルー／予習クイズ）。
+   単語の🔊（.pw-speak = 40x40 の四角ボタン）より小さい行内ボタンにする。 */
+.pw-speak-sm {
+  width: auto; height: auto;
+  display: inline-flex; align-items: center;
+  padding: 3px 6px; margin-left: 6px;
+  background: none; border-radius: 6px;
+  font-size: 15px; line-height: 1; vertical-align: middle;
+  color: #9c7c33; opacity: 0.75;
+}
+.pw-speak-sm:hover { background: rgba(216, 169, 78, 0.16); opacity: 1; }
+.pw-speak-sm:active { transform: scale(0.92); }
+
+.prep-speak {
+  background: none; border: none; cursor: pointer; font-family: inherit;
+  padding: 3px 6px; margin-left: 6px;
+  font-size: 15px; line-height: 1; vertical-align: middle;
+  opacity: 0.75; transition: opacity 0.15s ease, transform 0.05s ease;
+}
+.prep-speak:hover { opacity: 1; }
+.prep-speak:active { transform: scale(0.92); }

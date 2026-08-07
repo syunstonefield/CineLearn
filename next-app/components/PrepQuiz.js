@@ -3,11 +3,14 @@
 import { useMemo, useState } from 'react';
 import { useApp } from './AppProvider';
 import { nextSeat } from '@/lib/prep';
+import { speak } from '@/lib/speak';
 
 // 予習エンジン「今夜のリハーサル」＝3問固定の recognition クイズ。
 // 各問: 実セリフ（drama由来 example）の対象語を空欄にして提示し、
 //       3択（正解語＋同リストの別2語）から選ぶクローズ方式。新出語でも文脈で解ける。
-// セリフはテキストだけ（声/場面は出さない＝satiation回避・オープンループ保持）。
+// 本編の音声・場面は出さない（satiation回避・オープンループ保持）。読み上げ(TTS)は
+// 「その語が文の中でどう鳴るか」を渡すためのもので、回答後だけ出す
+// （空欄のまま読むと正解が聞こえる・2026-08-07 オーナー要望で追加）。
 // AppProvider の open/close で重ねるモーダル。phase には触れない。
 export default function PrepQuiz() {
   const { prepQuiz, closePrepQuiz, openPrepLaunch } = useApp();
@@ -114,6 +117,17 @@ export default function PrepQuiz() {
               // 万一クローズが作れなければ例文をそのまま見せて意味選択に寄せる
               q.example
             )}”
+            {/* 読み上げは回答後だけ出す（空欄のまま読むと正解が聞こえてしまう）。 */}
+            {answered && (
+              <button
+                type="button"
+                className="prep-speak"
+                onClick={() => speak(q.example)}
+                aria-label="例文を聞く"
+              >
+                🔊
+              </button>
+            )}
           </div>
           {/* 出所明示（著作権法48条）：出題文は字幕の逐語引用 */}
           {meta?.credit && <div className="prep-ex-src">{meta.credit}</div>}
