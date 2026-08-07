@@ -251,6 +251,18 @@ function saveTitleAlias(jp, en, media) {
     }
   }
 }
+// TMDB のヒットから英語タイトルを取り出す（TV は詳細の en-US 名／映画はラテン原題）。
+async function titleOf(hit) {
+  if (hit.media_type === 'tv') {
+    const detail = await tmdb({ action: 'seasons', tvId: hit.id });
+    return detail.name || hit.original_name || null;
+  }
+  // 映画はラテン文字の原題を英題として使う（englishTitle のラテン原題化と同じ規則）。
+  // 原題が非ラテン（邦画等）は localized title のままで実害なし＝直接照合と同値。
+  const orig = hit.original_title || '';
+  return orig && /^[\x00-\x7F]+$/.test(orig) ? orig : hit.title || null;
+}
+
 // セッション内メモ（TMDB障害・検索0件・非完全一致の結果を毎レンダー再照会しないため。
 // 永続の負キャッシュにはしない＝次セッションで再試行の余地を残す）。
 // 値は string | null | Promise。照会開始と同時に Promise を同期登録することで、
@@ -265,33 +277,38 @@ async function resolveEnglishTitle(jpTitle) {
   if (_aliasMem.has(jpTitle)) return _aliasMem.get(jpTitle); // 確定値 or 解決中 Promise
   const p = (async () => {
     try {
-      // 旧実装は /search/tv 固定＝映画タイトルが構造的に名寄せ不能だった
-      // （2026-08-07 実機再現で確定: 作品側が英題・保存語側が邦題のスパイダーマンで
-      //   追加語が単語リストに1件も出ない）。映画/TV横断の search_multi へ変更。
-      const searchData = await tmdb({ action: 'search_multi', query: jpTitle });
-      const results = (searchData.results || []).filter(
-        (r) => r.media_type === 'tv' || r.media_type === 'movie'
-      );
-      // 同名異作の誤爆防止: 日本語タイトルの正規化完全一致を優先し、映画/TV 両方が
-      // 完全一致する同名作（ドラマ⇄映画化）は TV を採る（TV 側の S/E 用途が壊れやすい）。
-      const norm = normTitleForMatch(jpTitle);
-      const exact = results.filter((r) => normTitleForMatch(r.name || r.title) === norm);
-      const hit = exact.find((r) => r.media_type === 'tv') || exact[0] || results[0];
-      if (!hit) return null;
-      let en = null;
-      if (hit.media_type === 'tv') {
-        const detail = await tmdb({ action: 'seasons', tvId: hit.id });
-        en = detail.name || hit.original_name || null;
-      } else {
-        // 映画はラテン文字の原題を英題として使う（englishTitle のラテン原題化と同じ規則）。
-        // 原題が非ラテン（邦画等）は localized title のままで実害なし＝直接照合と同値。
-        const orig = hit.original_title || '';
-        en = orig && /^[\x00-\x7F]+$/.test(orig) ? orig : hit.title || null;
+      // 配信サービスの DOM 由来タイトルは「マンダロリアン | Disney+(ディズニープラス)」の
+      // ように配信元が付くことがある。素の検索では完全一致に至らないため、'|' の前だけの
+      // クエリも試す（実データで ファインディング・ニモ | Disney+… が英題と照合できず失敗）。
+      const queries = [jpTitle];
+      const cleaned = jpTitle.split(/[|｜]/)[0].trim();
+      if (cleaned && cleaned !== jpTitle) queries.push(cleaned);
+      let fallback = null;
+      for (const q of queries) {
+        // 旧実装は /search/tv 固定＝映画タイトルが構造的に名寄せ不能だった
+        // （2026-08-07 実機再現で確定: 作品側が英題・保存語側が邦題のスパイダーマンで
+        //   追加語が単語リストに1件も出ない）。映画/TV横断の search_multi へ変更。
+        const searchData = await tmdb({ action: 'search_multi', query: q });
+        const results = (searchData.results || []).filter(
+          (r) => r.media_type === 'tv' || r.media_type === 'movie'
+        );
+        // 同名異作の誤爆防止: 日本語タイトルの正規化完全一致を優先し、映画/TV 両方が
+        // 完全一致する同名作（ドラマ⇄映画化）は TV を採る（TV 側の S/E 用途が壊れやすい）。
+        const norm = normTitleForMatch(q);
+        const exact = results.filter((r) => normTitleForMatch(r.name || r.title) === norm);
+        const hit = exact.find((r) => r.media_type === 'tv') || exact[0];
+        if (!hit) {
+          if (!fallback) fallback = results[0] || null;
+          continue;
+        }
+        const en = await titleOf(hit);
+        // 恒久キャッシュは正規化完全一致で作品を特定できた時だけ。先頭ヒットへの
+        // フォールバックを永続化すると、誤作品を無効化手段なしで抱え込むため。
+        // キーは元のタイトル（呼び出し側は汚れたタイトルのまま引く）。
+        if (en) saveTitleAlias(jpTitle, en, hit.media_type);
+        if (en) return en;
       }
-      // 恒久キャッシュは正規化完全一致で作品を特定できた時だけ。先頭ヒットへの
-      // フォールバックを永続化すると、誤作品を無効化手段なしで抱え込むため。
-      if (en && exact.length) saveTitleAlias(jpTitle, en, hit.media_type);
-      return en;
+      return fallback ? await titleOf(fallback) : null;
     } catch {
       return null; // 失敗もメモ化される（毎レンダー再発火防止・永続はしない）
     }
@@ -332,20 +349,36 @@ function titleHitNorm(a, b) {
   return a === b || (a.length >= 4 && b.length >= 4 && (a.includes(b) || b.includes(a)));
 }
 
+// 正準名（TMDB 名寄せ後の英語タイトル・ASCII は自身）を正規化して返す（同期）。
+// 永続キャッシュ→セッションメモの順に参照し、未解決の日本語タイトルは fire-and-forget で
+// 解決を蒔く（in-flight dedup 済み）。未解決の間は null。
+function cachedCanonTitle(t) {
+  if (/^[\x00-\x7F]+$/.test(t)) return normTitleForMatch(t);
+  const alias = getTitleAliasMap();
+  if (alias[t]) return normTitleForMatch(alias[t]);
+  const mem = _aliasMem.get(t);
+  if (typeof mem === 'string') return normTitleForMatch(mem);
+  resolveEnglishTitle(t);
+  return null;
+}
+
 // 同一作品判定（日英・表記ゆれ横断／同期）。再会判定など「同じ作品か」を軽量に知りたい
-// 場所向け。alias は解決済みの永続キャッシュのみ参照し、未解決の日本語タイトルは
-// fire-and-forget で解決を蒔いておく（結果はキャッシュされ次回の判定から効く）。
+// 場所向け。両側の正準名が分かる時は**等値のみ**で判定する＝「アベンジャーズ」と
+// 「アベンジャーズ／エンドゲーム」のような続編（タイトル包含）は別作品になり、続編間の
+// 語彙再会を祝える（2026-08-07 オーナー要望・シリーズ一気見は核ユースケース）。
+// 表記ゆれは TMDB の作品同定が同じ正準名へ収束させる（例: ストレンジャー・シングス
+// 未知の世界 → Stranger Things ← Stranger Things）。名寄せが未解決の側が残る時だけ
+// 包含一致で保守的に同一視する（自作品との疑似再会の再発防止を優先）。
 export function sameWorkTitle(a, b) {
   if (!a || !b) return false;
-  const alias = getTitleAliasMap();
-  const names = (t) => {
-    const out = [normTitleForMatch(t)];
-    if (alias[t]) out.push(normTitleForMatch(alias[t]));
-    else if (!/^[\x00-\x7F]+$/.test(t)) resolveEnglishTitle(t);
-    return out;
-  };
-  const A = names(a);
-  const B = names(b);
+  const na = normTitleForMatch(a);
+  const nb = normTitleForMatch(b);
+  if (na === nb) return true; // 全半角コロン等の表記ゆれは正規化の等値で吸収
+  const ca = cachedCanonTitle(a);
+  const cb = cachedCanonTitle(b);
+  if (ca !== null && cb !== null) return ca === cb;
+  const A = [na, ca].filter(Boolean);
+  const B = [nb, cb].filter(Boolean);
   return A.some((x) => B.some((y) => titleHitNorm(x, y)));
 }
 
@@ -359,17 +392,10 @@ export async function getMyWordsForEpisode(drama, season, episode, profileId, me
   if (!dramaTitle) return [];
   const words = await getActiveWords(profileId);
 
-  const titleCandidates = [dramaTitle, drama?.title, drama?.englishTitle]
-    .map(normTitleForMatch)
-    .filter(Boolean);
-  // 作品側が日本語のみ（旧エントリ等）で保存語側が英語の逆方向にも橋を架ける。
-  // englishTitle が既に英語ならそれが候補に入っており照会不要（通常ケースは0コスト・
-  // 解決結果は永続キャッシュされるため照会が要る作品でも一度きり）。
-  const enTitle = String(drama?.englishTitle || '');
-  if (!/^[\x00-\x7F]+$/.test(dramaTitle) && !(enTitle && /^[\x00-\x7F]+$/.test(enTitle))) {
-    const dAlias = normTitleForMatch(await resolveEnglishTitle(dramaTitle));
-    if (dAlias && !titleCandidates.includes(dAlias)) titleCandidates.push(dAlias);
-  }
+  // 照合は正規化ではなく生タイトルのまま持ち、sameWorkTitle（正準名の等値・未解決時のみ
+  // 包含）に委ねる。作品側が日本語のみ（旧エントリ等）で保存語側が英語の逆方向にも
+  // 名寄せが橋を架ける（解決結果は永続キャッシュ＝作品ごと一度きり）。
+  const titleCandidates = [...new Set([dramaTitle, drama?.englishTitle].filter(Boolean))];
 
   // 映画は S/E の概念が無く、保存側が season/episode=null で書く（VocabScreen/拡張とも）。
   // 一方この画面の state は映画でも 1/1 なので、S/E 一致で絞ると映画の語が1つも拾えない
@@ -385,19 +411,13 @@ export async function getMyWordsForEpisode(drama, season, episode, profileId, me
           w.season == season &&
           w.episode == episode
       );
-  const aliasCache = getTitleAliasMap();
-  const toResolve = [
-    ...new Set(
-      seWords.map((w) => w.dramaTitle).filter((t) => !/^[\x00-\x7F]+$/.test(t) && !aliasCache[t])
-    ),
-  ];
-  for (const t of toResolve) await resolveEnglishTitle(t);
-  const alias = getTitleAliasMap();
+  // 同期の sameWorkTitle が正準名で判定できるよう、候補と保存語のタイトルを先に解決しておく。
+  await prewarmTitleAliases([...titleCandidates, ...seWords.map((w) => w.dramaTitle)]);
 
-  const titleMatches = (w) => {
-    const names = [w.dramaTitle, alias[w.dramaTitle]].map(normTitleForMatch).filter(Boolean);
-    return names.some((wl) => titleCandidates.some((tc) => titleHitNorm(wl, tc)));
-  };
+  // 同一作品かどうかは再会判定と同じ規則（正準名の等値・未解決の側があれば包含で保守的に）。
+  // 旧実装の包含固定は「アベンジャーズ」と「アベンジャーズ／エンドゲーム」を同一視し、
+  // シリーズ続編の語が互いのリストに混入していた（2026-08-07）。
+  const titleMatches = (w) => titleCandidates.some((tc) => sameWorkTitle(w.dramaTitle, tc));
 
   const episodeSub = (
     memSub ||
