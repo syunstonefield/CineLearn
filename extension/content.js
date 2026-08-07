@@ -1231,8 +1231,10 @@ async function showWordPopup(word, sentence, rect) {
   // 文脈訳（「この場面では」）の段階表示: docs/design-context-translation.md §2
   //   キャッシュ命中→即時 / ~800ms以内に来れば確定訳のみ表示（二度読みなし）/
   //   遅ければ1語速報を薄色で暫定表示→1.5sタイムアウトで速報を無言で確定。
-  const dictP = lookupWord(word);
-  const quickP = getJaCached(word); // 1語速報（DeepL/Azure・文脈なし）
+  // フレーズ（複数語）は英英辞書APIに見出しが無く必ず404になるので呼ばない
+  // （無駄な待ちを省く。フレーズの訳は文脈訳 wordsense が担う）。
+  const dictP = word.includes(' ') ? Promise.resolve(null) : lookupWord(word);
+  const quickP = getJaCached(word); // 1語速報（ローカル辞書→翻訳API・文脈なし）
   const ctxP = sentence ? getCtxJaCached(word, sentence) : Promise.resolve(null);
 
   const ctxFast = await Promise.race([ctxP, clSleep(800).then(() => undefined)]);

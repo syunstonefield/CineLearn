@@ -11,7 +11,10 @@ const URL_ENV = 'UPSTASH_REDIS_REST_URL';
 const TOKEN_ENV = 'UPSTASH_REDIS_REST_TOKEN';
 
 // 既定上限：1 IP あたり 30/分・300/時（backlog の合意値・root 側と同値）。
-// perDay は任意（文脈訳 wordsense の「新規生成のみ日次50回」等・未指定なら日次無制限）。
+// perDay は任意（文脈訳 wordsense の「新規生成のみ日次300回」等・未指定なら日次無制限）。
+// ⚠上限は「**通過した**リクエスト数」に対して張る（ブロック分は下で DECR して戻す）。
+//   拒否分も数える実装だと、429を受けたクライアントの再試行がカウンタを膨らませ続け、
+//   上限を引き上げてもロックアウトが解けない（2026-08-06 に実発生）。
 const DEFAULT_LIMITS = { perMin: 30, perHour: 300, perDay: 0 };
 
 // x-forwarded-for の先頭ホップを正規クライアント IP として使う（Vercel が付与）。
@@ -52,11 +55,38 @@ export async function checkRateLimit(req, bucket, limits = {}) {
     const out = await res.json();
     const minCount = Number(out?.[0]?.result);
     const hourCount = Number(out?.[2]?.result);
-    if (Number.isFinite(minCount) && minCount > perMin) return { ok: false };
-    if (Number.isFinite(hourCount) && hourCount > perHour) return { ok: false };
-    if (perDay > 0) {
-      const dayCount = Number(out?.[4]?.result);
-      if (Number.isFinite(dayCount) && dayCount > perDay) return { ok: false };
+    const dayCount = perDay > 0 ? Number(out?.[4]?.result) : 0;
+    const blocked =
+      (Number.isFinite(minCount) && minCount > perMin) ||
+      (Number.isFinite(hourCount) && hourCount > perHour) ||
+      (perDay > 0 && Number.isFinite(dayCount) && dayCount > perDay);
+    if (blocked) {
+      // ブロックしたリクエストは枠を消費させない（DECR で戻す）。
+      // これが無いと「上限到達後の再試行が全ウィンドウのカウンタを膨らませ続け、
+      // 上限を引き上げてもロックアウトが解けない」死のスパイラルになる
+      // （2026-08-06 実発生: wordsense 日次50到達→拡張の再試行で数百まで汚染→
+      //   300へ引き上げ後も全リクエスト429のまま）。上限は「成功したリクエスト数」
+      //   に対して張る＝課金APIの天井（攻撃者が通せる回数）は変わらない。
+      // fire-and-forget にしない: Vercel は応答後に処理を凍結するため await 必須。
+      // 各 DECR の直後に EXPIRE NX を張る: DECR は「存在しないキー」を値-1で新規作成し
+      // TTL を張らない。1本目とこの2本目の間に TTL が満了すると、値-1・TTL無しの孤児キーが
+      // Upstash に永久残留する（過去ウィンドウのキーなので計数は壊れないが、まさに攻撃
+      // トラフィック下で無限にゴミが溜まる）。TTL が生きていれば NX が no-op なので無害。
+      try {
+        const undo = [
+          ['DECR', minKey], ['EXPIRE', minKey, '60', 'NX'],
+          ['DECR', hourKey], ['EXPIRE', hourKey, '3600', 'NX'],
+        ];
+        if (perDay > 0) undo.push(['DECR', dayKey], ['EXPIRE', dayKey, '86400', 'NX']);
+        await fetch(`${url}/pipeline`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(undo),
+        });
+      } catch {
+        /* 戻し失敗は許容（過剰カウント側に倒れるだけ） */
+      }
+      return { ok: false };
     }
     return { ok: true };
   } catch {

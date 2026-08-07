@@ -100,11 +100,12 @@ export async function POST(req) {
   // ── mode:'wordsense'＝文脈つき語義（docs/design-context-translation.md）──
   //   プロンプトはサーバ側で組む（クライアント文字列を実行しない）・max_tokens 64 固定。
   //   キャッシュ命中は無条件・無償配布＝レート制限より先に返す。
-  //   新規 Haiku 生成のみ IP 日次50回で絞る（財布攻撃の天井 ≈¥5/日/IP）。
+  //   新規 Haiku 生成のみ IP 日次300回で絞る（財布攻撃の天井 ≈¥9/日/IP・下の 114行に経緯）。
   if (body.mode === 'wordsense') {
     const word = String(body.word || '').trim();
     const sentence = String(body.sentence || '').trim().slice(0, 300);
-    if (!word || word.length > 50 || !sentence) return json({ ja: null, error: 'bad request' }, 400);
+    // 80 = フレーズ対応（拡張のドラッグ保存は最大6語＝理論上50字を超え得る）
+    if (!word || word.length > 80 || !sentence) return json({ ja: null, error: 'bad request' }, 400);
 
     const hash = senseHash(sentence);
     const cached = await readCtxCache(word.toLowerCase(), hash);
@@ -114,7 +115,10 @@ export async function POST(req) {
     // 前提の数字だったが Azure 失効でその受け皿が消え、正規利用（1話20〜40語）で2話も持たずに
     // 枯れて訳が丸ごと出なくなった（実測429）。wordsense は max_tokens 64 固定＝1回≈¥0.03なので
     // 300 でも天井は ¥9/日/IP。キャッシュ命中はこの計数より先に返るので既訳語は無制限のまま。
-    if (!(await checkRateLimit(req, 'wordsense', { perMin: 20, perHour: 100, perDay: 300 })).ok) {
+    // バケット名 'wordsense2' は 2026-08-06 の世代替え: 旧 'wordsense' カウンタが
+    // 「429の再試行もカウントする」旧仕様で数百まで汚染され、上限引き上げ後も全リクエストが
+    // ブロックされ続けたため、キーを替えて即時リセットした（旧キーはTTLで自然消滅）。
+    if (!(await checkRateLimit(req, 'wordsense2', { perMin: 20, perHour: 100, perDay: 300 })).ok) {
       return json({ ja: null, error: 'rate_limited' }, 429);
     }
 
