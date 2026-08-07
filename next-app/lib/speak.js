@@ -1,27 +1,43 @@
 // 英単語・例文の読み上げ（Web Speech API）。単語帳・単語リスト・復習・予習カードで共用。
 //
-// 「押しても鳴らない」対策（2026-08-07 オーナー報告：PC・スマホとも無音／消音スイッチは無関係）。
-// Web Speech API は実装差と既知バグが多く、素直に書くと鳴らない。ここで踏んでいる地雷は4つ:
-//   ① **utterance が GC されると無音になる**（Chrome/Safari の既知バグ）。ローカル変数だけで
-//      持っていると発話開始前に回収され得る。→ モジュール変数で参照を保持する。
-//   ② `cancel()` 直後の `speak()` はキューごと落ちて鳴らないことがある。
-//      → 何か鳴っている時だけ cancel し、その時だけ次のタスクへ回す。
-//   ③ ページ復帰・別タブ往復のあと合成器が paused のまま固まることがある → `resume()` で解錠。
-//   ④ **`getVoices()` は空を返すことがある**（本番実測で0件・それでも既定音声で鳴る）。
-//      空を待って遅延させると **ユーザー操作の外**で speak することになり、iOS Safari や
-//      一部 Chrome が黙って無視する。→ **待たない**。voice は取れた時だけ指定する。
-// ★原則: 通常経路は必ず**クリックハンドラと同じタスクで同期的に** speak する（iOS の必須要件）。
-// 最後の保険として、start が来なければ一度だけ鳴らし直す（③④の取りこぼし用）。
+// ★2026-08-07 オーナー環境の実ログで確定した症状:
+//     speak alien Aaron / error canceled / speak alien Aaron / error canceled / speak jurisdiction
+//   = speak() は呼ばれ英語音声(Aaron)も選ばれているのに **start が一度も出ない**。
+//     発話はキューに入ったまま開始されず、次のクリックの cancel() で canceled になっていた。
+//   これは Chrome の既知の「合成器が固まる」状態（内部が paused のまま／キューが死んでいる）で、
+//   **speak() の直後に resume() を叩く**のが定番の解錠手段。idle 時の resume() は no-op のため、
+//   speak() の前に呼んでも効かない（前版の誤り）。
+//
+// 実装方針（踏んだ地雷と対策）:
+//   ① 固まり: speak() の**直後**と、start が来ない時にもう一度 resume() で蹴る。
+//      それでも start が来なければ cancel→resume→speak をもう一度だけやり直す（pending の
+//      まま死んでいる場合も再試行する＝前版は pending を「生きている」と誤判定して見送っていた）。
+//   ② GC: utterance が回収されると無音になる（Chrome/Safari）→ モジュール変数で保持する。
+//   ③ cancel 直後の speak はキューごと落ちる → 鳴っている時だけ cancel し、少し間を空ける。
+//   ④ getVoices() は 0 件を返すことがある（本番実測）。空を待って遅延させると発話が
+//      ユーザー操作の外へ出て iOS Safari 等が無視する → **待たない**。
+//   ⑤ voice は既定音声を優先する。端末によっては特定の音声を明示指定すると鳴らないため、
+//      default フラグの立った英語音声だけを選び、無ければ voice 未指定（ブラウザ任せ）にする。
+// ★通常経路は必ずクリックと同じタスクで同期的に speak する（iOS の必須要件）。
 
-let _held = null; // ①GC 防止：発話中の utterance をモジュールに固定する
-let _retried = false;
+let _held = null; // ②GC 防止：発話中の utterance をモジュールに固定する
 
 function pickVoice(synth) {
   const list = synth.getVoices() || [];
   if (!list.length) return null; // ④空でも既定音声で鳴る＝待たない
   const en = list.filter((v) => /^en([-_]|$)/i.test(v.lang || ''));
   if (!en.length) return null;
-  return en.find((v) => /^en[-_]US/i.test(v.lang)) || en[0];
+  // ⑤既定音声のみ明示指定（Aaron のような非既定を指すと鳴らない環境があった）
+  return en.find((v) => v.default) || null;
+}
+
+// ①固まり解錠。speak() の直後に呼ぶ（idle 時の resume は no-op なので事前呼び出しでは効かない）。
+function kick(synth) {
+  try {
+    synth.resume();
+  } catch {
+    /* 未対応ブラウザは無視 */
+  }
 }
 
 function utter(synth, text, onStart) {
@@ -30,25 +46,19 @@ function utter(synth, text, onStart) {
   const v = pickVoice(synth);
   if (v) u.voice = v;
   u.onstart = onStart || null;
-  u.onend = () => {
+  const release = () => {
     if (_held === u) _held = null;
   };
-  u.onerror = () => {
-    if (_held === u) _held = null;
-  };
+  u.onend = release;
+  u.onerror = release;
   _held = u;
-  try {
-    synth.resume(); // ③paused で固まった合成器を解錠（鳴っていなければ no-op）
-  } catch {
-    /* 未対応ブラウザは無視 */
-  }
   synth.speak(u);
+  kick(synth);
 }
 
 export function speak(text) {
   if (typeof window === 'undefined' || !('speechSynthesis' in window) || !text) return;
   const synth = window.speechSynthesis;
-  _retried = false;
 
   let started = false;
   const onStart = () => {
@@ -57,22 +67,26 @@ export function speak(text) {
 
   const go = () => {
     utter(synth, text, onStart);
-    // 保険：start も speaking も立たない＝呑まれた可能性。一度だけ鳴らし直す。
-    // （2回目以降は諦める＝無限ループにしない）
+    // 保険1: 少し待って start が来なければもう一度蹴る（paused 固着の解錠）。
     setTimeout(() => {
-      if (started || synth.speaking || synth.pending || _retried) return;
-      _retried = true;
+      if (!started) kick(synth);
+    }, 120);
+    // 保険2: それでも start が来ない＝キューが死んでいる。積み直して一度だけやり直す。
+    //   pending が立っていても再試行する（pending のまま永久に開始されないのが実症状のため）。
+    setTimeout(() => {
+      if (started) return;
       try {
         synth.cancel();
       } catch {
         /* ignore */
       }
+      kick(synth);
       utter(synth, text, onStart);
-    }, 300);
+    }, 400);
   };
 
   if (synth.speaking || synth.pending) {
-    synth.cancel(); // ②直前の読み上げを止める時だけ、間を空けてから鳴らす
+    synth.cancel(); // ③直前の読み上げを止める時だけ、間を空けてから鳴らす
     setTimeout(go, 80);
     return;
   }
