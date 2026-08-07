@@ -17,7 +17,7 @@ import { confirmWatch, isWatchConfirmed, isWatchSnoozed, snoozeWatchPrompt, watc
 import { speak } from '@/lib/speak';
 import { fetchCtxJa } from '@/lib/ctxtranslate';
 import { fetchJa } from '@/lib/jatranslate';
-import { getActiveWords, normTitleForMatch, prewarmTitleAliases } from '@/lib/words';
+import { getActiveWords, normTitleForMatch, prewarmTitleAliases, sameWorkTitle } from '@/lib/words';
 import {
   DAILY_REVIEW_CAP,
   archiveDrama,
@@ -241,7 +241,9 @@ export default function Dashboard() {
     }
     const history = loadHistory();
     const archived = new Set(loadArchived()); // 「棚から外した」作品は一覧から隠す（履歴は残す）
-    const learnStats = learningStatsByTitle(history); // カード内の per-drama 統計（作品ごとの数え方は従来のまま）
+    // 作品カードの「✅覚えた/⭐マスター n/総数」。追加した語も同じ作品に算入する＝カードの数と
+    // その作品の単語リストの数が一致する（作品同定は日英跨ぎの sameWorkTitle に委ねる）。
+    const learnStats = learningStatsByTitle(history, loadSrs(), myWords, sameWorkTitle);
     // 累計の「覚えた／マスター」（ホームの達成感＝復習モチベ用）。履歴の語＋追加した語を
     // 語で名寄せして数える＝単語帳の件数と一致する（追加した語が母数から抜けない）。
     const overall = overallVocabStats(history, myWords);

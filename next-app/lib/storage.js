@@ -314,7 +314,17 @@ export function wordCountByTitle(history = loadHistory()) {
 //   total   = その作品で保存したユニーク単語数（全エピソード合算）
 //   learned = 「覚えた」(isLearned) 以上の語数（マスターも含む）
 //   mastered= 「マスター」(isMastered) の語数
-export function learningStatsByTitle(history = loadHistory(), srs = loadSrs()) {
+// myWords（マイ単語帳＝拡張クリック保存・手動追加）を渡すと、その語も作品ごとの数に算入する
+// （2026-08-07 オーナー要望。作品カードが「1/2」なのに同じ作品の単語リストが「1/4」と食い違う
+//   のを解消する）。作品の同定は日英・表記ゆれを跨ぐため sameTitle を呼び出し側から受け取る
+//   （storage.js は words.js を import できない＝循環参照になるため）。
+// 履歴にバケツが無い作品（＝まだ単語リストを作っていない作品）の語は数えない＝カードも出ない。
+export function learningStatsByTitle(
+  history = loadHistory(),
+  srs = loadSrs(),
+  myWords = [],
+  sameTitle = (a, b) => a === b
+) {
   const acc = new Map(); // title → { total, learned, mastered, seen:Set }
   history.forEach((h) => {
     const t = h.drama?.title;
@@ -333,6 +343,21 @@ export function learningStatsByTitle(history = loadHistory(), srs = loadSrs()) {
       if (isMastered(e)) s.mastered++;
       if (isLearned(e)) s.learned++;
     });
+  });
+  // 追加した語を、同じ作品のバケツへ足す（履歴に既にある語は seen で二重計上を防ぐ）。
+  (myWords || []).forEach((w) => {
+    const k = String(w.word || '').toLowerCase();
+    if (!k || !w.dramaTitle) return;
+    for (const [title, s] of acc) {
+      if (!sameTitle(w.dramaTitle, title)) continue;
+      if (s.seen.has(k)) break;
+      s.seen.add(k);
+      s.total++;
+      const e = srs[k];
+      if (isMastered(e)) s.mastered++;
+      if (isLearned(e)) s.learned++;
+      break;
+    }
   });
   const out = new Map();
   acc.forEach((v, k) => out.set(k, { total: v.total, learned: v.learned, mastered: v.mastered }));
