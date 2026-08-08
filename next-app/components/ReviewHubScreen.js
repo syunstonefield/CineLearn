@@ -127,9 +127,11 @@ export default function ReviewHubScreen() {
     return [...m.values()];
   }, [history, srs, movieTitles]);
 
+  // ホームの「今日の復習」と同じ母集団にする（myWords を渡す）。渡さないと同じ名前の入口が
+  // 画面ごとに別の数字を出す（ホーム=本編+保存語／ここ=本編のみ）＝どちらかが嘘になる。
   const todayCount = useMemo(
-    () => (mounted ? Math.min(getDueReviewWords(history, srs).length, DAILY_REVIEW_CAP) : 0),
-    [mounted, history, srs]
+    () => (mounted ? Math.min(getDueReviewWords(history, srs, myWords).length, DAILY_REVIEW_CAP) : 0),
+    [mounted, history, srs, myWords]
   );
 
   // ランダム出題の母集団：全履歴＋拡張で保存した単語（重複は語で排除）。
@@ -158,7 +160,7 @@ export default function ReviewHubScreen() {
 
   const startToday = () => {
     setCurrentHistoryId(null); // 横断復習（特定エピソードに紐づかない）
-    openReview(getDueReviewWords(history, srs).slice(0, DAILY_REVIEW_CAP));
+    openReview(getDueReviewWords(history, srs, myWords).slice(0, DAILY_REVIEW_CAP));
   };
 
   const startRandom = () => {
