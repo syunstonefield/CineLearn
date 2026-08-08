@@ -12,6 +12,7 @@
 //   （lib/profileMerge.js）。push 失敗後に古いクラウドで設定が巻き戻る事故を防ぐ。
 // - my_words: pull のみ（書込は拡張が直接 Supabase へ）。
 import { PROFILES_AT_KEY, mergeProfileArrays, cloudWins } from './profileMerge';
+import { ticketEpKey, trimTickets } from './ticketRules';
 
 const SUPABASE_URL = 'https://mndyexwdevkpdssglwpl.supabase.co';
 const SUPABASE_ANON_KEY =
@@ -316,27 +317,27 @@ function readStateLocal(key) {
   }
 }
 
-// 半券の同一話キー（lib/tickets.js の epKey と同じ定義：tmdbId 最優先・title フォールバック）。
-const ticketEpKey = (t) => `${t.tmdbId ?? t.title}|${t.season}|${t.episode}`;
-const MAX_TICKETS = 30; // lib/tickets.js と同値
-
 // 種類別マージ。デバイスA/Bで別々に育ったデータを last-write-wins で潰さず統合する。
 function mergeStateValue(key, localV, cloudV) {
   if (localV == null) return cloudV;
   if (cloudV == null) return localV;
   if (key.startsWith('cl_tickets')) {
-    // 半券: 同一話は createdAt が新しい方・全体は古い順で上限 FIFO（tickets.js と同じ規律）
+    // 半券: 同一話は createdAt が新しい方を採る（保持規律は ticketRules に集約）。
+    // ⚠同一話で words を持つ側と落とした側が出会った場合は、words がある方を優先する
+    //   （新しい端末が軽い記録を先に作っても、もう片方が持つ出題語を消さない）。
     const m = new Map();
     [...(Array.isArray(cloudV) ? cloudV : []), ...(Array.isArray(localV) ? localV : [])]
       .filter((t) => t && t.id)
       .forEach((t) => {
         const k = ticketEpKey(t);
         const prev = m.get(k);
-        if (!prev || (t.createdAt || 0) >= (prev.createdAt || 0)) m.set(k, t);
+        if (!prev) return void m.set(k, t);
+        const better =
+          (t.words?.length ? 1 : 0) - (prev.words?.length ? 1 : 0) ||
+          (t.createdAt || 0) - (prev.createdAt || 0);
+        if (better >= 0) m.set(k, t);
       });
-    const arr = [...m.values()].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-    while (arr.length > MAX_TICKETS) arr.shift();
-    return arr;
+    return trimTickets([...m.values()]);
   }
   if (key.startsWith('cl_fav_dramas')) {
     const l = Array.isArray(localV) ? localV : [];

@@ -5,8 +5,7 @@
 // プロフィール別。2026-07-02 から user_state 経由でクラウド同期（機種変で消えない・マージは同一話 union）。
 
 import { queueStatePush } from './supabase';
-
-const MAX_TICKETS = 30; // 追記ログだが上限でFIFO（古いものから落とす）。ホームは最新1枚＋件数。
+import { ticketEpKey, trimTickets } from './ticketRules';
 
 export function ticketsKey(profileId) {
   return profileId ? `cl_tickets_${profileId}` : 'cl_tickets';
@@ -31,11 +30,8 @@ function saveAll(profileId, arr) {
   }
 }
 
-// 同一作品・同一話を1枚に畳むためのキー。
-// ★tmdbId を最優先★（英語原題「Suits」と邦題「SUITS/スーツ」で title が割れると
-//   同一話が別チケット化＝半券が二重発行される。tmdbId は表記に依らず一意）。
-// tmdbId が無い古いデータだけ title にフォールバックする。
-const epKey = (t) => `${t.tmdbId ?? t.title}|${t.season}|${t.episode}`;
+// 同一話を畳むキー・保持規律は lib/ticketRules.js（クラウドのマージ側と共有）。
+const epKey = ticketEpKey;
 
 // 予習クイズ完了の launch payload から半券を1枚発行（同一話は最新で上書き＝混雑回避）。
 // payload は PrepQuiz が openPrepLaunch に渡す { variant:'quiz', quizWords, seat, drama, title, season, episode, isMovie, service } 形。
@@ -71,13 +67,13 @@ export function issueTicket(profileId, payload) {
     seat: payload.seat || '',
     service: payload.service || '',
     createdAt: Date.now(),
+    wordCount: words.length,
     words,
   };
 
   // 同一話は畳む（古い同話を除いてから push＝最新で置換）。「観た記録」は最新1枚で十分。
   const arr = loadTickets(profileId).filter((t) => epKey(t) !== epKey(ticket));
   arr.push(ticket);
-  while (arr.length > MAX_TICKETS) arr.shift();
-  saveAll(profileId, arr);
+  saveAll(profileId, trimTickets(arr));
   return ticket;
 }
