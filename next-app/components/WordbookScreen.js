@@ -14,6 +14,7 @@ import { loadSrs, skipWord, unskipWord, isLearned, isMastered, isStruggling } fr
 import { fetchJa } from '@/lib/jatranslate';
 import { fetchCtxJa } from '@/lib/ctxtranslate';
 import { speak } from '@/lib/speak';
+import { secToTimeLabel } from '@/lib/subtitles';
 
 // マイ単語帳（ページ版・表示は単語リスト＝VocabItem と同じ折りたたみカード）。
 // 旧 WordbookModal をモーダル→screen='wordbook' に置き換え。
@@ -253,7 +254,10 @@ export default function WordbookScreen() {
                   }}
                   srs={srs}
                   testTiers={testTiers}
-                  ts={null}
+                  // 📍場面時刻（保存時に取れていれば）。単語リストと同じ VocabItem なのに
+                  // ここだけ時刻を捨てていた（2026-08-08）。作品横断の一覧なので、出所ラベルと
+                  // 並んで「どの作品の何分ごろか」が分かる。
+                  ts={w.tsSec != null ? { sec: w.tsSec, label: secToTimeLabel(w.tsSec) } : null}
                   priority={isStruggling(srs[w.word.toLowerCase()])}
                   exampleSource={wordSource(w)}
                   onSpeak={speak}

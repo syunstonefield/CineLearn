@@ -256,7 +256,7 @@ export default function Dashboard() {
       totalWords: overall.total,
       streak: getStreak(),
       hasAnyWord: overall.total > 0,
-      dueCount: getDueReviewWords(history).length,
+      dueCount: getDueReviewWords(history, loadSrs(), myWords).length,
       weekStats: getWeekStats(),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -531,10 +531,11 @@ export default function Dashboard() {
         streak={data.streak}
         hasAnyWord={data.hasAnyWord}
         todayCount={Math.min(data.dueCount, DAILY_REVIEW_CAP)}
+        weekStats={data.weekStats}
         onStartReview={() => {
           // 横断復習（特定エピソードに紐づかない）→ historyId は null
           setCurrentHistoryId(null);
-          openReview(getDueReviewWords().slice(0, DAILY_REVIEW_CAP));
+          openReview(getDueReviewWords(loadHistory(), loadSrs(), myWords).slice(0, DAILY_REVIEW_CAP));
         }}
       />
 

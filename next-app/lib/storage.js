@@ -164,8 +164,22 @@ export function subtitleCredit(w) {
 }
 
 // 今日復習すべき単語（未学習 or 期日到来）。期日到来を未学習より優先して並べる。
-export function getDueReviewWords(history = loadHistory(), srs = loadSrs()) {
-  const eligible = getAllVocabWords(history).filter((w) => {
+// extraWords＝マイ単語帳の語（拡張のクリック保存・手動追加）。渡すと履歴の語と合わせて
+// 期日判定する。ホームは「覚えた/マスター」の母数に追加語を含めているので、復習の対象からだけ
+// 外れていると「単語はあるのに今日の復習は完了」と嘘をつくことになる（2026-08-08）。
+// 語が重複する時は履歴側を優先する（例文の出所メタ _src が付いているため）。
+export function getDueReviewWords(history = loadHistory(), srs = loadSrs(), extraWords = []) {
+  const fromHistory = getAllVocabWords(history);
+  const seen = new Set(fromHistory.map((w) => String(w.word || '').toLowerCase()));
+  const extras = (extraWords || [])
+    .filter((w) => w?.word && !seen.has(String(w.word).toLowerCase()))
+    .map((w) => ({
+      ...w,
+      example: w.example || w.sentence || '',
+      definition: w.ja || w.definition || '',
+      _src: { title: w.dramaTitle, season: w.season, episode: w.episode },
+    }));
+  const eligible = [...fromHistory, ...extras].filter((w) => {
     const e = srs[w.word.toLowerCase()];
     return !e || isDue(e);
   });

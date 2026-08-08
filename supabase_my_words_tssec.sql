@@ -1,0 +1,25 @@
+-- my_words.ts_sec 列追加（📍場面時刻の往復・2026-08-08）
+--
+-- 【なぜ必要か】
+-- 「追加した単語」（拡張のクリック保存・アプリの手動追加）は端末側では 📍時刻（tsSec）を
+-- 持っているのに、クラウドに置き場所が無かった。その結果:
+--   ・拡張のクリック保存 … アプリへの唯一の橋が my_words なので、tsSec が最初から届かない
+--                          （chrome.storage → アプリの直接転写は v1.2.1 で廃止済み）
+--   ・アプリの手動追加   … ローカルには入るが、pull が cl_my_words を全量上書きするため
+--                          タブ復帰のたびに消える（起動時＋focus/visibilitychange で発火）
+-- どちらも単語リストで 📍が出ず、時刻順ソートでは Infinity 扱い＝末尾に固まっていた。
+--
+-- 【適用】Supabase ダッシュボードの SQL Editor で実行する（ja / encounters と同じ手順）。
+-- 送信側（extension/background.js・next-app/lib/supabase.js の pushMyWord）は列が無い間は
+-- ts_sec を外して再送するフォールバックを持つので、この SQL の実行前でも同期は壊れない。
+-- 実行後、新しく保存/再保存した語から 📍がクラウド経由で往復するようになる。
+ALTER TABLE my_words ADD COLUMN IF NOT EXISTS ts_sec integer;
+
+-- ── 検証 ──
+--   SELECT column_name FROM information_schema.columns
+--    WHERE table_name='my_words' AND column_name='ts_sec';            -- 1行返れば成功
+--   -- 拡張で語をクリック保存したあと:
+--   SELECT word, drama_title, season, episode, ts_sec FROM my_words
+--    ORDER BY created_at DESC LIMIT 5;                                -- ts_sec が入っていること
+--
+-- ※ RLS/GRANT は my_words の既存設定（"own words" ポリシー）をそのまま継承するため追加不要。

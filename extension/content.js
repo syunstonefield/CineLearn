@@ -1093,17 +1093,22 @@ function saveWord(entry, opts = {}) {
             //   - sentence:'' は別場面の意図的リセットのみ通し、同一エピソードでは既存例文を残す
             //   - ja/phonetic/pos/definition の '' は取得失敗なので既存値を残す
             const patch = {};
+            let sentenceKept = false; // 既存例文を守った回か（時刻を道連れにするため覚えておく）
             for (const [k, v] of Object.entries(entry)) {
               if (v == null) {
                 if (titleChanged && (k === 'season' || k === 'episode' || k === 'tsSec')) patch[k] = null;
                 continue;
               }
               if (v === '') {
-                if (k === 'sentence') { if (sameEp && old.sentence) continue; }
+                if (k === 'sentence') { if (sameEp && old.sentence) { sentenceKept = true; continue; } }
                 else if ((k === 'ja' || k === 'phonetic' || k === 'pos' || k === 'definition') && old[k]) continue;
               }
               patch[k] = v;
             }
+            // 📍時刻は「その例文の時刻」。同一エピソードで既存例文を残した回に、新しいクリック位置の
+            // 時刻だけを入れると例文と時刻がねじれる（memory「字幕tsSec二重パスの罠」）。
+            // 例文を据え置くなら時刻も据え置く。新しい時刻は例文が差し替わる時だけ一緒に入る。
+            if (sentenceKept) delete patch.tsSec;
             words[idx] = { ...old, ...patch, encounters };
           } else if (opts.patchOnly) {
             // 自己修復/バックフィルの後追い更新は既存レコードの patch のみ。
@@ -1185,7 +1190,15 @@ function requestExampleBackfill(entry, lineText, isRetry = false) {
         return;
       }
       if (!res || !res.found || !res.sentence) return;
-      const updated = { ...entry, sentence: res.sentence };
+      // 時刻は例文と同じ基準（＝特定できた字幕キューの開始時刻）に揃える。サーバーが返す
+      // res.tsSec は OpenSubtitles 側で本文一致させた行の時刻なので、クリック時の
+      // video.currentTime（読んでからクリックするまでの遅延を含む）より正確。
+      // クリック時に video を取れず tsSec が null だった語も、ここで救済される。
+      const updated = {
+        ...entry,
+        sentence: res.sentence,
+        tsSec: res.tsSec ?? entry.tsSec ?? null,
+      };
       // patchOnly: 応答が返る前にユーザーが語を削除していたら復活させない
       saveWord(updated, { patchOnly: true }); // クラウド同期は saveWord がマージ後の姿で行う
     });

@@ -214,17 +214,27 @@ export async function pullFromCloud(profileId = null) {
     // 差し替えた行では訳だけ古いまま残り得るため、ローカルの旧レコードと例文を突き合わせ、
     // 変わっていたら訳を捨てる（＝新しい例文で取り直す。同じ文なら端末キャッシュ命中で無料）。
     const prevSentence = new Map();
+    // 📍時刻（tsSec）はクラウドに列ができる前に保存された語では null で返る。全量上書きで
+    // ローカルの値まで消さないよう、旧レコードの tsSec を控えておきクラウド側が空の時だけ残す
+    // （手動追加で付いた📍が、タブ復帰の pull のたびに消えていた＝2026-08-08 の実害）。
+    const prevTsSec = new Map();
     try {
       JSON.parse(localStorage.getItem('cl_my_words') || '[]').forEach((p) => {
-        if (p?.word) prevSentence.set(String(p.word).toLowerCase(), p.sentence || '');
+        if (!p?.word) return;
+        const k = String(p.word).toLowerCase();
+        prevSentence.set(k, p.sentence || '');
+        if (p.tsSec != null) prevTsSec.set(k, p.tsSec);
       });
     } catch {
       /* 旧データの破損は無視（例文訳を捨てる方向に倒れるだけ） */
     }
     const wordsList = JSON.stringify(
       words.map((w) => {
-        const before = prevSentence.get(String(w.word || '').toLowerCase());
+        const key = String(w.word || '').toLowerCase();
+        const before = prevSentence.get(key);
         const sentenceChanged = before !== undefined && before !== (w.sentence || '');
+        // 例文が別の場面に差し替わった行では、旧場面の時刻を引き継がない（訳と同じ扱い）。
+        const localTs = sentenceChanged ? null : prevTsSec.get(key) ?? null;
         return {
           word: w.word,
           sentence: w.sentence,
@@ -239,6 +249,8 @@ export async function pullFromCloud(profileId = null) {
           dramaTitle: w.drama_title,
           season: w.season,
           episode: w.episode,
+          // 📍場面時刻。クラウド優先・空ならローカルに在った値を残す（列追加前の語を守る）。
+          tsSec: w.ts_sec ?? localTs,
         };
       })
     );
@@ -406,6 +418,14 @@ export async function pushSrsWords(entries) {
 // 次の pull で消える＝ログイン時はクラウド反映が必須）。
 // 一意キーは (user_id, word)。値の無い列はキーごと省き、クラウド側の既存値を潰さない
 // （拡張 background.js の同名規則と揃える）。
+// my_words.ts_sec（📍場面時刻）が実DBにまだ無い時に true になる。列が無いまま送ると
+// PostgREST が行ごと弾くため、一度でも弾かれたらセッション中は送らない（下の再送を参照）。
+let _tsSecUnsupported = false;
+function isMissingTsSec(res) {
+  const msg = `${res?.code || ''} ${res?.message || ''}`;
+  return /PGRST204/.test(msg) || /ts_sec/.test(msg);
+}
+
 export async function pushMyWord(w) {
   if (!isLoggedIn()) return false;
   const uid = getCurrentUser()?.id;
@@ -425,16 +445,31 @@ export async function pushMyWord(w) {
   if (w.definition) row.definition = w.definition;
   if (Array.isArray(w.encounters) && w.encounters.length) row.encounters = w.encounters; // 遭遇ログ（拡張と同じ）
   if (w.dramaTitle) {
-    // 場面座標（作品・S/E）は一組で送る（拡張 background.js と同じ規則）
+    // 場面座標（作品・S/E・📍時刻）は一組で送る（拡張 background.js と同じ規則）。
+    // ts_sec も同組に入れる＝作品が変わって場面座標が消えた再保存で、古い時刻だけが
+    // residue として残るのを防ぐ。
     row.drama_title = w.dramaTitle;
     row.season = w.season ?? null;
     row.episode = w.episode ?? null;
+    if (!_tsSecUnsupported) row.ts_sec = w.tsSec ?? null;
   }
-  await sbFetch('/rest/v1/my_words', {
+  const res = await sbFetch('/rest/v1/my_words', {
     method: 'POST',
     headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
     body: JSON.stringify([row]),
   });
+  // ts_sec 列がまだ無いDB（supabase_my_words_tssec.sql 未実行）では PostgREST が
+  // PGRST204 を返して行ごと保存されない。列を外して1回だけ再送し、以後は送らない
+  // （＝migration 前後どちらの順でデプロイしても単語の同期自体は壊れない）。
+  if (isMissingTsSec(res) && 'ts_sec' in row) {
+    _tsSecUnsupported = true;
+    delete row.ts_sec;
+    await sbFetch('/rest/v1/my_words', {
+      method: 'POST',
+      headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify([row]),
+    });
+  }
   return true;
 }
 

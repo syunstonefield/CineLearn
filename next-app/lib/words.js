@@ -110,14 +110,20 @@ export async function addManualWord(profileId, entry) {
             tsSec: old.tsSec ?? null,
           }].slice(-10);
       const patch = {};
+      let sentenceKept = false; // 既存例文を守った回か（時刻を道連れにするため覚えておく）
       for (const [k, v] of Object.entries(entry)) {
         if (v == null) continue;
         if (v === '') {
-          if (k === 'sentence') { if (sameEp && old.sentence) continue; } // 別場面は意図的リセット
+          if (k === 'sentence') { if (sameEp && old.sentence) { sentenceKept = true; continue; } } // 別場面は意図的リセット
           else if ((k === 'ja' || k === 'definition' || k === 'phonetic' || k === 'pos' || k === 'example_ja') && old[k]) continue;
         }
         patch[k] = v;
       }
+      // 📍時刻は「その例文の時刻」。例文を据え置いた回は時刻も据え置く（ねじれ防止）。
+      // 逆に別場面として例文をリセットした回は、今回時刻が取れていなくても旧場面の時刻を
+      // 残さない（S/E と例文は新しい場面なのに📍だけ前の話、という行を作らない）。
+      if (sentenceKept) delete patch.tsSec;
+      else if (!sameEp && patch.tsSec == null) patch.tsSec = entry.tsSec ?? null;
       words[idx] = { ...old, ...patch, encounters };
       merged = words[idx];
     } else {

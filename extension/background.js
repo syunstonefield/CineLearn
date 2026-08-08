@@ -123,6 +123,10 @@ async function getFreshSession() {
   return _refreshPromise;
 }
 
+// my_words.ts_sec（📍場面時刻）が実DBにまだ無い時に true。列が無いまま送ると行ごと弾かれるため、
+// 一度弾かれたらこのサービスワーカーが生きている間は送らない（下の再送を参照）。
+let tsSecUnsupported = false;
+
 async function syncWordToSupabase(word) {
   const session = await getFreshSession();
   if (!session?.access_token || !session?.user?.id) return;
@@ -142,6 +146,9 @@ async function syncWordToSupabase(word) {
     source:     word.source     || '',
   };
   if (word.ja) row.ja = word.ja; // v1.2.2: ポップアップで見せた文脈訳を固定保存
+  // 例文が差し替わった保存では、アプリが付けた例文和訳を明示的に消す（訳と例文のペアを保つ）。
+  // 拡張は example_ja を作らないため、送らない＝据え置きだと古い訳が新しい例文に残ってしまう。
+  if (word._clearExampleJa) row.example_ja = null;
   if (Array.isArray(word.encounters) && word.encounters.length) row.encounters = word.encounters; // v1.2.2: 遭遇ログ
   // 場面座標（作品タイトル・S/E）は一組で送る。saveWord がマージ後の姿を渡してくるため、
   // タイトル付きで S/E が null なのは「作品が変わった等で場面座標が本当に無い」＝クラウドも
@@ -150,16 +157,39 @@ async function syncWordToSupabase(word) {
     row.drama_title = word.dramaTitle;
     row.season      = word.season  ?? null;
     row.episode     = word.episode ?? null;
+    // 📍場面時刻も場面座標の一組として送る（アプリはこれを単語リストの並びと📍表示に使う）。
+    // 送っていなかったため、クリック保存した語はアプリ側で必ず時刻なし＝末尾に落ちていた。
+    if (!tsSecUnsupported) row.ts_sec = word.tsSec ?? null;
   }
 
-  await fetch(`${SUPABASE_URL}/rest/v1/my_words`, {
-    method: 'POST',
-    headers: {
-      'Content-Type':  'application/json',
-      'apikey':        SUPABASE_ANON_KEY,
-      'Authorization': `Bearer ${session.access_token}`,
-      'Prefer':        'resolution=merge-duplicates',
-    },
-    body: JSON.stringify([row]),
-  });
+  const post = () =>
+    fetch(`${SUPABASE_URL}/rest/v1/my_words`, {
+      method: 'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'apikey':        SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${session.access_token}`,
+        'Prefer':        'resolution=merge-duplicates',
+      },
+      body: JSON.stringify([row]),
+    });
+
+  const res = await post();
+  // ts_sec 列がまだ無いDB（supabase_my_words_tssec.sql 未実行）では PostgREST が 400 を返し、
+  // 行ごと保存されない。列を外して1回だけ再送し、以後このワーカーでは送らない
+  // （＝SQL 実行前に拡張を更新しても、単語の同期そのものは壊れない）。
+  if (!res.ok && 'ts_sec' in row) {
+    let missing = false;
+    try {
+      const body = await res.clone().json();
+      missing = /PGRST204/.test(body?.code || '') || /ts_sec/.test(body?.message || '');
+    } catch {
+      /* 本文が読めない時は列不足と決めつけない */
+    }
+    if (missing) {
+      tsSecUnsupported = true;
+      delete row.ts_sec;
+      await post();
+    }
+  }
 }

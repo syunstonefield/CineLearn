@@ -41,6 +41,7 @@ import {
   fillExtWordJa,
   addManualWord,
   deleteMyWord,
+  saveWordTranslation,
 } from '@/lib/words';
 import { pushMyWord } from '@/lib/supabase';
 import { fetchJa } from '@/lib/jatranslate';
@@ -195,6 +196,34 @@ export default function VocabScreen() {
     loadExtWords(season, episode, vocab);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [app.wordbookVersion]);
+
+  // ── 📍時刻を持たない「追加した単語」の後埋め ────────────────────────────
+  // 拡張が時刻を送れなかった時代の語や、クラウドに ts_sec 列が無かった間に保存された語は
+  // tsSec が空で、📍が出ず時刻順では末尾に固まる。この話の生SRTが手元にある時だけ、
+  // 保存されている例文を手がかりに字幕キューを特定して時刻を引き直し、my_words へ永続化する
+  // （＝次からは字幕が無くても📍が出る）。字幕が無い・語が見つからない時は何もしない。
+  useEffect(() => {
+    if (!subRaw || !extWords.length) return;
+    const missing = extWords.filter((w) => w.tsSec == null && (w.example || '').trim());
+    if (!missing.length) return;
+    const map = computeTimestamps(missing, {
+      title: drama?.englishTitle || drama?.title,
+      season,
+      episode,
+      rawSrt: subRaw,
+    });
+    const fixed = [];
+    missing.forEach((w) => {
+      const sec = map.get(w.word)?.sec;
+      if (sec == null || !isFinite(sec)) return;
+      w.tsSec = Math.round(sec);
+      fixed.push(w);
+    });
+    if (!fixed.length) return;
+    setExtWords((list) => [...list]); // 引き直した📍を即反映（次回の effect は missing 0 で止まる）
+    fixed.forEach((w) => saveWordTranslation(pid, w.word, { tsSec: w.tsSec }).catch(() => {}));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subRaw, extWords]);
 
   // ── 生成直後＝予習ウォークスルーへ直行（justGenerated の一回限りトリガ）──
   // 新出語（sortedVocab）が揃い phase==='vocab' になった瞬間に1回だけ開く。

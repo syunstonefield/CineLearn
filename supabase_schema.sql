@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS my_words (
   drama_title  TEXT,
   season       INTEGER,
   episode      INTEGER,
+  ts_sec       INTEGER,   -- 📍場面時刻（秒）。既存DBへは supabase_my_words_tssec.sql で後付け
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (user_id, word)
 );
