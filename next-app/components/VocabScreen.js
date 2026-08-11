@@ -485,9 +485,17 @@ export default function VocabScreen() {
         if (info.posterPath) drama.posterPath = info.posterPath;
         setSeasons(info.seasons || [{ season: 1, episodes: 10 }]);
       } else {
-        setIsMovie(false);
-        drama.type = 'tv';
-        setSeasons([{ season: 1, episodes: 10 }, { season: 2, episodes: 10 }, { season: 3, episodes: 10 }]);
+        // 解決できなかった（TMDB不達・候補ゼロ）。★既に映画と分かっている作品を TV へ降格させない
+        //   （降格すると S/E 前提の画面・出所表示になり、S/E を持たない映画の保存語が
+        //     「S1E1」と誤表示される。2026-08-08 に実際に踏んだ）。既知の型は維持する。
+        const knownMovie = drama.type === 'movie' || drama.mediaType === 'movie';
+        setIsMovie(knownMovie);
+        if (knownMovie) {
+          setSeasons([]);
+        } else {
+          drama.type = 'tv';
+          setSeasons([{ season: 1, episodes: 10 }, { season: 2, episodes: 10 }, { season: 3, episodes: 10 }]);
+        }
       }
       const md = (settings.myDramas || []).map((d) =>
         d.title === drama.title
@@ -965,6 +973,38 @@ export default function VocabScreen() {
         (a, b) => (tsFor(a)?.sec ?? Infinity) - (tsFor(b)?.sec ?? Infinity)
       )
     : dramaWords;
+
+  // 「追加した単語」セクション。AI単語リストの有無に関係なく描けるよう関数に切り出す。
+  //   ★2026-08-08: このセクションは従来 `showVocab && sortedVocab.length` の中だけにあり、
+  //     **単語リストを生成していない作品では1件も描画されなかった**（Disney+ の映画を観ながら
+  //     クリック保存 → アプリで開いても「予習をはじめる」の空画面、が実際の症状）。
+  //     保存した語の受け皿は生成の有無と独立であるべきなので、空/字幕なしの画面にも出す。
+  const renderAddedWords = (label) => {
+    if (!extWords.length) return null;
+    return (
+      <div id="ext-words-section">
+        <div className="source-label" style={{ marginTop: 14 }}>
+          {label}
+        </div>
+        <div className="vocab-list">
+          {extWords.map((w) => (
+            <VocabItem
+              key={w.word}
+              word={w}
+              srs={srs}
+              testTiers={testTiers}
+              ts={tsFor(w)}
+              exampleSource={exampleCredit}
+              onSpeak={speak}
+              onSkip={handleSkip}
+              onCopyTime={handleCopyTime}
+              onDelete={handleDeleteExtWord}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  };
   // 今日の復習セッション数（srs/reviewVersion 変化で再レンダーされるため毎回読み直す）
   const doneToday = historyId ? todaySessionCount(historyId) : 0;
   const testTiers = settings.testTiers || ['core', 'advanced'];
@@ -1362,31 +1402,7 @@ export default function VocabScreen() {
 
               {/* 追加した単語（拡張クリック保存＋手動追加・今日の復習・テストボタンの上に配置）。
                   設定で「時刻順にまぜる」がオンの時は上のリストに統合済みなのでここは出さない。 */}
-              <div id="ext-words-section">
-                {!mergeAdded && extWords.length > 0 && (
-                  <>
-                    <div className="source-label" style={{ marginTop: 14 }}>
-                      ✏️ 追加した単語
-                    </div>
-                    <div className="vocab-list">
-                      {extWords.map((w) => (
-                        <VocabItem
-                          key={w.word}
-                          word={w}
-                          srs={srs}
-                          testTiers={testTiers}
-                          ts={tsFor(w)}
-                          exampleSource={exampleCredit}
-                          onSpeak={speak}
-                          onSkip={handleSkip}
-                          onCopyTime={handleCopyTime}
-                          onDelete={handleDeleteExtWord}
-                        />
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
+              {!mergeAdded && renderAddedWords('✏️ 追加した単語')}
 
               {stats.due > 0 ? (
                 <button
@@ -1448,12 +1464,17 @@ export default function VocabScreen() {
               </button>
             </div>
           ) : (
-            <div
-              className="empty-state"
-              style={phase === 'error' ? { color: 'var(--red)' } : phase === 'nosub' ? { color: 'var(--text-muted)' } : undefined}
-            >
-              {message || 'エピソードを選んでください'}
-            </div>
+            <>
+              <div
+                className="empty-state"
+                style={phase === 'error' ? { color: 'var(--red)' } : phase === 'nosub' ? { color: 'var(--text-muted)' } : undefined}
+              >
+                {message || 'エピソードを選んでください'}
+              </div>
+              {/* AI単語リストがまだ無い（未生成・字幕なし・エラー）作品でも、視聴中に保存した語は
+                  ここに出す。映画で字幕が見つからない作品では、これが唯一の受け皿になる。 */}
+              {renderAddedWords('✏️ この作品で保存した単語')}
+            </>
           )}
         </div>
 

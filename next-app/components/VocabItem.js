@@ -142,6 +142,20 @@ export default function VocabItem({ word, srs, testTiers, ts, priority, exampleS
           </div>
         )}
 
+        {/* 例文がまだ付いていない語でも「どの作品で拾ったか」は出す。
+            旧実装は出所行を例文ブロックの内側だけに置いていたため、例文の後埋めが失敗した語は
+            作品名ごと画面から消えていた（2026-08-08 オーナー報告「単語帳でアイアンマンと
+            表示されない」＝作品判定の失敗に見えるが、実際は表示側の欠落）。
+            wordSource は例文が無ければ「（字幕：OpenSubtitles）」を付けないので48条の立て付けも保たれる。 */}
+        {!w.example && exampleSource && (
+          <div className="word-example-wrap">
+            {/* 引用が無い＝48条の出所明示は不要なので「（字幕：…）」は落とし、作品名だけ残す */}
+            <span className="word-example-source">
+              {exampleSource.replace(/（字幕：[^）]*）\s*$/, '')}
+            </span>
+          </div>
+        )}
+
         <div className="vocab-detail-actions">
           <button className="btn-speak" title="発音を聞く" onClick={() => onSpeak(w.word)}>
             🔊 発音

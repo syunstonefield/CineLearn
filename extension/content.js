@@ -774,6 +774,29 @@ function extractSE(text) {
 
 // Disney+ のプレイヤーUI（Shadow DOM）から S/E を拾う。タブタイトルには S/E が
 // 出ないため、これが無いとシリーズが映画扱いになり例文が付かない（2026-07-03実測）。
+// Shadow DOM 走査で使う厳格版の S/E 抽出。
+//   "16x9"（アスペクト比）や "5.1x2"（音声）は妥当性境界（S1-60/E1-400）を通過してしまい、
+//   映画に S16E9 のような偽の S/E を焼き付ける（2026-08-08 に実データで確認＝映画アイアンマンの
+//   保存語に S1E1 が付いていた）。プレイヤーUIの地の文を丸ごと読む走査では "NxM" 表記を採らない。
+//   タブタイトル側（extractSE）は従来どおり＝Netflix 等の "1x5" 表記を落とさない。
+const STRICT_SE_RE = [
+  /[Ss]eason\s*(\d+)[^A-Za-z0-9]{1,6}[Ee]pisode\s*(\d+)/,
+  /[Ss](\d+)\s*[:：]?\s*[Ee](\d+)/,
+  /シーズン\s*(\d+)[^\d]+エピソード\s*(\d+)/,
+  /シーズン\s*(\d+)[^\d]+第\s*(\d+)\s*話/,
+];
+function extractSEStrict(text) {
+  if (!text) return null;
+  for (const re of STRICT_SE_RE) {
+    const m = text.match(re);
+    if (!m) continue;
+    const s = parseInt(m[1], 10);
+    const e = parseInt(m[2], 10);
+    if (s >= 1 && s <= 60 && e >= 1 && e <= 400) return { season: s, episode: e };
+  }
+  return null;
+}
+
 function disneyShadowSE() {
   const seen = new Set();
   const scan = (root, depth) => {
@@ -782,7 +805,7 @@ function disneyShadowSE() {
       const sr = el.shadowRoot;
       if (!sr || seen.has(sr)) continue;
       seen.add(sr);
-      const se = extractSE(sr.textContent || '');
+      const se = extractSEStrict(sr.textContent || '');
       if (se) return se;
       const deep = scan(sr, depth + 1);
       if (deep) return deep;

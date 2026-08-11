@@ -219,12 +219,17 @@ export async function pullFromCloud(profileId = null) {
     // ローカルの値まで消さないよう、旧レコードの tsSec を控えておきクラウド側が空の時だけ残す
     // （手動追加で付いた📍が、タブ復帰の pull のたびに消えていた＝2026-08-08 の実害）。
     const prevTsSec = new Map();
+    // 作品名も同じ理由で控える。拡張がタイトル未取得のまま保存した回の行は drama_title が
+    // null で返り、全量上書きでローカルの作品名まで消える（消えた語は作品の単語リストから
+    // 永久に外れ、自動で直す経路も無い）。クラウドが空の時だけローカル値を残す。
+    const prevTitle = new Map();
     try {
       JSON.parse(localStorage.getItem('cl_my_words') || '[]').forEach((p) => {
         if (!p?.word) return;
         const k = String(p.word).toLowerCase();
         prevSentence.set(k, p.sentence || '');
         if (p.tsSec != null) prevTsSec.set(k, p.tsSec);
+        if (p.dramaTitle) prevTitle.set(k, { title: p.dramaTitle, season: p.season ?? null, episode: p.episode ?? null });
       });
     } catch {
       /* 旧データの破損は無視（例文訳を捨てる方向に倒れるだけ） */
@@ -236,6 +241,11 @@ export async function pullFromCloud(profileId = null) {
         const sentenceChanged = before !== undefined && before !== (w.sentence || '');
         // 例文が別の場面に差し替わった行では、旧場面の時刻を引き継がない（訳と同じ扱い）。
         const localTs = sentenceChanged ? null : prevTsSec.get(key) ?? null;
+        // 場面座標は一組。クラウドに作品名があればクラウド優先、無ければローカルの組を丸ごと残す。
+        const localSrc = prevTitle.get(key) || null;
+        const scene = w.drama_title
+          ? { title: w.drama_title, season: w.season, episode: w.episode }
+          : localSrc || { title: w.drama_title, season: w.season, episode: w.episode };
         return {
           word: w.word,
           sentence: w.sentence,
@@ -247,9 +257,9 @@ export async function pullFromCloud(profileId = null) {
           encounters: Array.isArray(w.encounters) ? w.encounters : null, // 遭遇ログ（v1.2.2・再会カードの場面つき表示用）
           savedAt: w.saved_at,
           source: w.source,
-          dramaTitle: w.drama_title,
-          season: w.season,
-          episode: w.episode,
+          dramaTitle: scene.title,
+          season: scene.season,
+          episode: scene.episode,
           // 📍場面時刻。クラウド優先・空ならローカルに在った値を残す（列追加前の語を守る）。
           tsSec: w.ts_sec ?? localTs,
         };
@@ -433,13 +443,13 @@ export async function pushMyWord(w) {
   if (!isLoggedIn()) return false;
   const uid = getCurrentUser()?.id;
   if (!uid || !w?.word) return false;
-  const row = {
-    user_id: uid,
-    word: w.word,
-    sentence: w.sentence || '',
-    saved_at: w.savedAt || '',
-    source: w.source || 'manual',
-  };
+  // 「取れなかった値は列ごと省く」＝拡張 background.js と同じ規則に揃える（2026-08-08）。
+  // 旧実装は sentence/source を無条件に送っていたため、和訳の後埋めなど**例文をまだ持たない
+  // スナップショット**から push すると、拡張が数秒後にバックフィルした例文を空文字で上書きして
+  // いた（merge-duplicates は送った列を必ず更新する）。例文が消えると出所表示も道連れになる。
+  const row = { user_id: uid, word: w.word, saved_at: w.savedAt || '' };
+  if (w.sentence) row.sentence = w.sentence;
+  if (w.source) row.source = w.source;
   if (w.ja) row.ja = w.ja;
   if (w.example_ja) row.example_ja = w.example_ja; // 例文の和訳（同じ行の sentence とペア）
   // 例文を差し替えた保存では古い訳を明示的に消す。送らない＝据え置き（merge-duplicates）なので、

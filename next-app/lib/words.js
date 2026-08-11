@@ -431,19 +431,30 @@ export async function getMyWordsForEpisode(drama, season, episode, profileId, me
   // 映画は S/E の概念が無く、保存側が season/episode=null で書く（VocabScreen/拡張とも）。
   // 一方この画面の state は映画でも 1/1 なので、S/E 一致で絞ると映画の語が1つも拾えない
   // （2026-08-05 オーナー報告「追加した単語がリストに出ない」の実原因）。映画はタイトル一致で判定する。
-  const isMovie = drama?.type === 'movie' || drama?.mediaType === 'movie';
-  const seWords = isMovie
-    ? words.filter((w) => w.dramaTitle)
-    : words.filter(
-        (w) =>
-          w.dramaTitle &&
-          w.season != null &&
-          w.episode != null &&
-          w.season == season &&
-          w.episode == episode
-      );
-  // 同期の sameWorkTitle が正準名で判定できるよう、候補と保存語のタイトルを先に解決しておく。
-  await prewarmTitleAliases([...titleCandidates, ...seWords.map((w) => w.dramaTitle)]);
+  // 同期の sameWorkTitle が正準名で判定できるよう、**保存語ぜんぶ**のタイトルを先に解決しておく。
+  // （旧実装は S/E で絞った後の語だけを prewarm していたため、TV判定の作品では season=null の
+  //   語が名寄せ未解決のまま照合に入り「初回は出ない・開き直すと出る」とブレていた。alias は
+  //   永続キャッシュなので全件に広げても追加コストは作品ごと初回のみ）
+  await prewarmTitleAliases([...titleCandidates, ...words.map((w) => w.dramaTitle)]);
+
+  // 映画は S/E の概念が無く、保存側が season/episode=null で書く（VocabScreen/拡張とも）。
+  // 一方この画面の state は映画でも 1/1 なので、S/E 一致で絞ると映画の語が1つも拾えない
+  // （2026-08-05 オーナー報告「追加した単語がリストに出ない」の実原因）。映画はタイトル一致で判定する。
+  //
+  // ★判定を三重化する（2026-08-08）: 作品レコードの type だけに頼ると、「ドラマを探す」経由で
+  //   追加した映画や旧エントリのように type が付いていない作品で、映画の語（S/E=null）が
+  //   S/E フィルタに全滅する。TMDB の解決結果（isKnownMovieTitle）と、保存側の不変則
+  //   「映画は season=null で書く」の実データを足して補う。最後の条件は外部APIに依存しない。
+  const titledWords = words.filter((w) => w.dramaTitle);
+  const sameTitleWords = titledWords.filter((w) =>
+    titleCandidates.some((tc) => sameWorkTitle(w.dramaTitle, tc))
+  );
+  const isMovie =
+    drama?.type === 'movie' ||
+    drama?.mediaType === 'movie' ||
+    isKnownMovieTitle(dramaTitle) ||
+    isKnownMovieTitle(drama?.englishTitle) ||
+    (sameTitleWords.length > 0 && sameTitleWords.every((w) => w.season == null && w.episode == null));
 
   // 同一作品かどうかは再会判定と同じ規則（正準名の等値・未解決の側があれば包含で保守的に）。
   // 旧実装の包含固定は「アベンジャーズ」と「アベンジャーズ／エンドゲーム」を同一視し、
