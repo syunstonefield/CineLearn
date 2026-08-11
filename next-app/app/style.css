@@ -3892,6 +3892,36 @@ header {
 .today-hero .today-streak-chip.is-zero { color: rgba(243, 236, 224, 0.6); background: rgba(255, 255, 255, 0.08); }
 .today-hero .today-hero-check { background: rgba(46, 168, 122, 0.22); }
 
+/* ── ライトテーマ時のヒーロー＝アクセント色の淡い面 ─────────────
+   ダークの「映画館の暗がり」は、明るいUIの中では黒く塗りつぶした板に見える（2026-08-08 指摘）。
+   ライト時だけ、構図（右上のスポット光＋斜めグラデ）はそのままに配色をアクセントの淡色へ差し替える。
+   「周囲の白カードの中で1枚だけ色がついている＝今日やること」という優先度の付け方は維持する。
+   ダークテーマは従来の暗がりのまま（暗い画面では暗色が浮かないため差し替え不要）。
+   復習ハブの完了状態(.rh-hero.is-done=グリーン)は対象外なので :not(.is-done) で除く。 */
+html[data-theme="light"] .today-hero,
+html[data-theme="light"] .rh-hero:not(.is-done) {
+  background:
+    radial-gradient(135% 150% at 86% 10%, color-mix(in srgb, var(--gold) 26%, transparent), transparent 58%),
+    linear-gradient(135deg, color-mix(in srgb, var(--accent) 14%, #fff) 0%, color-mix(in srgb, var(--accent) 6%, #fff) 100%);
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--text);
+}
+/* 淡色面の上の各要素（暗背景前提で固定色にしていた分を明背景用に戻す）。 */
+html[data-theme="light"] .today-hero .today-ring-track { stroke: rgba(0, 0, 0, 0.10); }
+html[data-theme="light"] .today-hero .today-hero-count-num { color: var(--accent); }
+html[data-theme="light"] .today-hero .today-hero-count-unit { color: var(--text-muted); }
+html[data-theme="light"] .today-hero .today-hero-title { color: var(--text); }
+html[data-theme="light"] .today-hero .today-hero-sub { color: var(--text-muted); }
+html[data-theme="light"] .today-hero .today-hero-week { color: var(--text-muted); }
+html[data-theme="light"] .today-hero .today-hero-week b { color: var(--text); }
+/* チップは淡いアクセント面に埋もれるので、白の錠剤で浮かせる。 */
+html[data-theme="light"] .today-hero .today-streak-chip { color: var(--accent); background: rgba(255, 255, 255, 0.72); }
+html[data-theme="light"] .today-hero .today-streak-chip.is-zero { color: var(--text-muted); background: rgba(255, 255, 255, 0.72); }
+html[data-theme="light"] .today-hero .today-hero-check { background: rgba(46, 168, 122, 0.16); }
+html[data-theme="light"] .today-hero .today-week-chip { color: var(--text-muted); }
+html[data-theme="light"] .rh-hero:not(.is-done) .rh-hero-sub { color: var(--text-muted); }
+
 /* ── 累計の語彙進捗（別枠カード）──────────────────────────────
    今日の復習(ダーク)の下に明カードで対比。覚えた＝エメラルド／マスター＝ゴールドで色分け。 */
 .vocab-progress {
