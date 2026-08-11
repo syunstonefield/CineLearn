@@ -149,8 +149,12 @@ export default function VocabScreen() {
   }, [vocab, subRaw, drama, season, episode]);
 
   // 📍時刻：生成vocabは timestamps マップ、追加した単語(拡張保存)は保存済み tsSec から作る。
-  const tsFor = (w) =>
-    timestamps.get(w.word) || (w.tsSec != null ? { sec: w.tsSec, label: secToTimeLabel(w.tsSec) } : null);
+  const tsFor = (w) => {
+    // plus 語（字幕外のAI作例）に📍は付けない。既存の共有キャッシュには分割生成の不整合で
+    // 時刻が焼き付いた plus 語が居るため、表示側でも落とす（保存済みデータの救済）。
+    if (w.source === 'plus') return null;
+    return timestamps.get(w.word) || (w.tsSec != null ? { sec: w.tsSec, label: secToTimeLabel(w.tsSec) } : null);
+  };
 
   // 重複除去＋タイムスタンプ順ソート（renderVocab 準拠）
   const sortedVocab = useMemo(() => {

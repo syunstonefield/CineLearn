@@ -617,6 +617,18 @@ function findWordCueSec(cues, word, example) {
 export function attachBaseTimestamps(words, ctx) {
   const map = computeTimestamps(words, { ...ctx, noVodSync: true });
   for (const w of words) {
+    // plus 語＝字幕外のAI作例。📍を付けてはいけない。
+    //   ★分割生成では drama/plus の判定が「そのチャンクの本文」に対してだけ行われるのに、
+    //     時刻付与は全編の生SRTに対して走る。そのため、あるチャンクで plus（＝作例）と判定された
+    //     語が、別の区間のキューから時刻をもらってしまう。実データ: 'proprietary' は
+    //     source='plus'・例文はAIの作文なのに📍14:51 が付いており、その時刻のセリフと例文が別物
+    //     だった（2026-08-08）。📍は「この場面で実際に言っている」という意味なので、
+    //     字幕外の語には付けない（作例に実在の場面を紐づけない）。
+    if (w.source === 'plus') {
+      w.tsSec = null;
+      w.tsLabel = null;
+      continue;
+    }
     const t = map.get(w.word);
     w.tsSec = t && t.sec !== Infinity ? t.sec : null;
     w.tsLabel = t ? t.label : null;
