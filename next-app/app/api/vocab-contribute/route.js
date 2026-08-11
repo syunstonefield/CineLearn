@@ -105,6 +105,24 @@ export async function POST(req) {
     return json({ skipped: 'gate', count: clean.length, drama: dramaCount });
   }
 
+  // 時間カバレッジのゲート（2026-08-08）。分割生成の1チャンクが落ちると作品の前半/後半が
+  // 丸ごと欠けたスーパーセットが出来る。既存行は上書きしない運用なので、一度入ると
+  // その作品は全ユーザーに対して永久に壊れる（アイアンマン＝前半57分欠落の実害）。
+  // クライアント側にも同じ検査を置いたが、旧版アプリ・別経路からの投稿を通さないため
+  // サーバー側でも塞ぐ。📍が薄いデータは従来どおり通す（判定不能で止めない）。
+  const ts = clean.map((w) => w.tsSec).filter((s) => typeof s === 'number' && isFinite(s));
+  if (ts.length >= 10) {
+    const sorted = [...ts].sort((a, b) => a - b);
+    const span = sorted[sorted.length - 1] - sorted[0];
+    let maxGap = 0;
+    for (let i = 1; i < sorted.length; i++) maxGap = Math.max(maxGap, sorted[i] - sorted[i - 1]);
+    // 尺は不明なので「最後の語」を尺の代理にする。序盤が総尺の25%以降からしか無い、
+    // または30分の空白がある＝1チャンク分が欠けている疑いが濃い。
+    if (span > 1200 && (sorted[0] > sorted[sorted.length - 1] * 0.25 || maxGap > 1800)) {
+      return json({ skipped: 'coverage', first: sorted[0], last: sorted[sorted.length - 1], maxGap });
+    }
+  }
+
   // transient フラグ除去（example_ja_ok 等）
   const store = clean.map(({ example_ja_ok, ...w }) => w);
   const cov = coverageRange(store);

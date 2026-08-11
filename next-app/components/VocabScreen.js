@@ -732,14 +732,23 @@ export default function VocabScreen() {
             episode,
             rawSrt: subMem.current.raw || '',
           });
-          contributeVocab({
-            tmdbId: drama.tmdbId,
-            season,
-            episode,
-            type: drama.type,
-            displayTitle: drama.englishTitle || drama.title,
-            words: superset.map(({ example_ja_ok, ...w }) => w),
-          });
+          // 時間カバレッジ検査（2026-08-08）。分割生成の1チャンクが落ちた結果、作品の前半や
+          // 後半が丸ごと欠けたスーパーセットが共有キャッシュに焼き付き、全ユーザーへ配られていた
+          // （アイアンマン＝前半57分が欠落）。寄与ルートは既存行を上書きしないので、一度入ると
+          // その作品は永久に直らない。片寄っているものは表示だけして寄与しない（fail-closed）。
+          const covered = coverageOk(superset, subMem.current.raw || '');
+          if (covered) {
+            contributeVocab({
+              tmdbId: drama.tmdbId,
+              season,
+              episode,
+              type: drama.type,
+              displayTitle: drama.englishTitle || drama.title,
+              words: superset.map(({ example_ja_ok, ...w }) => w),
+            });
+          } else {
+            console.warn('[CL:GEN] 時間カバレッジ不足のため共有キャッシュへの寄与を見送りました');
+          }
         } catch {
           /* 寄与失敗は無視（表示に影響しない） */
         }
@@ -1508,6 +1517,28 @@ export default function VocabScreen() {
 function episodeId(drama, season, episode, isMovie) {
   const base = drama?.tmdbId || drama?.title || 'x';
   return isMovie ? `${base}|movie|movie` : `${base}|${season}|${episode}`;
+}
+
+// 生成したスーパーセットが作品の全編を覆っているかを、📍時刻の分布で判定する。
+//   共有キャッシュは一度書くと上書きされない（vocab-contribute は既存行を skip する）ので、
+//   片寄ったデータを入れてしまうとその作品は全ユーザーに対して永久に壊れる。判定できない時は
+//   true（従来どおり寄与）＝新しい検査で正常な寄与を止めないことを優先する。
+//   基準: ①最初の語が本編の序盤に居ること（総尺の25%以内） ②語の空白期間が30分を超えないこと
+function coverageOk(words, rawSrt) {
+  const secs = (words || []).map((w) => w.tsSec).filter((s) => typeof s === 'number' && isFinite(s));
+  if (secs.length < 5 || !rawSrt) return true; // 判定材料が無い＝止めない
+  // 総尺は生SRTの最終タイムコードから取る（"01:54:33,120 --> ..." の時:分:秒）
+  const stamps = [...rawSrt.matchAll(/(\d{2}):(\d{2}):(\d{2})[,.]\d{3}\s*-->/g)];
+  if (!stamps.length) return true;
+  const last = stamps[stamps.length - 1];
+  const total = Number(last[1]) * 3600 + Number(last[2]) * 60 + Number(last[3]);
+  if (total < 600) return true; // 10分未満は分割生成の対象外＝検査しない
+  const sorted = [...secs].sort((a, b) => a - b);
+  if (sorted[0] > total * 0.25) return false; // 序盤が丸ごと無い
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i] - sorted[i - 1] > 1800) return false; // 30分の空白＝1チャンク相当が欠けている
+  }
+  return true;
 }
 
 // 予習ウォークスルーの payload を組む（auto-open effect と「予習する →」ボタンで共用）。

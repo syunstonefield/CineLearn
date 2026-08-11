@@ -111,7 +111,11 @@ function extractWords(raw) {
         if (depth === 0 && objStart >= 0) {
           try {
             const obj = JSON.parse(repairJson(slice.slice(objStart, i + 1)));
-            if (obj.word) results.push(obj);
+            // 短キー(w)も拾う。★ここが `obj.word` だけを見ていたため、応答が max_tokens で
+            //   途中切れ → JSON.parse 失敗 → このサルベージ経路に来ても**必ず0語**を返していた。
+            //   分割生成の映画では「担当区間が丸ごと消えたのに成功扱い」になる（アイアンマンの
+            //   前半57分が消えた実害の直接原因・2026-08-08）。expandShortKeys が後段で両形式を吸収する。
+            if (obj.word || obj.w) results.push(obj);
           } catch {
             /* skip */
           }
@@ -271,7 +275,11 @@ ${tierGuide}
   // 安全側に100で計算（#19チャンク欄追加・2026-07-16）。
   // Haiku 4.5 のモデル上限は 64K だが、api/claude.js は非ストリーミング＝Vercel関数の
   // タイムアウトが実際の制約。max_tokens は天井なので大きくしても実出力ぶんしか課金されない。
-  const maxTokens = Math.min(13000, (genVocabCount + 25) * 100);
+  // ★係数を100→140へ（2026-08-08）。実測でチャンク1の出力が 7,166 / 上限 8,500＝84%消費と
+  //   余裕が16%しかなく、例文が長い回は天井に当たって応答が途中で切れていた。切れると JSON が
+  //   壊れてそのチャンクが0語になり、映画の担当区間が丸ごと消える。max_tokens は天井なので
+  //   上げても実出力ぶんしか課金されない（サーバ側の天井は 13,000）。
+  const maxTokens = Math.min(13000, (genVocabCount + 25) * 140);
   return { prompt, maxTokens };
 }
 
@@ -426,10 +434,22 @@ export async function generateSuperset(ctx, onRetry) {
     ctx.onProgress?.(i + 1, nChunks);
     // チャンク境界の文切れは許容（refineDramaWords の逐語チェックは各チャンク文に対して働く）。
     // 直列実行＝APIレート制限内に収める（映画1本=2〜3コール・初回のみ・以後は共有キャッシュ）。
-    const part = await generateSupersetOnce(
-      { ...ctx, subtitleText: subText.slice(i * size, (i + 1) * size), quotaDiv: nChunks },
-      onRetry
+    const chunkText = subText.slice(i * size, (i + 1) * size);
+    let part = await generateSupersetOnce({ ...ctx, subtitleText: chunkText, quotaDiv: nChunks }, onRetry);
+    // ★0語チャンクを黙って捨てない（2026-08-08）。捨てていたため「映画の前半57分が丸ごと
+    //   欠けたリスト」が成功扱いで完成し、共有キャッシュに焼き付いて全ユーザーに配られていた
+    //   （アイアンマン）。1回だけ引き直し、それでも0なら生成全体を失敗させて再生成導線に戻す。
+    if (!part.length) {
+      console.warn(`[CL:GEN] chunk ${i + 1}/${nChunks} が0語。1回だけ再試行します`);
+      part = await generateSupersetOnce({ ...ctx, subtitleText: chunkText, quotaDiv: nChunks }, onRetry);
+    }
+    console.info(
+      `[CL:GEN] chunk ${i + 1}/${nChunks} chars ${i * size}-${Math.min((i + 1) * size, subText.length)} → ${part.length}語` +
+        `（drama ${part.filter((w) => w.source === 'drama').length}）`
     );
+    if (!part.length) {
+      throw new Error(`単語の生成に失敗しました（${nChunks}分割中${i + 1}番目が0語）。もう一度お試しください`);
+    }
     for (const w of part) {
       const k = String(w.word || '').toLowerCase();
       if (!k || seen.has(k)) continue;
