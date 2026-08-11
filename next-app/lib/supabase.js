@@ -297,7 +297,7 @@ export async function pullFromCloud(profileId = null) {
 
 // 同期対象の localStorage キー（user_state 1行=1キー）。
 const STATE_KEY_RE =
-  /^(cl_tickets|cl_fav_dramas|cl_study_sec|cl_study_drama)(_|$)|^cl_prepped$|^cl_seat_counter$/;
+  /^(cl_tickets|cl_fav_dramas|cl_study_sec|cl_study_drama)(_|$)|^cl_prepped$|^cl_seat_counter$|^cl_exp_ledger$/;
 
 function localStateKeys() {
   try {
@@ -348,7 +348,9 @@ function mergeStateValue(key, localV, cloudV) {
     // 積算カウンタは max（合算だと同期のたびに二重計上する）
     return Math.max(Number(localV) || 0, Number(cloudV) || 0);
   }
-  if (key.startsWith('cl_study_drama')) {
+  if (key.startsWith('cl_study_drama') || key === 'cl_exp_ledger') {
+    // キー別 max。EXP台帳は「日付|端末キー」ごとに単調増加なので max が正しい
+    // （合算だと同期のたびに二重計上・スカラーmaxだと別端末の増分が消える）。
     const out = { ...(cloudV || {}) };
     Object.entries(localV || {}).forEach(([t, s]) => {
       out[t] = Math.max(Number(out[t]) || 0, Number(s) || 0);

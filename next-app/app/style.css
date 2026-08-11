@@ -6247,3 +6247,61 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
 }
 .prep-speak:hover { opacity: 1; }
 .prep-speak:active { transform: scale(0.92); }
+
+
+/* ── EXP（復習完了画面の獲得表示＋レベルバー）──────────────────
+   予習完了・テスト合格・復習で貯まるアカウント経験値（lib/exp.js）。
+   表示はこの画面だけ＝数字を主役にしない方針のままここでだけ報いる。 */
+.exp-block { margin: 4px 0 14px; }
+.exp-gain {
+  margin: 0 auto 10px;
+  width: fit-content;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 10px 24px;
+  border-radius: 15px;
+  background:
+    radial-gradient(120% 140% at 80% 10%, color-mix(in srgb, var(--gold) 22%, transparent), transparent 60%),
+    var(--surface);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.exp-gain-num {
+  font-family: 'Playfair Display', serif;
+  font-size: 38px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.exp-gain-unit { font-size: 12px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.06em; }
+.exp-level {
+  max-width: 340px;
+  margin: 0 auto;
+  padding: 11px 14px;
+  border-radius: 13px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  text-align: left;
+}
+.exp-level-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.exp-level-name { font-size: 14px; font-weight: 800; }
+.exp-level-total { font-size: 11px; color: var(--text-muted); }
+.exp-level-bar {
+  margin-top: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--surface2);
+  overflow: hidden;
+}
+.exp-level-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), var(--gold));
+  transition: width 0.8s ease-out;
+}
+.exp-level-next { margin-top: 5px; font-size: 11px; color: var(--text-muted); }
+@media (prefers-reduced-motion: reduce) {
+  .exp-level-fill { transition: none; }
+}

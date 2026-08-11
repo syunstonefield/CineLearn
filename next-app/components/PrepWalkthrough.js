@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
 import { buildCloze, selectQuizWords, nextSeat, getPrepped, markPrepped } from '@/lib/prep';
+import { addExp, EXP_PER_PREP_WORD } from '@/lib/exp';
 import { chunkParts } from '@/lib/chunk';
 // 読み上げは lib/speak に一本化（独自コピーは cancel 直後 speak で無音になる既知バグ持ちだった）
 import { speak } from '@/lib/speak';
@@ -75,6 +76,8 @@ export default function PrepWalkthrough() {
   const finish = () => {
     const existing = getPrepped(epId);
     const seat = existing?.seat || nextSeat();
+    // EXP: 予習完走＝語数×1。席番号と同じく「この話の初回」だけ（再予習の連打で稼げない）。
+    if (!existing) addExp(words.length * EXP_PER_PREP_WORD);
     markPrepped(epId, seat);
     clearPos(posKey); // 次回は最初から
     closePrepWalk();

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
 import { updateHistoryScore, loadHistory, loadSrs } from '@/lib/storage';
 import { buildLocalQuiz } from '@/lib/prep';
+import { addExp, EXP_PER_QUIZ_WORD, EXP_QUIZ_PASS_BONUS, QUIZ_PASS_PCT } from '@/lib/exp';
 
 // 既存 screen-5（renderQuiz / answer / renderScore）の再現。
 export default function QuizScreen() {
@@ -43,6 +44,12 @@ export default function QuizScreen() {
   useEffect(() => {
     if (finished && savedPct === null && quizData.length > 0) {
       const pct = Math.round((score / quizData.length) * 100);
+      // EXP: テスト合格＝語数×2＋20。同じ話の「初回合格」だけに出す（保存前の履歴スコアで判定）
+      // ＝再挑戦の連打で稼げない。落ちても減点はない（EXPは減らない不変則）。
+      const prevPct = loadHistory().find((h) => h.id === currentHistoryId)?.quizScore;
+      if (pct >= QUIZ_PASS_PCT && !(prevPct >= QUIZ_PASS_PCT)) {
+        addExp(quizData.length * EXP_PER_QUIZ_WORD + EXP_QUIZ_PASS_BONUS);
+      }
       setSavedPct(pct);
       updateHistoryScore(currentHistoryId, pct);
     }
