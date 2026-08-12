@@ -87,12 +87,58 @@ function titleQueryCandidates(title) {
   return [...new Set(cands)];
 }
 
+// 照合用のタイトル正規化（記号・空白・大小の揺れを吸収）。
+function normTitle(s) {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/[\s:：・／/｜|,.'"’”!?！？\-–—~〜]/g, '')
+    .trim();
+}
+
+// 候補から「クエリと同じ作品」を選ぶ。results[0] 直採りは邦題で別作品を掴む（下の解説参照）。
+//   ①原題・邦題のどれかが正規化一致するものを最優先
+//   ②同点なら人気度（popularity）で決める
+// 一致が1つも無ければ null＝**あえて解決しない**（誤った作品の字幕を引くより、例文なしの方が安全）。
+function pickTmdbCandidate(results, query, wantMovie) {
+  const q = normTitle(query);
+  const cands = (results || []).filter((r) => {
+    if (!r?.id) return false;
+    const mt = r.media_type;
+    if (mt && mt !== (wantMovie ? 'movie' : 'tv')) return false;
+    return true;
+  });
+  const named = (r) => [r.title, r.original_title, r.name, r.original_name].filter(Boolean);
+  const exact = cands.filter((r) => named(r).some((n) => normTitle(n) === q));
+  const pool = exact.length ? exact : [];
+  if (!pool.length) return null;
+  return pool.sort((a, b) => (b.popularity || 0) - (a.popularity || 0))[0].id;
+}
+
+// タイトル文字列 → TMDB ID。
+// ★2026-08-08: 映画で action:'search_movie'（/search/movie?language=en-US）を使い results[0] を
+//   無検証で採用していたため、**邦題のクエリが別作品に解決されていた**。本番実測:
+//     「アイアンマン」   → 169934 "Iron Man: Rise of Technovore"（原題が日本語のアニメ）／本物 1726 は2位
+//     「アナと雪の女王」 → 330457 "Frozen II"／本物 109445 は下位
+//   その結果 ①層1の cache_key が別作品 → 必ずミス ②層2が**別映画の字幕**をDLして照合 →
+//   例文が付かない。さらに "the" のようなありふれた語だと**他作品の1文が例文として保存**され得た。
+//   search_multi（language=ja-JP）は同じクエリで両方とも正解を先頭に返す（実測）ので、そちらへ寄せ、
+//   さらに「正規化一致」を必須にして曖昧なら解決しない（誤爆より欠落を選ぶ）。
 async function resolveTmdbId(title, isMovie) {
+  for (const query of titleQueryCandidates(title)) {
+    try {
+      const multi = await tmdb({ action: 'search_multi', query });
+      const id = pickTmdbCandidate(multi?.results, query, isMovie);
+      if (id) return id;
+    } catch {
+      /* この候補は失敗＝次の候補へ */
+    }
+  }
+  // 保険: 種別特化の検索でも一致を探す（search_multi が取りこぼす綴りの作品向け）。
   const action = isMovie ? 'search_movie' : 'search';
   for (const query of titleQueryCandidates(title)) {
     try {
       const data = await tmdb({ action, query });
-      const id = data?.results?.[0]?.id;
+      const id = pickTmdbCandidate(data?.results, query, isMovie);
       if (id) return id;
     } catch {
       /* この候補は失敗＝次の候補へ */
@@ -191,7 +237,10 @@ export async function POST(req) {
   const s = hasSE ? Number(body.season) : 0;
   const e = hasSE ? Number(body.episode) : 0;
 
-  const id = await resolveTmdbId(title, isMovie);
+  // 呼び出し側が作品を確定できているなら、その ID を使う（曖昧検索より常に正しい）。
+  // 拡張は現状 title しか送らないが、将来アプリ側の確定 ID を載せられるよう入口を用意しておく。
+  const givenId = Number(body.tmdbId);
+  const id = Number.isFinite(givenId) && givenId > 0 ? givenId : await resolveTmdbId(title, isMovie);
   if (!id) return json({ found: false, reason: 'tmdb_unresolved', type }); // TMDB 未解決 → 拡張は bare のまま
 
   // ── 層1: vocab_cache の語一致（無料）──
