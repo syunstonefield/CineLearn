@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { statusBadge, nextReviewLabel } from '@/lib/storage';
+import { exampleFailLabel } from '@/lib/exampleBackfill';
 
 // 1単語カード。モバイルは折りたたみ（語＋和訳＋状態ドット＋📍時刻のみ）→タップで詳細展開。
 // PCでは常時展開（display制御は style.css のメディアクエリ）。
@@ -147,12 +148,19 @@ export default function VocabItem({ word, srs, testTiers, ts, priority, exampleS
             作品名ごと画面から消えていた（2026-08-08 オーナー報告「単語帳でアイアンマンと
             表示されない」＝作品判定の失敗に見えるが、実際は表示側の欠落）。
             wordSource は例文が無ければ「（字幕：OpenSubtitles）」を付けないので48条の立て付けも保たれる。 */}
-        {!w.example && exampleSource && (
+        {!w.example && (exampleSource || w.exampleFail) && (
           <div className="word-example-wrap">
             {/* 引用が無い＝48条の出所明示は不要なので「（字幕：…）」は落とし、作品名だけ残す */}
-            <span className="word-example-source">
-              {exampleSource.replace(/（字幕：[^）]*）\s*$/, '')}
-            </span>
+            {exampleSource && (
+              <span className="word-example-source">
+                {exampleSource.replace(/（字幕：[^）]*）\s*$/, '')}
+              </span>
+            )}
+            {/* 例文が取れなかった理由を明示する（③）。無言で欠けていると、ユーザーからも
+                デバッグからも「なぜ出ないのか」が全く分からない状態が続く。 */}
+            {w.exampleFail && (
+              <span className="word-example-source">例文なし — {exampleFailLabel(w.exampleFail)}</span>
+            )}
           </div>
         )}
 

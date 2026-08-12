@@ -50,6 +50,7 @@ import { getDeviceKey } from '@/lib/device';
 import { selectQuizWords, buildQuizQuestions, prepIntegrity, orderWordsForPrep, getPrepped } from '@/lib/prep';
 // 読み上げは lib/speak に一本化（独自コピーは cancel 直後 speak で無音になる既知バグ持ちだった）
 import { speak } from '@/lib/speak';
+import { backfillMissingExamples } from '@/lib/exampleBackfill';
 
 export default function VocabScreen() {
   const app = useApp();
@@ -350,9 +351,26 @@ export default function VocabScreen() {
           example_ja: w.example_ja || '',
           tsSec: w.tsSec ?? null, // 📍時刻（手動追加#20はローカルに保持・tsFor のフォールバックで表示）
           tier: w.tier || 'core',
+          exampleFail: w.exampleFail || '', // 例文が取れなかった理由（③・カードに出す）
           source: 'ext',
         }));
       setExtWords(newExt);
+      // 例文が付かなかった語をアプリ側から取り直す（②）。確定 tmdbId を渡すので、拡張が
+      // 邦題を送って別作品に解決されていた事故（2026-08-08）を構造的に回避できる。
+      // 失敗した語には理由が残り（③）、同じ失敗を毎回叩き直さない。
+      if (newExt.length) {
+        backfillMissingExamples(newExt, {
+          drama,
+          season: se,
+          episode: ep,
+          isMovie: drama?.type === 'movie' || drama?.mediaType === 'movie',
+          profileId: pid,
+        })
+          .then((changed) => {
+            if (changed && myReq === reqId.current) setExtWords([...newExt]);
+          })
+          .catch(() => {});
+      }
       // 未取得の和訳（単語の意味・例文）をバックグラウンドで後埋めし、my_words へ永続化する。
       // 共有キャッシュ経路のみを使うので2人目以降は0円・同じ端末では2回目からネットワーク無し。
       if (newExt.length) {
