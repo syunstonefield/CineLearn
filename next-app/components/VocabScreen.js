@@ -207,25 +207,36 @@ export default function VocabScreen() {
   // tsSec が空で、📍が出ず時刻順では末尾に固まる。この話の生SRTが手元にある時だけ、
   // 保存されている例文を手がかりに字幕キューを特定して時刻を引き直し、my_words へ永続化する
   // （＝次からは字幕が無くても📍が出る）。字幕が無い・語が見つからない時は何もしない。
+  //
+  // ★フォールバック（2026-08-08 オーナー要望）: 📍が**間違っている**語も直す。
+  //   同じ語が作品中に何度も出る場合、サーバの層1は「キャッシュにある最初の出現」を返していたため、
+  //   前半で保存した語に後半の例文と📍が付くことがあった（アイアンマンの実害。サーバ側は
+  //   保存位置に最も近い出現を選ぶよう修正済みだが、既に付いてしまった値はデータに残る）。
+  //   ここでは**表示している例文を正**として、その例文が実際に出るキューの時刻へ📍を揃える。
+  //   例文と📍がペアであることは本アプリの不変則（memory「字幕tsSec二重パスの罠」）。
   useEffect(() => {
     if (!subRaw || !extWords.length) return;
-    const missing = extWords.filter((w) => w.tsSec == null && (w.example || '').trim());
-    if (!missing.length) return;
-    const map = computeTimestamps(missing, {
+    const targets = extWords.filter((w) => (w.example || '').trim());
+    if (!targets.length) return;
+    const map = computeTimestamps(targets, {
       title: drama?.englishTitle || drama?.title,
       season,
       episode,
       rawSrt: subRaw,
     });
     const fixed = [];
-    missing.forEach((w) => {
+    targets.forEach((w) => {
       const sec = map.get(w.word)?.sec;
       if (sec == null || !isFinite(sec)) return;
-      w.tsSec = Math.round(sec);
+      const next = Math.round(sec);
+      // 未設定なら埋める。設定済みでも、例文の実際の位置と30秒以上ずれていたら直す
+      // （30秒は字幕の分割・VOD差の許容幅。これ以内のズレは触らない）。
+      if (w.tsSec != null && Math.abs(w.tsSec - next) <= 30) return;
+      w.tsSec = next;
       fixed.push(w);
     });
     if (!fixed.length) return;
-    setExtWords((list) => [...list]); // 引き直した📍を即反映（次回の effect は missing 0 で止まる）
+    setExtWords((list) => [...list]); // 引き直した📍を即反映（次回の effect は差分0で止まる）
     fixed.forEach((w) => saveWordTranslation(pid, w.word, { tsSec: w.tsSec }).catch(() => {}));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subRaw, extWords]);

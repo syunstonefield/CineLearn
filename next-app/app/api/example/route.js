@@ -250,13 +250,30 @@ export async function POST(req) {
   //     drama に無ければ層2（生SRT）で実際のセリフを探す。
   const cacheKey = `v${CACHE_VERSION}:tmdb${id}:s${s}e${e}`;
   const cached = await readVocabWords(cacheKey);
+  // 再生位置（保存した場面）。層1でも「どの出現か」を選ぶのに使う。
+  const nearSec = Number(body.currentTimeSec);
+  const hasNear = isFinite(nearSec);
   if (cached) {
     const variants = getWordVariants(word);
     const drama = cached.filter((w) => w && w.source === 'drama' && w.example);
-    let pick = drama.find(
+    const strong = drama.filter(
       (w) => w.word && variants.has(String(w.word).toLowerCase()) && exampleContainsWord(w.example, word)
     );
-    if (!pick) pick = drama.find((w) => exampleContainsWord(w.example, word));
+    const loose = drama.filter((w) => exampleContainsWord(w.example, word));
+    const pool = strong.length ? strong : loose;
+    // ★2026-08-08: 従来は先頭一致を無条件で返していた。同じ語が作品中に何度も出る場合、
+    //   ユーザーが**前半で保存した語に後半の例文と📍**が付く（アイアンマンで実害）。
+    //   保存時の再生位置が分かるなら、その場面に最も近い出現を選ぶ。
+    let pick = pool[0];
+    if (hasNear && pool.length) {
+      const withTs = pool.filter((w) => typeof w.tsSec === 'number' && isFinite(w.tsSec));
+      if (withTs.length) {
+        pick = withTs.reduce((a, b) => (Math.abs(b.tsSec - nearSec) < Math.abs(a.tsSec - nearSec) ? b : a));
+        // 最も近い出現でも離れすぎている＝この語の「その場面での出現」がキャッシュに無い。
+        // 別場面の例文を配るより、層2（生SRT）で実際のセリフを探させる方が正しい。
+        if (Math.abs(pick.tsSec - nearSec) > 300) pick = null;
+      }
+    }
     if (pick) {
       return json({
         found: true,
@@ -278,7 +295,7 @@ export async function POST(req) {
   //   ★アンカー（lineText＝画面に出ている字幕行）か near（再生位置）のどちらも無ければ層2に
   //     入らない＝OS DL もしない。任意位置の1文を当て推量で引ける穴を構造的に塞ぐ（総当り防止）。
   //     層1（vocab_cache の語一致＝厳選語彙の再配布で全文ではない）は上で near 不要のまま通す。
-  const near = Number(body.currentTimeSec);
+  const near = nearSec; // 上で読んだ再生位置を層2でも使う（窓フィルタ・最近傍の基準）
   // 照合専用のアンカー。長さを制限して保存はしない（lineText は OS の行特定にのみ使う）。
   const anchorLine = String(body.lineText || '').slice(0, 300).trim();
   if (!anchorLine && !isFinite(near)) {
