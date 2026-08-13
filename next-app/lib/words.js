@@ -147,7 +147,19 @@ export async function clearAllWords(profileId) {
 // グローバル/プロフィール別の両キー＋クラウド（pushMyWord）へ同時に反映する。
 // 例文の和訳は「その例文」の訳なので、必ず同じ行の sentence とペアで保存される
 // （例文が差し替わった行は pull 側で古い訳を捨てる → 新しい例文で取り直す）。
-export async function saveWordTranslation(profileId, wordText, patch) {
+// my_words への書き戻しは「配列まるごと読む→1語patch→配列まるごと書く」なので、
+// 並行して呼ぶと**後勝ちで他の語の更新が消える**（read-modify-write の競合）。
+// 📍の修復と例文の後埋めが同時に走った実測で、3語のうち1語の修正が失われた（2026-08-08）。
+// 拡張側の saveWord が _saveChain で直列化しているのと同じ方式で、書き込みを1本の鎖に並べる。
+let _writeChain = Promise.resolve();
+export function saveWordTranslation(profileId, wordText, patch) {
+  const run = () => saveWordTranslationInner(profileId, wordText, patch);
+  const next = _writeChain.then(run, run);
+  _writeChain = next.catch(() => {});
+  return next;
+}
+
+async function saveWordTranslationInner(profileId, wordText, patch) {
   if (!wordText || !patch || !Object.keys(patch).length) return false;
   const lower = String(wordText).toLowerCase();
   const keys = [myWordsKey(null)];

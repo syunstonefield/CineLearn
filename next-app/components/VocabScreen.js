@@ -482,10 +482,24 @@ export default function VocabScreen() {
       setPrepFresh(false); // 別エピソードへ移ったら下部3択は隠す（新規生成成功で再点灯）
       setGenBtn({ text: '予習をはじめる →', disabled: true, hidden: false });
       if (await checkSaved(se, ep)) {
+        // 📍の後埋め・修復には**生SRT**が要る。端末に保存済みならまずそれを state に載せる。
+        //   ★ここは長く「整形済みテキストがあれば何もしない」だったが、判定している
+        //     readCachedSubtitleText は**別物（整形済み本文）**。生SRTが localStorage にあっても
+        //     subRaw が空のままで、📍の後埋め・修復が一度も走らなかった（2026-08-08 実害）。
+        const cachedRaw = getCachedRawSrt(drama, se, ep);
+        if (cachedRaw) {
+          const key = subtitleCacheKey(drama.englishTitle || drama.title, se, ep);
+          subMem.current = {
+            key,
+            text: subMem.current.key === key ? subMem.current.text : readCachedSubtitleText(drama, se, ep) || '',
+            raw: cachedRaw,
+          };
+          setSubRaw(cachedRaw);
+        }
         // 保存済みでも字幕キャッシュが無ければ「無音版」で静かに取得
         // （タイムスタンプ＋拡張単語照合用。失敗してもリスト表示を壊さない。
         //  旧邦題キーのキャッシュも「あり」とみなす＝englishTitle切替でOS DLを再消費しない）
-        if (!readCachedSubtitleText(drama, se, ep)) preloadSilent(se, ep, myReq);
+        if (!cachedRaw || !readCachedSubtitleText(drama, se, ep)) preloadSilent(se, ep, myReq);
         return;
       }
       if (myReq !== reqId.current) return;

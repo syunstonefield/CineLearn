@@ -47,8 +47,17 @@ async function fetchExample(payload) {
 // 戻り値: 1件でも更新したら true（呼び出し側は再描画する）。
 export async function backfillMissingExamples(words, { drama, season, episode, isMovie, profileId }) {
   if (!Array.isArray(words) || !words.length || !drama) return false;
+  // 失敗の記録は「毎回叩き直さない」ためのものであって、永久に諦めるためのものではない。
+  // ★サーバ側を直しても再試行されない＝直った実感が出ない、という事故を起こしたので時限式にする
+  //   （2026-08-08）。記録が古い（or 記録時刻が無い＝修正前の版で付いた）なら再挑戦する。
+  const RETRY_AFTER_MS = 6 * 60 * 60 * 1000;
+  const retryable = (w) => {
+    if (!w.exampleFail) return true;
+    const at = Date.parse(w.exampleFailAt || '');
+    return !Number.isFinite(at) || Date.now() - at > RETRY_AFTER_MS;
+  };
   const targets = words
-    .filter((w) => w?.word && !(w.example || '').trim() && !w.exampleFail)
+    .filter((w) => w?.word && !(w.example || '').trim() && retryable(w))
     .slice(0, MAX_PER_RUN);
   if (!targets.length) return false;
 
@@ -76,8 +85,9 @@ export async function backfillMissingExamples(words, { drama, season, episode, i
       // 失敗理由を語に残す（③）。次回の再試行を止める役目も兼ねる＝同じ失敗を無限に叩かない。
       // レート制限だけは一時的な事情なので残さない（次に開いた時に再挑戦させる）。
       if (res.reason === 'rate_limited') break;
-      Object.assign(w, { exampleFail: res.reason });
-      await saveWordTranslation(profileId, w.word, { exampleFail: res.reason });
+      const at = new Date().toISOString();
+      Object.assign(w, { exampleFail: res.reason, exampleFailAt: at });
+      await saveWordTranslation(profileId, w.word, { exampleFail: res.reason, exampleFailAt: at });
       changed = true;
     }
   }
