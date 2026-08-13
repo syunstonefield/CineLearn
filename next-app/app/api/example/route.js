@@ -253,6 +253,8 @@ export async function POST(req) {
   // 再生位置（保存した場面）。層1でも「どの出現か」を選ぶのに使う。
   const nearSec = Number(body.currentTimeSec);
   const hasNear = isFinite(nearSec);
+  // 「語は当たったが保存位置から遠い」候補の待避先。層2が空振りした時の最後の砦。
+  let farPick = null;
   if (cached) {
     const variants = getWordVariants(word);
     const drama = cached.filter((w) => w && w.source === 'drama' && w.example);
@@ -270,8 +272,16 @@ export async function POST(req) {
       if (withTs.length) {
         pick = withTs.reduce((a, b) => (Math.abs(b.tsSec - nearSec) < Math.abs(a.tsSec - nearSec) ? b : a));
         // 最も近い出現でも離れすぎている＝この語の「その場面での出現」がキャッシュに無い。
-        // 別場面の例文を配るより、層2（生SRT）で実際のセリフを探させる方が正しい。
-        if (Math.abs(pick.tsSec - nearSec) > 300) pick = null;
+        // まず層2（生SRT）で実際のセリフを探させる。ただし**捨てはしない**：
+        //   ★保存されている再生位置そのものが誤っていることがある（拡張が別の video 要素の
+        //     currentTime を拾う等。実データ: Incinerate に 0:27 が付いていたが実際は 52:10）。
+        //     その場合ここで捨てると、正しい例文が手元にあるのに no_match になってしまう
+        //     （2026-08-08、この guard を入れた直後に実際そうなった）。
+        //   層2が空振りしたら最後にこれを返し、📍はクライアント側が例文基準で直す。
+        if (Math.abs(pick.tsSec - nearSec) > 300) {
+          farPick = pick;
+          pick = null;
+        }
       }
     }
     if (pick) {
@@ -298,8 +308,27 @@ export async function POST(req) {
   const near = nearSec; // 上で読んだ再生位置を層2でも使う（窓フィルタ・最近傍の基準）
   // 照合専用のアンカー。長さを制限して保存はしない（lineText は OS の行特定にのみ使う）。
   const anchorLine = String(body.lineText || '').slice(0, 300).trim();
+
+  // 層1で「語は当たったが保存位置から遠い」候補を待避してある時は、層2の空振りより優先して返す。
+  // 保存位置そのものが誤っている実データがあるため（Incinerate に 0:27＝実際は 52:10）、
+  // ここで諦めると正しい例文が手元にあるのに例文なしで終わってしまう。
+  // 返した📍は「例文の場面」を指す値なので、クライアント側の修復とも整合する。
+  const farFallback = (reason) =>
+    farPick
+      ? json({
+          found: true,
+          sentence: trimExampleToSentence(farPick.example, word),
+          source: 'opensubtitles',
+          tmdbId: id,
+          season: s,
+          episode: e,
+          tsSec: farPick.tsSec ?? null,
+          tsLabel: farPick.tsLabel ?? null,
+          via: 'vocab_cache_far',
+        })
+      : json({ found: false, reason, tmdbId: id, type });
   if (!anchorLine && !isFinite(near)) {
-    return json({ found: false, reason: 'no_anchor_no_near', tmdbId: id, type }); // 手がかり無し → bare（OS DL せず）
+    return farFallback('no_anchor_no_near'); // 手がかり無し → 待避候補があればそれ、無ければ bare（OS DL せず）
   }
 
   const rawKey = `tmdb${id}:s${s}e${e}`;
@@ -309,11 +338,11 @@ export async function POST(req) {
       const results = await searchSubtitles(title, s, e, type, id);
       const sorted = selectSubtitleCandidates(results || [], isMovie, s, e);
       const fileId = sorted?.[0]?.attributes?.files?.[0]?.file_id;
-      if (!fileId) return json({ found: false, reason: 'no_subtitle_file', tmdbId: id, type });
+      if (!fileId) return farFallback('no_subtitle_file');
       raw = await downloadSubtitle(fileId);
       if (raw) writeRawCache(rawKey, id, s, e, raw);
     } catch {
-      return json({ found: false, reason: 'subtitle_fetch_failed', tmdbId: id, type }); // OS 不調・字幕なし → bare
+      return farFallback('subtitle_fetch_failed'); // OS 不調・字幕なし → 待避候補 or bare
     }
   }
 
@@ -324,7 +353,7 @@ export async function POST(req) {
     : null;
   const via = hit ? 'anchor' : 'raw';
   if (!hit && isFinite(near)) hit = findExampleForWord(raw, word, near, EXAMPLE_WINDOW_SEC);
-  if (!hit) return json({ found: false, reason: 'no_match', tmdbId: id, type }); // アンカー不一致＋窓内該当なし → bare
+  if (!hit) return farFallback('no_match'); // アンカー不一致＋窓内該当なし → 待避候補 or bare
 
   return json({
     found: true,
