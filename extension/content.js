@@ -1362,7 +1362,11 @@ async function showWordPopup(word, sentence, rect) {
       showToast('拡張機能が更新されました。ページを再読み込み（F5）してください');
       return;
     }
-    const _clickT = getActiveVideo()?.currentTime;
+    // 📍時刻。クリック時の再生位置を基本にしつつ、**クリックした字幕行が観測済みなら
+    // その行の開始時刻**を優先する（字幕を読んでからクリックするまでの遅延も同時に消える）。
+    // ★保険でもある: 別の video 要素を掴んでしまった時でも、字幕行の時刻は本編の時計なので
+    //   「📍が0:17〜0:27に固まる」類の事故を二重に防ぐ（2026-08-24 オーナー報告）。
+    const _clickT = captionStartFor(sentence) ?? getActiveVideo()?.currentTime;
     const entry = {
       word,
       // 配信(Netflix/Amazon)の画面字幕行は保存しない（経路②→①畳み込み #3）。
@@ -1442,14 +1446,42 @@ let clNextBtn = null;
 // 本編の video 要素を取得（Netflix / Amazon / Disney+ 共通）。
 // Disney+ 等は currentTime=0・videoWidth=0・duration=NaN の「ダミー video」が同居するため、
 // 実際に映像を描画している video（videoWidth>0）を最優先で選ぶ（一時停止中でも本編を取り違えない）。
+// 本編の video 要素を選ぶ。
+// ★旧実装は「videoWidth>0 かつ currentTime>0 の**最初の1つ**」を採っていた。Disney+ の再生ページには
+//   本編以外にも video 要素が同居する（おすすめ棚のループ再生プレビュー・背景のヒーロー動画など）。
+//   DOM 順で先に現れたそれらが条件を満たすと本編より先に選ばれ、**その短いループの再生位置**が
+//   保存語の📍として焼かれる。実データ: アイアンマン(126分)の語に 0:17〜0:27 が並んでいた
+//   （2026-08-24 オーナー報告「初期の時間になる」）。誤った📍は例文取得の手がかりにも使われるため、
+//   同じ語が「📍も例文も揃わない」形で失敗する（オーナーの観察どおり両者は連動する）。
+// 新実装: 候補に点数を付けて**最も本編らしいもの**を選ぶ。尺の長さ・実際に再生中か・画面上の
+//   大きさを見る（プレビューは尺が短く、たいてい小さい）。
 function getActiveVideo() {
   const vids = Array.from(document.querySelectorAll('video'));
-  return vids.find(v => v.videoWidth > 0 && v.currentTime > 0)
-      || vids.find(v => v.videoWidth > 0)
-      || vids.find(v => !v.paused && v.currentTime > 0)
-      || vids.filter(v => isFinite(v.duration) && v.duration > 0)
-             .sort((a, b) => b.duration - a.duration)[0]
-      || vids[0] || null;
+  if (!vids.length) return null;
+  if (vids.length === 1) return vids[0];
+
+  const score = (v) => {
+    let pt = 0;
+    const dur = isFinite(v.duration) ? v.duration : 0;
+    // 尺: 本編は数十分〜。短いループ素材を強く減点する。
+    if (dur >= 900) pt += 100;        // 15分以上＝ほぼ本編
+    else if (dur >= 300) pt += 60;    // 5分以上
+    else if (dur >= 90) pt += 20;
+    else if (dur > 0) pt -= 50;       // 90秒未満＝プレビュー/広告の類
+    if (!v.paused) pt += 30;          // 実際に再生中
+    if (v.videoWidth > 0) pt += 10;   // デコード済み（Disney+のダミーを避ける既存の意図）
+    if (v.currentTime > 0) pt += 5;
+    // 画面上の大きさ: 本編プレイヤーはビューポートの大半を占める
+    try {
+      const r = v.getBoundingClientRect();
+      const area = Math.max(0, r.width) * Math.max(0, r.height);
+      const vp = Math.max(1, window.innerWidth * window.innerHeight);
+      pt += Math.min(40, Math.round((area / vp) * 40));
+    } catch { /* 取れない環境は加点なし */ }
+    return pt;
+  };
+
+  return vids.slice().sort((a, b) => score(b) - score(a))[0] || null;
 }
 
 // 画面に新しい字幕が出るたびに呼ぶ。最新到達点（フロンティア）でのみ追記する。
@@ -1469,6 +1501,24 @@ function recordCaptionBlock(rawText) {
   captionTimeline.push({ text, start });
   if (captionTimeline.length > TIMELINE_MAX) captionTimeline.shift();
   ttStoreDirty = true; // ローカル保存対象として印を付ける
+}
+
+// 観測済みの字幕行から、その行が画面に出た時刻を引く（📍の第一候補）。
+// 表記ゆれを吸収するため、記号を落とした部分一致で照合する。見つからなければ null。
+function captionStartFor(rawText) {
+  const norm = (t) => (t || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const q = norm(rawText);
+  if (q.length < 8 || !captionTimeline.length) return null;
+  // 新しい方から探す（同じ台詞が複数回出る作品では「いま観ている方」が正しい）
+  for (let i = captionTimeline.length - 1; i >= 0; i--) {
+    const t = norm(captionTimeline[i].text);
+    if (!t) continue;
+    if (t === q || t.includes(q) || q.includes(t)) {
+      const st = captionTimeline[i].start;
+      return isFinite(st) && st >= 0 ? st : null;
+    }
+  }
+  return null;
 }
 
 // 現在のエピソードの保存キー（タイトル+S/E）。タイトル未取得なら null。
