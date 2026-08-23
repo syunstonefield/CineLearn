@@ -15,6 +15,8 @@ import { fetchJa } from '@/lib/jatranslate';
 import { fetchCtxJa } from '@/lib/ctxtranslate';
 import { speak } from '@/lib/speak';
 import { secToTimeLabel } from '@/lib/subtitles';
+import { backfillMissingExamples } from '@/lib/exampleBackfill';
+import { sameWorkTitle } from '@/lib/words';
 
 // マイ単語帳（ページ版・表示は単語リスト＝VocabItem と同じ折りたたみカード）。
 // 旧 WordbookModal をモーダル→screen='wordbook' に置き換え。
@@ -75,6 +77,28 @@ export default function WordbookScreen() {
       if (await repairLongExamples(words, pid)) {
         if (cancelled) return;
         setWords([...words]);
+      }
+      // 例文が空の語をここでも取り直す（2026-08-08）。従来は作品画面(VocabScreen)でしか
+      // 走らなかったため、単語帳だけを見ていると「いつまで経っても例文が付かない」ように見えた。
+      // 作品ごとにまとめ、マイリストから tmdbId を解決できる作品だけ（曖昧検索を避ける）。
+      const byTitle = new Map();
+      words
+        .filter((w) => w?.dramaTitle && !(w.example || w.sentence || '').trim())
+        .forEach((w) => {
+          const list = byTitle.get(w.dramaTitle) || [];
+          list.push(w);
+          byTitle.set(w.dramaTitle, list);
+        });
+      for (const [title, group] of byTitle) {
+        if (cancelled) return;
+        const known = (settings.myDramas || []).find((d) => sameWorkTitle(title, d.title) || sameWorkTitle(title, d.englishTitle));
+        if (!known) continue; // 作品を確定できない語は誤った作品を引く恐れがあるので触らない
+        const isMovie = known.type === 'movie' || known.mediaType === 'movie' || group.every((w) => w.season == null);
+        const hit = await backfillMissingExamples(
+          group.map((w) => ({ ...w, example: w.example || w.sentence || '' })),
+          { drama: known, season: group[0]?.season ?? 1, episode: group[0]?.episode ?? 1, isMovie, profileId: pid }
+        );
+        if (hit && !cancelled) bumpWordbook(); // 保存済みを読み直して画面に反映
       }
       for (const w of words) {
         const wl = w.word.toLowerCase();

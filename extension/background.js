@@ -135,16 +135,21 @@ async function syncWordToSupabase(word) {
   // 値が取れなかった列（S/E検出失敗の season/episode・未取得の ja/encounters・空の drama_title）
   // はキーごと省き、クラウド側に残っている正しい値を null/'' で潰さない
   // （Disney+でS/E検出が失敗した再保存が、確定済みの season/episode を消していた）。
+  // 「取れなかった値は列ごと省く」＝上のコメントが宣言している規則を、実際に全列へ適用する。
+  // ★sentence を無条件に送っていたため（空でも送る）、**アプリが後から入れた例文をクラウドで
+  //   '' に塗り潰していた**（merge-duplicates は送った列を必ず更新する）。拡張のローカル台帳には
+  //   アプリの後埋め結果が戻らないので、同じ語を再クリック・S/E自己修復・429リトライするたびに
+  //   確実に破壊され、次の pull で端末からも例文が消えていた（2026-08-08 追跡で確定）。
   const row = {
-    user_id:    session.user.id,
-    word:       word.word,
-    sentence:   word.sentence   || '',
-    phonetic:   word.phonetic   || '',
-    pos:        word.pos        || '',
-    definition: word.definition || '',
-    saved_at:   word.savedAt    || '',
-    source:     word.source     || '',
+    user_id:  session.user.id,
+    word:     word.word,
+    saved_at: word.savedAt || '',
   };
+  if (word.sentence)   row.sentence   = word.sentence;
+  if (word.phonetic)   row.phonetic   = word.phonetic;
+  if (word.pos)        row.pos        = word.pos;
+  if (word.definition) row.definition = word.definition;
+  if (word.source)     row.source     = word.source;
   if (word.ja) row.ja = word.ja; // v1.2.2: ポップアップで見せた文脈訳を固定保存
   // 例文が差し替わった保存では、アプリが付けた例文和訳を明示的に消す（訳と例文のペアを保つ）。
   // 拡張は example_ja を作らないため、送らない＝据え置きだと古い訳が新しい例文に残ってしまう。

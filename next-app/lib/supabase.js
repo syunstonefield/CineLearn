@@ -223,12 +223,16 @@ export async function pullFromCloud(profileId = null) {
     // null で返り、全量上書きでローカルの作品名まで消える（消えた語は作品の単語リストから
     // 永久に外れ、自動で直す経路も無い）。クラウドが空の時だけローカル値を残す。
     const prevTitle = new Map();
+    // 例文の失敗理由（クラウドに列が無いローカル専用フィールド）
+    const prevFail = new Map();
     try {
       JSON.parse(localStorage.getItem('cl_my_words') || '[]').forEach((p) => {
         if (!p?.word) return;
         const k = String(p.word).toLowerCase();
         prevSentence.set(k, p.sentence || '');
         if (p.tsSec != null) prevTsSec.set(k, p.tsSec);
+        // 例文の取得結果（成功=文／失敗=理由）は端末ローカルにしか無い。上書きで消さないよう控える。
+        if (p.exampleFail) prevFail.set(k, { reason: p.exampleFail, at: p.exampleFailAt || '' });
         if (p.dramaTitle) prevTitle.set(k, { title: p.dramaTitle, season: p.season ?? null, episode: p.episode ?? null });
       });
     } catch {
@@ -238,7 +242,16 @@ export async function pullFromCloud(profileId = null) {
       words.map((w) => {
         const key = String(w.word || '').toLowerCase();
         const before = prevSentence.get(key);
-        const sentenceChanged = before !== undefined && before !== (w.sentence || '');
+        // ★例文はクラウドが空ならローカルを残す（2026-08-08）。tsSec・作品名と同じ救済を
+        //   sentence にだけ入れ忘れていたため、アプリが後埋めした例文が **タブに戻るたびの pull**
+        //   （10秒トロットル／単語帳は開いた直後と6秒後の2回）で毎回消えていた。
+        //   クラウド側を空文字で潰す実行犯（拡張の無条件送信）も同時に塞ぐが、送信が着地する前の
+        //   pull でも消えるため、受け取り側にも救済が要る。
+        const cloudSentence = w.sentence || '';
+        const sentence = cloudSentence || before || '';
+        // 「例文が差し替わった」＝クラウドに新しい文があり、それがローカルと違う時だけ。
+        // クラウドが空（＝未着地）を差し替え扱いにすると、📍と例文訳まで道連れで消えていた。
+        const sentenceChanged = !!cloudSentence && before !== undefined && before !== cloudSentence;
         // 例文が別の場面に差し替わった行では、旧場面の時刻を引き継がない（訳と同じ扱い）。
         const localTs = sentenceChanged ? null : prevTsSec.get(key) ?? null;
         // 場面座標は一組。クラウドに作品名があればクラウド優先、無ければローカルの組を丸ごと残す。
@@ -248,7 +261,7 @@ export async function pullFromCloud(profileId = null) {
           : localSrc || { title: w.drama_title, season: w.season, episode: w.episode };
         return {
           word: w.word,
-          sentence: w.sentence,
+          sentence,
           phonetic: w.phonetic,
           pos: w.pos,
           definition: w.definition,
@@ -262,6 +275,10 @@ export async function pullFromCloud(profileId = null) {
           episode: scene.episode,
           // 📍場面時刻。クラウド優先・空ならローカルに在った値を残す（列追加前の語を守る）。
           tsSec: w.ts_sec ?? localTs,
+          // 例文の失敗理由はローカル専用。例文が入ったら消し、まだ空なら据え置く
+          // （毎回の pull で消えると「無言で例文なし」に戻り、可視化の投資が無駄になる）。
+          exampleFail: sentence ? '' : prevFail.get(key)?.reason || '',
+          exampleFailAt: sentence ? '' : prevFail.get(key)?.at || '',
         };
       })
     );

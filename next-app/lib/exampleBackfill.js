@@ -69,8 +69,13 @@ export async function backfillMissingExamples(words, { drama, season, episode, i
       // サーバはタイトル検索を行わずこの ID を使う＝邦題の曖昧検索を完全に迂回できる。
       title: drama.englishTitle || drama.title,
       tmdbId: drama.tmdbId ?? undefined,
-      season: isMovie ? null : season,
-      episode: isMovie ? null : episode,
+      // ★S/E は「その語が保存された時の値」を最優先にする（2026-08-08）。
+      //   画面側の season/episode は映画でも 1/1 が入っているため、映画と確定できていない作品では
+      //   1/1 を送ってしまい、サーバは「S/Eあり＝TV」と解釈する（route.js）。すると層1の
+      //   cache_key が :s1e1 になって必ずミスし、層2も TV の字幕を探して空振り＝その作品の語が
+      //   全滅する。保存側は映画を必ず season=null で書くので、そちらを信じるのが正しい。
+      season: isMovie ? null : w.season ?? (w.episode != null ? season : null),
+      episode: isMovie ? null : w.episode ?? (w.season != null ? episode : null),
       // 保存時の📍があれば窓の手がかりとして渡す（サーバは near ±45秒で候補を絞る）
       currentTimeSec: w.tsSec ?? undefined,
     };
