@@ -44,6 +44,25 @@ export async function callClaude(prompt, maxTokens = 2000, onRetry = null) {
   }
 }
 
+// サーバ組みプロンプトのモード（recommend / title_search / resolve_titles 等）を叩く汎用入口（2026-09-12）。
+// 共有キャッシュ命中は即返る。429 は再試行せず、呼び出し側に分かる文言で投げる。
+export async function callClaudeMode(body) {
+  const res = await fetch(`${API_BASE}/api/claude`, {
+    method: 'POST',
+    headers: apiHeaders(),
+    body: JSON.stringify(body),
+  });
+  let data = null;
+  try {
+    data = await res.json();
+  } catch {
+    data = null;
+  }
+  if (res.status === 429) throw new Error('混雑しています。しばらくしてからお試しください');
+  if (!res.ok) throw new Error(data?.error?.message || data?.error || 'APIエラー');
+  return data;
+}
+
 // 例文（1文）の一括和訳（/api/claude mode:'sentences'・2026-09-11）。
 //   共有キャッシュ命中分は無償、未命中だけサーバが Haiku で訳して共有キャッシュと vocab_cache 行へ書き戻す。
 //   {tmdbId, season, episode, type} を添えると、その話の共有キャッシュ行の空欄が埋まる。
@@ -122,18 +141,29 @@ export async function tmdb(body) {
 // 戻り値: { hit, words, meta } / { blocked:true }（カタログ外・ゲート有効時）/ { miss:true }。
 // 失敗・未デプロイ・例外はすべて { miss:true } に倒し、呼び出し側は従来生成にフォールバックする
 // （キャッシュは「あれば速い」最適化であり必須依存にしない＝設計 NFR-4）。
+// ★2026-09-12: 通信失敗・サーバ側の DB 不調（unavailable）は本当の miss ではない。1.5秒おいて
+//   1回だけ引き直し、それでも駄目なら miss に倒す（可用性優先＝リストは出す。再生成 ¥7 は最後の手段）。
 export async function fetchSharedVocab({ tmdbId, season, episode, type }) {
-  try {
-    const res = await fetch(`${API_BASE}/api/vocab`, {
-      method: 'POST',
-      headers: apiHeaders(),
-      body: JSON.stringify({ tmdbId, season, episode, type }),
-    });
-    if (!res.ok) return { miss: true };
-    return await res.json();
-  } catch {
-    return { miss: true };
+  const once = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/vocab`, {
+        method: 'POST',
+        headers: apiHeaders(),
+        body: JSON.stringify({ tmdbId, season, episode, type }),
+      });
+      if (!res.ok) return { miss: true, unavailable: true };
+      return await res.json();
+    } catch {
+      return { miss: true, unavailable: true };
+    }
+  };
+  let r = await once();
+  if (r?.unavailable) {
+    await new Promise((ok) => setTimeout(ok, 1500));
+    r = await once();
+    if (r?.unavailable) console.warn('[CL:GEN] 共有キャッシュに到達できず（2回失敗）→ 従来生成へ');
   }
+  return r;
 }
 
 // フェーズ1：都度生成したスーパーセットを共有キャッシュへ寄与する（fire-and-forget）。

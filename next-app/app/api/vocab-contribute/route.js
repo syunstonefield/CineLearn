@@ -23,6 +23,22 @@ const MAX_WORDS = 300; // 異常データ防止
 
 // next-app/lib の純粋関数を再利用（Next バンドラが解決・localStorage 非依存）。
 import { exampleContainsWord } from '@/lib/subtitles';
+import { checkRateLimit } from '@/lib/ratelimit';
+import { createHash } from 'crypto';
+
+// 投稿元の記録（2026-09-12）。汚染行を見つけたときに「同じ投稿元の行だけ」消せるよう、IP のハッシュと
+// 時刻を行に残す（生 IP は保存しない）。列は supabase_vocab_cache_provenance.sql で後付け。
+// 列がまだ無い DB では PostgREST が PGRST204 で行ごと弾くため、1回だけ列を外して再送する
+// （my_words.ts_sec と同じ流儀＝SQL 実行前後どちらの順でデプロイしても寄与が壊れない）。
+let _provenanceUnsupported = false;
+function contributorHash(req) {
+  const xff = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '';
+  const ip = String(xff).split(',')[0].trim() || 'unknown';
+  return createHash('sha256').update(`cl-contrib:${ip}`).digest('hex').slice(0, 16);
+}
+function isMissingColumn(status, text) {
+  return status === 400 && /PGRST204|contributed_(by|at)/.test(text || '');
+}
 
 function json(obj, status = 200) {
   return new Response(JSON.stringify(obj), {
@@ -61,6 +77,11 @@ function coverageRange(words) {
 export async function POST(req) {
   if (!allowedOrigin(req)) return json({ error: 'forbidden' }, 403);
   if (!SUPABASE_SERVICE_KEY) return json({ skipped: 'no-service-key' }); // 書込キー未設定＝no-op
+  // 正規利用は「1話の生成につき1回」。人気話のキーを先取りして偽データを置く『土地取り』の速度を
+  // 落とす（2026-09-12・台帳「/api/vocab-contribute が無認証・無レート制限」への対応①）。
+  if (!(await checkRateLimit(req, 'contribute', { perMin: 3, perHour: 20, perDay: 50 })).ok) {
+    return json({ skipped: 'rate_limited' }, 429);
+  }
 
   let body = {};
   try {
@@ -102,6 +123,8 @@ export async function POST(req) {
   );
   const dramaCount = clean.filter((w) => w.source === 'drama').length;
   if (clean.length < MIN_WORDS || dramaCount < 5) {
+    // 弾いた生成は共有されず、次のユーザーがまた ¥7 払う。理由をログに残して多い順に潰す（費用対策③）
+    console.warn('[vocab-contribute] gate rejected', cacheKey, { received: words.length, clean: clean.length, drama: dramaCount });
     return json({ skipped: 'gate', count: clean.length, drama: dramaCount });
   }
 
@@ -119,6 +142,7 @@ export async function POST(req) {
     // 尺は不明なので「最後の語」を尺の代理にする。序盤が総尺の25%以降からしか無い、
     // または30分の空白がある＝1チャンク分が欠けている疑いが濃い。
     if (span > 1200 && (sorted[0] > sorted[sorted.length - 1] * 0.25 || maxGap > 1800)) {
+      console.warn('[vocab-contribute] coverage rejected', cacheKey, { first: sorted[0], last: sorted[sorted.length - 1], maxGap });
       return json({ skipped: 'coverage', first: sorted[0], last: sorted[sorted.length - 1], maxGap });
     }
   }
@@ -148,28 +172,43 @@ export async function POST(req) {
       ]),
     });
 
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/vocab_cache?on_conflict=cache_key`, {
-      method: 'POST',
-      headers,
-      cache: 'no-store',
-      body: JSON.stringify([
-        {
-          cache_key: cacheKey,
-          cache_version: CACHE_VERSION,
-          tmdb_id: id,
-          season: s,
-          episode: e,
-          display_title: body.displayTitle || null,
-          words: store,
-          word_count: store.length,
-          coverage_min: cov.min,
-          coverage_max: cov.max,
-          subtitle_provider: 'opensubtitles(auto)',
-          model: MODEL,
-          updated_at: new Date().toISOString(),
-        },
-      ]),
-    });
+    const row = {
+      cache_key: cacheKey,
+      cache_version: CACHE_VERSION,
+      tmdb_id: id,
+      season: s,
+      episode: e,
+      display_title: body.displayTitle || null,
+      words: store,
+      word_count: store.length,
+      coverage_min: cov.min,
+      coverage_max: cov.max,
+      subtitle_provider: 'opensubtitles(auto)',
+      model: MODEL,
+      updated_at: new Date().toISOString(),
+    };
+    if (!_provenanceUnsupported) {
+      row.contributed_by = contributorHash(req);
+      row.contributed_at = new Date().toISOString();
+    }
+    const post = () =>
+      fetch(`${SUPABASE_URL}/rest/v1/vocab_cache?on_conflict=cache_key`, {
+        method: 'POST',
+        headers,
+        cache: 'no-store',
+        body: JSON.stringify([row]),
+      });
+    let res = await post();
+    if (!res.ok && 'contributed_by' in row) {
+      const text = await res.text().catch(() => '');
+      if (isMissingColumn(res.status, text)) {
+        // 列がまだ無い DB → 記録なしで再送（寄与そのものは止めない）
+        _provenanceUnsupported = true;
+        delete row.contributed_by;
+        delete row.contributed_at;
+        res = await post();
+      }
+    }
     // 内部（Supabase/service_role）の生ステータス・例外文はクライアントに返さない
     // （情報露出の遮断）。詳細はサーバーログにのみ残す。
     if (!res.ok) {

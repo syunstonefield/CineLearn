@@ -30,17 +30,25 @@ function jsonResponse(obj) {
   });
 }
 
-// Supabase REST を anon で読む。res.text()+JSON.parse で読み、失敗（テーブル未作成/権限/非JSON）は null。
+// Supabase REST を anon で読む。戻り値 { ok, rows }。
+//   ★2026-09-12: 旧実装は通信失敗も「配列でない」も一律 null＝miss と同じ扱いで、DB が一瞬つまずいた
+//     だけでクライアントが Claude で再生成（1話≈¥7・映画は3コール）に入っていた（本番で miss→hit の
+//     揺れを実測）。失敗は1回だけ引き直し、それでも駄目なら unavailable として返す（クライアントも1回引き直す）。
 async function sbSelect(pathWithQuery) {
-  try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/${pathWithQuery}`, {
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
-      cache: 'no-store',
-    });
-    return JSON.parse(await res.text());
-  } catch {
-    return null; // テーブル未作成/権限/非JSON 等 → 呼び出し側でフォールバック
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/${pathWithQuery}`, {
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+        cache: 'no-store',
+      });
+      const rows = JSON.parse(await res.text());
+      if (res.ok && Array.isArray(rows)) return { ok: true, rows };
+      // 非2xx/非配列（権限・テーブル未作成・PostgREST エラー本文）＝不調。1回だけ再試行
+    } catch {
+      /* ネットワーク/JSON 失敗 → 再試行 */
+    }
   }
+  return { ok: false, rows: null };
 }
 
 export async function POST(req) {
@@ -61,18 +69,24 @@ export async function POST(req) {
   const s = type === 'movie' ? 0 : Number(body.season) || 1;
   const e = type === 'movie' ? 0 : Number(body.episode) || 1;
 
-  // 1) カタログ照合（enabled な行のみ anon に見える＝RLSポリシー）
-  const cat = await sbSelect(`catalog?tmdb_id=eq.${id}&select=tmdb_id&limit=1`);
-  const inCatalog = Array.isArray(cat) && cat.length > 0;
-  if (CATALOG_GATE_ENABLED && !inCatalog) return jsonResponse({ blocked: true });
+  // 1) カタログ照合（enabled な行のみ anon に見える＝RLSポリシー）。照合自体が不調なら弾かない
+  //    （一時障害で「近日対応」を出さない＝読み取りは fail-open）。
+  if (CATALOG_GATE_ENABLED) {
+    const cat = await sbSelect(`catalog?tmdb_id=eq.${id}&select=tmdb_id&limit=1`);
+    if (cat.ok && cat.rows.length === 0) return jsonResponse({ blocked: true });
+  }
 
   // 2) キャッシュ参照
   const cacheKey = `v${CACHE_VERSION}:tmdb${id}:s${s}e${e}`;
-  const rows = await sbSelect(
+  const q = await sbSelect(
     `vocab_cache?cache_key=eq.${encodeURIComponent(cacheKey)}` +
       `&select=words,model,subtitle_provider,coverage_min,coverage_max,word_count&limit=1`
   );
-  const row = Array.isArray(rows) && rows[0];
+  if (!q.ok) {
+    console.warn('[vocab] shared cache unavailable', cacheKey);
+    return jsonResponse({ miss: true, unavailable: true }); // 本当の miss ではない＝クライアントは1回引き直す
+  }
+  const row = q.rows[0];
   if (row && Array.isArray(row.words) && row.words.length) {
     return jsonResponse({
       hit: true,
