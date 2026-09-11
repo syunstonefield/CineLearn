@@ -133,7 +133,11 @@ async function seedEpisode(t, season, episode) {
   console.log(`  字幕 ${subtitleText.length} 文字`);
 
   const gen = await generateSuperset({ drama, season, episode, subtitleText, vocabCount: 40 });
-  await fillMissingExampleJa(gen); // example_ja を補完（in-place）
+  await fillMissingExampleJa(gen); // example_ja を補完（in-place・mode:'sentences'＝共有キャッシュ経由）
+  // 'sentences' のレート枠（100/時）に当たると残りは未訳のまま行が書かれる。空欄は初表示時にサーバが
+  // 埋め直すが、量が多い時は seed/backfill-example-ja.mjs で後追いする（2026-09-11）。
+  const untranslated = gen.filter((w) => w.example && !w.example_ja).length;
+  if (untranslated) console.warn(`  ⚠ 例文和訳が未完了: ${untranslated} 語（backfill-example-ja.mjs で後追い可）`);
   // ベース字幕時刻（📍）を各語へ付与（生SRTから・VOD補正なし）
   attachBaseTimestamps(gen, { title: drama.englishTitle || drama.title, season, episode, rawSrt: sub.raw });
   // 保存用に transient フラグを落とす
