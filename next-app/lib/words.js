@@ -6,7 +6,7 @@ import { deleteMyWordCloud, pushMyWord } from './supabase';
 import { fetchJa } from './jatranslate';
 import { fetchCtxJa } from './ctxtranslate';
 import { myWordsKey, deletedWordsKey } from './storage';
-import { subtitleCacheKey, trimExampleToSentence, EXAMPLE_MAX_CHARS } from './subtitles';
+import { subtitleCacheKey, trimExampleToSentence, exampleContainsWord, EXAMPLE_MAX_CHARS } from './subtitles';
 
 // ── ストレージ抽象化（chrome.storage があれば使う・無ければ localStorage）──
 export const store = {
@@ -487,7 +487,8 @@ export async function getMyWordsForEpisode(drama, season, episode, profileId, me
     if (w.season != null && w.episode != null) {
       return w.season == season && w.episode == episode;
     }
-    return episodeSub ? episodeSub.includes(w.word.toLowerCase()) : false;
+    // 語境界つき照合（旧 includes は "art"⊂"part" のような部分一致で別話に混入していた）
+    return episodeSub ? exampleContainsWord(episodeSub, w.word) : false;
   });
 }
 
@@ -519,7 +520,9 @@ export async function resolveUnassignedWords(profileId, memSub = '', memTitle = 
   }
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
-    if (!key?.startsWith('cl_sub_')) continue;
+    // 整形済み本文だけを見る。生SRT（cl_sub_raw_*）も同じ接頭辞で規則に合致してしまい、
+    // タイムコードやクレジット行まで照合対象に入っていた。
+    if (!key?.startsWith('cl_sub_') || key.startsWith('cl_sub_raw_')) continue;
     const m = key.match(/^cl_sub_(.+)_s(\d+)e(\d+)$/);
     if (!m) continue;
     const sub = localStorage.getItem(key);

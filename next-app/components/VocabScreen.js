@@ -256,15 +256,19 @@ export default function VocabScreen() {
 
   // ── example_ja のバックグラウンド補完（二重実行ガードつき）──
   const fillJaRunning = useRef(false);
+  // ctx = { tmdbId, season, episode, type, rowWords? }（2026-09-11）。tmdbId があるとサーバが
+  // 共有キャッシュ行の空欄も埋める。rowWords（行の全語）を渡すと最初の1人で行が完成する。
   const runFillExampleJa = useCallbackSafe(
-    (words, hid) => {
+    (words, hid, ctx = {}) => {
       if (fillJaRunning.current) return;
-      if (!words.some((w) => w.example && !w.example_ja_ok)) return;
+      const needDisplay = words.some((w) => w.example && !w.example_ja_ok);
+      const needRow = (ctx.rowWords || []).some((w) => w && w.example && !w.example_ja);
+      if (!needDisplay && !needRow) return; // 行まで埋まっていれば AI 呼び出しゼロ
       // 翻訳完了が遅れ、別エピソードへ切り替えた後に解決しても表示を上書きしないよう
       // 開始時点の世代を捕捉する（reqId は loadEpisode 等で進む）。
       const myReq = reqId.current;
       fillJaRunning.current = true;
-      fillMissingExampleJa(words)
+      fillMissingExampleJa(words, ctx)
         .then((changed) => {
           if (!changed) return;
           updateHistoryWords(hid, words); // 履歴は hid 基準なので現在の表示に関係なく更新してよい
@@ -312,8 +316,13 @@ export default function VocabScreen() {
         // 未キャッシュの場合の取得は loadEpisode 側の preloadSilent が
         // 1回だけ静かに行う（ここで二重ダウンロードしない＝クォータ節約）。
         setSubRaw(getCachedRawSrt(drama, se, ep));
-        // example_ja が無い単語をバックグラウンドで翻訳補完（既存 fillMissingExampleJa）
-        runFillExampleJa(entry.words, entry.id);
+        // example_ja が無い単語をバックグラウンドで翻訳補完（共有キャッシュ経由・行の空欄も埋める）
+        runFillExampleJa(entry.words, entry.id, {
+          tmdbId: drama.tmdbId,
+          season: se,
+          episode: ep,
+          type: drama.type,
+        });
         loadExtWords(se, ep, entry.words);
         return true;
       }
@@ -479,6 +488,11 @@ export default function VocabScreen() {
       setVocab([]);
       setExtWords([]);
       setHistoryId(null);
+      // 生SRT は必ず話ごとに引き直す。★ここで空にしていなかったため、字幕が未キャッシュ／取得失敗の
+      //   話へ移ると**前の話の生SRT**が subRaw に残り、(1)「追加した単語」の📍修復 effect が
+      //   前の話の字幕で時刻を引き直して my_words へ永続化する (2) 手動追加の例文照合が前の話の
+      //   セリフを拾う (3) 生成した語の📍が前の話の時刻になる、という別場面の混入が起きていた。
+      setSubRaw('');
       setPrepFresh(false); // 別エピソードへ移ったら下部3択は隠す（新規生成成功で再点灯）
       setGenBtn({ text: '予習をはじめる →', disabled: true, hidden: false });
       if (await checkSaved(se, ep)) {
@@ -687,6 +701,8 @@ export default function VocabScreen() {
     try {
       let words;
       let srcLabel;
+      let rowWords = null; // 共有キャッシュ行の全語（後埋めで行ごと完成させる）
+      let contribPromise = null; // 寄与の完了（行が書かれてからサーバの書き戻しが走る）
 
       // 1) 共有キャッシュ参照（読み取り専用・失敗は miss 扱い）
       const cached = await fetchSharedVocab({
@@ -730,7 +746,12 @@ export default function VocabScreen() {
         // キャッシュヒット：生成せず学習者レベルで絞るだけ（字幕取得・Claude 不要）。
         // タイムスタンプ📍は各語の保存済みベース時刻(tsSec/tsLabel)を使う。
         setSubRaw('');
-        words = personalizeWords(cached.words, personalizeOpts);
+        // シード済みの行は example_ja が入っているが、キャッシュ保存時に transient フラグ
+        // example_ja_ok を落としているため、そのままだと fillMissingExampleJa が全語を
+        // 「未訳」とみなして訳し直していた（本番実測: Suits S1E1 は 86/87 語が既訳）。
+        // 訳があるものは既訳として扱う＝共有キャッシュ命中の AI 呼び出しをゼロに戻す。
+        rowWords = cached.words.map((w) => ({ ...w, example_ja_ok: !!w.example_ja }));
+        words = personalizeWords(rowWords, personalizeOpts);
         srcLabel = '共有キャッシュ（生成済み）';
       } else {
         // 2) ミス → 字幕取得 → スーパーセット生成（全レベル分）→ レベル絞りで表示
@@ -773,19 +794,25 @@ export default function VocabScreen() {
 
         // フェーズ1: スーパーセットを共有キャッシュへ寄与（fire-and-forget・サーバー側で品質ゲート）
         try {
+          // 📍の基準にする生SRTは必ず「この話のもの」を使う。subMem は key で話を識別しているのに
+          // raw だけ無検査で読んでいたため、本文を localStorage から取った回（subMem が前の話のまま）
+          // に前の話の SRT で時刻を付けて共有キャッシュへ焼き付ける穴があった。
+          const rawForThisEpisode =
+            subMem.current.key === key ? subMem.current.raw || '' : getCachedRawSrt(drama, season, episode) || '';
           attachBaseTimestamps(superset, {
             title: drama.englishTitle || drama.title,
             season,
             episode,
-            rawSrt: subMem.current.raw || '',
+            rawSrt: rawForThisEpisode,
           });
           // 時間カバレッジ検査（2026-08-08）。分割生成の1チャンクが落ちた結果、作品の前半や
           // 後半が丸ごと欠けたスーパーセットが共有キャッシュに焼き付き、全ユーザーへ配られていた
           // （アイアンマン＝前半57分が欠落）。寄与ルートは既存行を上書きしないので、一度入ると
           // その作品は永久に直らない。片寄っているものは表示だけして寄与しない（fail-closed）。
-          const covered = coverageOk(superset, subMem.current.raw || '');
+          const covered = coverageOk(superset, rawForThisEpisode);
+          rowWords = superset; // personalizeWords は要素を共有するので、後埋めの結果は表示語にも乗る
           if (covered) {
-            contributeVocab({
+            contribPromise = contributeVocab({
               tmdbId: drama.tmdbId,
               season,
               episode,
@@ -845,8 +872,17 @@ export default function VocabScreen() {
       setQuizData([]); // 前回のクイズをクリア（テストを開いた時に QuizScreen で遅延生成）
       reloadSrs();
       loadExtWords(season, episode, words);
-      // example_ja が欠けた単語をバックグラウンドで翻訳補完
-      runFillExampleJa(words, id);
+      // example_ja が欠けた単語をバックグラウンドで翻訳補完。寄与（fire-and-forget）が着地してから
+      // 始める＝サーバの書き戻しが「まだ無い行」に空振りしない。表示はブロックしない。
+      const fillCtx = { tmdbId: drama.tmdbId, season, episode, type: drama.type, rowWords };
+      Promise.resolve(contribPromise)
+        .then(
+          () => {},
+          () => {}
+        )
+        .then(() => {
+          if (myReq === reqId.current) runFillExampleJa(words, id, fillCtx);
+        });
       // クイズはここでは生成しない。ユーザーがテストを開いた時に QuizScreen 側で生成する。
     } catch (e) {
       setPhase('error');

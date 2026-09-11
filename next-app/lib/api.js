@@ -44,6 +44,36 @@ export async function callClaude(prompt, maxTokens = 2000, onRetry = null) {
   }
 }
 
+// 例文（1文）の一括和訳（/api/claude mode:'sentences'・2026-09-11）。
+//   共有キャッシュ命中分は無償、未命中だけサーバが Haiku で訳して共有キャッシュと vocab_cache 行へ書き戻す。
+//   {tmdbId, season, episode, type} を添えると、その話の共有キャッシュ行の空欄が埋まる。
+//   429 は再試行しない（呼び出し側が静かに打ち切る＝再試行嵐で生成枠を食わない）。
+//   旧サーバ（このモード未対応）は 400 'prompt is required' を返す → unsupported:true で呼び出し側が止まる。
+export async function translateSentences({ sentences, tmdbId, season, episode, type }) {
+  const list = Array.isArray(sentences) ? sentences : [];
+  const empty = { ja: list.map(() => null), rateLimited: false, unsupported: false };
+  if (!list.length) return empty;
+  try {
+    const res = await fetch(`${API_BASE}/api/claude`, {
+      method: 'POST',
+      headers: apiHeaders(),
+      body: JSON.stringify({ mode: 'sentences', sentences: list, tmdbId, season, episode, type }),
+    });
+    let data = null;
+    try {
+      data = await res.json();
+    } catch {
+      data = null;
+    }
+    const ja = Array.isArray(data?.ja) && data.ja.length === list.length ? data.ja : empty.ja;
+    if (res.status === 429) return { ja, rateLimited: true, unsupported: false };
+    if (!res.ok) return { ...empty, unsupported: res.status === 400 && !Array.isArray(data?.ja) };
+    return { ja, rateLimited: false, unsupported: false };
+  } catch {
+    return empty;
+  }
+}
+
 // Open Subtitles で字幕を検索する。
 // type='movie' の場合は season/episode を送らず、tmdbId があれば厳密検索する
 export async function searchSubtitles(title, season, episode, type = 'tv', tmdbId = null) {

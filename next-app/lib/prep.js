@@ -2,7 +2,7 @@
 // 「今夜のリハーサル」クイズの出題選定・クローズ穴埋め生成・誠実指標の計算。
 // UI を持たない小関数群に閉じる（PrepQuiz / PrepLaunch / VocabScreen から使う）。
 
-import { getWordVariants, exampleContainsWord } from './subtitles';
+import { wordMatchRegex, normApostrophes, exampleContainsWord } from './subtitles';
 import { loadSrs, isMastered, isDue, isStruggling } from './storage';
 import { queueStatePush } from './supabase';
 
@@ -76,19 +76,16 @@ export function selectQuizWords(words, max = 3, srs = null) {
 // マッチしなければ blank=null（呼び出し側で別表示にフォールバック）。
 export function buildCloze(example, word) {
   if (!example || !word) return { before: example || '', blank: null, after: '' };
-  // 長い活用形（例: running）が短い形（run）に食われないよう長い順で試す。
-  const variants = [...getWordVariants(word)].sort((a, b) => b.length - a.length);
-  for (const v of variants) {
-    const esc = v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const re = new RegExp(`\\b${esc}\\b`, 'i');
-    const m = example.match(re);
-    if (m && m.index != null) {
-      return {
-        before: example.slice(0, m.index),
-        blank: m[0], // 表示している実際の活用形（正解開示に使う）
-        after: example.slice(m.index + m[0].length),
-      };
-    }
+  // 照合は共通の wordMatchRegex（活用形・句動詞の分離 "pulled it off" も1つの空欄にする）。
+  // 引用符の正規化（’→'）は1文字1文字の置換なので index は原文と一致する＝原文で切り出せる。
+  const re = wordMatchRegex(word);
+  const m = re ? normApostrophes(example).match(re) : null;
+  if (m && m.index != null) {
+    return {
+      before: example.slice(0, m.index),
+      blank: example.slice(m.index, m.index + m[0].length), // 表示している実際の活用形（正解開示に使う）
+      after: example.slice(m.index + m[0].length),
+    };
   }
   return { before: example, blank: null, after: '' };
 }
@@ -187,16 +184,13 @@ export function selectPostWatchQuizWords(words, srs = {}, max = 5, seen = new Se
 // 例文中の対象語を「すべて」空欄化する（同じ語が2回出るときに答えが見えるのを防ぐ）。
 // 戻り値: { question, form }（form=本文での実際の活用形）。マッチしなければ null。
 function blankAllOccurrences(example, word) {
-  const variants = [...getWordVariants(word)].sort((a, b) => b.length - a.length);
-  let out = String(example || '');
-  let form = null;
-  for (const v of variants) {
-    const esc = v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    if (!new RegExp(`\\b${esc}\\b`, 'i').test(out)) continue;
-    if (!form) form = out.match(new RegExp(`\\b${esc}\\b`, 'i'))[0];
-    out = out.replace(new RegExp(`\\b${esc}\\b`, 'gi'), '____');
-  }
-  return form ? { question: out, form } : null;
+  // 照合は共通の wordMatchRegex（句動詞の分離形 "pulled it off" も丸ごと1つの空欄にする）
+  const re = wordMatchRegex(word, 'gi');
+  if (!re) return null;
+  const src = normApostrophes(example);
+  const first = src.match(wordMatchRegex(word));
+  if (!first) return null;
+  return { question: src.replace(re, '____'), form: first[0] };
 }
 
 // 日本語の語義だけを返す（英語辞書定義は選択肢に混ぜない＝和英が並ぶと問題にならない）。

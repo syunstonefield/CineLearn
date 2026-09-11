@@ -1,6 +1,6 @@
 // 単語生成オーケストレーション（字幕→Claude→パース→フィルター）。
 // js/app.js: generateVocabFromEpisode / generateQuiz から移植。
-import { callClaude } from './api';
+import { callClaude, translateSentences } from './api';
 import { exampleContainsWord, trimExampleToSentence } from './subtitles';
 import { getExcludeSet } from './wordlist';
 
@@ -429,7 +429,7 @@ export async function generateSuperset(ctx, onRetry) {
 
   const size = Math.ceil(subText.length / nChunks);
   const merged = [];
-  const seen = new Set();
+  const seen = new Map(); // 小文字の語 → merged 内の添字
   for (let i = 0; i < nChunks; i++) {
     ctx.onProgress?.(i + 1, nChunks);
     // チャンク境界の文切れは許容（refineDramaWords の逐語チェックは各チャンク文に対して働く）。
@@ -452,12 +452,22 @@ export async function generateSuperset(ctx, onRetry) {
     }
     for (const w of part) {
       const k = String(w.word || '').toLowerCase();
-      if (!k || seen.has(k)) continue;
-      seen.add(k);
-      merged.push(w);
+      if (!k) continue;
+      const prev = seen.get(k);
+      if (prev == null) {
+        seen.set(k, merged.length);
+        merged.push(w);
+      } else if (merged[prev].source === 'plus' && w.source === 'drama') {
+        // 前のチャンクで plus（AI作例）だった語が後のチャンクの字幕に実在＝drama（逐語例文＋📍）を採る。
+        // 旧実装は先着優先で、字幕に実在する語が作例つきの plus のまま固定されていた。
+        merged[prev] = w;
+      }
     }
   }
-  return merged;
+  // 各チャンクの精査は「そのチャンクの本文」に対してだけ行われる。plus と判定された語が
+  // 別区間の字幕に実在することがあるため、結合後に全編本文でもう一度 drama/plus を確定する
+  // （実在すれば drama に再分類し例文を字幕の逐語文へ）。AI 呼び出しは無い＝コスト0。
+  return refineDramaWords(merged, subText);
 }
 
 // 従来の都度生成（クライアントfallback）。targeted生成 → 学習者レベルで絞る。
@@ -526,46 +536,61 @@ function refineDramaWords(words, subtitleText) {
 // 穴埋め文・選択肢は単語リストの実セリフ例文から組めるため、Claude 呼び出し
 // （1回≈¥1・レート制限あり・生成待ちあり）は不要になった。旧 generateQuiz は削除。
 
-// ── example_ja のバックグラウンド補完（既存 fillMissingExampleJa）──────────
-// example_ja_ok フラグがない単語をAIで翻訳して補完する。
-// words の要素を直接更新し、変更があれば true を返す（履歴保存・再描画は呼び出し側）。
-export async function fillMissingExampleJa(words) {
-  const missing = words.filter((w) => w.example && !w.example_ja_ok);
-  if (!missing.length) return false;
-
-  const BATCH = 10; // 一度に送る単語数（トークン制限対策）
+// ── example_ja のバックグラウンド補完（fillMissingExampleJa）──────────
+// 例文和訳が未確定（example_ja_ok が無い）語を埋める。words の要素を直接更新し、
+// 表示中の語に変更があれば true を返す（履歴保存・再描画は呼び出し側）。
+//
+// 2026-09-11 に経路を /api/claude mode:'sentences' へ切替。旧実装はクライアント組みの
+// プロンプトを既定モードへ投げていたため、共有キャッシュに乗らず・生成用のレート枠を食い・
+// 結果は本人の履歴にしか残らなかった（同じ話を開く各ユーザーが毎回 ¥6〜9 払う）。
+// 新経路は文ごとに共有キャッシュを引き、未命中だけをサーバが訳し、ctx に {tmdbId,season,
+// episode,type} があれば共有キャッシュ行（vocab_cache）の空欄も埋める＝2人目以降は AI 呼び出し 0。
+//   ctx.rowWords: 表示語に加えて「行の全語」を渡すと、最初の1人で行が完成する（任意）。
+export async function fillMissingExampleJa(words, ctx = {}) {
+  const display = (words || []).filter((w) => w && w.example && !w.example_ja_ok);
+  // 既に訳がある語は確定扱い（履歴の旧データ等）＝要求しない
   let changed = false;
-
-  for (let i = 0; i < missing.length; i += BATCH) {
-    const batch = missing.slice(i, i + BATCH);
-    const inputArr = batch.map((w) => ({ word: w.word, example: w.example, example_ja: '' }));
-    const prompt = `以下のJSON配列の各要素について、example（ドラマの字幕の英文）を自然な日本語に翻訳してexample_jaに入れてください。
-- example の文全体を翻訳すること（単語の意味説明は不要）
-- JSON配列のみ返答（説明不要）
-
-${JSON.stringify(inputArr)}`;
-
-    try {
-      const text = await callClaude(prompt, 1500);
-      const rawArr = text.match(/\[[\s\S]*\]/)?.[0] || '[]';
-      let arr = [];
-      try {
-        arr = JSON.parse(rawArr);
-      } catch {
-        arr = JSON.parse(repairJson(rawArr));
-      }
-
-      arr.forEach((item) => {
-        if (!item?.word || !item?.example_ja?.trim()) return;
-        const w = words.find((x) => x.word.toLowerCase() === item.word.toLowerCase());
-        if (!w) return;
-        w.example_ja = item.example_ja.trim();
-        w.example_ja_ok = true;
-        changed = true;
-      });
-    } catch {
-      /* バッチ失敗は無視して次へ */
+  for (const w of display) {
+    if (w.example_ja) {
+      w.example_ja_ok = true;
+      changed = true;
     }
+  }
+  const need = display.filter((w) => !w.example_ja);
+  const row = (ctx.rowWords || []).filter((w) => w && w.example && !w.example_ja);
+  if (!need.length && !row.length) return changed;
+
+  const keyOf = (s) => String(s || '').trim().slice(0, 300); // サーバのハッシュ入力と同じ正規化
+  // 文 → その文を持つ語（表示語を先に・行の語は後ろに。同じ文の語はまとめて埋まる）
+  const bySentence = new Map();
+  for (const w of [...need, ...row]) {
+    const k = keyOf(w.example);
+    if (!k) continue;
+    if (!bySentence.has(k)) bySentence.set(k, []);
+    bySentence.get(k).push(w);
+  }
+  const sentences = [...bySentence.keys()];
+  const BATCH = 10;
+  for (let i = 0; i < sentences.length; i += BATCH) {
+    const batch = sentences.slice(i, i + BATCH);
+    const res = await translateSentences({
+      sentences: batch,
+      tmdbId: ctx.tmdbId,
+      season: ctx.season,
+      episode: ctx.episode,
+      type: ctx.type,
+    });
+    batch.forEach((s, j) => {
+      const ja = res.ja?.[j];
+      if (!ja) return; // null＝形式崩れ/未訳 → example_ja_ok を立てず次回に再試行
+      for (const w of bySentence.get(s)) {
+        if (w.example_ja) continue;
+        w.example_ja = ja;
+        w.example_ja_ok = true;
+        if (need.includes(w)) changed = true;
+      }
+    });
+    if (res.rateLimited || res.unsupported) break; // 静かに打ち切る（残りは次回・別ユーザー・backfill が埋める）
   }
   return changed;
 }

@@ -180,7 +180,7 @@ for (const [base, forms] of Object.entries(IRREGULAR_VERBS)) {
 }
 
 export function getWordVariants(word) {
-  const w = word.toLowerCase();
+  const w = normApostrophes(word).toLowerCase();
   const v = new Set([w]);
 
   if (IRREGULAR_VERBS[w]) IRREGULAR_VERBS[w].forEach((f) => v.add(f));
@@ -239,14 +239,50 @@ export function getWordVariants(word) {
   return v;
 }
 
-// 例文に単語（活用形含む）が含まれるか
+// ── 語／フレーズ照合器（活用形・句動詞の分離・冠詞/目的語の差を吸収）──────────
+// 句動詞・コロケーションは原形（pull off / cut a deal / file a lawsuit）で生成されるが、
+// 字幕では "pulled it off" / "cut deals" / "filed a lawsuit" のように活用・分離・冠詞省略で
+// 現れる。旧 exampleContainsWord はフレーズ全体を1語として扱い（\bpull off\b＋末尾活用のみ）
+// これらを一切拾えなかった。結果、プロンプトが「最優先で拾え」と指示する句動詞が
+// refineDramaWords で「字幕に無い drama 語＝水増し」として全て捨てられ、逆に "Genghis Khan"
+// のような字面どおりの複合語だけが生き残っていた（本番 vocab_cache 4行を実測: 句動詞の生存ゼロ・
+// 2026-09-11）。ここを1つの照合器に集約し、配信経路（findExampleForWord 等）・保存経路
+// （findWordCueSec）・生成精査（vocab.js）・クイズ穴埋め（prep.js）が同じ規則で判定する
+// （memory「字幕tsSec二重パスの罠」＝経路ごとに照合が割れると再発する）。
+//   規則: 各トークン（活用形込み）が語順どおりに、間に最大2語（it / a / the / him 等）を挟んで
+//         現れれば一致。冠詞・代名詞などの「埋め草」トークンは必須にしない（cut a deal → cut deals）。
+//   単語（1トークン）は従来どおり \b(活用形の選択)\b。
+const APOSTROPHE_RE = /[’‘`´]/g;
+export function normApostrophes(s) {
+  return String(s || '').replace(APOSTROPHE_RE, "'");
+}
+const PHRASE_FILLERS = new Set([
+  'a', 'an', 'the', 'it', 'them', 'him', 'her', 'me', 'us', 'you', 'one', "one's", 'oneself',
+  'someone', "someone's", 'somebody', 'something', 'sb', 'sth', 'my', 'your', 'his', 'their',
+  'our', 'its', 'yourself',
+]);
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+function variantAlternation(tok) {
+  // 長い活用形を先に置く（match の一致幅を最長にする＝クイズの空欄化で "running" が "run" に食われない）
+  const vs = [...getWordVariants(tok)].sort((a, b) => b.length - a.length).map(escapeRe);
+  return `(?:${vs.join('|')})`;
+}
+// 語／フレーズに一致する RegExp を返す（空語は null）。flags は 'i' か 'gi'。
+export function wordMatchRegex(word, flags = 'i') {
+  const w = normApostrophes(word).toLowerCase().trim();
+  if (!w) return null;
+  const toks = w.split(/\s+/).filter(Boolean);
+  if (toks.length === 1) return new RegExp(`\\b${variantAlternation(w)}\\b`, flags);
+  const content = toks.filter((t) => !PHRASE_FILLERS.has(t));
+  const seq = content.length ? content : toks;
+  const body = seq.map(variantAlternation).join('\\b(?:\\W+\\w+){0,2}?\\W+\\b');
+  return new RegExp(`\\b${body}\\b`, flags);
+}
+
+// 例文に単語／フレーズ（活用形・分離込み）が含まれるか
 export function exampleContainsWord(example, word) {
-  const variants = getWordVariants(word);
-  const exLower = example.toLowerCase();
-  return [...variants].some((vv) => {
-    const re = new RegExp(`\\b${vv.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`);
-    return re.test(exLower);
-  });
+  const re = wordMatchRegex(word);
+  return !!re && re.test(normApostrophes(example));
 }
 
 // 例文を「その語を含む1〜2文」に詰める。
@@ -574,18 +610,11 @@ function applyVodSync(fit, sec) {
 //   example が無い／候補ゼロのときは従来どおり「語を含む最初のキュー」にフォールバック。
 function findWordCueSec(cues, word, example) {
   if (!cues.length) return null;
-  const res = word
-    .toLowerCase()
-    .trim()
-    .split(/\s+/)
-    .map((tok) => {
-      const variants = [...getWordVariants(tok)].map((v) =>
-        v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-      );
-      return new RegExp(`\\b(${variants.join('|')})\\b`, 'i');
-    });
-  // ① その語（活用形含む）を含むキューに候補を絞る
-  const hits = cues.filter((c) => res.every((re) => re.test(c.text)));
+  // ① その語（活用形・句動詞の分離込み）を含むキューに候補を絞る。
+  //    配信経路（exampleContainsWord）と同じ照合器を使う＝📍時刻と例文の照合規則を割らない。
+  const re = wordMatchRegex(word);
+  if (!re) return null;
+  const hits = cues.filter((c) => re.test(c.text));
   if (!hits.length) return null;
   if (hits.length === 1) return hits[0].sec;
 
