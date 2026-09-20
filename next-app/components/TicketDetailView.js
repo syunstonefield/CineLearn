@@ -128,15 +128,22 @@ export default function TicketDetailView({ entry, seasons, onBack, onFav, onStud
               </div>
             </div>
             <div className="td-stat">
-              <div className="td-stat-label">学習時間</div>
-              <div className="td-stat-num">{studyTime}</div>
+              <div className="td-stat-label">覚えた</div>
+              <div className="td-stat-num">
+                {entry.learnedWords ?? 0}
+                <span className="td-stat-sub"> / {entry.wordCount}語</span>
+              </div>
             </div>
             <div className="td-stat">
-              <div className="td-stat-label">単語帳に追加</div>
+              <div className="td-stat-label">マスター</div>
               <div className="td-stat-num">
-                {entry.wordCount}
+                {entry.masteredWords ?? 0}
                 <span className="td-stat-sub"> 語</span>
               </div>
+            </div>
+            <div className="td-stat">
+              <div className="td-stat-label">学習時間</div>
+              <div className="td-stat-num">{studyTime}</div>
             </div>
           </div>
           {progress != null && (
@@ -144,8 +151,8 @@ export default function TicketDetailView({ entry, seasons, onBack, onFav, onStud
               <div className="td-progress-bar">
                 <span style={{ width: `${progress}%` }} />
               </div>
-              <span className="td-progress-pct">進捗率 {progress}%</span>
-              {progress >= 100 && <span className="td-done-badge">完了</span>}
+              <span className="td-progress-pct">覚えた率 {progress}%</span>
+              {progress >= 100 && <span className="td-done-badge">全語制覇</span>}
             </div>
           )}
         </section>

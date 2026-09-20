@@ -5732,7 +5732,7 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
 
 /* 学習の記録（3指標） */
 .td-stats {
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1px; /* 4セル: スマホ2×2・PC4列（110pxだとスマホで3+1になり空きが出た） */
   background: var(--border); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; margin-bottom: 12px;
 }
 .td-stat { background: var(--surface); padding: 14px 6px; text-align: center; }

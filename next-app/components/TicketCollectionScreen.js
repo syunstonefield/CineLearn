@@ -65,6 +65,8 @@ export default function TicketCollectionScreen() {
         studiedEps: e.episodes.length,
         episodes: e.episodes,
         wordCount: stats.get(title)?.total || 0,
+        learnedWords: stats.get(title)?.learned || 0,
+        masteredWords: stats.get(title)?.mastered || 0,
         addedDate: firstDate.get(title) || e.lastDate || '',
       };
     });
@@ -225,7 +227,10 @@ export default function TicketCollectionScreen() {
       entries.map((e) => {
         const sj = e.isMovie ? { total: 1, seasons: [] } : e.tmdbId ? seasonsMap[e.tmdbId] : null;
         const total = e.isMovie ? 1 : sj?.total || null;
-        const progress = total ? Math.min(100, Math.round((e.studiedEps / total) * 100)) : null;
+        // 半券の PROGRESS＝学習の達成度（覚えた語 / この作品で集めた語）。
+        // 旧実装は「単語リストを作った話数 / 総話数」＝観た量で、半券が讃える対象としては
+        // 学習の実感と噛み合わなかった（2026-09-21 オーナー指摘）。観た量は TOTAL EPISODES 側が持つ。
+        const progress = e.wordCount ? Math.round((e.learnedWords / e.wordCount) * 100) : null;
         const range = fullRangeLabel(sj?.seasons, e.episodes);
         const isFav = favs.includes(e.title);
         const status = total != null ? (e.studiedEps >= total ? 'done' : 'watching') : 'watching';
