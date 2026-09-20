@@ -3,7 +3,7 @@
 // 何をするか:
 //   TARGETS の各エピソードについて
 //     vocab_cache から既存 words を読む（service_role・読取のみ）
-//     → 本番 /api/subtitles 経由で生 SRT を取得
+//     → 生 SRT を取得（subtitle_raw_cache → 無ければ本番 /api/subtitles を seed 秘密ヘッダで・seed/lib/osdl.mjs）
 //     → 修正後ロジック（attachBaseTimestamps）で tsSec を再計算
 //     → 保存済み tsSec（before）と再計算 tsSec（after）を語ごとに並べて表示
 //
@@ -13,11 +13,12 @@
 // 実行:
 //   node --env-file=seed/.env --import ./seed/register-hooks.mjs seed/verify-timestamps.mjs
 //
-//   必要 env: SUPABASE_SERVICE_ROLE_KEY / CINELEARN_API_BASE / CINELEARN_API_ORIGIN
+//   必要 env: SUPABASE_SERVICE_ROLE_KEY / CINELEARN_API_BASE / CINELEARN_API_ORIGIN / CL_SEED_SECRET
+//     （CINELEARN_API_BASE・ORIGIN は https://cinelearn-next.vercel.app。download は seed 秘密ヘッダ必須・2026-09-12）
 //   ※ DBへの書き込みは一切しない（読取専用）。鍵は出力しない。
 
-import { searchSubtitles, downloadSubtitle } from '../next-app/lib/api.js';
-import { selectSubtitleCandidates, parseSrt, attachBaseTimestamps } from '../next-app/lib/subtitles.js';
+import { attachBaseTimestamps } from '../next-app/lib/subtitles.js';
+import { API_BASE, API_ORIGIN, isFatal, seedFetchRawSrt, warnIfSeedHeaderMissing } from './lib/osdl.mjs';
 
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://mndyexwdevkpdssglwpl.supabase.co';
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -35,8 +36,9 @@ function fail(msg) {
   process.exit(1);
 }
 if (!SERVICE_KEY) fail('SUPABASE_SERVICE_ROLE_KEY が未設定です。');
-if (!process.env.CINELEARN_API_BASE) fail('CINELEARN_API_BASE 未設定。');
-if (!process.env.CINELEARN_API_ORIGIN) fail('CINELEARN_API_ORIGIN 未設定。');
+if (!API_BASE) fail('CINELEARN_API_BASE 未設定。');
+if (!API_ORIGIN) fail('CINELEARN_API_ORIGIN 未設定。');
+warnIfSeedHeaderMissing();
 
 const authHeaders = { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` };
 
@@ -50,27 +52,12 @@ async function fetchRow(cacheKey) {
   return Array.isArray(rows) && rows.length ? rows[0] : null;
 }
 
+// 生 SRT を取る。subtitle_raw_cache（service_role）→ 無ければ本番 /api/subtitles（seed 秘密ヘッダ・search→候補→DL）。
+//   raw cache を先に読むのは「生成に使った SRT と同じ物」で tsSec を付け直すため（別候補だと example とずれる）。
+//   戻り値 { raw, via } | null（字幕なし）。生 SRT はログに出さない（A20）。
 async function fetchRawSrt(drama, season, episode) {
-  const isMovie = drama.type === 'movie';
-  const subs = await searchSubtitles(
-    drama.englishTitle || drama.title,
-    season,
-    episode,
-    isMovie ? 'movie' : 'tv',
-    isMovie ? drama.tmdbId : null
-  );
-  const sorted = selectSubtitleCandidates(subs, isMovie, season, episode);
-  if (!sorted.length) return null;
-  for (const cand of sorted.slice(0, 3)) {
-    const fid = cand.attributes.files[0].file_id;
-    const text = await downloadSubtitle(fid);
-    if (!text) continue;
-    const musicRatio = (text.match(/♪/g) || []).length / (text.length / 100);
-    if (musicRatio > 5) continue;
-    if (parseSrt(text).length < 200) continue;
-    return text;
-  }
-  return null;
+  const got = await seedFetchRawSrt({ tmdbId: drama.tmdbId, type: drama.type, season, episode });
+  return got ? { raw: got.raw, via: got.via } : null;
 }
 
 async function verifyEpisode(t, season, episode) {
@@ -88,9 +75,10 @@ async function verifyEpisode(t, season, episode) {
   // before = 保存済み tsSec を控える（参照渡しで上書きされる前に退避）
   const before = new Map(words.map((w) => [w.word, w.tsSec ?? null]));
 
-  const rawSrt = await fetchRawSrt(drama, season, episode);
-  if (!rawSrt) return console.warn('  ⚠ 字幕が取得できない');
-  console.log(`  生 SRT ${rawSrt.length} 文字 取得 / ${words.length} 語`);
+  const got = await fetchRawSrt(drama, season, episode);
+  if (!got) return console.warn('  ⚠ 字幕が取得できない');
+  const rawSrt = got.raw;
+  console.log(`  生 SRT ${rawSrt.length} 文字 取得（${got.via === 'raw_cache' ? 'subtitle_raw_cache' : 'OpenSubtitles'}）/ ${words.length} 語`);
 
   // 修正後ロジックで after を計算（in-place 上書き＝DBには書かない）
   attachBaseTimestamps(words, { title: drama.englishTitle || drama.title, season, episode, rawSrt });
@@ -113,13 +101,17 @@ async function verifyEpisode(t, season, episode) {
 }
 
 async function main() {
-  console.log(`検証開始（読取専用・cache_version=${CACHE_VERSION}, base=${process.env.CINELEARN_API_BASE}）`);
-  for (const t of TARGETS) {
+  console.log(`検証開始（読取専用・cache_version=${CACHE_VERSION}, base=${API_BASE}）`);
+  outer: for (const t of TARGETS) {
     for (const ep of t.episodes) {
       try {
         await verifyEpisode(t, ep.season, ep.episode);
       } catch (err) {
         console.error('  ❌', err.message);
+        if (isFatal(err)) {
+          console.error(`✖ 続行しても同じ失敗になる（${err.code}）→ 走査を中止`);
+          break outer;
+        }
       }
     }
   }

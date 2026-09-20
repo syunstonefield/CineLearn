@@ -3,7 +3,7 @@
 // 何をするか:
 //   TARGETS の各エピソードについて
 //     vocab_cache から既存 words を読む（← Claude 再生成はしない＝コスト/語の差し替えなし）
-//     → 本番 /api/subtitles 経由で生 SRT を取得
+//     → 生 SRT を取得（subtitle_raw_cache → 無ければ本番 /api/subtitles を seed 秘密ヘッダで・seed/lib/osdl.mjs）
 //     → attachBaseTimestamps で各語に tsSec/tsLabel を付与（VOD 補正なし・secToTimeLabel は時間繰り上げ対応）
 //     → words 配列を差し替えて vocab_cache に upsert（他カラムは元の値を保持）
 //
@@ -13,11 +13,12 @@
 // 実行（seed-vocab.mjs と同じ流儀）:
 //   node --env-file=seed/.env --import ./seed/register-hooks.mjs seed/backfill-timestamps.mjs
 //
-//   必要 env: SUPABASE_SERVICE_ROLE_KEY / CINELEARN_API_BASE / CINELEARN_API_ORIGIN
+//   必要 env: SUPABASE_SERVICE_ROLE_KEY / CINELEARN_API_BASE / CINELEARN_API_ORIGIN / CL_SEED_SECRET
+//     （CINELEARN_API_BASE・ORIGIN は https://cinelearn-next.vercel.app。download は seed 秘密ヘッダ必須・2026-09-12）
 //   任意 env: SUPABASE_URL（既定=本番）/ VOCAB_CACHE_VERSION（既定=1・api/vocab と一致）
 
-import { searchSubtitles, downloadSubtitle } from '../next-app/lib/api.js';
-import { selectSubtitleCandidates, parseSrt, attachBaseTimestamps } from '../next-app/lib/subtitles.js';
+import { attachBaseTimestamps } from '../next-app/lib/subtitles.js';
+import { API_BASE, API_ORIGIN, isFatal, seedFetchRawSrt, warnIfSeedHeaderMissing } from './lib/osdl.mjs';
 
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://mndyexwdevkpdssglwpl.supabase.co';
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -45,8 +46,9 @@ function fail(msg) {
   process.exit(1);
 }
 if (!SERVICE_KEY) fail('SUPABASE_SERVICE_ROLE_KEY が未設定です（Supabase の service_role キー）。');
-if (!process.env.CINELEARN_API_BASE) fail('CINELEARN_API_BASE 未設定（例: https://cine-learn.vercel.app）。字幕取得に本番 API を使う。');
-if (!process.env.CINELEARN_API_ORIGIN) fail('CINELEARN_API_ORIGIN 未設定（本番 API の Origin ゲートを通すため必要）。');
+if (!API_BASE) fail('CINELEARN_API_BASE 未設定（例: https://cinelearn-next.vercel.app）。字幕取得に本番 API を使う。');
+if (!API_ORIGIN) fail('CINELEARN_API_ORIGIN 未設定（本番 API の Origin ゲートを通すため必要）。');
+warnIfSeedHeaderMissing();
 
 const authHeaders = {
   apikey: SERVICE_KEY,
@@ -75,28 +77,12 @@ async function upsertRow(row) {
   if (!res.ok) throw new Error(`upsert 失敗 HTTP ${res.status}: ${await res.text()}`);
 }
 
-// fetchEpisodeSubtitle の localStorage 非依存部分（検索→候補選別→DL）。生 SRT を返す。
+// 生 SRT を取る。subtitle_raw_cache（service_role）→ 無ければ本番 /api/subtitles（seed 秘密ヘッダ・search→候補→DL）。
+//   raw cache を先に読むのは「生成に使った SRT と同じ物」で tsSec を付け直すため（別候補だと example とずれる）。
+//   戻り値 { raw, via } | null（字幕なし）。生 SRT はログに出さない（A20）。
 async function fetchRawSrt(drama, season, episode) {
-  const isMovie = drama.type === 'movie';
-  const subs = await searchSubtitles(
-    drama.englishTitle || drama.title,
-    season,
-    episode,
-    isMovie ? 'movie' : 'tv',
-    isMovie ? drama.tmdbId : null
-  );
-  const sorted = selectSubtitleCandidates(subs, isMovie, season, episode);
-  if (!sorted.length) return null;
-  for (const cand of sorted.slice(0, 3)) {
-    const fid = cand.attributes.files[0].file_id;
-    const text = await downloadSubtitle(fid);
-    if (!text) continue;
-    const musicRatio = (text.match(/♪/g) || []).length / (text.length / 100);
-    if (musicRatio > 5) continue; // 歌詞ばかりは除外（本取得と同基準）
-    if (parseSrt(text).length < 200) continue; // 短すぎる字幕は信頼しない
-    return text;
-  }
-  return null;
+  const got = await seedFetchRawSrt({ tmdbId: drama.tmdbId, type: drama.type, season, episode });
+  return got ? { raw: got.raw, via: got.via } : null;
 }
 
 const tsCount = (words) => words.filter((w) => w.tsSec != null).length;
@@ -124,12 +110,13 @@ async function backfillEpisode(t, season, episode) {
   const beforeTs = new Map(words.map((w) => [w.word, w.tsSec ?? null]));
   console.log(`  既存 ${words.length} 語（時刻付き ${before}）`);
 
-  const rawSrt = await fetchRawSrt(drama, season, episode);
-  if (!rawSrt) {
+  const got = await fetchRawSrt(drama, season, episode);
+  if (!got) {
     console.warn('  ⚠ 字幕が取得できない → スキップ（既存データは変更しない）');
     return;
   }
-  console.log(`  生 SRT ${rawSrt.length} 文字 取得`);
+  const rawSrt = got.raw;
+  console.log(`  生 SRT ${rawSrt.length} 文字 取得（${got.via === 'raw_cache' ? 'subtitle_raw_cache' : 'OpenSubtitles'}）`);
 
   // 各語に tsSec/tsLabel を付与（in-place・VOD 補正なし）。語の増減は無し。
   attachBaseTimestamps(words, { title: drama.englishTitle || drama.title, season, episode, rawSrt });
@@ -153,10 +140,10 @@ async function backfillEpisode(t, season, episode) {
 }
 
 async function main() {
-  console.log(`バックフィル開始（cache_version=${CACHE_VERSION}, base=${process.env.CINELEARN_API_BASE}）`);
+  console.log(`バックフィル開始（cache_version=${CACHE_VERSION}, base=${API_BASE}）`);
   let ok = 0;
   let ng = 0;
-  for (const t of TARGETS) {
+  outer: for (const t of TARGETS) {
     for (const ep of t.episodes) {
       try {
         await backfillEpisode(t, ep.season, ep.episode);
@@ -164,6 +151,10 @@ async function main() {
       } catch (err) {
         ng++;
         console.error('  ❌', err.message);
+        if (isFatal(err)) {
+          console.error(`✖ 続行しても同じ失敗になる（${err.code}）→ 走査を中止`);
+          break outer;
+        }
       }
     }
   }
