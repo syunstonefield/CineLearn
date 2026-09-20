@@ -209,7 +209,7 @@ export async function generateEpisodeVocab(body, { signal } = {}) {
     // 文字列コード（internal/forbidden/…）は日本語へ写す（そのまま画面に出さない）。
     return { kind: 'error', status: res.status, message: messageOf(data, '単語リストの生成に失敗しました') };
   }
-  if (data.blocked) return { kind: 'blocked' };
+  if (data.blocked) return { kind: 'blocked', loginHint: !!data.loginHint }; // カタログ外は未ログインのみ（ログインで解除）
   if (data.nosub) return { kind: 'nosub' };
   if (Array.isArray(data.words)) {
     return { kind: data.hit ? 'hit' : 'generated', words: data.words, meta: data.meta || {} };

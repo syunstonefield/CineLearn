@@ -12,7 +12,7 @@
 //   200 { hit:true, words, meta }                         … 共有キャッシュ命中（計数なし）
 //   200 { hit:false, generated:true, words, meta }        … 生成した（meta.contributed=false は共有されなかった）
 //   200 { hit:false, generated:false, reason }            … 否定キャッシュ（直近の失敗・品質不通過・連続失敗）
-//   200 { blocked:true }                                  … カタログ外（ゲート有効時）
+//   200 { blocked:true, loginHint:true }                  … カタログ外（ゲート有効時・**未ログインのみ**。ログインすればどの作品でも生成可）
 //   200 { nosub:true }                                    … 字幕なし（枠は消費する＝存在しない tmdbId で OS 検索を回させない）
 //   409 { busy:true, retryAfterSec, ttlSec }              … 同じ話を他の人が生成中
 //   429 { error:'rate_limited', scope, window, resetAtUtc, limit, loginHint }
@@ -119,8 +119,11 @@ export async function POST(req) {
   const seed = isSeedRequest(req);
   const privileged = seed || isAdmin(uid);
 
-  // ── 3) カタログゲート（サーバ側・cl_catalog_admin のクライアント側バイパスを無効化）──
-  if (!privileged && !(await isInCatalog(id))) return json({ blocked: true });
+  // ── 3) カタログゲート（サーバ側・cl_catalog_admin のクライアント側バイパスは無効）──
+  //   2026-09-21 オーナー判断: ゲートは**未ログインだけ**に掛ける。費用と OS 枠の暴走は user/IP の日次天井と
+  //   DL キャップで塞がったので、登録してくれた人には「観たい作品が教材になる」を約束どおり出す。
+  //   匿名（通りすがり）はカタログ内のみ＝ドライブバイのコストを抑える。応答に loginHint を添える。
+  if (!privileged && !uid && !(await isInCatalog(id))) return json({ blocked: true, loginHint: true });
 
   // ── 4) cache-first（命中は計数しない・/api/vocab と同形）──
   const cached = await readVocabRow(cacheKey);

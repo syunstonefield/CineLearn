@@ -123,6 +123,12 @@ export default function VocabScreen() {
       setGenNote(null);
       setMessage('ログインしました。「単語を再生成」で続けられます');
     }
+    // カタログ外（soon）はログインで解除される＝生成ボタンを出し直す（サーバが再判定する）
+    if (loggedIn && phase === 'soon') {
+      setPhase('ready');
+      setMessage('ログインしました。「予習をはじめる」で単語リストを作れます');
+      setGenBtn({ text: '予習をはじめる →', disabled: false, hidden: false });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loggedIn]);
   const [notShared, setNotShared] = useState(false);
@@ -1596,8 +1602,13 @@ export default function VocabScreen() {
                クリック保存は全作品で使えることを必ず添える（D0救済・改善4）。 */
             <div className="soon-panel">
               <div className="soon-emoji" aria-hidden="true">🎬</div>
-              <div className="soon-title">この作品は順次対応予定です</div>
-              <div className="soon-sub">リクエストの多い作品から、毎週カタログに追加しています</div>
+              <div className="soon-title">この作品はログインすると予習できます</div>
+              <div className="soon-sub">ログインなしで使えるのは対応作品のみです。ログインすれば、どの作品でも1日30話まで単語リストを作れます</div>
+              {/* カタログゲートは未ログインだけに掛かる（2026-09-21 オーナー判断）。ログインが最短の解決なので最上段に置く */}
+              <button type="button" className="soon-request-btn" onClick={openAuth}>
+                🔑 ログインしてこの作品を予習する
+              </button>
+              <div className="soon-sub" style={{ marginTop: 14 }}>ログインしない場合は、リクエストの多い作品から毎週カタログに追加しています</div>
               {catReq.planned && <div className="soon-planned">📅 この作品は対応予定に入っています</div>}
               <button
                 className="soon-request-btn"
