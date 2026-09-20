@@ -1,7 +1,7 @@
 // 既存アプリ（js/app.js）からの移植。
 // localStorage のキー・データ構造は既存実装と完全に同一に保つこと。
 
-import { pushHistoryEntry, deleteHistoryRow, pushSrsWords, pushProfiles } from './supabase';
+import { pushHistoryEntry, deleteHistoryRow, pushSrsWords, deleteSrsWord, pushProfiles } from './supabase';
 import { PROFILES_AT_KEY } from './profileMerge';
 
 export const HISTORY_KEY = 'cl_history';
@@ -579,6 +579,23 @@ export function reviewWord(word, quality) {
   all[k] = e;
   saveSrs(all);
   pushSrsWords({ [k]: e }); // クラウドへ（未ログイン時は no-op・fire-and-forget）
+}
+
+// 採点の取り消し（押し間違い救済・2026-09-21）。before は採点前のエントリ（新規語なら undefined）。
+// ローカルを戻すだけだとクラウドの「今日の復習」行が pull の語単位マージ（last_review が新しい方が
+// 勝つ）で戻ってきてしまうため、クラウド側も同じ状態にする＝既存語は上書き push・新規語は行を削除。
+export function restoreSrsEntry(word, before) {
+  const all = loadSrs();
+  const k = word.toLowerCase();
+  if (before) {
+    all[k] = before;
+    saveSrs(all);
+    pushSrsWords({ [k]: before });
+  } else {
+    delete all[k];
+    saveSrs(all);
+    deleteSrsWord(k);
+  }
 }
 
 // ── 履歴の保存・更新（saveToHistory 相当）──────────────────

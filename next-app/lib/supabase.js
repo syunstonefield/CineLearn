@@ -586,6 +586,18 @@ export async function pushHistoryEntry(entry) {
 }
 
 // 履歴エントリをクラウドから削除（自分の行のみ）。ログイン時のみ。
+// 採点取り消しで「新規語の初採点」を戻す時だけ使う（行が無かった状態に戻す）。
+// pushSrsWords は upsert のみで削除できないため専用に用意。GRANT DELETE は supabase_user_state.sql 済み。
+export async function deleteSrsWord(word) {
+  if (!isLoggedIn() || !word) return;
+  const uid = getCurrentUser()?.id;
+  if (!uid) return;
+  await sbFetch(`/rest/v1/srs_data?user_id=eq.${uid}&word=eq.${encodeURIComponent(word)}`, {
+    method: 'DELETE',
+    headers: { Prefer: 'return=minimal' },
+  });
+}
+
 export async function deleteHistoryRow(id) {
   if (!isLoggedIn() || !id) return;
   const uid = getCurrentUser()?.id;

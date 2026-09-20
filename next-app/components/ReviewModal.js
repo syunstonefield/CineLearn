@@ -10,6 +10,7 @@ import {
   isLearned,
   isMastered,
   reviewWord,
+  restoreSrsEntry,
   recordReviewSession,
   getTodaySessions,
   subtitleCredit,
@@ -27,6 +28,12 @@ export default function ReviewModal({ asPage = false }) {
   const [ratings, setRatings] = useState({}); // word -> quality
   const [promo, setPromo] = useState({ learned: [], mastered: [] });
   const [sessionInfo, setSessionInfo] = useState(null); // 完了時に記録
+  // 再挑戦パス（😰知らなかったをもう一度）：採点しない＝「次へ」だけ（2026-09-21 オーナー提案）。
+  //   同日2回目の成功は reviewWord が練習扱いにするので日程には元々効かなかったが、
+  //   lastQuality/reviewCount の上書きと昇格ボーナスEXPの二重計上が残っていた。採点自体をやめて根絶。
+  const [retryMode, setRetryMode] = useState(false);
+  // 採点の取り消し用スナップショット（押し間違い救済）。1枚採点するごとに積む。
+  const [undoStack, setUndoStack] = useState([]);
   const initKey = useMemo(() => (reviewWords ? reviewWords.map((w) => w.word).join('|') : ''), [reviewWords]);
   const [builtKey, setBuiltKey] = useState(null);
 
@@ -47,6 +54,8 @@ export default function ReviewModal({ asPage = false }) {
     setRatings({});
     setPromo({ learned: [], mastered: [] });
     setSessionInfo(null);
+    setRetryMode(false);
+    setUndoStack([]);
     setBuiltKey(initKey);
   }
 
@@ -58,10 +67,19 @@ export default function ReviewModal({ asPage = false }) {
 
   const rate = (q) => {
     const w = queue[idx];
+    // 再挑戦パスは見直すだけ＝SRS・採点・昇格に触れず次のカードへ
+    if (retryMode) {
+      setUndoStack((st) => [...st, { word: w.word }]);
+      setFlipped(false);
+      setIdx((i) => i + 1);
+      return;
+    }
     const srs = loadSrs();
     const before = srs[w.word.toLowerCase()];
     const wasLearned = isLearned(before);
     const wasMastered = isMastered(before);
+    // 取り消し用に採点前の状態を保存（SRSエントリは複製・新規語は undefined のまま）
+    setUndoStack((st) => [...st, { word: w.word, before: before ? { ...before } : undefined, promo, ratings }]);
     reviewWord(w.word, q);
     const after = loadSrs()[w.word.toLowerCase()];
     const newPromo = { learned: [...promo.learned], mastered: [...promo.mastered] };
@@ -71,6 +89,20 @@ export default function ReviewModal({ asPage = false }) {
     setRatings((r) => ({ ...r, [w.word]: q }));
     setFlipped(false);
     setIdx((i) => i + 1);
+  };
+
+  // 直前の採点を取り消して1枚戻る（意味を開いた状態で戻す＝すぐ採点し直せる）。
+  const undo = () => {
+    const snap = undoStack[undoStack.length - 1];
+    if (!snap || idx === 0) return;
+    if (!retryMode) {
+      restoreSrsEntry(snap.word, snap.before);
+      setPromo(snap.promo);
+      setRatings(snap.ratings);
+    }
+    setUndoStack((st) => st.slice(0, -1));
+    setIdx((i) => i - 1);
+    setFlipped(true);
   };
 
   const done = idx >= queue.length;
@@ -105,11 +137,15 @@ export default function ReviewModal({ asPage = false }) {
               currentHistoryId={currentHistoryId}
               sessionInfo={sessionInfo}
               setSessionInfo={setSessionInfo}
+              retryMode={retryMode}
               onRetryFailed={(failed) => {
                 setQueue(failed);
                 setIdx(0);
                 setFlipped(false);
                 setRatings({});
+                setPromo({ learned: [], mastered: [] }); // 1周目の昇格を完了画面で再表示・再加算しない
+                setUndoStack([]);
+                setRetryMode(true);
               }}
               onDone={closeReview}
             />
@@ -119,8 +155,10 @@ export default function ReviewModal({ asPage = false }) {
               idx={idx}
               total={queue.length}
               flipped={flipped}
+              retryMode={retryMode}
               onFlip={() => setFlipped(true)}
               onRate={rate}
+              onUndo={idx > 0 ? undo : null}
             />
           )}
         </div>
@@ -129,7 +167,7 @@ export default function ReviewModal({ asPage = false }) {
   );
 }
 
-function ReviewCard({ word: w, idx, total, flipped, onFlip, onRate }) {
+function ReviewCard({ word: w, idx, total, flipped, retryMode, onFlip, onRate, onUndo }) {
   // スワイプ採点：右=知ってた(5) / 左=知らなかった(0)。
   // うろ覚え(3)は3択ボタンで常時選べる（中間はSM-2の肝なのでジェスチャーに潰さない）。
   // 判定は意味を表示（flipped）してから有効。
@@ -143,13 +181,23 @@ function ReviewCard({ word: w, idx, total, flipped, onFlip, onRate }) {
     const t = e.changedTouches[0];
     const dx = t.clientX - touch.current.x;
     const dy = t.clientY - touch.current.y;
-    if (Math.abs(dx) > 64 && Math.abs(dx) > Math.abs(dy)) onRate(dx > 0 ? 5 : 0);
+    if (Math.abs(dx) > 64 && Math.abs(dx) > Math.abs(dy)) onRate(retryMode ? null : dx > 0 ? 5 : 0);
   };
 
   return (
     <div className="review-card" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
-      <div className="review-counter">
-        {idx + 1} / {total}
+      <div className="review-card-head">
+        {/* 押し間違い救済：直前の採点を取り消して戻る（1枚目には無い）。 */}
+        {onUndo ? (
+          <button type="button" className="review-undo" onClick={onUndo}>
+            ↩ 前のカードに戻る
+          </button>
+        ) : (
+          <span />
+        )}
+        <div className="review-counter">
+          {idx + 1} / {total}
+        </div>
       </div>
       {/* 本文（単語＋意味＋例文）＝画面中央に配置。採点/確認ボタンは下端(review-card-actions)。
           カード本文のタップでも意味を表示できる（片手操作・2026-07-03 実使用フィードバック#1。
@@ -223,6 +271,11 @@ function ReviewCard({ word: w, idx, total, flipped, onFlip, onRate }) {
           <button className="review-flip" onClick={onFlip}>
             タップして意味を確認 →
           </button>
+        ) : retryMode ? (
+          // 再挑戦パス：採点ボタンを出さず「次へ」だけ
+          <button className="review-flip review-next" onClick={() => onRate(null)}>
+            次へ →
+          </button>
         ) : (
           <>
             <div className="review-rate-btns">
@@ -252,7 +305,7 @@ function ReviewCard({ word: w, idx, total, flipped, onFlip, onRate }) {
   );
 }
 
-function ReviewDone({ queue, ratings, promo, currentHistoryId, sessionInfo, setSessionInfo, onRetryFailed, onDone }) {
+function ReviewDone({ queue, ratings, promo, currentHistoryId, sessionInfo, setSessionInfo, retryMode, onRetryFailed, onDone }) {
   const failed = queue.filter((w) => ratings[w.word] === 0);
   const hard = queue.filter((w) => ratings[w.word] === 3);
   const easy = queue.filter((w) => (ratings[w.word] ?? 5) === 5);
@@ -265,6 +318,13 @@ function ReviewDone({ queue, ratings, promo, currentHistoryId, sessionInfo, setS
   useEffect(() => {
     if (recordedRef.current) return;
     recordedRef.current = true;
+    // 再挑戦パスは採点していないので復習セッション（今日N回目・内訳）には数えない。
+    // EXPはカード×2だけ付ける（見直しの手間への報酬・昇格ボーナスは1周目で付与済み）。
+    if (retryMode) {
+      const earned = expForReviewSession({ cards: queue.length });
+      setExpGain({ earned, level: levelInfo(addExp(earned)) });
+      return;
+    }
     const num = recordReviewSession(currentHistoryId, easy.length, hard.length, failed.length);
     setSessionInfo({ num, sessions: getTodaySessions(currentHistoryId) });
     const earned = expForReviewSession({
@@ -298,6 +358,27 @@ function ReviewDone({ queue, ratings, promo, currentHistoryId, sessionInfo, setS
         ))}
       </div>
     );
+
+  if (retryMode) {
+    return (
+      <div className="review-done">
+        <div className="review-hero-emoji" style={{ fontSize: 48, marginBottom: 8 }}>
+          👀
+        </div>
+        <div style={{ fontSize: 19, fontWeight: 600, marginBottom: 4 }}>見直し完了！</div>
+        <div style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 8 }}>
+          知らなかった {queue.length}単語をもう一度確認しました
+        </div>
+        {expGain && <ExpBlock earned={expGain.earned} lv={expGain.level} />}
+        <div style={{ color: 'var(--text-muted)', fontSize: 12, margin: '4px 0 14px' }}>
+          次の復習日は変わりません（明日また出ます）
+        </div>
+        <button className="btn-primary" style={{ maxWidth: '100%', width: '100%' }} onClick={onDone}>
+          復習を終える
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className={'review-done' + (gotMaster ? ' review-done-gold' : '')}>
