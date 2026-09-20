@@ -15,6 +15,7 @@ import {
   updateHistoryWords,
   deleteHistoryEntry,
   todaySessionCount,
+  todayStr,
 } from '@/lib/storage';
 import {
   fetchTitleCandidatesFromTMDb,
@@ -1032,7 +1033,7 @@ export default function VocabScreen() {
         ja: ja || null, // 単語帳の文脈訳と同じ欄（WordbookScreen が優先表示）
         example_ja: exampleJa,
         tsSec: hit?.sec ?? null,
-        savedAt: new Date().toISOString().slice(0, 10),
+        savedAt: todayStr(),
         source: 'manual',
         dramaTitle: drama.title,
         season: isMovie ? null : season,

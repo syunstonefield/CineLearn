@@ -36,8 +36,19 @@ function safeSet(key, value) {
 // 保存は常に ISO（YYYY-MM-DD）、表示時だけ日本語形式に変換する。
 // 過去データには ja-JP 形式（2026/6/11）が混在するため、両形式を扱う。
 
+// 端末のローカル日付（YYYY-MM-DD）。
+// ⚠ toISOString() は UTC なので JST 0:00〜8:59 が「前日」になる。復習の「同日2回目＝練習」
+//   判定・今日N回目・連続日数・EXP台帳の日付キーが朝だけ前日に付く実害があった
+//   （2026-09-21 オーナー報告「回数は増えるのに日付が更新されない」）。日付を作る箇所は
+//   必ずここを通す（toISOString().slice(0,10) を新規に書かない）。
+export function localDateStr(d = new Date()) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 export function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+  return localDateStr();
 }
 
 export function toIsoDate(s) {
@@ -121,7 +132,7 @@ export function isDue(e) {
 export function getStreak(activityDates = loadActivityDates()) {
   const set = new Set(activityDates);
   if (!set.size) return 0;
-  const iso = (x) => x.toISOString().slice(0, 10);
+  const iso = (x) => localDateStr(x);
   let d = new Date();
   if (!set.has(iso(d))) {
     d.setDate(d.getDate() - 1);
@@ -195,7 +206,7 @@ export function getDueReviewWords(history = loadHistory(), srs = loadSrs(), extr
 export function getWeekStats(srs = loadSrs()) {
   const wa = new Date();
   wa.setDate(wa.getDate() - 6);
-  const wk = wa.toISOString().slice(0, 10);
+  const wk = localDateStr(wa);
   let reviewedThisWeek = 0;
   let mastered = 0;
   Object.values(srs).forEach((e) => {
@@ -561,7 +572,7 @@ export function reviewWord(word, quality) {
   }
   const d = new Date();
   d.setDate(d.getDate() + e.interval);
-  e.dueDate = d.toISOString().slice(0, 10);
+  e.dueDate = localDateStr(d);
   e.lastReview = todayStr();
   e.lastQuality = quality;
   e.reviewCount = (e.reviewCount || 0) + 1;
