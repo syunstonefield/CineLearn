@@ -1,4 +1,5 @@
 import '../style.css';
+import { Analytics } from '@vercel/analytics/next';
 
 export const metadata = {
   // OGP画像URLを絶対化する基準。画像は public/og-image.png を明示指定
@@ -9,7 +10,7 @@ export const metadata = {
   openGraph: {
     title: 'CineLearn — ドラマで英語を学ぶ',
     description:
-      'Netflix・Amazon Prime・Disney+の字幕から、クリックだけで単語帳へ。間隔反復で復習まで。',
+      'Netflix・Amazon Prime Video の字幕から、クリックだけで単語帳へ。間隔反復で復習まで。',
     siteName: 'CineLearn',
     type: 'website',
     locale: 'ja_JP',
@@ -56,6 +57,8 @@ export default function RootLayout({ children }) {
           href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500&family=Montserrat:wght@500;600;700&family=Playfair+Display:wght@400;700&display=swap"
         />
         {children}
+        {/* Vercel Web Analytics（ページビュー等の匿名統計・PP §3 に記載）。ダッシュボード側の Enable が必要 */}
+        <Analytics />
       </body>
     </html>
   );

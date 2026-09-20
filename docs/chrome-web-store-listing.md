@@ -1,7 +1,9 @@
-# Chrome Web Store 申請素材ドラフト（CineLearn v1.2.1）
+# Chrome Web Store 申請素材ドラフト（CineLearn v1.2.7）
 
 > 目的: Chrome Web Store のデベロッパーダッシュボード各フィールドにそのまま貼れる素材。
-> 公開方針＝**無料・非商用・非提携**（Netflix/Amazon/Disney/TMDB/OpenSubtitles とは無関係）。誇大表現・提携を匂わせる表現は禁止。
+> 公開方針＝**無料・非商用・非提携**。非提携文は next-app/lib/legal.js の NON_AFFILIATION と同文（PP・Terms・LP・support も同じ）:
+> 「CineLearn は Netflix、Amazon、Disney、Microsoft、The Movie Database (TMDB)、OpenSubtitles その他の動画配信・データ提供・AI サービス事業者と提携・公認関係にありません。各社の名称・商標は各権利者に帰属します。」
+> 誇大表現・提携を匂わせる表現は禁止。
 > 効果の主張は研究裏付けの範囲のみ（docs/research-2026-07-future-directions.md 準拠・「効果2倍」等の未裏付け表現は禁止）。
 
 ---
@@ -14,7 +16,7 @@
 - [x] ~~YouTube の実機検証~~ ✅2026-07-03 検証→**今回の申請から除外に決定**。単語保存は動くが、例文(OpenSubtitles由来)がYouTube動画には原理的に付かず(TMDB/OpenSubtitlesに無い)、差別化の芯=場面結びつき例文が機能しないため。manifestからyoutube削除・再zip済み(v1.2.1)。将来YouTube専用の例文経路(画面字幕を例文化)を作ってから再登場。
 - [ ] スクリーンショット5枚を撮影（§7 の構成・1280×800推奨）。
 - [ ] 審査は「開発元＝個人」。連絡先メール cinelearn.202606@gmail.com をダッシュボードに登録・確認済みにする。
-- [ ] アップロードする zip = `dist/CineLearn-extension-v1.2.1.zip`（manifest.json + extension/ + icons/icon-192,512）。
+- [ ] アップロードする zip = `dist/CineLearn-extension-v1.2.7.zip`（manifest.json + extension/ + icons/icon-128,192,512）。
 - [ ] （任意）小プロモタイル 440×280。無くても申請は可。
 
 ---
@@ -24,7 +26,7 @@
 | 項目 | 値 |
 |---|---|
 | 拡張機能名 | **CineLearn — ドラマで英語を学ぶ** |
-| バージョン | 1.2.1 |
+| バージョン | 1.2.7 |
 | カテゴリ | 教育 (Education) |
 | 言語 | 日本語 |
 | 開発者連絡先 | cinelearn.202606@gmail.com |
@@ -69,14 +71,13 @@ CineLearn は「ドラマを観る時間」を、そのまま英語学習のル�
 
 ■ 対応サービス
 Netflix / Amazon Prime Video / Disney+
-※ 字幕ナビ（前後のセリフへ移動 ◀▶）は Netflix / Amazon Prime Video のみ。
-   Disney+ は単語保存・例文・セリフコピーに対応しています。
+※ Disney+ は単語保存・例文・セリフコピー対応（◀▶ナビのみ非対応）。
 
 ■ 料金
 無料でご利用いただけます。
 
 ■ ご利用にあたって
-・CineLearn は Netflix・Amazon・Disney・TMDB・OpenSubtitles と提携・公認関係にありません。
+・CineLearn は Netflix、Amazon、Disney、Microsoft、The Movie Database (TMDB)、OpenSubtitles その他の動画配信・データ提供・AI サービス事業者と提携・公認関係にありません。各社の名称・商標は各権利者に帰属します。
 ・字幕の著作権は各権利者に帰属します。本ツールは学習目的で字幕の単語・短い例文を引用・表示します（出典を明示）。
 ・DRM の解除・動画やコンテンツのダウンロード・再配布は一切行いません。
 ・例文は OpenSubtitles のデータを出典明示のうえ利用しています。
@@ -103,14 +104,14 @@ https://cinelearn-next.vercel.app/privacy
 |---|---|
 | `storage` | 保存した単語帳・学習設定・拡張のON/OFF状態・ログインセッション・字幕タイムラインのローカルキャッシュを端末内に保存するため。ユーザーの学習データの永続化に不可欠。 |
 
-（v1.2.1 で権限は `storage` のみ。`tabs` は削除済み＝アイコンクリックの新規タブは権限不要の `chrome.tabs.create` で実現）
+（v1.2.1 以降、権限は `storage` のみ。`tabs` は削除済み＝アイコンクリックの新規タブは権限不要の `chrome.tabs.create` で実現。v1.2.7 も同じ）
 
 ### host_permissions の根拠
 
 | ホスト | 根拠 |
 |---|---|
 | `https://www.netflix.com/*`<br>`https://www.primevideo.com/*`<br>`https://www.amazon.co.jp/*`<br>`https://www.disneyplus.com/*` | 視聴画面に表示されている字幕を読み取り、ユーザーがクリックした単語を取得・保存し、字幕コントロールUIを表示するため。動画・音声・コンテンツ本体の取得やダウンロードは行わず、画面に表示された字幕テキストのみを対象とする。amazon.co.jp はプライムビデオの視聴ページが同ドメイン配下にあるため。 |
-| `https://cinelearn-next.vercel.app/*` | ①単語の日本語訳（/api/translate）と例文の取得（/api/example）のための自社APIとの通信。②連携する学習アプリのページからログインセッションを拡張に引き継ぐブリッジ（コンテンツスクリプト）。 |
+| `https://cinelearn-next.vercel.app/*` | ①単語の日本語訳（/api/translate）・単語の文脈訳（/api/claude）・例文の取得（/api/example）のための自社APIとの通信。文脈訳と例文の照合のため、クリックした単語とその時に画面に表示されていた字幕1行を送信する（照合・訳の生成にのみ使用し、サーバーは保存しない）。②連携する学習アプリのページからログインセッションを拡張に引き継ぐブリッジ（コンテンツスクリプト）。 |
 | `https://*.supabase.co/*` | ログインユーザーの単語帳をクラウド同期するため（ログインは任意・未ログインでも端末内保存で利用可）。 |
 
 ---
@@ -120,13 +121,15 @@ https://cinelearn-next.vercel.app/privacy
 **収集するユーザーデータ（該当にチェック）:**
 - 認証情報（メール／ログインセッション） … クラウド同期を使う場合のみ
 - ユーザーが作成したコンテンツ（保存した単語・学習履歴）
+- ウェブサイトのコンテンツ … クリックした単語と、その時に画面に表示されていた字幕1行（訳・例文の照合用に自社APIへ送信。保存しない）
+- 位置情報（IPアドレス） … 自社APIのレート制限のため IP アドレス単位の利用回数を最長24時間保存（保守的に申告）
 
 **以下は「しない」と宣言:**
 - ✅ ユーザーデータを第三者に販売しない
 - ✅ 拡張の中核機能と無関係な目的に使わない
 - ✅ 信用調査・与信目的に使わない
 
-**データ送信先の開示:** Supabase（単語同期・認証）／自社API cinelearn-next.vercel.app（翻訳・例文）／TMDB（作品情報）／OpenSubtitles（例文）／Anthropic（単語生成）／Microsoft Azure（単語の英日翻訳・クリックした単語のみ送信）／Vercel（ホスティング）／Upstash（API過剰利用防止・IP単位の利用回数を短期保存）。詳細はプライバシーポリシーに記載。
+**データ送信先の開示（拡張が実際に送信する先に限定）:** Supabase（認証・単語帳の同期）／自社API cinelearn-next.vercel.app（クリックした単語・作品名・話数・再生位置・画面に表示されていた字幕1行＝訳と例文の照合用で保存しない）／dictionaryapi.dev（クリックした単語の英語定義・ブラウザから直接送信）。自社APIを経由して: TMDB（作品情報）／OpenSubtitles（例文の元になる字幕・作品の識別情報のみ）／Anthropic（クリックした単語と字幕の一文＝文脈訳）／Microsoft Azure AI Translator（単語・短い語句の翻訳に利用することがある）／Upstash（レート制限のため IP アドレスを最長24時間保存）。詳細はプライバシーポリシーに記載。
 
 **プライバシーポリシー URL:** https://cinelearn-next.vercel.app/privacy
 
@@ -151,7 +154,7 @@ https://cinelearn-next.vercel.app/privacy
 ## 8. 審査で突っ込まれやすい点への備え
 
 - **リモートコード**: content.js ほか全スクリプトは同梱のみ・外部JSのeval/injectなし（Manifest V3準拠）。
-- **権限の最小化**: v1.2.1 で `tabs` 削除済み・permissions は `storage` のみ。host_permissions も機能提供ドメインに限定（YouTube は検証結果次第でさらに削減）。
+- **権限の最小化**: v1.2.1 で `tabs` 削除済み・permissions は `storage` のみ。host_permissions も機能提供ドメインに限定（YouTube は v1.2.1 で除外済み・v1.2.7 の manifest にも無い）。
 - **著作権/提携**: 説明文・スクショで「Netflix公式」等と誤認させない。非提携文を説明文に含めた（§3末尾）。
 - **効果の主張**: 「効果◯倍」「確実に定着」等の未裏付け表現は使わない（間隔反復・実セリフ例文など、実装事実と研究裏付けの範囲のみ）。
 - **有料誘導なし**: 現状は完全無料。ストア内課金・外部決済への誘導は無し＝審査シンプル。

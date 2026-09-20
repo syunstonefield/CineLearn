@@ -4,8 +4,10 @@
 // ※ これは弁護士レビュー前のドラフト（善意の表明＋ユーザー側クレームの盾）。
 //   プラットフォーム規約・著作権の構造的論点は本規約では解決しない別軸。
 
+import { NON_AFFILIATION } from '@/lib/legal';
+
 const CONTACT_EMAIL = 'cinelearn.202606@gmail.com';
-const UPDATED = '2026年6月18日';
+const UPDATED = '2026年9月12日';
 
 export const metadata = {
   title: '利用規約 — CineLearn',
@@ -109,8 +111,8 @@ export default function TermsPage() {
 
       <h2 style={h2}>8. 非提携</h2>
       <p>
-        本サービスは、Netflix, Amazon, The Movie Database (TMDB), OpenSubtitles, Microsoft その他の動画配信・
-        データ提供事業者と提携・公認関係にありません。各社の名称・商標は各権利者に帰属します。
+        {/* 非提携文は lib/legal.js の単一ソース（Microsoft を含む）。PP・LP・support と同文 */}
+        {NON_AFFILIATION}
         This product uses the TMDB API but is not endorsed or certified by TMDB.
       </p>
 
