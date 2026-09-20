@@ -1,6 +1,9 @@
-// 単語生成オーケストレーション（字幕→Claude→パース→フィルター）。
+// 単語生成オーケストレーション（字幕→LLM→パース→フィルター）。
 // js/app.js: generateVocabFromEpisode / generateQuiz から移植。
-import { callClaude, translateSentences } from './api';
+// 2026-09-12（design-B §4）: LLM 呼び出しは deps.callLlm として注入する。サーバ（lib/server/vocabGen.js）が
+//   lib/server/anthropic.js の callHaiku を渡す。クライアントからの直接生成（callClaude / generateVocab）は廃止
+//   ＝このファイルは api.js の生成系に依存しない（translateSentences＝例文和訳だけ残る）。
+import { translateSentences } from './api';
 import { exampleContainsWord, trimExampleToSentence } from './subtitles';
 import { getExcludeSet } from './wordlist';
 
@@ -133,12 +136,10 @@ function extractWords(raw) {
 
 // ── 単語生成（共有キャッシュ・スーパーセット方式）─────────────────
 // 設計（docs/shared-cache-design.md §8.3）:
-//   generateSuperset … レベル非依存に CEFR A2〜C2 を広く生成する（シード/共有キャッシュ用）。
+//   generateSuperset … レベル非依存に CEFR A2〜C2 を広く生成する（サーバ生成/シード＝共有キャッシュ用）。
 //   personalizeWords … 生成済みスーパーセットを学習者レベルで絞る（読み取り時・AI呼び出しなし）。
-//   generateVocab    … 従来の都度生成（クライアントfallback）。targeted生成 → personalizeWords。
-//                      ※ 既存挙動を維持（targetedプロンプト＋同一フィルタ）。フィルタ順は
-//                        除外/帯フィルタが refineDramaWords の後段に移ったが、各述語は source 非依存
-//                        （帯フィルタは複数語/context免除）のため最終集合は従来と等価。
+//   （旧 generateVocab＝クライアントの都度生成は 2026-09-12 に削除。生成は /api/vocab-generate 経由のみ）
+//   buildVocabPrompt の 'targeted' モードは personalizeWords と同じ帯計算を共有するため残している。
 
 // targeted/superset 共通のプロンプト生成。mode で「学習者レベル狙い撃ち」と「A2〜C2を広く」を切替。
 function buildVocabPrompt({ drama, season, episode, subtitleText, mode, cur, upper, genVocabCount, minTotal }) {
@@ -309,7 +310,7 @@ function expandShortKeys(w) {
   };
 }
 
-function parseAndRefineWords(text, subtitleText) {
+function parseAndRefineWords(text, subtitleText, log = console) {
   const rawJson = text.match(/\{[\s\S]*\}/)?.[0] || '{}';
   const parsed = extractWords(rawJson);
   const dramaWords = (parsed.drama || [])
@@ -322,10 +323,11 @@ function parseAndRefineWords(text, subtitleText) {
     .map((w) => ({ ...w, source: 'plus', example_ja_ok: !!w.example_ja }));
   let json = [...dramaWords, ...plusWords];
 
-  // 0語＝Claude応答の拒否/形式崩れの可能性。沈黙させず一次切り分け材料をconsoleに残す
-  // （実機のconsoleで原因を確定できるように・debug-with-real-data）。
+  // 0語＝LLM応答の拒否/形式崩れの可能性。沈黙させず一次切り分け材料をconsoleに残す
+  // （debug-with-real-data）。★本文は出さない（A20）＝文字数と「JSON の { で始まるか」だけ。
   if (!json.length) {
-    console.warn('[CL:GEN] 生成0語: 応答先頭200字 =', String(text).slice(0, 200));
+    const t = String(text || '');
+    log.warn('[CL:GEN] 生成0語（応答の拒否/形式崩れの疑い）', { len: t.length, startsWithBrace: /^\s*\{/.test(t) });
   }
 
   json = json.map((w) => {
@@ -394,8 +396,9 @@ export function personalizeWords(words, { toeicScore = 0, targetToeicScore = 0, 
 // レベル非依存に CEFR A2〜C2 を広く生成（シード/共有キャッシュ用）。
 // personalizeWords で読み取り時に学習者レベルへ絞る前提なので、ここでは
 // 除外/帯/plus間引きをしない（各語に level/tier タグだけ付けて広く保存する）。
-// ctx = { drama, season, episode, subtitleText, vocabCount?, onProgress? }
-async function generateSupersetOnce(ctx, onRetry) {
+// ctx = { drama, season, episode, subtitleText, vocabCount?, deadlineAt?, onProgress?, chunkIndex?, nChunks? }
+// deps.callLlm(prompt, maxTokens, { onRetry, deadlineAt, chunk, nChunks }) → Promise<string>（必須・注入）
+async function generateSupersetOnce(ctx, onRetry, deps) {
   const { drama, season, episode, subtitleText, vocabCount, quotaDiv = 1 } = ctx;
   const isMovieGen = drama.type === 'movie';
   const baseCount = vocabCount || 40;
@@ -411,8 +414,13 @@ async function generateSupersetOnce(ctx, onRetry) {
   const { prompt, maxTokens } = buildVocabPrompt({
     drama, season, episode, subtitleText, mode: 'superset', cur: 0, upper: 0, genVocabCount, minTotal,
   });
-  const text = await callClaude(prompt, maxTokens, onRetry);
-  return parseAndRefineWords(text, subtitleText);
+  const text = await deps.callLlm(prompt, maxTokens, {
+    onRetry,
+    deadlineAt: ctx.deadlineAt,
+    chunk: ctx.chunkIndex || 1,
+    nChunks: ctx.nChunks || 1,
+  });
+  return parseAndRefineWords(text, subtitleText, deps.log || console);
 }
 
 // 長編（映画等）は字幕を等分チャンクに割り、語数を按分して生成→結合する。
@@ -420,36 +428,57 @@ async function generateSupersetOnce(ctx, onRetry) {
 // 選定が前半に偏る（0-60分に63語・60-133分に2語の崖）。切り詰めはどこにも無く、
 // 長い入力でモデルが前半から選ぶ癖が原因＝入力側を割って全編から選ばせるのが対策。
 // TV1話（字幕≦25k字程度）は1チャンク＝従来と完全に同じ挙動・コスト。
-const CHUNK_CHARS = 45000;
+export const CHUNK_CHARS = 45000;
+// 0語チャンクを引き直すのに必要な残予算（A1）。これ未満なら引き直さず失敗にする（関数の時間上限内で終わらせる）。
+const RETRY_MIN_BUDGET_MS = 60_000;
 
-export async function generateSuperset(ctx, onRetry) {
+// generateSuperset(ctx, onRetry, deps)
+//   ctx  = { drama, season, episode, subtitleText, vocabCount?, deadlineAt?, onProgress? }
+//   deps = { callLlm, log? }  ※ callLlm 必須（無ければ throw）。callLlm(prompt, maxTokens, { onRetry, deadlineAt, chunk, nChunks })
+//   複数チャンクは Promise.all（nChunks ≤ 3 ＝最大3並列）。以前は「APIレート制限内に収める」ために直列だったが、
+//   サーバ生成では関数の時間上限（deadlineAt）の方が厳しいので並列にする（A1）。
+//   結合規則: 小文字の語で重複排除・チャンク順で先着優先。ただし前のチャンクで plus（AI作例）だった語が
+//   後のチャンクで drama（字幕に実在）なら drama（逐語例文＋📍）を採る。最後に全編本文で refineDramaWords。
+export async function generateSuperset(ctx, onRetry, deps) {
+  if (typeof deps?.callLlm !== 'function') {
+    throw new Error('generateSuperset: deps.callLlm が必要です（LLM 呼び出しは呼び出し側が注入する）');
+  }
+  const log = deps.log || console;
   const subText = ctx.subtitleText || '';
   const nChunks = Math.min(3, Math.max(1, Math.ceil(subText.length / CHUNK_CHARS)));
-  if (nChunks === 1) return generateSupersetOnce(ctx, onRetry);
+  if (nChunks === 1) return generateSupersetOnce({ ...ctx, chunkIndex: 1, nChunks: 1 }, onRetry, deps);
 
   const size = Math.ceil(subText.length / nChunks);
-  const merged = [];
-  const seen = new Map(); // 小文字の語 → merged 内の添字
-  for (let i = 0; i < nChunks; i++) {
-    ctx.onProgress?.(i + 1, nChunks);
+  const remainingMs = () => (Number.isFinite(ctx.deadlineAt) ? ctx.deadlineAt - Date.now() : Infinity);
+  let done = 0;
+  const runChunk = async (i) => {
     // チャンク境界の文切れは許容（refineDramaWords の逐語チェックは各チャンク文に対して働く）。
-    // 直列実行＝APIレート制限内に収める（映画1本=2〜3コール・初回のみ・以後は共有キャッシュ）。
     const chunkText = subText.slice(i * size, (i + 1) * size);
-    let part = await generateSupersetOnce({ ...ctx, subtitleText: chunkText, quotaDiv: nChunks }, onRetry);
-    // ★0語チャンクを黙って捨てない（2026-08-08）。捨てていたため「映画の前半57分が丸ごと
-    //   欠けたリスト」が成功扱いで完成し、共有キャッシュに焼き付いて全ユーザーに配られていた
-    //   （アイアンマン）。1回だけ引き直し、それでも0なら生成全体を失敗させて再生成導線に戻す。
-    if (!part.length) {
-      console.warn(`[CL:GEN] chunk ${i + 1}/${nChunks} が0語。1回だけ再試行します`);
-      part = await generateSupersetOnce({ ...ctx, subtitleText: chunkText, quotaDiv: nChunks }, onRetry);
+    const chunkCtx = { ...ctx, subtitleText: chunkText, quotaDiv: nChunks, chunkIndex: i + 1, nChunks };
+    let part = await generateSupersetOnce(chunkCtx, onRetry, deps);
+    // ★0語チャンクを黙って捨てない（2026-08-08）。捨てていたため「映画の前半57分が丸ごと欠けたリスト」が
+    //   成功扱いで完成し、共有キャッシュに焼き付いて全ユーザーに配られていた（アイアンマン）。
+    //   残予算が RETRY_MIN_BUDGET_MS 以上あるときだけ1回引き直し、それでも0なら生成全体を失敗させる（A1）。
+    if (!part.length && remainingMs() >= RETRY_MIN_BUDGET_MS) {
+      log.warn(`[CL:GEN] chunk ${i + 1}/${nChunks} が0語。1回だけ再試行します（残り ${Math.round(remainingMs() / 1000)}s）`);
+      part = await generateSupersetOnce(chunkCtx, onRetry, deps);
     }
-    console.info(
+    done++;
+    ctx.onProgress?.(done, nChunks);
+    log.info(
       `[CL:GEN] chunk ${i + 1}/${nChunks} chars ${i * size}-${Math.min((i + 1) * size, subText.length)} → ${part.length}語` +
         `（drama ${part.filter((w) => w.source === 'drama').length}）`
     );
     if (!part.length) {
       throw new Error(`単語の生成に失敗しました（${nChunks}分割中${i + 1}番目が0語）。もう一度お試しください`);
     }
+    return part;
+  };
+  const parts = await Promise.all(Array.from({ length: nChunks }, (_, i) => runChunk(i)));
+
+  const merged = [];
+  const seen = new Map(); // 小文字の語 → merged 内の添字
+  for (const part of parts) {
     for (const w of part) {
       const k = String(w.word || '').toLowerCase();
       if (!k) continue;
@@ -468,24 +497,6 @@ export async function generateSuperset(ctx, onRetry) {
   // 別区間の字幕に実在することがあるため、結合後に全編本文でもう一度 drama/plus を確定する
   // （実在すれば drama に再分類し例文を字幕の逐語文へ）。AI 呼び出しは無い＝コスト0。
   return refineDramaWords(merged, subText);
-}
-
-// 従来の都度生成（クライアントfallback）。targeted生成 → 学習者レベルで絞る。
-export async function generateVocab(ctx, onRetry) {
-  const { drama, season, episode, subtitleText, toeicScore, targetToeicScore, vocabCount } = ctx;
-  const cur = toeicScore > 0 ? toeicScore : 0;
-  const upper = targetToeicScore > 0 ? targetToeicScore : cur + 200;
-
-  const isMovieGen = drama.type === 'movie';
-  const genVocabCount = isMovieGen ? Math.min(150, vocabCount * 3) : vocabCount;
-  const minTotal = Math.min(50, Math.max(30, vocabCount));
-
-  const { prompt, maxTokens } = buildVocabPrompt({
-    drama, season, episode, subtitleText, mode: 'targeted', cur, upper, genVocabCount, minTotal,
-  });
-  const text = await callClaude(prompt, maxTokens, onRetry);
-  const refined = parseAndRefineWords(text, subtitleText);
-  return personalizeWords(refined, { toeicScore, targetToeicScore, vocabCount });
 }
 
 // drama/plus を字幕本文で検証・再分類する：

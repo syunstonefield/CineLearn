@@ -10,6 +10,7 @@
 export const dynamic = 'force-dynamic';
 
 import { checkRateLimit } from '@/lib/ratelimit';
+import { allowedOrigin } from '@/lib/server/origin'; // 共通 Origin ゲート（A7）
 
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://mndyexwdevkpdssglwpl.supabase.co';
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -22,21 +23,6 @@ function json(obj, status = 200) {
 }
 
 // 正規アプリからの呼び出しのみ許可（/api/example と同じ・空 Origin は拒否）。
-const ALLOWED_HOSTS = ['cinelearn-next.vercel.app', 'cine-learn.vercel.app'];
-function allowedOrigin(req) {
-  const s = req.headers.get('origin') || req.headers.get('referer') || '';
-  if (!s) return false;
-  if (s.startsWith('chrome-extension://')) return true;
-  try {
-    const u = new URL(s);
-    const selfHost = req.headers.get('host') || '';
-    if (selfHost && u.host === selfHost) return true;
-    if (u.hostname === 'localhost' || u.hostname === '127.0.0.1') return true;
-    return ALLOWED_HOSTS.includes(u.hostname);
-  } catch {
-    return false;
-  }
-}
 
 function svcHeaders(extra = {}) {
   return {

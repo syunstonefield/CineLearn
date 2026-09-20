@@ -9,6 +9,9 @@ export const dynamic = 'force-dynamic';
 import { createHash } from 'crypto';
 import { after } from 'next/server';
 import { checkRateLimit } from '@/lib/ratelimit';
+import { allowedOrigin } from '@/lib/server/origin';
+import { HAIKU_MODEL } from '@/lib/server/constants';
+import { vocabCacheKey } from '@/lib/server/vocabCache';
 
 // ── 文脈つき語義（mode:'wordsense'）用の共有キャッシュ ──
 // translation_ctx_cache は service_role 専用（未設定ならキャッシュ無しで動く）。
@@ -62,7 +65,9 @@ function writeCtxCache(word, hash, translated, sentence) {
         target_lang: 'ja',
         sense_hash: hash,
         translated,
-        sentence_sample: String(sentence).slice(0, 200),
+        // sentence_sample は OpenSubtitles 由来（'sentence'/'sentences'）のときだけ残す。wordsense（配信画面の字幕行）は
+        // null＝当社サーバーに配信字幕を蓄積しない（PP §1 の断定を維持・A10）。
+        sentence_sample: sentence == null ? null : String(sentence).slice(0, 200),
         created_at: new Date().toISOString(),
       },
     ]),
@@ -135,11 +140,8 @@ async function writeCtxCacheMany(rows) {
 //         ③ 同時更新は updated_at の条件付き PATCH（CAS）で検出し、負けたら1回だけ読み直して再適用
 //   キーは /api/vocab と同じ正規化（映画は s0e0・版は env）。
 function vocabCacheKeyOf({ tmdbId, season, episode, type }) {
-  const id = parseInt(tmdbId, 10);
-  if (!id) return null;
-  const s = type === 'movie' ? 0 : Number(season) || 1;
-  const e = type === 'movie' ? 0 : Number(episode) || 1;
-  return `v${Number(process.env.VOCAB_CACHE_VERSION || 1)}:tmdb${id}:s${s}e${e}`;
+  // キーの式は lib/server/vocabCache.js に集約（7箇所の複製をやめた・2026-09-12）。
+  return vocabCacheKey(tmdbId, type, season, episode);
 }
 
 async function patchVocabCacheExampleJa(ctx, jaByHash) {
@@ -244,7 +246,7 @@ async function cachedJsonMode(req, apiKey, { word, key, prompt, maxTokens, parse
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
+        model: HAIKU_MODEL,
         max_tokens: maxTokens,
         messages: [{ role: 'user', content: prompt }],
       }),
@@ -264,22 +266,6 @@ async function cachedJsonMode(req, apiKey, { word, key, prompt, maxTokens, parse
     return json({ items, via: 'haiku' });
   } catch {
     return json({ items: null });
-  }
-}
-
-// 正規アプリ（next-app / cine-learn / localhost / 拡張）からの呼び出しのみ許可。
-function allowedOrigin(req) {
-  const s = req.headers.get('origin') || req.headers.get('referer') || '';
-  if (!s) return false; // 空 Origin の正規経路は無い（拡張は chrome-extension:// を付ける・seedはCINELEARN_API_ORIGIN）
-  if (s.startsWith('chrome-extension://')) return true;
-  try {
-    const u = new URL(s);
-    const selfHost = req.headers.get('host') || '';
-    if (selfHost && u.host === selfHost) return true; // 同一オリジン（LAN IP実機/各デプロイURL）
-    if (u.hostname === 'localhost' || u.hostname === '127.0.0.1') return true; // 開発
-    return ['cinelearn-next.vercel.app', 'cine-learn.vercel.app'].includes(u.hostname);
-  } catch {
-    return false;
   }
 }
 
@@ -350,7 +336,7 @@ export async function POST(req) {
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
-          model: 'claude-haiku-4-5-20251001',
+          model: HAIKU_MODEL,
           max_tokens: 96, // v2 は「基本義（この場面では〜）」の2部構成ぶん少し長い
           messages: [{ role: 'user', content: prompt }],
         }),
@@ -366,7 +352,7 @@ export async function POST(req) {
       // 上限は v2 の2部構成に合わせて 36 字（旧30字だと「基本義（この場面では〜）」が
       // 形式崩れ扱いで捨てられ、訳なしに落ちる）。
       if (!ja || ja.length > 36) return json({ ja: null }); // 形式崩れは配らない（誤配布防止）
-      after(() => writeCtxCache(word.toLowerCase(), hash, ja, sentence));
+      after(() => writeCtxCache(word.toLowerCase(), hash, ja, null)); // 配信画面の字幕行は保存しない（A10）
       return json({ ja, via: 'haiku' });
     } catch {
       return json({ ja: null });
@@ -403,7 +389,7 @@ export async function POST(req) {
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
-          model: 'claude-haiku-4-5-20251001',
+          model: HAIKU_MODEL,
           max_tokens: 200,
           messages: [{ role: 'user', content: prompt }],
         }),
@@ -552,7 +538,7 @@ export async function POST(req) {
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
-          model: 'claude-haiku-4-5-20251001',
+          model: HAIKU_MODEL,
           max_tokens: Math.min(1200, 100 * missing.length + 50),
           messages: [{ role: 'user', content: prompt }],
         }),
@@ -590,41 +576,12 @@ export async function POST(req) {
     return json({ ja: jaList(), via: newRows.length && jaByHash.size > newRows.length ? 'mixed' : 'haiku', missing: missingCount() });
   }
 
-  // ── 既定モード＝単語リスト/クイズ生成 ──
-  // ⚠このモードは任意プロンプトを実行できる（プロンプトを組むのはクライアント）。
-  //   日次上限が無いと 1 IP で 300回/時 × 12,000 out tok ＝ 約¥67,000/日 を焼ける財布攻撃が成立する
-  //   （2026-08-06 公開前討論で発見）。正規利用は 1話=1コール・映画=最大3コール（分割生成）なので
-  //   日100あれば重い使い方でも足り、共有IP（NAT）でも数人ぶんの余裕がある。
-  //   本命はプロンプトのサーバ側生成（mode:'vocab' 化）。それまでの天井として日次を張る。
-  if (!(await checkRateLimit(req, 'claude', { perMin: 10, perHour: 40, perDay: 100 })).ok) {
-    return json({ error: 'rate_limited' }, 429);
-  }
-
-  const { prompt } = body;
-  if (!prompt) return json({ error: 'prompt is required' }, 400);
-  // サーバ側強制: maxTokens はクライアント値を丸呑みせず天井を張る
-  // （正規の最大は vocab.js のスーパーセット生成＝TV1話で 13,000。2026-08-08 の係数引き上げ後、
-  //   クライアントは 13,000 を要求するのにここが 12,000 のままで、TV の生成だけ黙って 1,000
-  //   削られていた）。悪用時の1呼び出しコスト上限としては 12k→13k で実質差なし。
-  const maxTokens = Math.min(Number(body.maxTokens) || 2000, 13000);
-
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: maxTokens,
-      messages: [{ role: 'user', content: prompt }],
-    }),
-  });
-
-  const text = await response.text();
-  return new Response(text, {
-    status: response.status,
-    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
-  });
+  // ── 既定モード（body.prompt をそのまま実行）は 2026-09-12 に廃止 ──
+  //   単語リスト生成は /api/vocab-generate（サーバがプロンプトを組む）へ移った。クライアント組みの任意プロンプトを
+  //   実行する経路は残さない（財布攻撃の主経路・pending-fixes 🔴）。キャッシュされた旧バンドルの callClaude には
+  //   「再読み込みで直る」ことが伝わる文言で返す（旧 callClaude は err.error?.message をそのまま表示する・A16）。
+  return json(
+    { error: { message: 'アプリを再読み込みしてください（新しい版があります）' }, code: 'unsupported_mode' },
+    400
+  );
 }

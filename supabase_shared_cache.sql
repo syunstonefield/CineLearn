@@ -40,7 +40,13 @@ CREATE INDEX IF NOT EXISTS vocab_cache_lookup
 
 ALTER TABLE vocab_cache ENABLE ROW LEVEL SECURITY;
 -- 公開読み（ログアウト含む全員）。GRANT が無いと RLS 以前に 401 になるため明示する。
-GRANT SELECT ON vocab_cache TO anon, authenticated;
+-- ★2026-09-12: 表レベルではなく列指定で付与する（投稿元ハッシュ contributed_by/contributed_at を公開読みから外す
+--   ＝supabase_2026-09-12_hardening.sql と同じ）。本ファイルを再適用しても hardening が元に戻らないように。
+REVOKE SELECT ON vocab_cache FROM anon, authenticated;
+GRANT SELECT (
+  id, cache_key, cache_version, tmdb_id, season, episode, display_title, title_norm, words, word_count,
+  coverage_min, coverage_max, subtitle_provider, model, created_at, updated_at
+) ON vocab_cache TO anon, authenticated;
 DROP POLICY IF EXISTS "vocab_cache public read" ON vocab_cache;
 CREATE POLICY "vocab_cache public read"
   ON vocab_cache FOR SELECT TO anon, authenticated USING (true);

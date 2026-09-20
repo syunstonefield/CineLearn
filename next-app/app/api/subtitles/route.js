@@ -1,12 +1,20 @@
-// OpenSubtitles 検索/ダウンロード中継（1ホップ化）。
-// 旧 cine-learn.vercel.app/api/subtitles.js からの移植。
-// 鍵は cinelearn-next に設定済み。旧 cine-learn への移行期フォールバック（relayLegacy）は撤去した。
+// 字幕まわりの公開面（§3・A5・A16）。2026-09-12 に生SRTの配信を廃止した。
+//   * action:'probe'    … 字幕の有無だけ返す { found, count, via }（tmdbId 必須・DL しない・raw cache → 否定キャッシュ →
+//                         probe キャッシュ 6h → OS 検索）。単語リスト画面の「予習をはじめる」を出すかの判定に使う。
+//   * action:'search'   … seed 専用（x-cinelearn-seed 一致）。OS 検索結果 { data:[…] } を返す（本文は含まない）。
+//   * action:'download' … seed 専用。生 SRT を text/plain で返す（backfill-timestamps / verify-timestamps /
+//                         backfill-raw-cache 用）。seed 以外は 403。日次キャップは seed 用途なので掛けない。
+//   旧 'search'/'download' を公開していた経路は、生SRT全文がクライアントの localStorage に載る＝
+//   「配らない」方針と矛盾していたため閉じた（pending-fixes 🔴）。旧バンドルには A16 の文言で再読み込みを促す。
+// OS の呼び出し本体は lib/server/opensubtitles.js（in-process）。残枠ログ [CL:OS] もそこで出る。
 
 export const dynamic = 'force-dynamic';
 
+import { allowedOrigin } from '@/lib/server/origin';
+import { isSeedRequest } from '@/lib/server/auth';
 import { checkRateLimit } from '@/lib/ratelimit';
-
-const OS_BASE = 'https://api.opensubtitles.com/api/v1';
+import { osSearch, osDownload, probeEpisode } from '@/lib/server/opensubtitles';
+import { UpstreamError } from '@/lib/server/constants';
 
 function json(obj, status = 200) {
   return new Response(JSON.stringify(obj), {
@@ -15,56 +23,33 @@ function json(obj, status = 200) {
   });
 }
 
-// 正規アプリ（next-app / cine-learn / localhost / 拡張）からの呼び出しのみ許可。
-function allowedOrigin(req) {
-  const s = req.headers.get('origin') || req.headers.get('referer') || '';
-  if (!s) return false; // 空 Origin の正規経路は無い（拡張は chrome-extension:// を付ける・seedはCINELEARN_API_ORIGIN）
-  if (s.startsWith('chrome-extension://')) return true;
-  try {
-    const u = new URL(s);
-    const selfHost = req.headers.get('host') || '';
-    if (selfHost && u.host === selfHost) return true;
-    if (u.hostname === 'localhost' || u.hostname === '127.0.0.1') return true;
-    return ['cinelearn-next.vercel.app', 'cine-learn.vercel.app'].includes(u.hostname);
-  } catch {
-    return false;
-  }
+// 旧クライアント（キャッシュされた SPA バンドル）向け: 再読み込みで直ることが伝わる文言（A16）。
+const unsupported = () =>
+  json({ error: { message: 'アプリを再読み込みしてください（新しい版があります）' }, code: 'unsupported_mode' }, 400);
+
+const posInt = (v) => {
+  const n = Number(v);
+  return Number.isInteger(n) && n > 0 ? n : null;
+};
+// TV の話数の受理範囲（任意の (S,E) 組ごとに OS 検索を発生させない・vocab-generate と同じ）。
+const SEASON_MAX = 60;
+const EPISODE_MAX = 400;
+function episodeOrError(body, type) {
+  if (type === 'movie') return { season: 0, episode: 0 };
+  const season = posInt(body.season);
+  const episode = posInt(body.episode);
+  if (!season || !episode) return { error: 'season/episode must be positive integers for tv' };
+  if (season > SEASON_MAX || episode > EPISODE_MAX) return { error: 'season/episode out of range' };
+  return { season, episode };
 }
 
-// ── OpenSubtitles ログイン（ダウンロード枠 5/日 → VIP 枠 に拡大）──────────
-// OPENSUBTITLES_USERNAME / _PASSWORD が設定されていればログインし JWT を付与。
-// トークンは約24時間有効。温かいインスタンス間でモジュール変数として使い回す。
-// 未設定・ログイン失敗時は匿名（5/日）にフォールバック。
-let cachedToken = null;
-let tokenExpiry = 0;
-
-async function getAuthToken(apiKey) {
-  const username = process.env.OPENSUBTITLES_USERNAME;
-  const password = process.env.OPENSUBTITLES_PASSWORD;
-  if (!username || !password) return null;
-
-  if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
-
-  try {
-    const r = await fetch(`${OS_BASE}/login`, {
-      method: 'POST',
-      headers: { 'Api-Key': apiKey, 'Content-Type': 'application/json', 'User-Agent': 'CineLearn v1.0' },
-      body: JSON.stringify({ username, password }),
-    });
-    if (!r.ok) {
-      cachedToken = null;
-      return null;
-    }
-    const data = await r.json();
-    if (data.token) {
-      cachedToken = data.token;
-      tokenExpiry = Date.now() + 23 * 60 * 60 * 1000; // 23h（24h失効の手前で更新）
-      return cachedToken;
-    }
-  } catch {
-    /* ログイン失敗は匿名フォールバック */
+function upstreamResponse(err) {
+  if (err instanceof UpstreamError) {
+    if (err.reason === 'misconfigured') return json({ error: 'server_misconfigured' }, 500);
+    return json({ error: 'upstream', reason: err.reason }, 502);
   }
-  return null;
+  console.error('[CL:SUBTITLES] internal', String(err?.message || err));
+  return json({ error: 'internal' }, 500);
 }
 
 export async function POST(req) {
@@ -76,78 +61,56 @@ export async function POST(req) {
   } catch {
     return json({ error: 'bad request' }, 400);
   }
+  const action = body?.action;
+  const seed = isSeedRequest(req);
 
-  const apiKey = process.env.OPENSUBTITLES_API_KEY;
-  if (!apiKey) return json({ error: 'server_misconfigured' }, 500); // 鍵は設定済みの前提（旧経路フォールバックは撤去）
+  // ゲート通過後の枠保護：IP 単位 30/分・300/時（Upstash env 未設定なら no-op）。seed は免除。
+  if (!seed && !(await checkRateLimit(req, 'subtitles')).ok) return json({ error: 'rate_limited' }, 429);
 
-  // ゲート通過後の枠保護：IP単位 30/分・300/時（Upstash env 未設定なら no-op）。
-  if (!(await checkRateLimit(req, 'subtitles')).ok) return json({ error: 'rate_limited' }, 429);
-
-  const { action, query, season, episode, fileId, type, tmdbId } = body;
-
-  const headers = {
-    'Api-Key': apiKey,
-    'Content-Type': 'application/json',
-    'User-Agent': 'CineLearn v1.0',
-  };
+  if (action === 'probe') {
+    const tmdbId = posInt(body.tmdbId);
+    if (!tmdbId) return json({ error: 'tmdbId is required' }, 400); // 自由 query の probe は廃止（A5）
+    const type = body.type === 'movie' ? 'movie' : 'tv';
+    const ep = episodeOrError(body, type);
+    if (ep.error) return json({ error: ep.error }, 400);
+    try {
+      const r = await probeEpisode({ tmdbId, type, season: ep.season, episode: ep.episode });
+      return json({ found: r.found, count: r.count, via: r.via });
+    } catch (err) {
+      return upstreamResponse(err);
+    }
+  }
 
   if (action === 'search') {
-    // 映画は type=movie（tmdb_id があれば厳密検索）。TVは season/episode で検索。
-    const params = new URLSearchParams({ languages: 'en' });
-    if (type === 'movie') {
-      params.set('type', 'movie');
-      if (tmdbId) params.set('tmdb_id', tmdbId);
-      else params.set('query', query);
-    } else if (tmdbId) {
-      // TVは parent_tmdb_id ＋話数で厳密検索（タイトル文字列クエリだと日本語題
-      // 「マンダロリアン」等が英語字幕DBに一致せず全滅する・2026-07-03実測）。
-      params.set('parent_tmdb_id', tmdbId);
-      params.set('season_number', season);
-      params.set('episode_number', episode);
-    } else {
-      params.set('query', query);
-      params.set('season_number', season);
-      params.set('episode_number', episode);
+    if (!seed) return unsupported();
+    const tmdbId = posInt(body.tmdbId);
+    if (!tmdbId) return json({ error: 'tmdbId is required' }, 400);
+    const type = body.type === 'movie' ? 'movie' : 'tv';
+    const ep = episodeOrError(body, type);
+    if (ep.error) return json({ error: ep.error }, 400);
+    try {
+      const data = await osSearch({ tmdbId, type, season: ep.season, episode: ep.episode });
+      return json({ data: Array.isArray(data) ? data : [] });
+    } catch (err) {
+      return upstreamResponse(err);
     }
-    const r = await fetch(`${OS_BASE}/subtitles?${params}`, { headers });
-    const text = await r.text();
-    return new Response(text, {
-      status: r.status,
-      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
-    });
   }
 
   if (action === 'download') {
-    // ログイン済みなら Authorization を付けて拡大枠を使う（未設定なら匿名 5/日）
-    const token = await getAuthToken(apiKey);
-    const dl = async (tok) => {
-      const h = tok ? { ...headers, Authorization: `Bearer ${tok}` } : headers;
-      return fetch(`${OS_BASE}/download`, {
-        method: 'POST',
-        headers: h,
-        body: JSON.stringify({ file_id: fileId }),
-      });
-    };
-
-    let r = await dl(token);
-    // トークン失効（401）時は1回だけ再ログインしてリトライ
-    if (r.status === 401 && token) {
-      cachedToken = null;
-      const fresh = await getAuthToken(apiKey);
-      if (fresh) r = await dl(fresh);
-    }
-
-    const data = await r.json();
-    if (data.link) {
-      const srtRes = await fetch(data.link);
-      const srtText = await srtRes.text();
-      return new Response(srtText, {
+    // 生 SRT を返す唯一の門。seed 秘密ヘッダ一致のときだけ（内部運用＝30条の4）。
+    if (!seed) return json({ error: 'forbidden' }, 403);
+    const fileId = posInt(body.fileId);
+    if (!fileId) return json({ error: 'fileId is required' }, 400);
+    try {
+      const r = await osDownload(fileId, { enforceDailyCap: false });
+      return new Response(r.srt, {
         status: 200,
-        headers: { 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' },
+        headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' },
       });
+    } catch (err) {
+      return upstreamResponse(err);
     }
-    return json(data, r.status);
   }
 
-  return json({ error: 'Invalid action' }, 400);
+  return unsupported();
 }

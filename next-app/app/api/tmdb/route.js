@@ -3,6 +3,7 @@
 // レート制限は旧実装同様なし（課金面の優先度低・並列ポスター解決を阻害しないため）。
 
 export const dynamic = 'force-dynamic';
+import { allowedOrigin } from '@/lib/server/origin'; // 共通 Origin ゲート（A7）
 
 const TMDB_BASE = 'https://api.themoviedb.org/3';
 
@@ -11,22 +12,6 @@ function json(obj, status = 200) {
     status,
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
   });
-}
-
-// 正規アプリ（next-app / cine-learn / localhost / 拡張）からの呼び出しのみ許可。
-function allowedOrigin(req) {
-  const s = req.headers.get('origin') || req.headers.get('referer') || '';
-  if (!s) return false; // 空 Origin の正規経路は無い（拡張は chrome-extension:// を付ける・seedはCINELEARN_API_ORIGIN）
-  if (s.startsWith('chrome-extension://')) return true;
-  try {
-    const u = new URL(s);
-    const selfHost = req.headers.get('host') || '';
-    if (selfHost && u.host === selfHost) return true;
-    if (u.hostname === 'localhost' || u.hostname === '127.0.0.1') return true;
-    return ['cinelearn-next.vercel.app', 'cine-learn.vercel.app'].includes(u.hostname);
-  } catch {
-    return false;
-  }
 }
 
 export async function POST(req) {

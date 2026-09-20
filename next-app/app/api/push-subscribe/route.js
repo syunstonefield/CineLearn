@@ -3,6 +3,7 @@
 // push_subscriptions は RLS "service role only" のため書込は SUPABASE_SERVICE_ROLE_KEY で行う。
 
 export const dynamic = 'force-dynamic';
+import { allowedOrigin } from '@/lib/server/origin'; // 共通 Origin ゲート（A7）
 
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://mndyexwdevkpdssglwpl.supabase.co';
 const SUPABASE_ANON_KEY =
@@ -15,22 +16,6 @@ function json(obj, status = 200) {
     status,
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
   });
-}
-
-// 正規アプリ（next-app / localhost / 拡張）からの呼び出しのみ許可。
-function allowedOrigin(req) {
-  const s = req.headers.get('origin') || req.headers.get('referer') || '';
-  if (!s) return true;
-  if (s.startsWith('chrome-extension://')) return true;
-  try {
-    const u = new URL(s);
-    const selfHost = req.headers.get('host') || '';
-    if (selfHost && u.host === selfHost) return true;
-    if (u.hostname === 'localhost' || u.hostname === '127.0.0.1') return true;
-    return ['cinelearn-next.vercel.app'].includes(u.hostname);
-  } catch {
-    return false;
-  }
 }
 
 export async function POST(req) {

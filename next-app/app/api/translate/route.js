@@ -1,21 +1,21 @@
 // 単語クリック時の英日訳ルート。拡張の background 経由で呼ばれる（content.js は直接叩かない）。
-// 公式翻訳API（DeepL / Azure）の鍵をサーバー側に隠し、結果を translation_cache に保存して
-// 無料枠・コストを最小化する（同じ単語は1回だけ翻訳）。鍵未設定なら ja:null（拡張は英語のみ表示）。
+// 公式翻訳API（Azure）の鍵をサーバー側に隠し、結果を translation_cache に保存して
+// 無料枠・コストを最小化する（同じ単語は1回だけ翻訳）。鍵未設定なら ja:null（拡張は同梱辞書／Claude 経路へ）。
 //
-// プロバイダは env の有無で自動選択：DEEPL_API_KEY があれば DeepL、無ければ Azure。
-//   - DeepL Free 鍵は末尾 ':fx' → api-free.deepl.com、Pro 鍵は api.deepl.com。
-//   - Azure は AZURE_TRANSLATOR_KEY（+ 任意 AZURE_TRANSLATOR_REGION）。
+// プロバイダ: Azure AI Translator（AZURE_TRANSLATOR_KEY + 任意 AZURE_TRANSLATOR_REGION）のみ。
+//   2026-09-12: DeepL 経路を削除した（鍵は本番に一度も設定されておらず、DeepL Free は新規取得不可・
+//   PP の第三者送信一覧からも外した＝「コード上は送り得る」状態を残さない）。
 // 関連: supabase_translation_cache.sql ／ 既存の /api/example と同じ作法。
 
 export const dynamic = 'force-dynamic';
 
 import { checkRateLimit } from '@/lib/ratelimit';
+import { allowedOrigin } from '@/lib/server/origin';
 
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://mndyexwdevkpdssglwpl.supabase.co';
 // translation_cache は service_role 専用（未設定ならキャッシュ無しでライブ翻訳は動く）。
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
-const DEEPL_API_KEY           = process.env.DEEPL_API_KEY || '';
 const AZURE_TRANSLATOR_KEY    = process.env.AZURE_TRANSLATOR_KEY || '';
 // Azure が要求するのはリージョン「識別子」(例: japaneast)。表示名「Japan East」を
 // 貼られても通るよう、小文字化＋空白除去で正規化する（識別子は表示名の小文字詰めと一致）。
@@ -26,22 +26,6 @@ function json(obj, status = 200) {
     status,
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
   });
-}
-
-// 正規アプリ（next-app / cine-learn / localhost / 拡張）からの呼び出しのみ許可。
-function allowedOrigin(req) {
-  const s = req.headers.get('origin') || req.headers.get('referer') || '';
-  if (!s) return false; // 空 Origin の正規経路は無い（拡張は chrome-extension:// を付ける・seedはCINELEARN_API_ORIGIN）
-  if (s.startsWith('chrome-extension://')) return true; // 拡張
-  try {
-    const u = new URL(s);
-    const selfHost = req.headers.get('host') || '';
-    if (selfHost && u.host === selfHost) return true; // 同一オリジン（LAN IP実機/各デプロイURL）
-    if (u.hostname === 'localhost' || u.hostname === '127.0.0.1') return true; // 開発
-    return ['cinelearn-next.vercel.app', 'cine-learn.vercel.app'].includes(u.hostname);
-  } catch {
-    return false;
-  }
 }
 
 // ── translation_cache（service_role 専用）読み書き ──
@@ -78,27 +62,6 @@ function writeCache(word, lang, translated, provider) {
 }
 
 // ── プロバイダ ──
-async function deeplTranslate(text) {
-  if (!DEEPL_API_KEY) return null;
-  const host = DEEPL_API_KEY.endsWith(':fx') ? 'https://api-free.deepl.com' : 'https://api.deepl.com';
-  try {
-    const res = await fetch(`${host}/v2/translate`, {
-      method: 'POST',
-      headers: {
-        Authorization: `DeepL-Auth-Key ${DEEPL_API_KEY}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({ text, source_lang: 'EN', target_lang: 'JA' }),
-      cache: 'no-store',
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data?.translations?.[0]?.text?.trim() || null;
-  } catch {
-    return null;
-  }
-}
-
 async function azureTranslate(text) {
   if (!AZURE_TRANSLATOR_KEY) return null;
   try {
@@ -128,7 +91,7 @@ async function azureTranslate(text) {
 export async function POST(req) {
   if (!allowedOrigin(req)) return json({ ja: null, error: 'forbidden' }, 403);
 
-  // 従量課金の翻訳API（DeepL/Azure）の濫用天井。単語帳を開くと未キャッシュ語を
+  // 従量課金の翻訳API（Azure）の濫用天井。単語帳を開くと未キャッシュ語を
   // 一括翻訳するため上限は緩め（IP単位 120/分・1200/時）。Upstash 未設定なら no-op。
   if (!(await checkRateLimit(req, 'translate', { perMin: 120, perHour: 1200 })).ok) {
     return json({ ja: null, error: 'rate_limited' }, 429);
@@ -150,14 +113,10 @@ export async function POST(req) {
   const cached = await readCache(key, lang);
   if (cached) return json({ ja: cached, via: 'cache' });
 
-  // ② ライブ翻訳（DeepL 優先 → Azure）
+  // ② ライブ翻訳（Azure）
   let ja = null;
   let provider = null;
-  if (DEEPL_API_KEY) {
-    ja = await deeplTranslate(text);
-    if (ja) provider = 'deepl';
-  }
-  if (!ja && AZURE_TRANSLATOR_KEY) {
+  if (AZURE_TRANSLATOR_KEY) {
     ja = await azureTranslate(text);
     if (ja) provider = 'azure';
   }

@@ -6,37 +6,39 @@
 // 層2: subtitle_raw_cache（生 SRT・30条の4・非配信・TTL）→ 無ければ OpenSubtitles から1回 DL して保存。
 //       生 SRT から「クリック語を含む1文」を findExampleForWord で特定して返す（32条 引用）。
 //
+// 2026-09-12（B・§3・A4・A6）:
+//   * 字幕取得・TMDB 解決を lib/server/*（in-process）へ。旧実装は lib/api.js 経由で自分の /api/subtitles・/api/tmdb を
+//     HTTP 自己呼び出ししており、Vercel の egress IP で全ユーザー分が1バケットに集約される欠陥があった。
+//   * mode:'manual'（アプリの手動追加）を追加。anchor/near 無しで1文を引く経路なので、総当り防止のために
+//     ログイン必須・raw cache 命中時のみ（OS DL を誘発しない）・高頻度語は拒否・話あたりの上限・failClosed。
+//   * 層2の応答は必ず trimExampleToSentence（200字）を通す（manual に限らず）。
+//   * 既存 anchor/near 経路にも IP×話/日 の天井（EXAMPLE_EPISODE_DAY_LIMIT）を足した。
 // 設計: docs/route-fold-in-design.md ／ 法的整合: public-launch-legal-posture。
 
 export const dynamic = 'force-dynamic';
 
-import { checkRateLimit } from '@/lib/ratelimit';
-import { tmdb, searchSubtitles, downloadSubtitle } from '@/lib/api';
+import { allowedOrigin } from '@/lib/server/origin';
+import { resolveUserId } from '@/lib/server/auth';
+import { checkRateLimit, clientIp } from '@/lib/ratelimit';
+import { tmdbSearch } from '@/lib/server/tmdb';
+import { fetchEpisodeSrt } from '@/lib/server/opensubtitles';
+import { rawCacheKey, readRawCache } from '@/lib/server/subtitleRawCache';
+import { vocabCacheKey, readVocabRow } from '@/lib/server/vocabCache';
+import { manualWordProblem } from '@/lib/server/commonWords';
+import { EXAMPLE_MANUAL_LIMITS, EXAMPLE_EPISODE_DAY_LIMIT, UpstreamError } from '@/lib/server/constants';
 import {
   getWordVariants,
   exampleContainsWord,
-  selectSubtitleCandidates,
   findExampleForWord,
   findExampleByAnchor,
   trimExampleToSentence,
+  EXAMPLE_MAX_CHARS,
 } from '@/lib/subtitles';
-
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://mndyexwdevkpdssglwpl.supabase.co';
-const SUPABASE_ANON_KEY =
-  process.env.SUPABASE_ANON_KEY ||
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1uZHlleHdkZXZrcGRzc2dsd3BsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0MTcyOTQsImV4cCI6MjA5NTk5MzI5NH0.P6GDNdWAGMPpjc1zltGS9LAFWej5M8knchqTIDDNrE4';
-// subtitle_raw_cache は非配信＝anon GRANT 無し。読み書きは service_role のみ（未設定なら層2はライブ DL で動くがキャッシュは効かない）。
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-
-// 生成ロジックの版。/api/vocab・シードと一致させること（cache_key の v{n}）。
-const CACHE_VERSION = Number(process.env.VOCAB_CACHE_VERSION || 1);
 
 // 層2（生 SRT＝全文がある経路）の例文は「観ている位置 ±N秒の窓内」の1文に限定する。
 // near（currentTimeSec）を必須化し窓で足切りすることで、word を変えた総当りで字幕全文を
 // 1文ずつ復元される穴を構造的に塞ぐ（非配信＝30条の4の内部運用線を配信層で担保）。
-// 窓は fitVodSync 補正後の sec に当てる（findExampleForWord 内）。サーバー側は VOD アンカーが
-// 無く補正は実質 no-op のため、±45秒は VOD/OS の素のオフセット吸収も兼ねる。
-// 正規クリックが落ちないことを実測しつつ、後で ±20〜30 秒へ詰める想定。
+// サーバー側は VOD アンカーが無く補正は無いため、±45秒は VOD/OS の素のオフセット吸収も兼ねる。
 const EXAMPLE_WINDOW_SEC = 45;
 
 function json(obj, status = 200) {
@@ -46,31 +48,39 @@ function json(obj, status = 200) {
   });
 }
 
-// 正規アプリ（next-app / cine-learn / localhost / 拡張）からの呼び出しのみ許可。
-//   多層防御の一枚（主防御は層2の near 窓フィルタ＝Origin は詐称可なので過信しない）。
-//   このルートを叩くのは拡張 background.js のみで、Service Worker fetch には必ず
-//   Origin: chrome-extension://<id> が付く＝空 Origin の正規経路は無いので空は拒否。
-//   ★公開後 TODO: ストア公開で拡張 ID が固定したら chrome-extension:// は完全一致 ID 限定へ。
-//     現状は load unpacked 配布で ID が端末ごとにランダムなためスキーム一致で許可している。
-const ALLOWED_HOSTS = ['cinelearn-next.vercel.app', 'cine-learn.vercel.app']; // 本番ホスト完全一致
-function allowedOrigin(req) {
-  const s = req.headers.get('origin') || req.headers.get('referer') || '';
-  if (!s) return false; // 空 Origin の正規経路は無い（拡張は必ず chrome-extension:// を付ける）
-  if (s.startsWith('chrome-extension://')) return true; // 拡張（ID 限定は公開後 TODO）
-  try {
-    const u = new URL(s);
-    const selfHost = req.headers.get('host') || '';
-    if (selfHost && u.host === selfHost) return true; // 同一オリジン（LAN IP実機/各デプロイURL）
-    if (u.hostname === 'localhost' || u.hostname === '127.0.0.1') return true; // 開発
-    return ALLOWED_HOSTS.includes(u.hostname);
-  } catch {
-    return false; // パース不能な Origin/Referer は拒否
-  }
+// 配る例文の硬い上限（A4(e)・32条の必要最小限）。trimExampleToSentence は文に割れないときに元文を素通しし、
+// expandToFullSentence は 240 字まで連結し得るので、最後にここで 200 字に切る（語境界・末尾に…）。
+function capSentence(sentence, word) {
+  const t = trimExampleToSentence(sentence, word);
+  if (!t || t.length <= EXAMPLE_MAX_CHARS) return t;
+  const cut = t.slice(0, EXAMPLE_MAX_CHARS);
+  const sp = cut.lastIndexOf(' ');
+  return (sp > EXAMPLE_MAX_CHARS * 0.6 ? cut.slice(0, sp) : cut).trim() + '…';
+}
+
+// 例文とアンカー行（保存時の字幕行）が同じ文か。等しい／一方が他方を含む／トークン Jaccard ≥ 0.5。
+//   層1（vocab_cache）の別出現を「アンカー付きの要求」に返さないための判定（レビュー指摘）。
+function anchorMatches(example, anchor) {
+  const norm = (x) =>
+    String(x || '')
+      .toLowerCase()
+      .replace(/[’‘`´]/g, "'")
+      .replace(/[^a-z0-9' ]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  const a = norm(example);
+  const b = norm(anchor);
+  if (!a || !b) return false;
+  if (a === b || a.includes(b) || b.includes(a)) return true;
+  const A = new Set(a.split(' '));
+  const B = new Set(b.split(' '));
+  let inter = 0;
+  for (const t of A) if (B.has(t)) inter++;
+  return inter / (A.size + B.size - inter) >= 0.5;
 }
 
 // タイトル文字列 → TMDB ID（拡張は ID を持たないためここで解決）。失敗・曖昧は null。
-// タイトル文字列から TMDB ID を解決する。配信サービスの表示タイトルは
-// 「スター・ウォーズエピソード3／シスの復讐」のように区切り無しで詰まっていたり
+// 配信サービスの表示タイトルは「スター・ウォーズエピソード3／シスの復讐」のように区切り無しで詰まっていたり
 // サブタイトルが付いたりして、TMDB のあいまい検索が空振りする（2026-07-03 実測で確定）。
 // そこで複数の候補クエリを順に試し、最初に当たった ID を採用する。
 function titleQueryCandidates(title) {
@@ -83,7 +93,6 @@ function titleQueryCandidates(title) {
   // 区切りで分割した各セグメント（長い順）＝サブタイトル単独が最も当たりやすい
   const segs = t.split(/[／/:：|｜]+/).map((s) => s.trim()).filter((s) => s.length >= 2);
   segs.sort((a, b) => b.length - a.length).forEach((s) => cands.push(s));
-  // 重複除去（順序保持）
   return [...new Set(cands)];
 }
 
@@ -95,9 +104,8 @@ function normTitle(s) {
     .trim();
 }
 
-// 候補から「クエリと同じ作品」を選ぶ。results[0] 直採りは邦題で別作品を掴む（下の解説参照）。
-//   ①原題・邦題のどれかが正規化一致するものを最優先
-//   ②同点なら人気度（popularity）で決める
+// 候補から「クエリと同じ作品」を選ぶ。results[0] 直採りは邦題で別作品を掴む。
+//   ①原題・邦題のどれかが正規化一致するものを最優先 ②同点なら人気度で決める
 // 一致が1つも無ければ null＝**あえて解決しない**（誤った作品の字幕を引くより、例文なしの方が安全）。
 function pickTmdbCandidate(results, query, wantMovie) {
   const q = normTitle(query);
@@ -109,25 +117,18 @@ function pickTmdbCandidate(results, query, wantMovie) {
   });
   const named = (r) => [r.title, r.original_title, r.name, r.original_name].filter(Boolean);
   const exact = cands.filter((r) => named(r).some((n) => normTitle(n) === q));
-  const pool = exact.length ? exact : [];
-  if (!pool.length) return null;
-  return pool.sort((a, b) => (b.popularity || 0) - (a.popularity || 0))[0].id;
+  if (!exact.length) return null;
+  return exact.sort((a, b) => (b.popularity || 0) - (a.popularity || 0))[0].id;
 }
 
 // タイトル文字列 → TMDB ID。
-// ★2026-08-08: 映画で action:'search_movie'（/search/movie?language=en-US）を使い results[0] を
-//   無検証で採用していたため、**邦題のクエリが別作品に解決されていた**。本番実測:
-//     「アイアンマン」   → 169934 "Iron Man: Rise of Technovore"（原題が日本語のアニメ）／本物 1726 は2位
-//     「アナと雪の女王」 → 330457 "Frozen II"／本物 109445 は下位
-//   その結果 ①層1の cache_key が別作品 → 必ずミス ②層2が**別映画の字幕**をDLして照合 →
-//   例文が付かない。さらに "the" のようなありふれた語だと**他作品の1文が例文として保存**され得た。
-//   search_multi（language=ja-JP）は同じクエリで両方とも正解を先頭に返す（実測）ので、そちらへ寄せ、
-//   さらに「正規化一致」を必須にして曖昧なら解決しない（誤爆より欠落を選ぶ）。
+// ★2026-08-08: 映画で search_movie の results[0] を無検証で採用していたため、邦題のクエリが別作品に解決されていた
+//   （「アイアンマン」→ "Iron Man: Rise of Technovore"）。search_multi（ja-JP）に寄せ、正規化一致を必須にした。
 async function resolveTmdbId(title, isMovie) {
   for (const query of titleQueryCandidates(title)) {
     try {
-      const multi = await tmdb({ action: 'search_multi', query });
-      const id = pickTmdbCandidate(multi?.results, query, isMovie);
+      const results = await tmdbSearch({ action: 'search_multi', query });
+      const id = pickTmdbCandidate(results, query, isMovie);
       if (id) return id;
     } catch {
       /* この候補は失敗＝次の候補へ */
@@ -137,73 +138,14 @@ async function resolveTmdbId(title, isMovie) {
   const action = isMovie ? 'search_movie' : 'search';
   for (const query of titleQueryCandidates(title)) {
     try {
-      const data = await tmdb({ action, query });
-      const id = pickTmdbCandidate(data?.results, query, isMovie);
+      const results = await tmdbSearch({ action, query });
+      const id = pickTmdbCandidate(results, query, isMovie);
       if (id) return id;
     } catch {
       /* この候補は失敗＝次の候補へ */
     }
   }
   return null;
-}
-
-// vocab_cache を anon で読む（公開読み）。
-async function readVocabWords(cacheKey) {
-  try {
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/vocab_cache?cache_key=eq.${encodeURIComponent(cacheKey)}&select=words&limit=1`,
-      { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }, cache: 'no-store' }
-    );
-    const rows = JSON.parse(await res.text());
-    return Array.isArray(rows) && rows[0] && Array.isArray(rows[0].words) ? rows[0].words : null;
-  } catch {
-    return null;
-  }
-}
-
-// subtitle_raw_cache（service_role 専用）。失効行は無視。
-async function readRawCache(key) {
-  if (!SUPABASE_SERVICE_KEY) return null;
-  try {
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/subtitle_raw_cache?cache_key=eq.${encodeURIComponent(key)}&select=raw,expires_at&limit=1`,
-      { headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` }, cache: 'no-store' }
-    );
-    const rows = JSON.parse(await res.text());
-    const row = Array.isArray(rows) && rows[0];
-    if (!row || !row.raw) return null;
-    if (row.expires_at && new Date(row.expires_at).getTime() < Date.now()) return null; // TTL 失効
-    return row.raw;
-  } catch {
-    return null;
-  }
-}
-
-function writeRawCache(key, id, s, e, raw) {
-  if (!SUPABASE_SERVICE_KEY) return;
-  // fire-and-forget（バックフィル経路なので待たない）
-  fetch(`${SUPABASE_URL}/rest/v1/subtitle_raw_cache?on_conflict=cache_key`, {
-    method: 'POST',
-    headers: {
-      apikey: SUPABASE_SERVICE_KEY,
-      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
-      'Content-Type': 'application/json',
-      Prefer: 'resolution=merge-duplicates,return=minimal',
-    },
-    cache: 'no-store',
-    body: JSON.stringify([
-      {
-        cache_key: key,
-        tmdb_id: id,
-        season: s,
-        episode: e,
-        raw,
-        provider: 'opensubtitles',
-        fetched_at: new Date().toISOString(),
-        expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-      },
-    ]),
-  }).catch(() => {});
 }
 
 // 例文が付かない時に「どこで落ちたか」を拡張の console から追えるよう、found:false には
@@ -225,9 +167,12 @@ export async function POST(req) {
     return json({ found: false, reason: 'bad_request' });
   }
 
+  const manual = body.mode === 'manual';
   const word = String(body.word || '').trim();
   const title = String(body.title || '').trim();
-  if (!word || !title) return json({ found: false, reason: 'missing_params' });
+  const givenId = Number(body.tmdbId);
+  const hasGivenId = Number.isFinite(givenId) && givenId > 0;
+  if (!word || (!title && !hasGivenId)) return json({ found: false, reason: 'missing_params' });
 
   // S/E がある＝TV、無い＝映画扱い（拡張の getEpisodeContext は映画/未検出で season=null）。
   const hasSE =
@@ -238,18 +183,31 @@ export async function POST(req) {
   const e = hasSE ? Number(body.episode) : 0;
 
   // 呼び出し側が作品を確定できているなら、その ID を使う（曖昧検索より常に正しい）。
-  // 拡張は現状 title しか送らないが、将来アプリ側の確定 ID を載せられるよう入口を用意しておく。
-  const givenId = Number(body.tmdbId);
-  const id = Number.isFinite(givenId) && givenId > 0 ? givenId : await resolveTmdbId(title, isMovie);
+  const id = hasGivenId ? givenId : await resolveTmdbId(title, isMovie);
   if (!id) return json({ found: false, reason: 'tmdb_unresolved', type }); // TMDB 未解決 → 拡張は bare のまま
+
+  const cacheKey = vocabCacheKey(id, type, s, e);
+  const ip = clientIp(req);
+
+  // 話単位の天井（A4）: IP×話/日。manual も含めて層1の前に張る（manual フラグで迂回させない・レビュー指摘）。
+  //   manual 固有の上限（ユーザー×話・話全体）は層2の前で別に張る。
+  {
+    const ep = await checkRateLimit(req, 'example-ep', { perMin: 0, perHour: 0, perDay: 0 }, {
+      ipLimitsOff: true,
+      extra: [{ keyBase: `rl:example:${ip}:ep:${cacheKey}`, window: 'day', limit: EXAMPLE_EPISODE_DAY_LIMIT, scope: 'episode' }],
+    });
+    if (!ep.ok) return json({ found: false, error: 'rate_limited', reason: 'rate_limited' }, 429);
+  }
+
+  // 照合専用のアンカー（lineText＝保存時の字幕行／📍修復では保存済み例文）。長さを制限して保存はしない。
+  const anchorLine = manual ? '' : String(body.lineText || '').slice(0, 300).trim();
 
   // ── 層1: vocab_cache の語一致（無料）──
   //   ★ drama 語のみを対象にする。drama の example は字幕の逐語文（= OpenSubtitles 引用/32条）だが、
   //     plus 語の example は Claude 生成の作例で「引用」ではない。例文補完に plus を使うと
   //     source:'opensubtitles' の表示が偽りになり #3 の出所明示が崩れるため除外する。
-  //     drama に無ければ層2（生SRT）で実際のセリフを探す。
-  const cacheKey = `v${CACHE_VERSION}:tmdb${id}:s${s}e${e}`;
-  const cached = await readVocabWords(cacheKey);
+  const cachedRow = await readVocabRow(cacheKey);
+  const cached = cachedRow.ok && cachedRow.row ? cachedRow.row.words : null;
   // 再生位置（保存した場面）。層1でも「どの出現か」を選ぶのに使う。
   const nearSec = Number(body.currentTimeSec);
   const hasNear = isFinite(nearSec);
@@ -263,33 +221,35 @@ export async function POST(req) {
     );
     const loose = drama.filter((w) => exampleContainsWord(w.example, word));
     const pool = strong.length ? strong : loose;
-    // ★2026-08-08: 従来は先頭一致を無条件で返していた。同じ語が作品中に何度も出る場合、
-    //   ユーザーが**前半で保存した語に後半の例文と📍**が付く（アイアンマンで実害）。
-    //   保存時の再生位置が分かるなら、その場面に最も近い出現を選ぶ。
+    // ★2026-08-08: 同じ語が作品中に何度も出る場合、保存時の再生位置が分かるなら最も近い出現を選ぶ。
     let pick = pool[0];
     if (hasNear && pool.length) {
       const withTs = pool.filter((w) => typeof w.tsSec === 'number' && isFinite(w.tsSec));
       if (withTs.length) {
         pick = withTs.reduce((a, b) => (Math.abs(b.tsSec - nearSec) < Math.abs(a.tsSec - nearSec) ? b : a));
-        // 最も近い出現でも離れすぎている＝この語の「その場面での出現」がキャッシュに無い。
-        // まず層2（生SRT）で実際のセリフを探させる。ただし**捨てはしない**：
-        //   ★保存されている再生位置そのものが誤っていることがある（拡張が別の video 要素の
-        //     currentTime を拾う等。実データ: Incinerate に 0:27 が付いていたが実際は 52:10）。
-        //     その場合ここで捨てると、正しい例文が手元にあるのに no_match になってしまう
-        //     （2026-08-08、この guard を入れた直後に実際そうなった）。
-        //   層2が空振りしたら最後にこれを返し、📍はクライアント側が例文基準で直す。
+        // 最も近い出現でも離れすぎている＝その場面の出現がキャッシュに無い。層2で探させるが**捨てはしない**
+        // （保存位置そのものが誤っている実データがあるため。層2が空振りしたら最後にこれを返す）。
         if (Math.abs(pick.tsSec - nearSec) > 300) {
           farPick = pick;
           pick = null;
         }
       }
     }
+    // アンカー付きの要求（📍修復＝保存済み例文をアンカーにして同じキューの時刻を求める）には、層1の
+    // 「同じ語の別の出現」を返さない。アンカーと同じ文の候補だけ採用し、無ければ待避して層2（anchor 照合）へ。
+    if (pick && anchorLine && !anchorMatches(pick.example, anchorLine)) {
+      const same = pool.find((w) => anchorMatches(w.example, anchorLine));
+      if (same) pick = same;
+      else {
+        farPick = farPick || pick;
+        pick = null;
+      }
+    }
     if (pick) {
       return json({
         found: true,
-        // vocab_cache の example は生成時に複数キューがつながって段落化していることがある
-        // （実データで391字＝話者4人分）。配る前に語を含む1文へ詰める。
-        sentence: trimExampleToSentence(pick.example, word),
+        // vocab_cache の example は生成時に複数キューがつながって段落化していることがある。配る前に語を含む1文へ詰める。
+        sentence: capSentence(pick.example, word),
         source: 'opensubtitles',
         tmdbId: id,
         season: s,
@@ -301,23 +261,62 @@ export async function POST(req) {
     }
   }
 
+  const rawKey = rawCacheKey(id, s, e);
+
+  // ── 層2（manual）: アプリの手動追加。anchor も near も無いので、総当りにならない条件で1文だけ返す（A4）──
+  if (manual) {
+    const auth = await resolveUserId(req);
+    // 認証サーバー不達はログイン不足ではない（再ログインを誤案内しない・A28）。
+    if (!auth.uid && auth.reason === 'unavailable') return json({ found: false, reason: 'unavailable', tmdbId: id, type }, 503);
+    if (!auth.uid) return json({ found: false, reason: 'login_required', tmdbId: id, type });
+    const problem = manualWordProblem(word);
+    if (problem) return json({ found: false, reason: problem, tmdbId: id, type });
+    const rl = await checkRateLimit(
+      req,
+      'example-manual',
+      { perMin: EXAMPLE_MANUAL_LIMITS.perMin, perHour: 0, perDay: EXAMPLE_MANUAL_LIMITS.perDay },
+      {
+        failClosed: true,
+        extra: [
+          { keyBase: `rl:example-manual:user:${auth.uid}:ep:${cacheKey}`, window: 'day', limit: EXAMPLE_MANUAL_LIMITS.perUserEpisodeDay, scope: 'user-episode' },
+          { keyBase: `rl:example-manual:ep:${cacheKey}`, window: 'day', limit: EXAMPLE_MANUAL_LIMITS.perEpisodeDay, scope: 'episode' },
+        ],
+      }
+    );
+    if (!rl.ok) {
+      if (rl.unavailable) return json({ found: false, reason: 'unavailable', tmdbId: id, type }, 503);
+      return json({ found: false, reason: 'rate_limited', tmdbId: id, type }, 429);
+    }
+    // raw cache に無ければ OS DL は誘発しない（例文なしで保存させる）。
+    const raw = await readRawCache(rawKey);
+    if (!raw) return json({ found: false, reason: 'no_raw', tmdbId: id, type });
+    const hit = findExampleForWord(raw, word);
+    console.info('[CL:EXAMPLE] manual', { subject: `user:${auth.uid.slice(0, 8)}`, cacheKey, word, via: hit ? 'raw' : 'no_match' });
+    if (!hit) return json({ found: false, reason: 'no_match', tmdbId: id, type });
+    return json({
+      found: true,
+      sentence: capSentence(hit.sentence, word),
+      source: 'opensubtitles',
+      tmdbId: id,
+      season: s,
+      episode: e,
+      tsSec: hit.sec,
+      tsLabel: hit.label,
+      via: 'manual',
+    });
+  }
+
   // ── 層2: 生 SRT（raw cache → 無ければ OS から1回 DL）──
   //   ★アンカー（lineText＝画面に出ている字幕行）か near（再生位置）のどちらも無ければ層2に
   //     入らない＝OS DL もしない。任意位置の1文を当て推量で引ける穴を構造的に塞ぐ（総当り防止）。
-  //     層1（vocab_cache の語一致＝厳選語彙の再配布で全文ではない）は上で near 不要のまま通す。
-  const near = nearSec; // 上で読んだ再生位置を層2でも使う（窓フィルタ・最近傍の基準）
-  // 照合専用のアンカー。長さを制限して保存はしない（lineText は OS の行特定にのみ使う）。
-  const anchorLine = String(body.lineText || '').slice(0, 300).trim();
+  const near = nearSec;
 
   // 層1で「語は当たったが保存位置から遠い」候補を待避してある時は、層2の空振りより優先して返す。
-  // 保存位置そのものが誤っている実データがあるため（Incinerate に 0:27＝実際は 52:10）、
-  // ここで諦めると正しい例文が手元にあるのに例文なしで終わってしまう。
-  // 返した📍は「例文の場面」を指す値なので、クライアント側の修復とも整合する。
   const farFallback = (reason) =>
     farPick
       ? json({
           found: true,
-          sentence: trimExampleToSentence(farPick.example, word),
+          sentence: capSentence(farPick.example, word),
           source: 'opensubtitles',
           tmdbId: id,
           season: s,
@@ -331,18 +330,20 @@ export async function POST(req) {
     return farFallback('no_anchor_no_near'); // 手がかり無し → 待避候補があればそれ、無ければ bare（OS DL せず）
   }
 
-  const rawKey = `tmdb${id}:s${s}e${e}`;
   let raw = await readRawCache(rawKey);
   if (!raw) {
     try {
-      const results = await searchSubtitles(title, s, e, type, id);
-      const sorted = selectSubtitleCandidates(results || [], isMovie, s, e);
-      const fileId = sorted?.[0]?.attributes?.files?.[0]?.file_id;
-      if (!fileId) return farFallback('no_subtitle_file');
-      raw = await downloadSubtitle(fileId);
-      if (raw) writeRawCache(rawKey, id, s, e, raw);
-    } catch {
-      return farFallback('subtitle_fetch_failed'); // OS 不調・字幕なし → 待避候補 or bare
+      // in-process の OS 取得（raw cache 書込・日次キャップ・残枠ログ・GC は lib 側）。null＝字幕なし。
+      const sub = await fetchEpisodeSrt({ tmdbId: id, type, season: s, episode: e });
+      if (!sub?.raw) return farFallback('no_subtitle_file');
+      raw = sub.raw;
+    } catch (err) {
+      if (err instanceof UpstreamError) {
+        console.warn('[CL:EXAMPLE] subtitle fetch failed', { cacheKey, reason: err.reason, status: err.status ?? null });
+        return farFallback(err.reason === 'os_quota' ? 'os_quota' : 'subtitle_fetch_failed');
+      }
+      console.error('[CL:EXAMPLE] internal', String(err?.message || err));
+      return farFallback('subtitle_fetch_failed');
     }
   }
 
@@ -357,7 +358,7 @@ export async function POST(req) {
 
   return json({
     found: true,
-    sentence: hit.sentence,
+    sentence: capSentence(hit.sentence, word), // 層2は常に1文・200字の硬い上限（A4(e)）
     source: 'opensubtitles',
     tmdbId: id,
     season: s,
