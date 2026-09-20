@@ -18,7 +18,7 @@ const TOEIC_ROWS = [
 ];
 
 // 拡張の動作実態に合わせ Apple TV+/Hulu/U-NEXT は一旦UIから外す（2026-06-25・厳選）。
-// 選択可能な対応サービス（YouTube は例文が付かず未対応→「近日対応予定」で別枠表示・選べない）。
+// 選択可能な対応サービス（YouTube は対応予定から外したためカードごと撤去・2026-09-12）。
 const SERVICES = ['Netflix', 'Amazon Prime', 'Disney+'];
 
 const TIERS = [
@@ -208,11 +208,6 @@ export default function SettingsScreen() {
                   <div className="service-check">✓</div>
                 </div>
               ))}
-              {/* YouTube は近日対応予定（例文が付かないため今は未対応・選択不可） */}
-              <div className="service-card" style={{ opacity: 0.5, cursor: 'default' }}>
-                <div className="service-name">YouTube</div>
-                <div className="service-check" style={{ fontSize: 11 }}>近日対応予定</div>
-              </div>
             </div>
           </div>
 

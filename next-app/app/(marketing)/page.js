@@ -1,11 +1,16 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { NON_AFFILIATION } from '@/lib/legal';
 
 // landing.html を忠実に移植したマーケLP。
 // 静的マークアップは dangerouslySetInnerHTML でそのまま描画し（SSR されるため SEO も維持）、
-// タブ切替とスクロール出現アニメだけ React 側の useEffect で配線する。
+// スクロール出現アニメだけ React 側の useEffect で配線する。
 // CTA リンクは外部URLではなく同一デプロイのアプリ（/app）へ向ける。
+// 拡張機能は Chrome Web Store 公開済み（zip/デベロッパーモード手順は廃止）。
+// ストアURLは ExtensionGuide.js と同じものを指す（変える時は両方）。
+const STORE_URL = 'https://chromewebstore.google.com/detail/cinelearn/jdhgbdpaeoihopelnnganoojpnplkiie';
+
 const MARKUP = `
 <!-- NAV -->
 <nav>
@@ -30,11 +35,13 @@ const MARKUP = `
     <span class="s-badge">🔴 Netflix</span>
     <span class="s-badge">📦 Amazon Prime</span>
     <span class="s-badge">🏰 Disney+</span>
-    <span class="s-badge" style="opacity:0.5">▶️ YouTube（近日対応予定）</span>
   </div>
 
+  <!-- 副CTA（拡張）はPC幅ではストアへ、スマホ幅では拡張を入れられないので導入手順へ（CSS で出し分け） -->
   <div class="hero-btns">
     <a href="/app" class="btn-primary">🎬 無料で始める</a>
+    <a href="${STORE_URL}" target="_blank" rel="noopener" class="btn-outline cta-ext-pc">🧩 Chrome に追加（無料）</a>
+    <a href="#setup" class="btn-outline cta-ext-mobile">💻 PC で拡張を入れる（手順）</a>
     <a href="#how" class="btn-outline">仕組みを見る</a>
   </div>
 
@@ -86,15 +93,10 @@ const MARKUP = `
         <div class="service-name">Amazon Prime</div>
         <div class="service-note">字幕クリック保存・例文・◀▶対応</div>
       </div>
-      <div class="service-card featured">
+      <div class="service-card">
         <div class="service-icon">🏰</div>
         <div class="service-name">Disney+</div>
-        <div class="service-note">字幕クリック保存・例文対応</div>
-      </div>
-      <div class="service-card" style="opacity:0.55">
-        <div class="service-icon">▶️</div>
-        <div class="service-name">YouTube</div>
-        <div class="service-note">近日対応予定</div>
+        <div class="service-note">単語保存・例文・セリフコピー対応（◀▶ナビのみ非対応）</div>
       </div>
     </div>
   </div>
@@ -240,7 +242,7 @@ const MARKUP = `
           <p>
             Chrome拡張機能を使えば、字幕に表示される単語をクリックするだけで保存。
             辞書検索・意味確認・単語帳への追加がワンアクションで完了します。
-            <strong style="color:var(--text)">保存した単語はSupabaseでクラウド同期され、スマホでも確認できます。</strong>
+            <strong style="color:var(--text)">ログインしておけば、保存した単語はクラウド同期されてスマホでも確認できます。</strong>
           </p>
         </div>
         <div class="feat-visual popup-wrap">
@@ -415,100 +417,34 @@ const MARKUP = `
 <section class="section setup" id="setup">
   <div class="container">
     <span class="section-tag">導入方法</span>
-    <h2>今すぐ使い始める</h2>
-    <p class="section-lead" style="margin-bottom:36px">Webアプリはブラウザで開くだけ。Netflix等の字幕連携にはChrome拡張機能（無料）が必要です。</p>
+    <h2>3ステップで今すぐ使い始める</h2>
+    <p class="section-lead" style="margin-bottom:36px">Webアプリはブラウザで開くだけ。Netflix / Prime Video の字幕から単語を集めるには、Chrome拡張機能（無料・PC専用）を追加し、アプリにログインしておきます。</p>
 
-    <div class="setup-tabs">
-      <button class="tab-btn active" data-tab="web">① Webアプリを開く</button>
-      <button class="tab-btn" data-tab="ext">② Chrome拡張をインストール</button>
-    </div>
-
-    <!-- WEB APP STEPS -->
-    <div id="tab-web" class="setup-steps">
+    <div class="setup-steps">
 
       <div class="install-step">
         <div>
           <span class="step-badge">STEP 1</span>
-          <h3>URLをブラウザで開く</h3>
-          <p>インストール不要。下のURLをChromeやSafariで開くだけで、すぐに使い始められます。スマホにも対応しています。</p>
-          <div class="note"><strong>URL：</strong> cinelearn-next.vercel.app</div>
+          <h3>Chrome Web Store で「Chrome に追加」</h3>
+          <p>Chrome Web Store の CineLearn ページを開き、「Chrome に追加」を押すだけ。zip の解凍やデベロッパーモードの設定は不要です（Edge など他の Chromium 系ブラウザも同じ手順）。</p>
+          <a href="${STORE_URL}" target="_blank" rel="noopener" class="btn-primary install-cta">🧩 Chrome Web Store で追加（無料）</a>
+          <div class="note"><strong>💻 PC の Chrome / Edge 専用。</strong>スマホは Web アプリで予習・復習・テストに対応しています。スマホの方は <a href="/app">/app で予習から</a>始めてください。</div>
         </div>
         <div class="illus">
           <div class="illus-bar">
             <div class="illus-dot"></div><div class="illus-dot"></div><div class="illus-dot"></div>
-            <div class="illus-url">🔒 cinelearn-next.vercel.app</div>
-          </div>
-          <div class="illus-body" style="text-align:center;padding:28px 20px">
-            <div style="font-family:'Playfair Display',serif;font-size:28px;font-weight:700;color:#1a1a1a;margin-bottom:6px">Cine<span style="color:#b8923a">Learn</span></div>
-            <div style="font-size:13px;color:#999;margin-bottom:20px">観たいドラマが、教材になる。</div>
-            <div style="display:flex;flex-direction:column;gap:8px;max-width:200px;margin:0 auto">
-              <div style="background:#f4f2ee;border-radius:10px;padding:10px;font-size:12px;color:#666;border:1px solid #e8e4dc">👤 プロフィールを選ぶ</div>
-              <div style="background:#f4f2ee;border-radius:10px;padding:10px;font-size:12px;color:#666;border:1px solid #e8e4dc">🎬 ドラマを追加する</div>
-              <div style="background:#b8923a;border-radius:10px;padding:10px;font-size:12px;color:#fff;font-weight:600">今すぐ始める →</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="install-step reverse">
-        <div>
-          <span class="step-badge">STEP 2</span>
-          <h3>プロフィールを作成してログイン</h3>
-          <p>家族や友人と1つのアカウントを共有できます。プロフィールごとに学習データが独立しているので、それぞれのペースで進められます。</p>
-          <div class="note"><strong>💡 ヒント：</strong>ログインするとスマホ・PCでデータが同期されます。スキップしてローカルのみでも使えます。</div>
-        </div>
-        <div class="illus">
-          <div class="illus-bar">
-            <div class="illus-dot"></div><div class="illus-dot"></div><div class="illus-dot"></div>
-            <div class="illus-url">だれが観ますか？</div>
-          </div>
-          <div class="illus-body" style="display:flex;gap:12px;justify-content:center;padding:24px 16px;flex-wrap:wrap">
-            <div style="text-align:center">
-              <div style="width:60px;height:60px;border-radius:12px;background:#1A73E8;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;color:#fff;margin:0 auto 6px">S</div>
-              <div style="font-size:12px;color:#333">しゅん</div>
-            </div>
-            <div style="text-align:center">
-              <div style="width:60px;height:60px;border-radius:12px;background:#2E7D32;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;color:#fff;margin:0 auto 6px">M</div>
-              <div style="font-size:12px;color:#333">まい</div>
-            </div>
-            <div style="text-align:center">
-              <div style="width:60px;height:60px;border-radius:12px;background:#e8e4dc;display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 6px;border:2px dashed #ccc">＋</div>
-              <div style="font-size:12px;color:#999">追加</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-    </div><!-- /tab-web -->
-
-    <!-- EXTENSION STEPS -->
-    <div id="tab-ext" class="setup-steps" style="display:none">
-
-      <div class="install-step">
-        <div>
-          <span class="step-badge">STEP 1</span>
-          <h3>GitHubからzipファイルをダウンロード</h3>
-          <p>下のリンクからCineLearnのリリースページを開き、<code style="background:#f4f2ee;padding:2px 6px;border-radius:4px;font-size:13px">CineLearn-extension.zip</code> をダウンロードしてください。</p>
-          <div class="note"><strong>📎 ダウンロード：</strong>github.com/syunstonefield/CineLearn/releases/latest</div>
-        </div>
-        <div class="illus">
-          <div class="illus-bar">
-            <div class="illus-dot"></div><div class="illus-dot"></div><div class="illus-dot"></div>
-            <div class="illus-url">github.com/syunstonefield/CineLearn/releases/latest</div>
+            <div class="illus-url">🔒 chromewebstore.google.com/detail/cinelearn/…</div>
           </div>
           <div class="illus-body">
-            <div class="gh-release">
-              <div class="gh-release-head">🏷 <span class="gh-tag">Latest</span> CineLearn Extension — 最新版</div>
-              <div class="gh-asset">
-                <span class="gh-icon">📦</span>
-                <span class="gh-name">CineLearn-extension.zip</span>
-                <button class="gh-dl">⬇ Download</button>
+            <div class="ext-card" style="margin-top:0">
+              <div class="ext-logo">CL</div>
+              <div class="ext-info">
+                <div class="ext-name">CineLearn</div>
+                <div class="ext-id">ドラマ字幕から単語を保存 · 無料</div>
               </div>
-              <div class="gh-asset" style="color:#999;font-size:12px">
-                <span class="gh-icon">📄</span>
-                <span class="gh-name">Source code (zip)</span>
-              </div>
+              <div class="store-add-btn">Chrome に追加</div>
             </div>
+            <div style="margin-top:12px;font-size:12px;color:#5f6368;line-height:1.7">Netflix・Prime Video の字幕をクリックで単語帳へ。予習・復習は Web アプリで。</div>
           </div>
         </div>
       </div>
@@ -516,32 +452,31 @@ const MARKUP = `
       <div class="install-step reverse">
         <div>
           <span class="step-badge">STEP 2</span>
-          <h3>zipを解凍してフォルダを取り出す</h3>
-          <p>ダウンロードした <code style="background:#f4f2ee;padding:2px 6px;border-radius:4px;font-size:13px">CineLearn-extension.zip</code> をダブルクリックで解凍します。<br>中に <strong>cinelearn</strong> というフォルダが展開されます。</p>
-          <div class="note"><strong>💡 ヒント：</strong>フォルダはデスクトップや「書類」など、わかりやすい場所に置いておきましょう。</div>
+          <h3>Web アプリにログインする</h3>
+          <p>拡張機能で集めた単語をアプリに届けるには<strong>ログインが必須</strong>です（ローカルのみの利用は予習・復習向け）。ログインすると単語・履歴がスマホ・PC・拡張機能で同期されます。</p>
+          <a href="/app" class="btn-outline install-cta">アプリを開いてログイン →</a>
+          <div class="note"><strong>⚠️ STEP 3 の前に必ず一度ログイン。</strong>拡張機能がこの画面からログインを自動で引き継ぎます（拡張側での入力は不要です）。</div>
         </div>
         <div class="illus">
           <div class="illus-bar">
             <div class="illus-dot"></div><div class="illus-dot"></div><div class="illus-dot"></div>
-            <div class="illus-url" style="text-align:center">Finder</div>
+            <div class="illus-url">🔒 cinelearn-next.vercel.app/app</div>
           </div>
-          <div class="illus-body" style="padding:16px">
-            <div style="display:flex;flex-direction:column;gap:8px">
-              <div style="display:flex;align-items:center;gap:10px;padding:8px;background:#f0ece4;border-radius:8px">
-                <span style="font-size:20px">🗜️</span>
-                <div>
-                  <div style="font-size:13px;font-weight:500;color:#333">CineLearn-extension.zip</div>
-                  <div style="font-size:11px;color:#999">ダウンロード</div>
-                </div>
+          <div class="illus-body" style="text-align:center;padding:24px 20px">
+            <div style="font-family:'Playfair Display',serif;font-size:24px;font-weight:700;color:#1a1a1a;margin-bottom:4px">Cine<span style="color:#b8923a">Learn</span></div>
+            <div style="font-size:12px;color:#999;margin-bottom:16px">ログインすると単語・履歴が同期されます</div>
+            <div style="display:flex;flex-direction:column;gap:8px;max-width:220px;margin:0 auto">
+              <div style="background:#fff;border-radius:10px;padding:9px 12px;font-size:12px;color:#999;border:1px solid #e8e4dc;text-align:left">📧 メールアドレス</div>
+              <div style="background:#fff;border-radius:10px;padding:9px 12px;font-size:12px;color:#999;border:1px solid #e8e4dc;text-align:left">🔒 パスワード</div>
+              <div style="background:#b8923a;border-radius:10px;padding:10px;font-size:12px;color:#fff;font-weight:600">ログイン</div>
+            </div>
+            <div class="ext-card" style="max-width:260px;margin:16px auto 0;text-align:left">
+              <div class="ext-logo">CL</div>
+              <div class="ext-info">
+                <div class="ext-name">CineLearn 拡張機能</div>
+                <div class="ext-id" style="color:#2e7d32">✓ ログインを引き継ぎました</div>
               </div>
-              <div style="text-align:center;font-size:18px;color:#999">↓ ダブルクリックで解凍</div>
-              <div style="display:flex;align-items:center;gap:10px;padding:8px;background:#e8f5e9;border-radius:8px;border:2px solid #4caf50">
-                <span style="font-size:20px">📁</span>
-                <div>
-                  <div style="font-size:13px;font-weight:600;color:#2e7d32">cinelearn（フォルダ）</div>
-                  <div style="font-size:11px;color:#66bb6a">← これを使います</div>
-                </div>
-              </div>
+              <div class="ext-on"></div>
             </div>
           </div>
         </div>
@@ -550,67 +485,9 @@ const MARKUP = `
       <div class="install-step">
         <div>
           <span class="step-badge">STEP 3</span>
-          <h3>Chromeの拡張機能ページを開いてデベロッパーモードをON</h3>
-          <p>Chromeのアドレスバーに <code style="background:#f4f2ee;padding:2px 6px;border-radius:4px;font-size:13px">chrome://extensions</code> と入力してEnter。右上の「<strong>デベロッパーモード</strong>」トグルをオンにします。</p>
-        </div>
-        <div class="illus">
-          <div class="illus-bar">
-            <div class="illus-dot"></div><div class="illus-dot"></div><div class="illus-dot"></div>
-            <div class="illus-url">chrome://extensions</div>
-          </div>
-          <div class="ext-page">
-            <div class="ext-header">
-              <div class="ext-title">拡張機能</div>
-              <div class="dev-toggle">
-                デベロッパーモード
-                <div class="toggle-track"><div class="toggle-thumb"></div></div>
-                <span style="color:#1a73e8;font-weight:600">ON ✓</span>
-              </div>
-            </div>
-            <div style="padding:12px 16px;display:flex;gap:8px;border-bottom:1px solid #f0f0f0;background:#f8f9fa">
-              <div class="ext-load-btn">📂 パッケージ化されていない拡張機能を読み込む</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="install-step reverse">
-        <div>
-          <span class="step-badge">STEP 4</span>
-          <h3>「パッケージ化されていない拡張機能を読み込む」でフォルダを選択</h3>
-          <p>「パッケージ化されていない拡張機能を読み込む」をクリックし、先ほど解凍した <strong>cinelearn フォルダ</strong>を選択します。これで拡張機能がChromeに追加されます。</p>
-          <div class="note"><strong>✅ 完了：</strong>CineLearnがChromeの拡張機能一覧に表示されればインストール完了です。</div>
-        </div>
-        <div class="illus">
-          <div class="illus-bar">
-            <div class="illus-dot"></div><div class="illus-dot"></div><div class="illus-dot"></div>
-            <div class="illus-url">chrome://extensions</div>
-          </div>
-          <div class="ext-page">
-            <div class="ext-header">
-              <div class="ext-title">拡張機能</div>
-              <div class="dev-toggle">デベロッパーモード <div class="toggle-track"><div class="toggle-thumb"></div></div></div>
-            </div>
-            <div style="padding:12px 16px">
-              <div class="ext-card">
-                <div class="ext-logo">CL</div>
-                <div class="ext-info">
-                  <div class="ext-name">CineLearn Word Saver</div>
-                  <div class="ext-id">ドラマ字幕から単語を保存</div>
-                </div>
-                <div class="ext-on"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="install-step">
-        <div>
-          <span class="step-badge">STEP 5</span>
-          <h3>Netflixを開いて字幕の単語をクリック</h3>
-          <p>NetflixやAmazon Primeで動画を再生し、字幕に表示される単語をクリックするだけ。辞書ポップアップが表示され、ワンクリックで単語帳に保存できます。</p>
-          <div class="note"><strong>🔄 自動同期：</strong>保存した単語はCineLearnのWebアプリとスマホに自動で同期されます。</div>
+          <h3>Netflix / Prime Video で再生して字幕の単語をクリック</h3>
+          <p>動画を再生し、字幕に表示される単語をクリックするだけ。辞書ポップアップが表示され、ワンクリックで単語帳に保存できます。</p>
+          <div class="note"><strong>🔄 自動同期：</strong>ログイン済みなら、保存した単語は Web アプリとスマホに自動で同期されます（未ログインでの保存は同期されません）。Disney+ は単語保存・例文・セリフコピー対応（◀▶ナビのみ非対応）。</div>
         </div>
         <div class="illus" style="overflow:hidden">
           <div class="illus-bar">
@@ -634,7 +511,7 @@ const MARKUP = `
         </div>
       </div>
 
-    </div><!-- /tab-ext -->
+    </div>
   </div>
 </section>
 
@@ -673,7 +550,11 @@ const MARKUP = `
       学習の準備はすべてシステムに任せてください。
       あなたはただ、お気に入りのドラマを楽しむだけです。
     </p>
-    <a href="/app" class="btn-primary">🎬 無料で始める</a>
+    <div class="cta-btns">
+      <a href="/app" class="btn-primary">🎬 無料で始める</a>
+      <a href="${STORE_URL}" target="_blank" rel="noopener" class="btn-outline cta-ext-pc">🧩 Chrome に追加（無料）</a>
+      <a href="#setup" class="btn-outline cta-ext-mobile">💻 PC で拡張を入れる（手順）</a>
+    </div>
   </div>
 </section>
 
@@ -689,7 +570,7 @@ const MARKUP = `
       <a href="mailto:cinelearn.202606@gmail.com">お問い合わせ</a>
     </div>
     <small style="color:#444;font-size:11px;max-width:420px;text-align:right;line-height:1.6">
-      CineLearn は Netflix・Amazon・TMDB・OpenSubtitles と提携・公認関係にありません。各社の商標は各権利者に帰属します。
+      ${NON_AFFILIATION}
       This product uses the TMDB API but is not endorsed or certified by <a href="https://www.themoviedb.org" target="_blank" rel="noopener" style="color:#888">TMDB</a>.
     </small>
   </div>
@@ -702,19 +583,6 @@ export default function LandingPage() {
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
-
-    // ── タブ切替（① Webアプリ / ② Chrome拡張） ──
-    const tabBtns = Array.from(root.querySelectorAll('.tab-btn'));
-    const tabWeb = root.querySelector('#tab-web');
-    const tabExt = root.querySelector('#tab-ext');
-    const showTab = (name) => {
-      if (tabWeb) tabWeb.style.display = name === 'web' ? 'flex' : 'none';
-      if (tabExt) tabExt.style.display = name === 'ext' ? 'flex' : 'none';
-      tabBtns.forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
-    };
-    const onTabClick = (e) => showTab(e.currentTarget.dataset.tab);
-    tabBtns.forEach((b) => b.addEventListener('click', onTabClick));
-    showTab('web');
 
     // ── スクロールで要素をふわっと出現させる ──
     const targets = Array.from(
@@ -736,7 +604,6 @@ export default function LandingPage() {
     targets.forEach((el) => io.observe(el));
 
     return () => {
-      tabBtns.forEach((b) => b.removeEventListener('click', onTabClick));
       io.disconnect();
     };
   }, []);

@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { useApp } from './AppProvider';
 import { supaSignIn, supaSignUp, pullFromCloud } from '@/lib/supabase';
 
-// 既存 authModal の再現（Supビュー読み取り専用）。
+// ログイン／新規登録モーダル。リード文は「同期される」ことだけを伝える（旧「試作版・読み取り専用」文言は
+// 公開ターゲットが本番に確定した時点で実態と合わなくなったため撤去・A24(2)）。
 // ログイン成功時は pullFromCloud のみ（pushLocalToCloud は本番書き込みになるため移植しない）。
 export default function AuthModal() {
   const { closeAuth, onLoggedIn } = useApp();
@@ -61,8 +62,7 @@ export default function AuthModal() {
         </div>
         <div className="auth-body">
           <p className="auth-lead">
-            ログインすると、本番アプリ（cine-learn.vercel.app）に保存した単語・履歴を
-            この試作版でも読み込めます（読み取り専用・本番データは変更しません）。
+            ログインすると単語・履歴がスマホ / PC / 拡張機能で同期されます。
           </p>
           <div className="auth-tabs">
             <button className={'auth-tab' + (mode === 'login' ? ' active' : '')} onClick={() => setMode('login')}>
@@ -102,6 +102,11 @@ export default function AuthModal() {
           <button className="btn-secondary" onClick={closeAuth}>
             このデバイスのみで使う
           </button>
+          {/* 拡張の保存先はログイン済みアカウント。未ログインで拡張を使うと単語が届かないため、
+              「このデバイスのみ」を選ぶ前にその制約を明示する（A24(2)） */}
+          <p style={{ marginTop: 6, fontSize: 11.5, color: 'var(--text-muted)', textAlign: 'center' }}>
+            ※ Chrome 拡張で保存した単語は同期されません
+          </p>
         </div>
       </div>
     </div>

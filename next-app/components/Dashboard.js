@@ -516,7 +516,7 @@ export default function Dashboard() {
           <div className="ext-banner">
             <span className="ext-banner-icon" aria-hidden="true">🧩</span>
             <span className="ext-banner-text">
-              Netflixなどで単語を集めるには、無料の拡張機能が必要です
+              Netflix / Prime Video で単語を集めるには、無料の Chrome 拡張機能（ストアから1クリック）とログインが必要です
             </span>
             <button className="ext-banner-btn" onClick={openGuide}>
               入れ方を見る →

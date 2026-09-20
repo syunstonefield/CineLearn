@@ -2,7 +2,11 @@
 // （<html lang="ja">＋landing.css）配下で表示される静的ページ。
 // 見た目は landing.css に依存せずインラインスタイルで自己完結（privacy/terms と同じ作法）。
 
+import { NON_AFFILIATION } from '@/lib/legal';
+
 const CONTACT_EMAIL = 'cinelearn.202606@gmail.com';
+// ストアURL（LP page.js・ExtensionGuide.js と同じものを指す。変える時は3箇所）。
+const STORE_URL = 'https://chromewebstore.google.com/detail/cinelearn/jdhgbdpaeoihopelnnganoojpnplkiie';
 
 export const metadata = {
   title: 'サポート・使い方 — CineLearn',
@@ -41,14 +45,18 @@ export default function SupportPage() {
       <h2 style={h2}>はじめかた</h2>
       <ol>
         <li style={li}>
-          Chrome ウェブストアから <strong>拡張機能「CineLearn」</strong> を追加します。
+          <a href={STORE_URL} target="_blank" rel="noopener" style={a}>Chrome Web Store</a>
+          {' '}から <strong>拡張機能「CineLearn」</strong> を追加します（「Chrome に追加」を押すだけ）。
+          <br />
+          ※ 拡張機能は PC の Chrome / Edge 専用です。スマホは学習アプリで予習・復習・テストに使えます。
         </li>
         <li style={li}>
           学習アプリ（
           <a href="https://cinelearn-next.vercel.app/app" style={a}>cinelearn-next.vercel.app</a>
-          ）を開き、ログイン（またはこのデバイスのみで利用）します。
+          ）を開き、ログインします。拡張機能で集めた単語をアプリに届けるには<strong>ログインが必須</strong>です
+          （ローカルのみの利用は予習・復習向け）。
           <br />
-          ※ クラウド同期を使う場合は、ログインした状態でこのページを一度開くと拡張機能にログインが引き継がれます。
+          ※ ログインした状態で学習アプリを一度開くと、拡張機能にログインが引き継がれます（拡張側での入力は不要です）。
         </li>
         <li style={li}>
           Netflix などで動画を再生し、字幕の知らない単語を<strong>クリック</strong>すると単語帳に保存されます。
@@ -62,11 +70,8 @@ export default function SupportPage() {
       <ul>
         <li style={li}><strong>Netflix</strong>：単語保存・例文・字幕ナビ（◀▶）に対応</li>
         <li style={li}><strong>Amazon Prime Video</strong>：単語保存・例文・字幕ナビ（◀▶）に対応</li>
-        <li style={li}><strong>Disney+</strong>：単語保存・例文・セリフのコピーに対応（◀▶ は非対応）</li>
+        <li style={li}><strong>Disney+</strong>：単語保存・例文・セリフコピー対応（◀▶ナビのみ非対応）</li>
       </ul>
-      <p style={{ fontSize: 13, color: '#888' }}>
-        ※ YouTube は近日対応予定です。
-      </p>
 
       <h2 style={h2}>よくある質問</h2>
 
@@ -123,8 +128,8 @@ export default function SupportPage() {
 
       <h2 style={h2}>免責・非提携</h2>
       <p style={{ fontSize: 13, color: '#666' }}>
-        CineLearn は Netflix・Amazon・Disney・TMDB・OpenSubtitles と提携・公認関係にありません。
-        各社の名称・商標は各権利者に帰属します。
+        {/* 非提携文は lib/legal.js の単一ソース（Microsoft を含む）。LP・PP・Terms と同文 */}
+        {NON_AFFILIATION}
       </p>
     </main>
   );
