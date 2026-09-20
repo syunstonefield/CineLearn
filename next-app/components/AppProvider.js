@@ -1,7 +1,13 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { loadProfiles, saveProfiles, patchProfileSettings, unarchiveDrama } from '@/lib/storage';
+import {
+  loadProfiles,
+  saveProfiles,
+  patchProfileSettings,
+  unarchiveDrama,
+  cleanupLegacySubtitleCache,
+} from '@/lib/storage';
 import { issueTicket as issueTicketLib, loadTickets } from '@/lib/tickets';
 import { addStudySeconds, addDramaStudySeconds } from '@/lib/studytime';
 import { applyTheme, getThemePref } from '@/lib/theme';
@@ -154,6 +160,14 @@ export default function AppProvider({ children }) {
     mq.addEventListener?.('change', onChange);
     return () => mq.removeEventListener?.('change', onChange);
   }, []);
+
+  // 旧字幕キャッシュ（cl_sub_* / cl_sub_raw_* / cl_sub_lru）の一回限りの掃除（2026-09-12・A17）。
+  // 字幕本文を端末に置く設計をやめたので、旧バンドルの残骸をマウント後に1回だけ消す
+  // （フラグ cl_subcache_cleanup_v1 で再実行しない・失敗しても起動を止めない）。
+  useEffect(() => {
+    if (!mounted) return;
+    cleanupLegacySubtitleCache();
+  }, [mounted]);
 
   useEffect(() => {
     setMounted(true);

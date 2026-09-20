@@ -1,60 +1,15 @@
-// 字幕パイプライン（検索候補選別・SRTパース・活用形・タイムスタンプ・LRU）。
-// js/app.js から移植。localStorage キーは既存と完全同一。
-import { searchSubtitles, downloadSubtitle } from './api';
-
-// ── キャッシュキー ──────────────────────────────────────────
-export function subtitleCacheKey(title, season, episode) {
-  const safe = (title || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
-  return `cl_sub_${safe}_s${season}e${episode}`;
-}
-export function subtitleRawCacheKey(title, season, episode) {
-  const safe = (title || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
-  return `cl_sub_raw_${safe}_s${season}e${episode}`;
-}
-
-// ── 字幕キャッシュ LRU 上限 ─────────────────────────────────
-const SUB_LRU_KEY = 'cl_sub_lru';
-const SUB_RAW_MAX = 10;
-const SUB_PARSED_MAX = 20;
-
-export function touchSubCache(...keys) {
-  try {
-    const lru = JSON.parse(localStorage.getItem(SUB_LRU_KEY) || '{}');
-    keys.forEach((k) => {
-      if (k) lru[k] = Date.now();
-    });
-    localStorage.setItem(SUB_LRU_KEY, JSON.stringify(lru));
-  } catch {
-    /* LRU記録の失敗は無視 */
-  }
-}
-
-export function evictSubCaches() {
-  try {
-    const lru = JSON.parse(localStorage.getItem(SUB_LRU_KEY) || '{}');
-    const rawKeys = [];
-    const parsedKeys = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (!k || k === SUB_LRU_KEY) continue;
-      if (k.startsWith('cl_sub_raw_')) rawKeys.push(k);
-      else if (k.startsWith('cl_sub_')) parsedKeys.push(k);
-    }
-    const evict = (keys, max) => {
-      if (keys.length <= max) return;
-      keys.sort((a, b) => (lru[a] || 0) - (lru[b] || 0));
-      keys.slice(0, keys.length - max).forEach((k) => {
-        localStorage.removeItem(k);
-        delete lru[k];
-      });
-    };
-    evict(rawKeys, SUB_RAW_MAX);
-    evict(parsedKeys, SUB_PARSED_MAX);
-    localStorage.setItem(SUB_LRU_KEY, JSON.stringify(lru));
-  } catch {
-    /* 失敗しても致命的ではない */
-  }
-}
+// 字幕パイプライン（検索候補選別・SRTパース・活用形・語／フレーズ照合・タイムスタンプ）。
+// js/app.js から移植。
+//
+// ★2026-09-12（公開拡大前ブロッカー B）: このモジュールは**純粋関数だけ**になった。
+//   生SRT・整形本文はクライアントへ配らない（30条の4 の内部解析はサーバ内で完結）ので、
+//   字幕の取得（fetchEpisodeSubtitle / fetchRawSrtIfMissing）・localStorage キャッシュ
+//   （cl_sub_* / cl_sub_raw_* / cl_sub_lru・subtitleCacheKey 等）・VOD 実時刻補正（cl_vodsync）は
+//   すべて撤去した。残っている関数はサーバ（lib/server/*・app/api/*）と seed（素の Node）が
+//   import する＝ここでは 'next/server' や '@/…' エイリアス・window/localStorage を使わない。
+//   配信経路（findExampleForWord / findExampleByAnchor）と保存経路（findWordCueSec →
+//   attachBaseTimestamps）は同じ照合器 wordMatchRegex/exampleContainsWord を使う（memory
+//   「字幕tsSec二重パスの罠」）。
 
 // ── SRT パース ──────────────────────────────────────────────
 export function parseSrt(srtText) {
@@ -507,100 +462,14 @@ function parseCues(raw, sig) {
   return cues;
 }
 
-// ── VOD実時刻補正（cl_vodsync_* アンカー）──────────────────
-function fitVodSync(pairs) {
-  if (!pairs.length) return null;
-  const offsets = pairs.map((p) => p.vod - p.os).sort((x, y) => x - y);
-  const medianOffset = { a: 1, b: offsets[Math.floor(offsets.length / 2)] };
-  if (pairs.length < 2) return medianOffset;
-
-  const xs = pairs.map((p) => p.os);
-  const span = Math.max(...xs) - Math.min(...xs);
-  if (span < 120) return medianOffset;
-
-  const n = pairs.length;
-  const sx = xs.reduce((s, x) => s + x, 0);
-  const sy = pairs.reduce((s, p) => s + p.vod, 0);
-  const sxx = pairs.reduce((s, p) => s + p.os * p.os, 0);
-  const sxy = pairs.reduce((s, p) => s + p.os * p.vod, 0);
-  const a = (n * sxy - sx * sy) / (n * sxx - sx * sx);
-  const b = (sy - a * sx) / n;
-  if (!isFinite(a) || a < 0.8 || a > 1.25) return medianOffset;
-  return { a, b };
-}
-
-function computeVodSyncFit(cues, season, episode) {
-  if (typeof localStorage === 'undefined') return null; // サーバー/Node には VOD アンカーが無い
-  if (!cues.length) return null;
-  const suffix = `_s${season}e${episode}`;
-  const anchors = [];
-  for (let i = 0; i < localStorage.length; i++) {
-    const k = localStorage.key(i);
-    if (!k || !k.startsWith('cl_vodsync_') || !k.endsWith(suffix)) continue;
-    try {
-      (JSON.parse(localStorage.getItem(k)) || []).forEach((a) => anchors.push(a));
-    } catch {
-      /* skip */
-    }
-  }
-  if (!anchors.length) return null;
-
-  const norm = (s) =>
-    String(s || '')
-      .toLowerCase()
-      .replace(/[’'`]/g, "'")
-      .replace(/[^a-z0-9' ]/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-
-  const pairs = [];
-  for (const a of anchors) {
-    const words = norm(a.text).split(' ').filter((w) => w.length > 1);
-    if (words.length < 3) continue;
-    const key5 = words.slice(0, 5).join(' ');
-    const key3 = words.slice(0, 3).join(' ');
-    const c =
-      cues.find((cc) => norm(cc.text).includes(key5)) ||
-      cues.find((cc) => norm(cc.text).includes(key3));
-    if (c) pairs.push({ os: c.sec, vod: a.t });
-  }
-  if (pairs.length) {
-    const total = cues[cues.length - 1].sec || 1;
-    const osv = pairs.map((p) => p.os);
-    const minOs = Math.min(...osv);
-    const maxOs = Math.max(...osv);
-    const spread = (maxOs - minOs) / total;
-    const trustworthy =
-      (minOs < total * 0.35 && maxOs > total * 0.65) || spread > 0.5;
-    if (!trustworthy) return null;
-  }
-  return fitVodSync(pairs);
-}
-
 // ── タイムスタンプ計算（公開API）────────────────────────────
 // ctx = { title, season, episode, rawSrt }
-// VOD同期フィットのキャッシュ（computeVodSyncFit は localStorage 全走査するため、
-// 同一エピソード・同一字幕の間は再計算しない。既存 app.js の _syncFitSig 相当）。
-let _fitCacheSig = '';
-let _fitCache = null;
+// 署名は「作品＋話＋生SRT長」＝同じ話・同じ字幕の間はキュー配列を再パースしない（parseCues の
+// 1件キャッシュ）。VOD 実時刻補正（fit）は撤去済み＝常にベース時刻（OS 字幕の時刻）を返す。
 function buildTsContext(ctx) {
-  const sig = subtitleRawCacheKey(ctx.title, ctx.season, ctx.episode) + ':' + (ctx.rawSrt || '').length;
+  const sig = `${ctx.title || ''}|${ctx.season}|${ctx.episode}|${(ctx.rawSrt || '').length}`;
   const cues = parseCues(ctx.rawSrt || '', sig);
-  let fit;
-  if (ctx.noVodSync) {
-    fit = null; // ベース時刻のみ（保存用・サーバー用）
-  } else if (_fitCacheSig === sig) {
-    fit = _fitCache;
-  } else {
-    fit = cues.length ? computeVodSyncFit(cues, ctx.season, ctx.episode) : null;
-    _fitCacheSig = sig;
-    _fitCache = fit;
-  }
-  return { cues, fit };
-}
-
-function applyVodSync(fit, sec) {
-  return fit ? Math.max(0, Math.round(fit.a * sec + fit.b)) : sec;
+  return { cues };
 }
 
 // 単語（活用形含む）を含むキューの時刻を1つ返す。
@@ -642,9 +511,10 @@ function findWordCueSec(cues, word, example) {
 }
 
 // 各単語に「ベース字幕時刻」を tsSec(数値|null)/tsLabel(文字列|null) として付与する（in-place）。
-// VOD補正は per-user なので付けない（保存・サーバー用）。シード／フェーズ1寄与で使う。
+// 保存・サーバー用（lib/server/vocabGen.js の生成経路／seed の backfill）。署名は従来どおり
+// (words, { title, season, episode, rawSrt })。
 export function attachBaseTimestamps(words, ctx) {
-  const map = computeTimestamps(words, { ...ctx, noVodSync: true });
+  const map = computeTimestamps(words, ctx);
   for (const w of words) {
     // plus 語＝字幕外のAI作例。📍を付けてはいけない。
     //   ★分割生成では drama/plus の判定が「そのチャンクの本文」に対してだけ行われるのに、
@@ -665,138 +535,24 @@ export function attachBaseTimestamps(words, ctx) {
   return words;
 }
 
-// 単語ごとの { sec(ソート用・補正済), label(📍表示) } を一括計算して Map で返す
+// 単語ごとの { sec(ソート用・ベース時刻), label(📍表示) } を一括計算して Map で返す
 export function computeTimestamps(words, ctx) {
   const map = new Map();
   if (!ctx?.rawSrt) {
     words.forEach((w) => map.set(w.word, { sec: Infinity, label: null }));
     return map;
   }
-  const { cues, fit } = buildTsContext(ctx);
+  const { cues } = buildTsContext(ctx);
   words.forEach((w) => {
     if (map.has(w.word)) return;
     // example 文があれば、その語を含む候補のうち example に最も一致するキューに揃える
     // （📍時刻と例文の出現箇所を一致させる）。example 無しは語含む最初のキューへフォールバック。
-    const raw = findWordCueSec(cues, w.word, w.example);
-    if (raw == null) {
+    const sec = findWordCueSec(cues, w.word, w.example);
+    if (sec == null) {
       map.set(w.word, { sec: Infinity, label: null });
     } else {
-      const adj = applyVodSync(fit, raw);
-      map.set(w.word, { sec: adj, label: secToTimeLabel(adj) });
+      map.set(w.word, { sec, label: secToTimeLabel(sec) });
     }
   });
   return map;
-}
-
-// ── 字幕取得（preloadSubtitle 相当・データのみ返す）─────────
-// 戻り値: { parsed, raw, source } | null（字幕なし）
-export async function fetchEpisodeSubtitle(drama, season, episode) {
-  const searchTitle = drama.englishTitle || drama.title;
-  const isMovie = drama.type === 'movie';
-  const subtitles = await searchSubtitles(
-    searchTitle,
-    season,
-    episode,
-    isMovie ? 'movie' : 'tv',
-    isMovie ? drama.tmdbId : null
-  );
-  const sorted = selectSubtitleCandidates(subtitles, isMovie, season, episode);
-  if (!sorted.length) return null;
-
-  let fileId = null;
-  let srtText = null;
-  for (const cand of sorted.slice(0, 3)) {
-    const fid = cand.attributes.files[0].file_id;
-    const text = await downloadSubtitle(fid);
-    if (!text) continue;
-    const musicRatio = (text.match(/♪/g) || []).length / (text.length / 100);
-    if (musicRatio > 5) continue;
-    fileId = fid;
-    srtText = text;
-    break;
-  }
-  if (!fileId) {
-    fileId = sorted[0].attributes.files[0].file_id;
-    srtText = await downloadSubtitle(fileId);
-  }
-  const parsed = parseSrt(srtText);
-
-  // 永続キャッシュに保存（未割当単語のエピソード解決に使用）
-  try {
-    const title = drama.englishTitle || drama.title;
-    const key = subtitleCacheKey(title, season, episode);
-    const rawKey = subtitleRawCacheKey(title, season, episode);
-    localStorage.setItem(key, parsed);
-    localStorage.setItem(rawKey, srtText);
-    touchSubCache(key, rawKey);
-    evictSubCaches();
-  } catch {
-    /* QuotaExceeded は無視 */
-  }
-  return { parsed, raw: srtText, source: '実際の字幕データから' };
-}
-
-// 移行フォールバック（2026-08-06）: englishTitle を邦題→ラテン原題に切り替えたため、
-// 切替前に邦題キーで保存された字幕キャッシュが新キーでミスする。読み取りは
-// 英題キー→邦題キーの順で両方を見る（書き込みは新キーのみ・OS DL枠の再消費を防ぐ）。
-function readSubCacheWithFallback(keyFn, drama, season, episode) {
-  const title = drama?.englishTitle || drama?.title;
-  const key = keyFn(title, season, episode);
-  let val = localStorage.getItem(key);
-  let hitKey = key;
-  if (!val && drama?.title && drama.title !== title) {
-    const oldKey = keyFn(drama.title, season, episode);
-    val = localStorage.getItem(oldKey);
-    if (val) hitKey = oldKey;
-  }
-  if (val) touchSubCache(hitKey);
-  return val || '';
-}
-
-// エピソードの整形済み字幕テキストを localStorage から取得（旧邦題キーもフォールバック）
-export function readCachedSubtitleText(drama, season, episode) {
-  return readSubCacheWithFallback(subtitleCacheKey, drama, season, episode);
-}
-
-// 現在のエピソードの生SRTを localStorage から取得（タイムスタンプ用）
-export function getCachedRawSrt(drama, season, episode) {
-  const raw = readSubCacheWithFallback(subtitleRawCacheKey, drama, season, episode);
-  return raw;
-}
-
-// 生SRTが未保存ならバックグラウンドで取得して保存する（既存 fetchRawSrtIfMissing）。
-// 保存済み単語リストのタイムスタンプ（📍）補完に使う。戻り値: 取得した生SRT or null。
-export async function fetchRawSrtIfMissing(drama, season, episode) {
-  if (!drama || !season || !episode) return null;
-  const title = drama.englishTitle || drama.title;
-  const rawKey = subtitleRawCacheKey(title, season, episode);
-  // 旧邦題キーのキャッシュも「あり」とみなす（englishTitle切替でOS DLを再消費しない）
-  if (readSubCacheWithFallback(subtitleRawCacheKey, drama, season, episode)) return null;
-
-  try {
-    // 映画/TVの区別と候補選別を本取得（fetchEpisodeSubtitle）と同一にする
-    const isMovie = drama.type === 'movie';
-    const subtitles = await searchSubtitles(
-      title,
-      season,
-      episode,
-      isMovie ? 'movie' : 'tv',
-      isMovie ? drama.tmdbId : null
-    );
-    const sorted = selectSubtitleCandidates(subtitles, isMovie, season, episode);
-    if (!sorted.length) return null;
-    const srtText = await downloadSubtitle(sorted[0].attributes.files[0].file_id);
-    if (!srtText) return null;
-
-    try {
-      localStorage.setItem(rawKey, srtText);
-      touchSubCache(rawKey);
-      evictSubCaches();
-    } catch {
-      /* QuotaExceeded は無視 */
-    }
-    return srtText;
-  } catch {
-    return null;
-  }
 }

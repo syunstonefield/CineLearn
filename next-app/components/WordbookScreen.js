@@ -16,18 +16,20 @@ import { fetchCtxJa } from '@/lib/ctxtranslate';
 import { speak } from '@/lib/speak';
 import { secToTimeLabel } from '@/lib/subtitles';
 import { backfillMissingExamples } from '@/lib/exampleBackfill';
-import { sameWorkTitle } from '@/lib/words';
+import { sameWorkTitle, isUnassignedTvWord } from '@/lib/words';
 
 // マイ単語帳（ページ版・表示は単語リスト＝VocabItem と同じ折りたたみカード）。
 // 旧 WordbookModal をモーダル→screen='wordbook' に置き換え。
 
 // 出所明示（48条）：例文があるときだけ字幕の入手元を併記（旧モーダルと同じ書式）。
-function wordSource(w) {
+// unassigned=true（TV なのに S/E が無い語・A22(a)）は作品名の後に「話数不明」を添える。
+function wordSource(w, unassigned = false) {
   if (w.dramaTitle) {
     return (
       `📺 ${w.dramaTitle}` +
       (w.season != null ? ` S${w.season}` : '') +
       (w.episode != null ? `E${w.episode}` : '') +
+      (unassigned ? '（話数不明）' : '') +
       (w.sentence ? '（字幕：OpenSubtitles）' : '')
     );
   }
@@ -37,7 +39,7 @@ function wordSource(w) {
 }
 
 export default function WordbookScreen() {
-  const { profile, settings, wordbookVersion, bumpWordbook, loggedIn, refreshFromCloud } = useApp();
+  const { profile, settings, wordbookVersion, bumpWordbook, loggedIn, refreshFromCloud, openAuth } = useApp();
   const pid = profile?.id;
   const [words, setWords] = useState(null); // null=読み込み中
   const [srs, setSrs] = useState({});
@@ -207,6 +209,18 @@ export default function WordbookScreen() {
             拡張機能をインストールして Netflix などで動画を再生すると、
             <br />
             字幕の各単語をクリックしてここに保存できます。
+            {!loggedIn && (
+              <>
+                <br />
+                <br />
+                {/* 未ログインの保存は拡張からアプリへ届かない（A24）。ここが「拡張が壊れた」と誤認する最初の関門 */}
+                <span style={{ fontSize: 13, opacity: 0.85 }}>※ 拡張機能で保存した単語をここに表示するにはログインが必要です</span>
+                <br />
+                <button type="button" className="btn-secondary" style={{ marginTop: 10 }} onClick={openAuth}>
+                  ログインする
+                </button>
+              </>
+            )}
           </div>
         ) : (
           <>
@@ -267,29 +281,51 @@ export default function WordbookScreen() {
                   この分類の単語はまだありません。
                 </div>
               )}
-              {visibleWords.map((w) => (
-                <VocabItem
-                  key={w.word}
-                  word={{
-                    ...w,
-                    definition: wordJa[w.word.toLowerCase()] || w.definition,
-                    example: w.example || w.sentence || '',
-                    example_ja: w.example_ja || exJa[w.word.toLowerCase()] || '',
-                  }}
-                  srs={srs}
-                  testTiers={testTiers}
-                  // 📍場面時刻（保存時に取れていれば）。単語リストと同じ VocabItem なのに
-                  // ここだけ時刻を捨てていた（2026-08-08）。作品横断の一覧なので、出所ラベルと
-                  // 並んで「どの作品の何分ごろか」が分かる。
-                  ts={w.tsSec != null ? { sec: w.tsSec, label: secToTimeLabel(w.tsSec) } : null}
-                  priority={isStruggling(srs[w.word.toLowerCase()])}
-                  exampleSource={wordSource(w)}
-                  onSpeak={speak}
-                  onSkip={handleSkip}
-                  onCopyTime={handleCopyTime}
-                  onDelete={onDelete}
-                />
-              ))}
+              {visibleWords.map((w) => {
+                // 話数不明（A22(a)）: 拡張が S/E を検出できずに保存した TV の語。作品の各話リストには
+                // 出ないので、ここで所在が分かるようバッジを付ける（映画は S/E が無いのが正＝付けない）。
+                const unassigned = isUnassignedTvWord(w, settings.myDramas || []);
+                return (
+                  <div key={w.word} style={unassigned ? { position: 'relative' } : undefined}>
+                    {unassigned && (
+                      <span
+                        className="vocab-added-chip"
+                        title="拡張が話数（シーズン/エピソード）を検出できなかった語です。作品の各話リストには出ません"
+                        style={{
+                          position: 'absolute',
+                          top: -7,
+                          right: 12,
+                          zIndex: 1,
+                          background: 'var(--surface)',
+                          border: '1px solid var(--border)',
+                        }}
+                      >
+                        話数不明
+                      </span>
+                    )}
+                    <VocabItem
+                      word={{
+                        ...w,
+                        definition: wordJa[w.word.toLowerCase()] || w.definition,
+                        example: w.example || w.sentence || '',
+                        example_ja: w.example_ja || exJa[w.word.toLowerCase()] || '',
+                      }}
+                      srs={srs}
+                      testTiers={testTiers}
+                      // 📍場面時刻（保存時に取れていれば）。単語リストと同じ VocabItem なのに
+                      // ここだけ時刻を捨てていた（2026-08-08）。作品横断の一覧なので、出所ラベルと
+                      // 並んで「どの作品の何分ごろか」が分かる。
+                      ts={w.tsSec != null ? { sec: w.tsSec, label: secToTimeLabel(w.tsSec) } : null}
+                      priority={isStruggling(srs[w.word.toLowerCase()])}
+                      exampleSource={wordSource(w, unassigned)}
+                      onSpeak={speak}
+                      onSkip={handleSkip}
+                      onCopyTime={handleCopyTime}
+                      onDelete={onDelete}
+                    />
+                  </div>
+                );
+              })}
             </div>
           </>
         )}

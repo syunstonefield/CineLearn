@@ -22,28 +22,19 @@ import {
   fetchSeasonInfoFromTMDb,
   fetchMovieInfoFromTMDb,
 } from '@/lib/tmdb';
-import {
-  fetchEpisodeSubtitle,
-  getCachedRawSrt,
-  fetchRawSrtIfMissing,
-  findExampleForWord,
-  subtitleCacheKey,
-  readCachedSubtitleText,
-  computeTimestamps,
-  attachBaseTimestamps,
-  secToTimeLabel,
-} from '@/lib/subtitles';
-import { generateSuperset, personalizeWords, fillMissingExampleJa } from '@/lib/vocab';
-import { fetchSharedVocab, contributeVocab } from '@/lib/api';
+import { secToTimeLabel } from '@/lib/subtitles';
+import { personalizeWords, fillMissingExampleJa } from '@/lib/vocab';
+// ★2026-09-12: 字幕本文（生SRT/整形済み）はクライアントに置かない。生成は /api/vocab-generate に
+//   1回投げて words だけを受け取り（generateEpisodeVocab）、字幕の有無は probeSubtitle で聞く。
+import { generateEpisodeVocab, probeSubtitle, authHeaders } from '@/lib/api';
 import {
   getMyWordsForEpisode,
-  resolveUnassignedWords,
+  countUnassignedForDrama,
   fillExtWordJa,
   addManualWord,
   deleteMyWord,
-  saveWordTranslation,
 } from '@/lib/words';
-import { pushMyWord } from '@/lib/supabase';
+import { pushMyWord, ensureFreshSession } from '@/lib/supabase';
 import { fetchJa } from '@/lib/jatranslate';
 import { fetchCtxJa } from '@/lib/ctxtranslate';
 import { getDeviceKey } from '@/lib/device';
@@ -75,6 +66,8 @@ export default function VocabScreen() {
     openPrepLaunch,
     openPrepWalk,
     reviewVersion,
+    openAuth,
+    loggedIn,
   } = app;
   const pid = app.profile?.id;
 
@@ -86,7 +79,7 @@ export default function VocabScreen() {
   const [seasons, setSeasons] = useState([]); // dramaSeasonInfo
   const [isMovie, setIsMovie] = useState(false);
   const [statusText, setStatusText] = useState('シーズン情報を取得中...');
-  const [phase, setPhase] = useState('loading'); // loading|empty|ready|generating|vocab|saved|nosub|error|choice
+  const [phase, setPhase] = useState('loading'); // loading|empty|ready|generating|vocab|saved|nosub|error|soon
   const [message, setMessage] = useState(''); // empty-state / error text
   // カタログ外（phase==='soon'）の作品リクエスト状態（docs/design-curated-catalog.md §3）。
   // votes:null は票数取得不可（degrade）＝票数なしでリクエスト導線だけ出す。
@@ -118,36 +111,40 @@ export default function VocabScreen() {
   // onGenerate 成功でこの一回限りフラグを立て、新出語が揃った瞬間に effect が開く。
   const [justGenerated, setJustGenerated] = useState(false);
 
-  // メモリ上の字幕（app.js の cachedSubtitleText/Key 相当）
-  const subMem = useRef({ key: '', text: '', raw: '' });
-  // 生SRT（タイムスタンプ用）。memory 優先→localStorage
-  const [subRaw, setSubRaw] = useState('');
-  const reqId = useRef(0); // 競合する非同期処理を無効化するための世代カウンタ
-
-  // ─ タイムスタンプ（vocab + subRaw から一括計算）─
-  const timestamps = useMemo(() => {
-    if (!vocab.length) return new Map();
-    if (subRaw) {
-      // 生SRTあり（生成パス）: VOD補正つきで計算
-      return computeTimestamps(vocab, {
-        title: drama?.englishTitle || drama?.title,
-        season,
-        episode,
-        rawSrt: subRaw,
-      });
+  // 生成結果の付帯情報（2026-09-12）:
+  //   genNote  … error 相の補助導線。{ login:true } で「ログインする」ボタン（生成枠の 429・A12(3)）
+  //   notShared… 生成はできたが品質/coverage ゲートを通らず共有キャッシュに書かれなかった（A12(5)）
+  const [genNote, setGenNote] = useState(null);
+  // 匿名の生成枠 429 で「ログインする」を出した後にログインが完了したら、導線と文言を畳む
+  //（出しっぱなしだと次に押すべき「単語を再生成」が埋もれる・レビュー指摘）。
+  useEffect(() => {
+    if (loggedIn && genNote?.login) {
+      setGenNote(null);
+      setMessage('ログインしました。「単語を再生成」で続けられます');
     }
-    // 生SRTなし（キャッシュヒット等）: 保存済みのベース時刻(tsSec)を使う。
-    // ラベルは保存済み tsLabel ではなく tsSec から都度整形する
-    // （旧フォーマットで保存された "67:30" 等を表示時に H:MM:SS へ正す）。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loggedIn]);
+  const [notShared, setNotShared] = useState(false);
+  // この作品の「話数を特定できなかった語」の件数（TV のみ・A22(b)）
+  const [unassignedCount, setUnassignedCount] = useState(0);
+  const reqId = useRef(0); // 競合する非同期処理を無効化するための世代カウンタ
+  // 進行中の生成（fetch＋busy ポーリング）の中断ハンドル。unmount・話の切替で abort する。
+  const genAbort = useRef(null);
+
+  // ─ タイムスタンプ（各語の保存済みベース時刻 tsSec から）─
+  //   生SRTはクライアントに存在しない（2026-09-12）。生成・共有キャッシュどちらの経路でもサーバが
+  //   tsSec を焼いて返すので、表示はそれを使う。ラベルは保存済み tsLabel ではなく tsSec から都度
+  //   整形する（旧フォーマットで保存された "67:30" 等を表示時に H:MM:SS へ正す）。
+  const timestamps = useMemo(() => {
     const m = new Map();
     vocab.forEach((w) =>
       m.set(w.word, {
-        sec: w.tsSec ?? Infinity,
-        label: w.tsSec != null ? secToTimeLabel(w.tsSec) : null,
+        sec: Number.isFinite(w.tsSec) ? w.tsSec : Infinity,
+        label: Number.isFinite(w.tsSec) ? secToTimeLabel(w.tsSec) : null,
       })
     );
     return m;
-  }, [vocab, subRaw, drama, season, episode]);
+  }, [vocab]);
 
   // 📍時刻：生成vocabは timestamps マップ、追加した単語(拡張保存)は保存済み tsSec から作る。
   const tsFor = (w) => {
@@ -202,44 +199,33 @@ export default function VocabScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [app.wordbookVersion]);
 
-  // ── 📍時刻を持たない「追加した単語」の後埋め ────────────────────────────
-  // 拡張が時刻を送れなかった時代の語や、クラウドに ts_sec 列が無かった間に保存された語は
-  // tsSec が空で、📍が出ず時刻順では末尾に固まる。この話の生SRTが手元にある時だけ、
-  // 保存されている例文を手がかりに字幕キューを特定して時刻を引き直し、my_words へ永続化する
-  // （＝次からは字幕が無くても📍が出る）。字幕が無い・語が見つからない時は何もしない。
-  //
-  // ★フォールバック（2026-08-08 オーナー要望）: 📍が**間違っている**語も直す。
-  //   同じ語が作品中に何度も出る場合、サーバの層1は「キャッシュにある最初の出現」を返していたため、
-  //   前半で保存した語に後半の例文と📍が付くことがあった（アイアンマンの実害。サーバ側は
-  //   保存位置に最も近い出現を選ぶよう修正済みだが、既に付いてしまった値はデータに残る）。
-  //   ここでは**表示している例文を正**として、その例文が実際に出るキューの時刻へ📍を揃える。
-  //   例文と📍がペアであることは本アプリの不変則（memory「字幕tsSec二重パスの罠」）。
+  // 📍時刻を持たない「追加した単語」の後埋めは lib/exampleBackfill.js に統合した（2026-09-12・A13）。
+  //   生SRTが端末に無いので、例文をアンカー（lineText）としてサーバの同じ照合器に時刻を聞く。
+  //   loadExtWords → backfillMissingExamples が「例文なし」「例文あり・tsSec なし」の両方を扱う。
+
+  // ── 話数を特定できなかった語の件数（A22(b)）──
+  // 拡張が S/E を検出できずに保存した語は、この話のリストには出さず単語帳に残す（縮退）。
+  // 所在が分かるよう作品ページ下部に件数と単語帳への導線を出す。型が確定してから数える
+  // （selectorReady 前は drama.type が未確定＝映画を TV 扱いで数えてしまう）。
   useEffect(() => {
-    if (!subRaw || !extWords.length) return;
-    const targets = extWords.filter((w) => (w.example || '').trim());
-    if (!targets.length) return;
-    const map = computeTimestamps(targets, {
-      title: drama?.englishTitle || drama?.title,
-      season,
-      episode,
-      rawSrt: subRaw,
-    });
-    const fixed = [];
-    targets.forEach((w) => {
-      const sec = map.get(w.word)?.sec;
-      if (sec == null || !isFinite(sec)) return;
-      const next = Math.round(sec);
-      // 未設定なら埋める。設定済みでも、例文の実際の位置と30秒以上ずれていたら直す
-      // （30秒は字幕の分割・VOD差の許容幅。これ以内のズレは触らない）。
-      if (w.tsSec != null && Math.abs(w.tsSec - next) <= 30) return;
-      w.tsSec = next;
-      fixed.push(w);
-    });
-    if (!fixed.length) return;
-    setExtWords((list) => [...list]); // 引き直した📍を即反映（次回の effect は差分0で止まる）
-    fixed.forEach((w) => saveWordTranslation(pid, w.word, { tsSec: w.tsSec }).catch(() => {}));
+    if (!drama || !selectorReady) {
+      setUnassignedCount(0);
+      return;
+    }
+    let cancelled = false;
+    countUnassignedForDrama(drama, pid)
+      .then((n) => {
+        if (!cancelled) setUnassignedCount(n);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subRaw, extWords]);
+  }, [drama?.title, isMovie, selectorReady, app.wordbookVersion, pid]);
+
+  // 画面を離れたら進行中の生成（fetch・busy ポーリング）を打ち切る（A12(2)）。
+  useEffect(() => () => genAbort.current?.abort(), []);
 
   // ── 生成直後＝予習ウォークスルーへ直行（justGenerated の一回限りトリガ）──
   // 新出語（sortedVocab）が揃い phase==='vocab' になった瞬間に1回だけ開く。
@@ -312,10 +298,7 @@ export default function VocabScreen() {
             ? '✓ 保存済み'
             : `Season ${se} Episode ${ep} ✓ 保存済み`
         );
-        // 📍タイムスタンプはキャッシュ済み生SRTから即時表示。
-        // 未キャッシュの場合の取得は loadEpisode 側の preloadSilent が
-        // 1回だけ静かに行う（ここで二重ダウンロードしない＝クォータ節約）。
-        setSubRaw(getCachedRawSrt(drama, se, ep));
+        // 📍タイムスタンプは各語の保存済み tsSec から表示する（timestamps useMemo）。
         // example_ja が無い単語をバックグラウンドで翻訳補完（共有キャッシュ経由・行の空欄も埋める）
         runFillExampleJa(entry.words, entry.id, {
           tmdbId: drama.tmdbId,
@@ -331,7 +314,7 @@ export default function VocabScreen() {
       // エピソードへ移った場合は何もしない（true=処理済み扱いで stale 側の後続も止める。
       // 放置すると古い世代の setPhase/setVocab が新しい画面を上書きする）。
       const myReq = reqId.current;
-      const ext = await getMyWordsForEpisode(drama, se, ep, pid, subMem.current.text);
+      const ext = await getMyWordsForEpisode(drama, se, ep, pid);
       if (myReq !== reqId.current) return true;
       if (ext.length) {
         setStatusText(drama.type === 'movie' ? '🎬 映画' : `Season ${se} Episode ${ep}`);
@@ -354,7 +337,7 @@ export default function VocabScreen() {
       // 取得（ネットワーク）が遅れて別エピソードへ切り替えた後に解決しても、
       // 現在表示中の話に別話の拡張単語を出さないよう世代を捕捉する。
       const myReq = reqId.current;
-      const ext = await getMyWordsForEpisode(drama, se, ep, pid, subMem.current.text);
+      const ext = await getMyWordsForEpisode(drama, se, ep, pid);
       if (myReq !== reqId.current) return; // 別エピソードへ移っていたら破棄
       const existingSet = new Set((existing || []).map((w) => w.word.toLowerCase()));
       const newExt = ext
@@ -373,6 +356,11 @@ export default function VocabScreen() {
           tier: w.tier || 'core',
           exampleFail: w.exampleFail || '', // 例文が取れなかった理由（③・カードに出す）
           source: 'ext',
+          // 保存時の S/E を必ず写す。落とすと exampleBackfill が TV の語を映画(s0e0)として /api/example に送り、
+          // 層1ミス→OS の movie 検索→nosub が my_words に永続化される（レビュー指摘）。
+          season: w.season ?? null,
+          episode: w.episode ?? null,
+          origin: w.source || '', // 'manual'（アプリの手動追加）は backfill の対象外にする
         }));
       setExtWords(newExt);
       // 例文が付かなかった語をアプリ側から取り直す（②）。確定 tmdbId を渡すので、拡張が
@@ -404,126 +392,89 @@ export default function VocabScreen() {
     [drama, pid]
   );
 
-  // ── 字幕プリロード（preloadSubtitle のデータ部分）──
-  const preload = useCallbackSafe(
+  // ── 字幕の有無の確認（旧 preload / preloadSilent の置換・2026-09-12）──
+  // 字幕本文は端末に取らない。`/api/subtitles action:'probe'` に {found,count} だけを聞いて
+  // ready（生成ボタン活性）／nosub／error の相を決める。旧 preload が併せて行っていた
+  // 「整形字幕で S/E 無し語をこの話へ自動割当（resolveUnassignedWords）」は縮退（A22）。
+  // ★どの分岐でも「追加した単語」は読み込む（A12(1)）＝字幕が無い作品でも保存語の受け皿は出す。
+  const probe = useCallbackSafe(
     async (se, ep, myReq) => {
       if (!drama) return;
-      try {
-        const result = await fetchEpisodeSubtitle(drama, se, ep);
+      const movie = drama.type === 'movie';
+      const label = (s) => (movie ? s : `Season ${se} Episode ${ep} ${s}`);
+      if (!drama.tmdbId) {
+        // 作品を特定できない（TMDB 未解決）。サーバは tmdbId 必須なので送らず、選び直しを案内する（A12(4)）。
         if (myReq !== reqId.current) return;
-        if (result) {
-          const key = subtitleCacheKey(drama.englishTitle || drama.title, se, ep);
-          subMem.current = { key, text: result.parsed, raw: result.raw };
-          setSubRaw(result.raw);
-          setSource(result.source);
-          setStatusText(
-            drama.type === 'movie' ? '✓ 字幕取得済み' : `Season ${se} Episode ${ep} ✓ 字幕取得済み`
-          );
+        setStatusText(label('⚠ 作品を特定できません'));
+        setPhase('error');
+        setMessage('作品を特定できないため単語リストを作れません（作品を選び直してください）');
+        setGenBtn((b) => ({ ...b, hidden: true }));
+        loadExtWords(se, ep, []);
+        return;
+      }
+      try {
+        const r = await probeSubtitle({
+          tmdbId: drama.tmdbId,
+          type: movie ? 'movie' : 'tv',
+          season: movie ? 0 : se, // 映画は s0e0（サーバの cache_key と同じ規則・A15）
+          episode: movie ? 0 : ep,
+        });
+        if (myReq !== reqId.current) return;
+        if (r.found) {
+          setStatusText(label('✓ 字幕あり'));
           setPhase('ready');
           setMessage('「予習をはじめる」を押してください');
           setGenBtn({ text: '予習をはじめる →', disabled: false, hidden: false });
-          (isMovie ? Promise.resolve() : resolveUnassignedWords(pid, result.parsed, drama.englishTitle || drama.title, se, ep))
-            .then(() => {
-              // 名寄せ解決の待ち時間中に別エピソードへ移っていたら読み込まない
-              // （loadExtWords 自身の世代捕捉は呼び出し時点の値になるためここで判定する）
-              if (myReq === reqId.current) loadExtWords(se, ep, vocab);
-            })
-            .catch(() => {});
         } else {
-          setStatusText(
-            drama.type === 'movie' ? '⚠ 字幕なし' : `Season ${se} Episode ${ep} ⚠ 字幕なし`
-          );
+          setStatusText(label('⚠ 字幕なし'));
           setPhase('nosub');
           setMessage(
-            drama.type === 'movie'
+            movie
               ? 'この映画の字幕が見つかりませんでした。別の作品を選択してください。'
               : 'このエピソードの字幕が見つかりませんでした。別のエピソードを選択してください。'
           );
           setGenBtn((b) => ({ ...b, hidden: true }));
         }
-      } catch {
+      } catch (e) {
         if (myReq !== reqId.current) return;
-        setStatusText(
-          drama.type === 'movie' ? '⚠ 字幕エラー' : `Season ${se} Episode ${ep} ⚠ 字幕エラー`
-        );
+        setStatusText(label('⚠ 字幕エラー'));
         setPhase('error');
-        setMessage('字幕の取得に失敗しました。別のエピソードを選択してください。');
-        setGenBtn((b) => ({ ...b, hidden: true }));
+        setMessage(
+          e?.message && e.message !== '字幕の確認に失敗しました'
+            ? `字幕の確認に失敗しました（${e.message}）`
+            : '字幕の確認に失敗しました。時間をおいてもう一度お試しください。'
+        );
+        // 確認に失敗しただけなので生成は試せる（サーバ側で改めて字幕を探す）
+        setGenBtn({ text: '予習をはじめる →', disabled: false, hidden: false });
       }
+      if (myReq === reqId.current) loadExtWords(se, ep, []);
     },
-    [drama, pid, vocab]
-  );
-
-  // ── 字幕の無音プリロード（preloadSubtitleSilent 相当）──
-  // 保存済み単語リストの表示中に裏で字幕をキャッシュする用途。
-  // ★重要★ phase / message / genBtn / statusText を一切触らない。
-  // 失敗（ダウンロード上限など）しても保存済みリストの表示を壊さない。
-  // 生SRT（📍タイムスタンプ）とパース済み（拡張機能単語の照合）の両方を1回で賄う。
-  const preloadSilent = useCallbackSafe(
-    async (se, ep, myReq) => {
-      if (!drama) return;
-      try {
-        const result = await fetchEpisodeSubtitle(drama, se, ep);
-        if (!result || myReq !== reqId.current) return;
-        const key = subtitleCacheKey(drama.englishTitle || drama.title, se, ep);
-        subMem.current = { key, text: result.parsed, raw: result.raw };
-        setSubRaw(result.raw); // 📍タイムスタンプ補完（成功時のみ）
-        (isMovie ? Promise.resolve() : resolveUnassignedWords(pid, result.parsed, drama.englishTitle || drama.title, se, ep))
-          .then(() => {
-            if (myReq === reqId.current) loadExtWords(se, ep, vocab); // 世代ずれの stale 読込を防ぐ
-          })
-          .catch(() => {});
-      } catch {
-        /* 失敗しても保存済みリストの表示は維持（UIを一切触らない）*/
-      }
-    },
-    [drama, pid, vocab]
+    [drama, loadExtWords]
   );
 
   // ── エピソード読み込み（triggerEpisodeLoad 相当）──
   const loadEpisode = useCallbackSafe(
     async (se, ep) => {
       const myReq = ++reqId.current;
+      genAbort.current?.abort(); // 前の話の生成待ち（busy ポーリング等）が残っていれば打ち切る
       rememberEpisode(drama?.title, se, ep); // #18: 最後に開いた S/E を作品ごとに記憶
       setVocab([]);
       setExtWords([]);
       setHistoryId(null);
-      // 生SRT は必ず話ごとに引き直す。★ここで空にしていなかったため、字幕が未キャッシュ／取得失敗の
-      //   話へ移ると**前の話の生SRT**が subRaw に残り、(1)「追加した単語」の📍修復 effect が
-      //   前の話の字幕で時刻を引き直して my_words へ永続化する (2) 手動追加の例文照合が前の話の
-      //   セリフを拾う (3) 生成した語の📍が前の話の時刻になる、という別場面の混入が起きていた。
-      setSubRaw('');
       setPrepFresh(false); // 別エピソードへ移ったら下部3択は隠す（新規生成成功で再点灯）
+      setNotShared(false);
+      setGenNote(null);
       setGenBtn({ text: '予習をはじめる →', disabled: true, hidden: false });
-      if (await checkSaved(se, ep)) {
-        // 📍の後埋め・修復には**生SRT**が要る。端末に保存済みならまずそれを state に載せる。
-        //   ★ここは長く「整形済みテキストがあれば何もしない」だったが、判定している
-        //     readCachedSubtitleText は**別物（整形済み本文）**。生SRTが localStorage にあっても
-        //     subRaw が空のままで、📍の後埋め・修復が一度も走らなかった（2026-08-08 実害）。
-        const cachedRaw = getCachedRawSrt(drama, se, ep);
-        if (cachedRaw) {
-          const key = subtitleCacheKey(drama.englishTitle || drama.title, se, ep);
-          subMem.current = {
-            key,
-            text: subMem.current.key === key ? subMem.current.text : readCachedSubtitleText(drama, se, ep) || '',
-            raw: cachedRaw,
-          };
-          setSubRaw(cachedRaw);
-        }
-        // 保存済みでも字幕キャッシュが無ければ「無音版」で静かに取得
-        // （タイムスタンプ＋拡張単語照合用。失敗してもリスト表示を壊さない。
-        //  旧邦題キーのキャッシュも「あり」とみなす＝englishTitle切替でOS DLを再消費しない）
-        if (!cachedRaw || !readCachedSubtitleText(drama, se, ep)) preloadSilent(se, ep, myReq);
-        return;
-      }
+      // 保存済みリストがあればそれを表示して終わり（📍は保存済み tsSec・字幕の取得は要らない）。
+      if (await checkSaved(se, ep)) return;
       if (myReq !== reqId.current) return;
       setStatusText(`Season ${se} Episode ${ep} を選択中`);
       setPhase('loading');
       setMessage('');
       setGenBtn({ text: '読み込み中...', disabled: true, hidden: false });
-      await preload(se, ep, myReq);
+      await probe(se, ep, myReq);
     },
-    [drama, checkSaved, preload, rememberEpisode]
+    [drama, checkSaved, probe, rememberEpisode]
   );
 
   // 解決済みタイトル情報（type/seasons 等）を state・drama・myDramas に反映する
@@ -679,18 +630,44 @@ export default function VocabScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drama?.title]);
 
-  // ── 単語生成（generateVocabFromEpisode 相当）──
-  // まず共有キャッシュ（/api/vocab）を参照し、ヒットすれば生成せず personalizeWords で表示する。
-  // カタログ外（ゲート有効時）は「近日対応」。ミス/失敗は従来フロー（字幕取得→generateVocab）へフォールバック。
+  // ── 単語生成（generateVocabFromEpisode 相当・2026-09-12 サーバ完結版）──
+  // `POST /api/vocab-generate` 1回で「共有キャッシュ参照 →（ミス時）字幕取得 → 生成 → tsSec 付与 →
+  // 品質/coverage ゲート → 共有キャッシュ書込」がサーバ内で完結し、words（語＋例文1文＋tsSec）だけが
+  // 返る。クライアントは応答 words に example_ja_ok を付けて personalizeWords で学習者レベルに絞るだけ
+  // （旧: 生SRT を端末に取り、プロンプトを組んで /api/claude へ送り、寄与ルートへ投稿していた）。
+  // 応答の分岐（lib/api.js generateEpisodeVocab の kind）:
+  //   hit / generated → 表示・履歴保存（generated で meta.contributed===false なら「共有されません」）
+  //   blocked         → カタログ外＝「近日対応」（リクエスト受付・cl_catalog_admin の端末バイパスは廃止）
+  //   busy(409)       → 他の人が同じ話を生成中。retryAfterSec 間隔で同じ呼び出しを繰り返す（最長 300s）
+  //   nosub           → phase nosub（枠は消費済み）
+  //   nogen / rate_limited / unavailable / upstream / error → phase error ＋「単語を再生成」
   const onGenerate = useCallbackSafe(async () => {
     if (!drama) return;
     const myReq = reqId.current;
+    const movie = drama.type === 'movie';
+    const epLabel = (s) => (movie ? s : `Season ${season} Episode ${episode} ${s}`);
+    // error 相への共通遷移（再生成ボタンを残す）
+    const fail = (msg, note = null) => {
+      setPhase('error');
+      setPrepFresh(false); // error では下部3択を出さない
+      setMessage(msg);
+      setGenNote(note);
+      setGenBtn({ text: '単語を再生成', disabled: false, hidden: false });
+    };
+    // 作品を特定できない（tmdbId 無し）作品は送らない（A12(4)）。サーバは tmdbId 必須。
+    if (!drama.tmdbId) {
+      fail('作品を特定できないため単語リストを作れません（作品を選び直してください）');
+      setGenBtn({ text: '予習をはじめる →', disabled: true, hidden: true });
+      return;
+    }
     const lobbyT0 = Date.now(); // ロビー最低滞在の起点（キャッシュ命中の即抜け防止）
     setRevealReady(false);
     setGenBtn({ text: '生成中...', disabled: true, hidden: false });
     setPhase('generating');
     setGenStatus('字幕を確認中...');
     setRetryMsg('');
+    setGenNote(null);
+    setNotShared(false);
 
     const personalizeOpts = {
       toeicScore: settings.toeicScore || 0,
@@ -698,26 +675,77 @@ export default function VocabScreen() {
       vocabCount: settings.vocabCount || 30,
     };
 
-    try {
-      let words;
-      let srcLabel;
-      let rowWords = null; // 共有キャッシュ行の全語（後埋めで行ごと完成させる）
-      let contribPromise = null; // 寄与の完了（行が書かれてからサーバの書き戻しが走る）
-
-      // 1) 共有キャッシュ参照（読み取り専用・失敗は miss 扱い）
-      const cached = await fetchSharedVocab({
-        tmdbId: drama.tmdbId,
-        season,
-        episode,
-        type: drama.type,
+    // 中断制御（A12(2)）: 画面離脱（unmount）・話の切替（loadEpisode）で fetch と busy 待ちを abort する。
+    genAbort.current?.abort();
+    const ac = new AbortController();
+    genAbort.current = ac;
+    const stale = () => myReq !== reqId.current || ac.signal.aborted;
+    // busy 待ち: 1秒刻みで残り秒数を更新しながら待つ（abort で即抜け）
+    const waitBusy = (waitSec, remainSec) =>
+      new Promise((resolve) => {
+        let left = waitSec;
+        const tick = () => {
+          if (ac.signal.aborted || left <= 0) return resolve();
+          setGenStatus(`他の方が同じ話を生成中です（残り約${Math.max(1, Math.round(remainSec - (waitSec - left)))}秒）`);
+          left -= 1;
+          setTimeout(tick, 1000);
+        };
+        tick();
       });
-      if (myReq !== reqId.current) return; // 取得中にエピソードが切り替わったら破棄（別話の上書き防止）
+    // 429 の resetAtUtc（ISO）を JST の時刻文字列へ（不正・欠落は空）
+    const jst = (iso) => {
+      if (!iso) return '';
+      const d = new Date(iso);
+      if (!Number.isFinite(d.getTime())) return '';
+      try {
+        return d.toLocaleTimeString('ja-JP', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Tokyo' });
+      } catch {
+        return '';
+      }
+    };
 
-      if (cached?.blocked && localStorage.getItem('cl_catalog_admin') !== '1') {
-        // カタログ外 → リクエスト受付（生成しない）。cl_catalog_admin='1' の端末（運営）は
-        // 段階構築のため従来どおり生成に進む（週30話上限は運用で守る・legal R2）。
+    try {
+      // 生成前にセッションを更新（期限切れ JWT を送ると匿名扱い＝1日の枠が小さい・A12(3)）。
+      await ensureFreshSession();
+      if (stale()) return;
+
+      const body = {
+        tmdbId: drama.tmdbId,
+        type: movie ? 'movie' : 'tv',
+        season: movie ? 0 : season, // 映画は s0e0（サーバ側でも正規化・A15）
+        episode: movie ? 0 : episode,
+        // title 系は任意（≤120字・ログ用途のみ。作品名の正は TMDB 解決値・A6）
+        title: String(drama.title || '').slice(0, 120),
+        englishTitle: String(drama.englishTitle || '').slice(0, 120),
+        displayTitle: String(drama.englishTitle || drama.title || '').slice(0, 120),
+        vocabCount: Math.min(60, Math.max(20, Number(settings.vocabCount) || 40)),
+      };
+      setGenStatus('単語を分析中...');
+      let r = await generateEpisodeVocab(body, { signal: ac.signal });
+
+      // 409 busy: 同じ話を他の人が生成中。cache-first なので終われば hit で返る。上限 300s。
+      const BUSY_MAX_MS = 300_000;
+      const busyT0 = Date.now();
+      while (r.kind === 'busy' && !stale()) {
+        const elapsedMs = Date.now() - busyT0;
+        if (elapsedMs >= BUSY_MAX_MS) {
+          r = { kind: 'nogen', reason: 'busy_timeout' };
+          break;
+        }
+        const budgetSec = Math.ceil((BUSY_MAX_MS - elapsedMs) / 1000);
+        const remainSec = Math.max(1, Math.min(r.ttlSec ?? budgetSec, budgetSec));
+        const waitSec = Math.max(1, Math.min(r.retryAfterSec, remainSec));
+        await waitBusy(waitSec, remainSec);
+        if (stale()) return;
+        r = await generateEpisodeVocab(body, { signal: ac.signal });
+      }
+      if (stale()) return; // 取得中にエピソードが切り替わった／画面を離れたら破棄（別話の上書き防止）
+
+      if (r.kind === 'aborted') return;
+
+      if (r.kind === 'blocked') {
+        // カタログ外 → リクエスト受付（生成しない）。ゲートはサーバ側で判定する（管理者は CL_ADMIN_USER_IDS）。
         // 言葉の掟: 「非対応」と言わない・リクエストで巻き込む（user-voice討論）。
-        setSubRaw('');
         setVocab([]);
         setSource('');
         setPrepFresh(false); // soon では下部3択を出さない
@@ -742,96 +770,113 @@ export default function VocabScreen() {
         return;
       }
 
-      if (Array.isArray(cached?.words) && cached.words.length) {
-        // キャッシュヒット：生成せず学習者レベルで絞るだけ（字幕取得・Claude 不要）。
-        // タイムスタンプ📍は各語の保存済みベース時刻(tsSec/tsLabel)を使う。
-        setSubRaw('');
-        // シード済みの行は example_ja が入っているが、キャッシュ保存時に transient フラグ
-        // example_ja_ok を落としているため、そのままだと fillMissingExampleJa が全語を
-        // 「未訳」とみなして訳し直していた（本番実測: Suits S1E1 は 86/87 語が既訳）。
-        // 訳があるものは既訳として扱う＝共有キャッシュ命中の AI 呼び出しをゼロに戻す。
-        rowWords = cached.words.map((w) => ({ ...w, example_ja_ok: !!w.example_ja }));
-        words = personalizeWords(rowWords, personalizeOpts);
-        srcLabel = '共有キャッシュ（生成済み）';
-      } else {
-        // 2) ミス → 字幕取得 → スーパーセット生成（全レベル分）→ レベル絞りで表示
-        const key = subtitleCacheKey(drama.englishTitle || drama.title, season, episode);
-        let subText =
-          subMem.current.key === key ? subMem.current.text : readCachedSubtitleText(drama, season, episode);
-        if (!subText) {
-          setGenBtn({ text: '字幕を読み込み中...', disabled: true, hidden: false });
-          setGenStatus('字幕を読み込み中...');
-          await preload(season, episode, myReq);
-          subText = subMem.current.key === key ? subMem.current.text : '';
-          if (!subText) {
-            setGenBtn({ text: '予習をはじめる →', disabled: false, hidden: false });
-            return;
-          }
-          // preload が phase を書き換えるためローディングを再表示（既存と同じ）
-          setPhase('generating');
-          setGenStatus('単語を分析中...');
-        }
-
-        const superset = await generateSuperset(
-          {
-            drama,
-            season,
-            episode,
-            subtitleText: subText,
-            vocabCount: settings.vocabCount || 30,
-            // 長編の分割生成（映画=2〜3チャンク）の進捗をロビーの状態文言に反映
-            onProgress: (i, n) => setGenStatus(`単語を分析中... (${i}/${n})`),
-          },
-          (attempt, waitSec) => setRetryMsg(`混雑中... ${waitSec}秒後に再試行 (${attempt}/3)`)
+      if (r.kind === 'nosub') {
+        setStatusText(epLabel('⚠ 字幕なし'));
+        setPhase('nosub');
+        setPrepFresh(false);
+        setMessage(
+          movie
+            ? 'この映画の字幕が見つかりませんでした。別の作品を選択してください。'
+            : 'このエピソードの字幕が見つかりませんでした。別のエピソードを選択してください。'
         );
-        words = personalizeWords(superset, personalizeOpts);
-        // 生成0語は成功扱いにしない（空リスト＋ボタン消滅で沈黙する既知の穴・2026-08-02
-        // スパイダーマン:ホームカミングで実症状）。error phase に落として再生成ボタンを残す。
-        if (!words.length) {
-          throw new Error('単語リストを作れませんでした。時間をおいて「単語を再生成」をお試しください（字幕は取得済みです）。');
-        }
-        srcLabel = source || '実際の字幕データから';
-
-        // フェーズ1: スーパーセットを共有キャッシュへ寄与（fire-and-forget・サーバー側で品質ゲート）
-        try {
-          // 📍の基準にする生SRTは必ず「この話のもの」を使う。subMem は key で話を識別しているのに
-          // raw だけ無検査で読んでいたため、本文を localStorage から取った回（subMem が前の話のまま）
-          // に前の話の SRT で時刻を付けて共有キャッシュへ焼き付ける穴があった。
-          const rawForThisEpisode =
-            subMem.current.key === key ? subMem.current.raw || '' : getCachedRawSrt(drama, season, episode) || '';
-          attachBaseTimestamps(superset, {
-            title: drama.englishTitle || drama.title,
-            season,
-            episode,
-            rawSrt: rawForThisEpisode,
-          });
-          // 時間カバレッジ検査（2026-08-08）。分割生成の1チャンクが落ちた結果、作品の前半や
-          // 後半が丸ごと欠けたスーパーセットが共有キャッシュに焼き付き、全ユーザーへ配られていた
-          // （アイアンマン＝前半57分が欠落）。寄与ルートは既存行を上書きしないので、一度入ると
-          // その作品は永久に直らない。片寄っているものは表示だけして寄与しない（fail-closed）。
-          const covered = coverageOk(superset, rawForThisEpisode);
-          rowWords = superset; // personalizeWords は要素を共有するので、後埋めの結果は表示語にも乗る
-          if (covered) {
-            contribPromise = contributeVocab({
-              tmdbId: drama.tmdbId,
-              season,
-              episode,
-              type: drama.type,
-              displayTitle: drama.englishTitle || drama.title,
-              words: superset.map(({ example_ja_ok, ...w }) => w),
-            });
-          } else {
-            console.warn('[CL:GEN] 時間カバレッジ不足のため共有キャッシュへの寄与を見送りました');
-          }
-        } catch {
-          /* 寄与失敗は無視（表示に影響しない） */
-        }
+        setGenBtn((b) => ({ ...b, hidden: true }));
+        return;
       }
 
-      // 3) 共通：仕上げ・表示・保存
-      // 生成/字幕取得の間にエピソードが切り替わっていたら、現在表示中の話を
-      // 別話の単語で上書きしないよう破棄する（E4 に E1 の単語が出るバグの防止）。
-      if (myReq !== reqId.current) return;
+      if (r.kind === 'nogen') {
+        // 否定キャッシュ（直近の失敗を最長1時間覚えている）。理由ごとに次の一手を書く。
+        // キーはサーバが否定キャッシュに書く reason の実値（vocab-generate/route.js PUBLIC_REASONS）に合わせる。
+        const UPSTREAM_NOGEN = '生成サービスが混み合っています。しばらくしてから「単語を再生成」をお試しください';
+        const NOGEN_MSG = {
+          nosub: '字幕が見つからなかったため単語リストを作れませんでした。しばらくしてから「単語を再生成」をお試しください',
+          gate: '生成した単語リストが品質基準に達しませんでした。しばらくしてから「単語を再生成」をお試しください',
+          coverage: '生成した単語リストが作品の一部に偏っていました。しばらくしてから「単語を再生成」をお試しください',
+          // 字幕サービスの共有枠が尽きた（A5）。作品側の問題ではない＝nosub と分ける
+          os_quota: '字幕サービスの本日の取得枠が上限です。生成済みの作品はそのまま使えます',
+          os_search: UPSTREAM_NOGEN,
+          os_download: UPSTREAM_NOGEN,
+          llm: UPSTREAM_NOGEN,
+          generation: UPSTREAM_NOGEN,
+          internal: UPSTREAM_NOGEN,
+          tmdb: '作品情報の取得に失敗しました。しばらくしてからお試しください',
+          timeout: '生成に時間がかかりすぎました。しばらくしてから「単語を再生成」をお試しください',
+          repeated_failure: 'この話の生成が続けて失敗したため、本日は再生成を止めています。明日以降にお試しください',
+          busy_timeout: '他の方の生成が終わりませんでした。しばらくしてから「単語を再生成」をお試しください',
+        };
+        fail(
+          NOGEN_MSG[r.reason] ||
+            '直近の生成が失敗したため、しばらく（最長1時間）は再生成できません。時間をおいてお試しください'
+        );
+        return;
+      }
+
+      if (r.kind === 'rate_limited') {
+        // 生成枠（A12(3)・A28）。scope/window/resetAtUtc から文言を組み、匿名/日にはログイン導線を付ける。
+        const reset = jst(r.resetAtUtc);
+        const resetNote = reset ? `${reset}（JST）にリセットされます。` : '';
+        if (r.scope === 'unavailable') {
+          fail('混雑しています。数分後にお試しください');
+        } else if (loggedIn && r.scope === 'anon' && !r.loginHint) {
+          // 認証サーバー不達で匿名扱いになった（A28）: 再ログインではなく再試行を促す
+          fail('認証サーバーに接続できませんでした。しばらくしてからもう一度お試しください');
+        } else if (loggedIn && r.scope === 'anon') {
+          fail('ログインの有効期限が切れました。再ログインしてください', { login: true });
+          openAuth();
+        } else if (r.window === 'hour') {
+          fail(`1時間の生成枠に達しました。${resetNote}`);
+        } else if (r.window === 'min') {
+          fail('短時間に生成が集中しています。1分ほど待ってからお試しください');
+        } else if (r.scope === 'ip') {
+          fail(`このネットワークからの本日の生成枠に達しました。${resetNote}`);
+        } else if (r.scope === 'user') {
+          fail(`本日の生成枠（${r.limit ?? r.userDayLimit ?? 30}話）に達しました。${resetNote}`);
+        } else {
+          // 上限値はサーバ応答（env で上書き可）を使い、無ければ既定の 8/30（文言と実態のズレを防ぐ）
+          fail(
+            `本日の生成枠（${r.limit ?? r.anonDayLimit ?? 8}話）に達しました。${resetNote}ログインすると1日${r.userDayLimit ?? 30}話に増えます`,
+            { login: true }
+          );
+        }
+        return;
+      }
+
+      if (r.kind === 'unavailable') {
+        fail('混雑しています。数分後にお試しください');
+        return;
+      }
+
+      if (r.kind === 'upstream') {
+        const UPSTREAM_MSG = {
+          // 字幕サービスの共有枠が尽きた（A5）。nosub とは分ける＝作品側の問題ではない。
+          os_quota: '字幕サービスの本日の取得枠が上限です。生成済みの作品はそのまま使えます',
+          timeout: '生成に時間がかかりすぎました。しばらくしてから「単語を再生成」をお試しください',
+          tmdb: '作品情報の取得に失敗しました。しばらくしてからお試しください',
+        };
+        fail(UPSTREAM_MSG[r.reason] || '生成サービスに接続できませんでした。しばらくしてから「単語を再生成」をお試しください');
+        return;
+      }
+
+      if (r.kind !== 'hit' && r.kind !== 'generated') {
+        fail(r.message || '生成に失敗しました');
+        return;
+      }
+
+      // ── hit / generated: 学習者レベルで絞って表示 ──
+      // シード済み／生成直後の行は example_ja が入っていることがある。キャッシュ保存時に transient フラグ
+      // example_ja_ok を落としているため、そのままだと fillMissingExampleJa が全語を「未訳」とみなして
+      // 訳し直す（本番実測: Suits S1E1 は 86/87 語が既訳）。訳があるものは既訳として扱う。
+      const rowWords = r.words.map((w) => ({ ...w, example_ja_ok: !!w.example_ja }));
+      const words = personalizeWords(rowWords, personalizeOpts);
+      // 0語は成功扱いにしない（空リスト＋ボタン消滅で沈黙する既知の穴・2026-08-02）。
+      if (!words.length) {
+        fail('単語リストを作れませんでした。時間をおいて「単語を再生成」をお試しください');
+        return;
+      }
+      const srcLabel = r.kind === 'hit' ? '共有キャッシュ（生成済み）' : '実際の字幕データから';
+      // 品質/coverage ゲートを通らなかった生成は共有キャッシュに書かれない（表示はする・A12(5)）
+      setNotShared(r.kind === 'generated' && r.meta?.contributed === false);
+
+      // 3) 仕上げ・表示・保存
       setGenStatus('仕上げ中...');
       setRetryMsg('');
 
@@ -839,14 +884,14 @@ export default function VocabScreen() {
       // 個人化（既知語除外・レベル帯選定）の実感もあらすじ/Tipsを読む間も無いため、
       // 実処理に対応した段階ステータスで最低 MIN_LOBBY_MS は留める。生成が遅かった時は追加で待たせない。
       const MIN_LOBBY_MS = 4500;
-      const lobbySleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      const lobbySleep = (ms) => new Promise((ok) => setTimeout(ok, ms));
       if (Date.now() - lobbyT0 < MIN_LOBBY_MS) {
         setGenStatus('あなたのレベルに合わせて選定中...');
         await lobbySleep(Math.max(0, Math.min(1800, lobbyT0 + MIN_LOBBY_MS - 1500 - Date.now())));
-        if (myReq !== reqId.current) return;
+        if (stale()) return;
         setGenStatus('リストを仕上げ中...');
         await lobbySleep(Math.max(0, lobbyT0 + MIN_LOBBY_MS - Date.now()));
-        if (myReq !== reqId.current) return;
+        if (stale()) return;
       }
 
       setVocab(words);
@@ -872,25 +917,15 @@ export default function VocabScreen() {
       setQuizData([]); // 前回のクイズをクリア（テストを開いた時に QuizScreen で遅延生成）
       reloadSrs();
       loadExtWords(season, episode, words);
-      // example_ja が欠けた単語をバックグラウンドで翻訳補完。寄与（fire-and-forget）が着地してから
-      // 始める＝サーバの書き戻しが「まだ無い行」に空振りしない。表示はブロックしない。
-      const fillCtx = { tmdbId: drama.tmdbId, season, episode, type: drama.type, rowWords };
-      Promise.resolve(contribPromise)
-        .then(
-          () => {},
-          () => {}
-        )
-        .then(() => {
-          if (myReq === reqId.current) runFillExampleJa(words, id, fillCtx);
-        });
+      // example_ja が欠けた単語をバックグラウンドで翻訳補完。共有キャッシュ行は応答前にサーバが
+      // 書き終えている（§2 手順8）ので、寄与の着地を待つ必要は無い。表示はブロックしない。
+      runFillExampleJa(words, id, { tmdbId: drama.tmdbId, season, episode, type: drama.type, rowWords });
       // クイズはここでは生成しない。ユーザーがテストを開いた時に QuizScreen 側で生成する。
     } catch (e) {
-      setPhase('error');
-      setPrepFresh(false); // error では下部3択を出さない
-      setMessage(e.message || '生成に失敗しました');
-      setGenBtn({ text: '単語を再生成', disabled: false, hidden: false });
+      if (stale()) return;
+      fail(e?.message || '生成に失敗しました');
     }
-  }, [drama, season, episode, settings, source, preload, reloadSrs, loadExtWords]);
+  }, [drama, season, episode, settings, loggedIn, openAuth, reloadSrs, loadExtWords]);
 
   // ── ハンドラ ──
   // ロビーの「リストを見る →」: ここで初めてリスト表示＋予習ウォークスルー直行が発火する
@@ -934,8 +969,8 @@ export default function VocabScreen() {
   };
 
   // ── #20 単語の手動追加（スマホ等・拡張なしでこの話に語を足す）──
-  //   例文の優先順: ①端末の生SRT（無ければ取得）から照合＝この話の実セリフ
-  //                ②共有キャッシュ（/api/example 層1・vocab_cache の語一致）
+  //   例文: /api/example mode:'manual' に1回だけ問い合わせ（層1: 共有キャッシュの語一致 →
+  //         層2: サーバの raw キャッシュ命中時のみ字幕1文・ログイン必須）。無ければ例文なし。
   //   訳: 例文があれば文脈つき語義（「この場面では」fetchCtxJa）→ 無ければ1語訳（fetchJa）。
   //   保存: ローカル（addManualWord）＋ログイン時はクラウド（pushMyWord）。
   //   表示は既存の「✏️ 追加した単語」セクション（loadExtWords 再読込）に合流する。
@@ -961,26 +996,30 @@ export default function VocabScreen() {
     setAddBusy(true);
     setAddMsg('');
     try {
-      let raw = subRaw || getCachedRawSrt(drama, season, episode);
-      if (!raw) raw = (await fetchRawSrtIfMissing(drama, season, episode)) || '';
-      let hit = raw ? findExampleForWord(raw, w) : null;
-      if (!hit) {
-        try {
-          const res = await fetch('/api/example', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              title: drama.englishTitle || drama.title,
-              season: isMovie ? null : season,
-              episode: isMovie ? null : episode,
-              word: w,
-            }),
-          });
-          const d = res.ok ? await res.json() : null;
-          if (d?.found && d.sentence) hit = { sentence: d.sentence, sec: d.tsSec ?? null };
-        } catch {
-          /* 例文なしで続行 */
-        }
+      // 例文は /api/example に `mode:'manual'` で1回だけ聞く（2026-09-12・A4）:
+      //   層1: 共有キャッシュ（vocab_cache）の語一致は誰でも可
+      //   層2: サーバの subtitle_raw_cache に raw があるときだけ字幕1文（OS DL は誘発しない・ログイン必須）
+      // 端末の生SRTでの照合（旧①）は、生SRTを端末に置かなくなったので消えた。無ければ例文なしで保存。
+      let hit = null;
+      let reason = '';
+      try {
+        const res = await fetch('/api/example', {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify({
+            mode: 'manual',
+            word: w,
+            tmdbId: drama.tmdbId ?? undefined,
+            title: drama.englishTitle || drama.title,
+            season: isMovie ? null : season,
+            episode: isMovie ? null : episode,
+          }),
+        });
+        const d = await res.json().catch(() => null);
+        if (d?.found && d.sentence) hit = { sentence: d.sentence, sec: Number.isFinite(d.tsSec) ? d.tsSec : null };
+        else reason = d?.reason || (res.ok ? '' : 'network');
+      } catch {
+        reason = 'network';
       }
       const ja = (hit?.sentence ? await fetchCtxJa(w, hit.sentence) : null) ?? (await fetchJa(w)) ?? '';
       const exampleJa = hit?.sentence ? (await fetchJa(hit.sentence)) || '' : '';
@@ -1002,7 +1041,25 @@ export default function VocabScreen() {
       const merged = await addManualWord(pid, entry);
       pushMyWord(merged || entry); // マージ後の姿をクラウドへ（遭遇ログ・既存値保護をローカルと一致させる）
       setAddWordText('');
-      setAddMsg(hit ? `「${w}」を追加しました ✓` : `「${w}」を追加しました（この話の字幕に見つからず例文なし）`);
+      // 例文が付かなかった理由を正直に添える（A4）。「見つかりませんでした」は探して無かった時だけ。
+      const NOTE = {
+        no_raw: '（この話の字幕データが未取得のため例文なしで保存しました）',
+        login_required: '（ログインすると例文が付きます）',
+        common_word: '（よく使う語のため例文は付けません）',
+        multi_token: '（例文が付くのは1語のみです。フレーズは例文なしで保存しました）',
+        too_short: '（3文字以上の語にのみ例文を探します）',
+        rate_limited: '（混み合っているため例文なしで保存しました）',
+        unavailable: '（混み合っているため例文なしで保存しました）',
+        tmdb_unresolved: '（作品を特定できず例文なしで保存しました）',
+        missing_params: '（作品情報が足りず例文なしで保存しました）',
+        network: '（通信に失敗したため例文なしで保存しました）',
+        no_match: '（この話の字幕に見つからず例文なし）', // 探して無かった時だけ「見つからず」
+      };
+      setAddMsg(
+        hit
+          ? `「${w}」を追加しました ✓`
+          : `「${w}」を追加しました${NOTE[reason] || '（例文なしで保存しました）'}`
+      );
       loadExtWords(season, episode, vocab); // ✏️セクションへ即反映
     } finally {
       setAddBusy(false);
@@ -1029,7 +1086,7 @@ export default function VocabScreen() {
   };
   const onDelete = () => {
     if (!confirm('この単語リストを削除しますか？')) return;
-    deleteHistoryEntry(historyId, drama, season, episode);
+    deleteHistoryEntry(historyId);
     setHistoryId(null);
     setVocab([]);
     setExtWords([]);
@@ -1451,6 +1508,13 @@ export default function VocabScreen() {
                   📝 {source}から生成
                 </div>
               )}
+              {/* 品質/coverage ゲートを通らず共有キャッシュに書かれなかったリスト（A12(5)）。
+                  表示はするが次回また生成枠を使うことを小さく伝える。 */}
+              {notShared && phase === 'vocab' && (
+                <div className="source-label" style={{ marginBottom: 8, fontSize: 11, opacity: 0.8 }}>
+                  ※ このリストは共有されません（再生成は枠を消費します）
+                </div>
+              )}
 
               <div className="vocab-list">
                 {mainWords.map((w) => (
@@ -1563,12 +1627,43 @@ export default function VocabScreen() {
               >
                 {message || 'エピソードを選んでください'}
               </div>
+              {/* 生成枠（匿名/日）に達した時の補助導線: ログインすると枠が増える（A12(3)）。
+                  AuthModal を直接開く。 */}
+              {phase === 'error' && genNote?.login && (
+                <button type="button" className="btn-secondary" style={{ marginTop: 8 }} onClick={openAuth}>
+                  ログインする
+                </button>
+              )}
               {/* AI単語リストがまだ無い（未生成・字幕なし・エラー）作品でも、視聴中に保存した語は
                   ここに出す。映画で字幕が見つからない作品では、これが唯一の受け皿になる。 */}
               {renderAddedWords('✏️ この作品で保存した単語')}
             </>
           )}
         </div>
+
+        {/* 話数を特定できなかった語（拡張が S/E を検出できずに保存した語）は各話のリストに出ない。
+            所在を示し、単語帳へ誘導する（A22(b)）。映画は S/E を持たないので出さない。 */}
+        {!isMovie && unassignedCount > 0 && phase !== 'generating' && (
+          <div className="source-label" style={{ marginTop: 12, textAlign: 'center' }}>
+            話数を特定できなかった語 {unassignedCount} 件 →{' '}
+            <button
+              type="button"
+              onClick={() => setScreen('wordbook')}
+              style={{
+                background: 'none',
+                border: 'none',
+                padding: 0,
+                color: 'var(--accent)',
+                font: 'inherit',
+                fontWeight: 600,
+                cursor: 'pointer',
+                textDecoration: 'underline',
+              }}
+            >
+              単語帳
+            </button>
+          </div>
+        )}
 
         {/* 予習エンジン：新規生成成功時だけ「次に進む」→ モード選択ページへ。
             saved 再表示・error・soon・generating では従来の「テストを受ける」を出す。 */}
@@ -1602,27 +1697,8 @@ function episodeId(drama, season, episode, isMovie) {
   return isMovie ? `${base}|movie|movie` : `${base}|${season}|${episode}`;
 }
 
-// 生成したスーパーセットが作品の全編を覆っているかを、📍時刻の分布で判定する。
-//   共有キャッシュは一度書くと上書きされない（vocab-contribute は既存行を skip する）ので、
-//   片寄ったデータを入れてしまうとその作品は全ユーザーに対して永久に壊れる。判定できない時は
-//   true（従来どおり寄与）＝新しい検査で正常な寄与を止めないことを優先する。
-//   基準: ①最初の語が本編の序盤に居ること（総尺の25%以内） ②語の空白期間が30分を超えないこと
-function coverageOk(words, rawSrt) {
-  const secs = (words || []).map((w) => w.tsSec).filter((s) => typeof s === 'number' && isFinite(s));
-  if (secs.length < 5 || !rawSrt) return true; // 判定材料が無い＝止めない
-  // 総尺は生SRTの最終タイムコードから取る（"01:54:33,120 --> ..." の時:分:秒）
-  const stamps = [...rawSrt.matchAll(/(\d{2}):(\d{2}):(\d{2})[,.]\d{3}\s*-->/g)];
-  if (!stamps.length) return true;
-  const last = stamps[stamps.length - 1];
-  const total = Number(last[1]) * 3600 + Number(last[2]) * 60 + Number(last[3]);
-  if (total < 600) return true; // 10分未満は分割生成の対象外＝検査しない
-  const sorted = [...secs].sort((a, b) => a - b);
-  if (sorted[0] > total * 0.25) return false; // 序盤が丸ごと無い
-  for (let i = 1; i < sorted.length; i++) {
-    if (sorted[i] - sorted[i - 1] > 1800) return false; // 30分の空白＝1チャンク相当が欠けている
-  }
-  return true;
-}
+// 時間カバレッジ検査（coverageOk）は lib/coverage.js へ移設し、サーバの生成経路（vocabGen）が
+// 共有キャッシュへ書く前に判定する（2026-09-12）。クライアントは meta.contributed で結果だけ知る。
 
 // 予習ウォークスルーの payload を組む（auto-open effect と「予習する →」ボタンで共用）。
 //   - 重要語（新出・高レベル）優先に並び替え（orderWordsForPrep）

@@ -6,7 +6,7 @@ import { deleteMyWordCloud, pushMyWord } from './supabase';
 import { fetchJa } from './jatranslate';
 import { fetchCtxJa } from './ctxtranslate';
 import { myWordsKey, deletedWordsKey } from './storage';
-import { subtitleCacheKey, trimExampleToSentence, exampleContainsWord, EXAMPLE_MAX_CHARS } from './subtitles';
+import { trimExampleToSentence, EXAMPLE_MAX_CHARS } from './subtitles';
 
 // ── ストレージ抽象化（chrome.storage があれば使う・無ければ localStorage）──
 export const store = {
@@ -254,8 +254,8 @@ function getTitleAliasMap() {
     return {};
   }
 }
-// 解決先の media_type（movie/tv）。resolveUnassignedWords が映画語を
-// S/E 付与対象から外すために参照する（映画は season=null が不変則）。
+// 解決先の media_type（movie/tv）。isKnownMovieTitle / isKnownTvTitle が「映画の語は
+// season=null が正」「TV なのに S/E が無い語＝話数不明」を見分けるために参照する。
 function getTitleMediaMap() {
   try {
     return JSON.parse(localStorage.getItem('cl_title_media2') || '{}');
@@ -371,7 +371,7 @@ export async function prewarmTitleAliases(titles) {
 }
 
 // 拡張機能で保存した単語のうち、現ドラマ・エピソードに一致するものを返す。
-// drama = 選択中ドラマ（title / englishTitle）, memSub = メモリ上の字幕（任意）
+// drama = 選択中ドラマ（title / englishTitle）
 // タイトル照合用の正規化: 配信サービス由来と TMDB 由来の表記ゆれを吸収する。
 // 実害例（2026-08-06 実機報告・クラウド実データで確定）: Netflix の document.title 由来
 // 「スパイダーマン: ホームカミング」（半角コロン+スペース）と TMDB 由来
@@ -429,8 +429,55 @@ export function sameWorkTitle(a, b) {
 export function isKnownMovieTitle(t) {
   return !!t && getTitleMediaMap()[t] === 'movie';
 }
+// 名寄せ結果から「TV と判明しているタイトルか」（話数不明バッジの判定に使う）
+export function isKnownTvTitle(t) {
+  return !!t && getTitleMediaMap()[t] === 'tv';
+}
 
-export async function getMyWordsForEpisode(drama, season, episode, profileId, memSub = '') {
+// ── S/E 無し語（話数不明）の縮退（A22・2026-09-12）────────────────────────
+// 拡張が S/E を検出できずに保存した語（Disney+ で常態・Netflix/Prime でも検出失敗で発生）は
+// season/episode が null のまま単語帳に残る。以前はエピソードの整形字幕（cl_sub_*）と照合して
+// 話を自動割当していたが、字幕本文はクライアントに配らなくなったので代替 API は作らず、
+// 「単語帳には残る・作品の各話リストには出さない」縮退を受け入れる。代わりに
+//   (a) 単語帳で当該語に「話数不明」バッジ（isUnassignedTvWord）
+//   (b) 作品ページ下部に「話数を特定できなかった語 N 件 → 単語帳」（countUnassignedForDrama）
+// で所在を示す。映画は S/E を持たないのが正なので、どちらも対象外。
+export function isUnassignedEpisodeWord(w) {
+  return !!w && w.season == null && w.episode == null;
+}
+
+// 単語帳用: 「TV と分かっている作品なのに S/E が無い語」か。作品の型はマイリスト（myDramas）の
+// type/mediaType → 名寄せキャッシュ（isKnownTvTitle）の順で判定し、確信が無ければ false
+// （映画の語に「話数不明」を付けて誤解させないことを優先＝fail-closed）。
+export function isUnassignedTvWord(w, myDramas = []) {
+  if (!isUnassignedEpisodeWord(w) || !w.dramaTitle) return false;
+  const known = (myDramas || []).find(
+    (d) => d?.title && (sameWorkTitle(w.dramaTitle, d.title) || sameWorkTitle(w.dramaTitle, d.englishTitle))
+  );
+  // マイリストに作品はあるが type 未設定（旧エントリ・「ドラマを探す」経由）なら名寄せキャッシュへ落とす
+  //（即 false にすると英題の TV 作品で永久にバッジが付かない・レビュー指摘）。
+  if (known && (known.type || known.mediaType)) return known.type === 'tv' || known.mediaType === 'tv';
+  return isKnownTvTitle(w.dramaTitle);
+}
+
+// 作品ページ用: この作品（TV）に属する S/E 無しの保存語の件数。映画は常に 0。
+export async function countUnassignedForDrama(drama, profileId) {
+  if (!drama?.title) return 0;
+  if (drama.type === 'movie' || drama.mediaType === 'movie') return 0;
+  const words = await getActiveWords(profileId);
+  const candidates = words.filter((w) => w.dramaTitle && isUnassignedEpisodeWord(w));
+  if (!candidates.length) return 0;
+  const titleCandidates = [...new Set([drama.title, drama.englishTitle].filter(Boolean))];
+  await prewarmTitleAliases([...titleCandidates, ...candidates.map((w) => w.dramaTitle)]);
+  return candidates.filter((w) => titleCandidates.some((tc) => sameWorkTitle(w.dramaTitle, tc))).length;
+}
+
+// 拡張機能で保存した単語のうち、現ドラマ・エピソードに一致するものを返す。
+// drama = 選択中ドラマ（title / englishTitle）。
+// ★2026-09-12: 旧 memSub 引数（メモリ上の整形字幕で S/E 無し語を当該話へ照合）は廃止。
+//   字幕本文はクライアントに存在しないので、TV で S/E の無い語はこの話には出さない
+//   （単語帳には残る＝isUnassignedTvWord / countUnassignedForDrama で所在を示す）。
+export async function getMyWordsForEpisode(drama, season, episode, profileId) {
   const dramaTitle = drama?.title;
   if (!dramaTitle) return [];
   const words = await getActiveWords(profileId);
@@ -473,99 +520,11 @@ export async function getMyWordsForEpisode(drama, season, episode, profileId, me
   // シリーズ続編の語が互いのリストに混入していた（2026-08-07）。
   const titleMatches = (w) => titleCandidates.some((tc) => sameWorkTitle(w.dramaTitle, tc));
 
-  const episodeSub = (
-    memSub ||
-    localStorage.getItem(subtitleCacheKey(dramaTitle, season, episode)) ||
-    localStorage.getItem(subtitleCacheKey(drama?.englishTitle, season, episode)) ||
-    ''
-  ).toLowerCase();
-
   return words.filter((w) => {
     if (!w.dramaTitle) return false;
     if (!titleMatches(w)) return false;
     if (isMovie) return true; // 映画はタイトル一致で十分（S/E は無い）
-    if (w.season != null && w.episode != null) {
-      return w.season == season && w.episode == episode;
-    }
-    // 語境界つき照合（旧 includes は "art"⊂"part" のような部分一致で別話に混入していた）
-    return episodeSub ? exampleContainsWord(episodeSub, w.word) : false;
+    // TV は S/E の完全一致だけ。S/E の無い語（話数不明）は当該話には出さない（縮退・A22）。
+    return w.season != null && w.episode != null && w.season == season && w.episode == episode;
   });
-}
-
-// 未割当単語をキャッシュ済み字幕から自動解決してストアを更新する
-// 2026-08-06 fail-closed 設計へ変更。旧実装は日本語タイトルが safe キー化（[^a-z0-9]→_）で
-// 全て "_" に潰れ、先頭5文字比較が日本語作品同士で常に一致→他作品の字幕に語があれば
-// 誤った S/E を付与し得た。新設計の原則は「確信がある時だけ書く」:
-//   ① 作品照合は英語 alias（resolveEnglishTitle）を解決してから safe キーの実質比較
-//      （"_" を除いて3文字未満のキーは照合に使わない＝英題が取れない作品は付与しない）
-//   ② 語が複数エピソードの字幕にヒットしたら付与しない（一意な時だけ）
-//   ③ 確定した付与は pushMyWord でクラウドへも永続化
-//      （従来はローカルのみ＝ログイン中は次の pull 全量上書きで消えていて実質無効だった）
-export async function resolveUnassignedWords(profileId, memSub = '', memTitle = '', memSeason = null, memEpisode = null) {
-  const words = await getActiveWords(profileId);
-  const unassigned = words.filter((w) => w.dramaTitle && w.season == null);
-  if (!unassigned.length) return;
-
-  const safeKey = (t) => String(t || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
-  const meaningful = (k) => k.replace(/_/g, '').length >= 3;
-
-  const subEntries = [];
-  if (memSub && memTitle && memSeason && memEpisode) {
-    subEntries.push({
-      titleKey: safeKey(memTitle),
-      season: memSeason,
-      episode: memEpisode,
-      sub: memSub.toLowerCase(),
-    });
-  }
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    // 整形済み本文だけを見る。生SRT（cl_sub_raw_*）も同じ接頭辞で規則に合致してしまい、
-    // タイムコードやクレジット行まで照合対象に入っていた。
-    if (!key?.startsWith('cl_sub_') || key.startsWith('cl_sub_raw_')) continue;
-    const m = key.match(/^cl_sub_(.+)_s(\d+)e(\d+)$/);
-    if (!m) continue;
-    const sub = localStorage.getItem(key);
-    if (!sub) continue;
-    subEntries.push({
-      titleKey: m[1],
-      season: parseInt(m[2]),
-      episode: parseInt(m[3]),
-      sub: sub.toLowerCase(),
-    });
-  }
-  if (!subEntries.length) return;
-
-  // 日本語タイトルは英語 alias に解決してからキー比較（safe キーは日本語を保持できない）
-  const aliasCache = getTitleAliasMap();
-  const toResolve = [
-    ...new Set(
-      unassigned.map((w) => w.dramaTitle).filter((t) => !/^[\x00-\x7F]+$/.test(t) && !aliasCache[t])
-    ),
-  ];
-  for (const t of toResolve) await resolveEnglishTitle(t);
-  const alias = getTitleAliasMap();
-
-  let changed = false;
-  const mediaMap = getTitleMediaMap();
-  for (const w of unassigned) {
-    // 映画は season=null が正（S/E の概念なし）。名寄せが映画に解決した語は付与対象外
-    // （search_multi 化で映画タイトルも alias が通るようになり、映画の字幕キャッシュ
-    //   cl_sub_..._s1e1 と照合が成立して S1E1 を誤付与し得るため＝fail-closed の維持）。
-    if (mediaMap[w.dramaTitle] === 'movie') continue;
-    const cands = [w.dramaTitle, alias[w.dramaTitle]].map(safeKey).filter(meaningful);
-    if (!cands.length) continue; // 実質キーが作れない（英題未解決の日本語作品）→ 付与しない
-    const scoped = subEntries.filter(
-      (e) => meaningful(e.titleKey) && cands.some((c) => e.titleKey.includes(c) || c.includes(e.titleKey))
-    );
-    const hits = scoped.filter((e) => e.sub.includes(w.word.toLowerCase()));
-    const uniqEps = [...new Set(hits.map((e) => `${e.season}-${e.episode}`))];
-    if (uniqEps.length !== 1) continue; // 0件 or 複数エピソード該当 → 見送り
-    w.season = hits[0].season;
-    w.episode = hits[0].episode;
-    changed = true;
-    pushMyWord(w); // ログイン時はクラウドへ永続化（fire-and-forget・未ログインは内部 no-op）
-  }
-
-  if (changed) await store.set(myWordsKey(profileId), words);
 }

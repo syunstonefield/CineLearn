@@ -652,15 +652,38 @@ export function updateHistoryScore(id, pct) {
   }
 }
 
-// 単語リスト削除（vocabDeleteBtn 相当・ローカルのみ）
-export function deleteHistoryEntry(id, drama, season, episode) {
-  if (id) {
-    const history = loadHistory().filter((h) => h.id !== id);
-    safeSet(HISTORY_KEY, JSON.stringify(history));
-    deleteHistoryRow(id); // クラウドからも削除（ログイン時・fire-and-forget）
-  }
-  if (drama && season && episode) {
-    const title = (drama.englishTitle || drama.title).toLowerCase().replace(/[^a-z0-9]/g, '_');
-    localStorage.removeItem(`cl_sub_${title}_s${season}e${episode}`);
+// 単語リスト削除（vocabDeleteBtn 相当）。履歴エントリだけを消す。
+//   ※2026-09-12: 旧実装が併せて消していた整形字幕キャッシュ（cl_sub_*）は、字幕本文を
+//     クライアントに置かなくなったので存在しない（残骸は cleanupLegacySubtitleCache が一掃する）。
+export function deleteHistoryEntry(id) {
+  if (!id) return;
+  const history = loadHistory().filter((h) => h.id !== id);
+  safeSet(HISTORY_KEY, JSON.stringify(history));
+  deleteHistoryRow(id); // クラウドからも削除（ログイン時・fire-and-forget）
+}
+
+// ── 旧字幕キャッシュの一回限りの掃除（2026-09-12・A17）──────────────────
+// 公開拡大前ブロッカー B で、字幕本文（整形済み cl_sub_*・生SRT cl_sub_raw_*・LRU cl_sub_lru）を
+// 端末に置く設計をやめた。旧バンドルが残した本文は法的にも容量的にも置いておく理由が無いので、
+// マウント後に1回だけ全部消す。フラグ名は削除接頭辞 `cl_sub_` と衝突しない `cl_subcache_cleanup_v1`
+// （`cl_sub` 接頭辞の他用途キーは cl_sub_・cl_sub_raw_・cl_sub_lru のみ＝grep 確認済み・除外リスト不要）。
+// 掃除が完了してからフラグを立てる＝途中で例外が出た回は次回にやり直す。
+export const SUBCACHE_CLEANUP_FLAG = 'cl_subcache_cleanup_v1';
+export function cleanupLegacySubtitleCache() {
+  if (typeof window === 'undefined') return 0;
+  try {
+    if (localStorage.getItem(SUBCACHE_CLEANUP_FLAG) === '1') return 0;
+    const victims = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k) continue;
+      if (k === 'cl_sub_lru' || k.startsWith('cl_sub_raw_') || k.startsWith('cl_sub_')) victims.push(k);
+    }
+    victims.forEach((k) => localStorage.removeItem(k)); // 走査中に消すと添字がずれるので二段で
+    localStorage.setItem(SUBCACHE_CLEANUP_FLAG, '1');
+    if (victims.length) console.info(`[CL:CLEANUP] 旧字幕キャッシュ ${victims.length} 件を削除`);
+    return victims.length;
+  } catch {
+    return 0; // 掃除の失敗でアプリを止めない（次回のマウントで再挑戦）
   }
 }
