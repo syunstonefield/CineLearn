@@ -5136,7 +5136,7 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
 .vocab-cta-alt:hover { color: var(--text); }
 
 /* ── プレミアパス：紙チケット画像を土台に、動的テキストを重ねる＋タップでフリップ ── */
-/* 形・質感は public/premiere-pass.png と一致。文字サイズは cqw でチケット幅に追従。 */
+/* 形・質感は public/premiere-pass.webp と一致（原本 PNG は design-src/。1.9MB→72KB に軽量化＝半券の表示待ちを解消）。文字サイズは cqw でチケット幅に追従。 */
 .pf-ticket-card {
   width: 100%;
   max-width: 440px;
@@ -5161,7 +5161,7 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
 }
-.pf-front { background: url('/premiere-pass.png') center / contain no-repeat; }
+.pf-front { background: url('/premiere-pass.webp') center / contain no-repeat; }
 .pf-back {
   background: #241c14;
   transform: rotateY(180deg);
@@ -5632,14 +5632,14 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
 /* カードリスト（コンパクトに中央寄せ） */
 .tc-list { display: flex; flex-direction: column; align-items: center; gap: 12px; }
 
-/* チケット型カード：public/collection-ticket.png をテンプレ背景にして動的データを重ねる（PrepLaunch方式）。
+/* チケット型カード：public/collection-ticket.webp（原本 PNG は design-src/）をテンプレ背景にして動的データを重ねる（PrepLaunch方式）。
    テキストは cqw（カード幅基準）でスケール。位置%はテンプレ画像に合わせて微調整（TUNE）。 */
 .tcimg-card {
   position: relative;
   width: 100%;
   max-width: 300px; /* 1枚を小さめに（大きすぎ対策） */
   aspect-ratio: 1300 / 556; /* 透過切り抜きテンプレの実寸 */
-  background: url('/collection-ticket.png') no-repeat center / 100% 100%;
+  background: url('/collection-ticket.webp') no-repeat center / 100% 100%;
   cursor: pointer;
   container-type: inline-size;
   transition: transform 0.05s ease, filter 0.15s ease;

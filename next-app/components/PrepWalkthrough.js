@@ -112,6 +112,13 @@ export default function PrepWalkthrough() {
   const prevRef = useRef(prev);
   nextRef.current = next;
   prevRef.current = prev;
+  // 半券（プレミアパス）の紙画像を、ウォークスルー開始時点で先読みしておく。
+  // 完了→発行の瞬間に初めて背景画像を取りに行くと枠が一拍遅れて出るため（オーナー報告 2026-09-22）。
+  useEffect(() => {
+    const img = new Image();
+    img.src = '/premiere-pass.webp';
+  }, []);
+
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'Enter') {

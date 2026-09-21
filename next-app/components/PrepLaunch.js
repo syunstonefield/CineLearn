@@ -5,7 +5,7 @@ import { useApp } from './AppProvider';
 import { buildCloze, watchSearchUrl } from '@/lib/prep';
 
 // 予習エンジンの完了 = 映画館の「今夜のチケット＋開演」。
-// quiz 完了は public/premiere-pass.png（文字なしの紙チケット・形と質感は画像と一致）を
+// quiz 完了は public/premiere-pass.webp（文字なしの紙チケット・形と質感は画像と一致）を
 //   背景にして、作品名・話数・予習クリア・指定席・日付を上に重ねる。タップで裏返すと
 //   今夜の聞きどころ。入場（視聴サービスへ）は下に常時。cards / watch は暖色シネマページ。
 // window.open は入場タップのジェスチャ内で呼びポップアップブロックを回避。
