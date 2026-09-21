@@ -165,7 +165,9 @@ export default function ReviewHubScreen() {
     else openReview(words.slice(0, DAILY_REVIEW_CAP), { all: true });
   };
 
-  const epLabel = (g, entry) => (g.isMovie ? '映画' : `S${entry.season}E${entry.episode}`);
+  // 映画は1行しか無いので「映画」というラベルは出さない（作品名の下に「映画」と書いても情報ゼロ・
+  // オーナー指摘 2026-09-22）。行の左は語数/復習数を置き、見出し側の重複表示は消す。
+  const epLabel = (g, entry) => (g.isMovie ? '' : `S${entry.season}E${entry.episode}`);
   const hasAnything = groups.length > 0 || (myWords || []).length > 0;
 
   return (
@@ -231,14 +233,16 @@ export default function ReviewHubScreen() {
               <div className="rh-group" key={g.title}>
                 <div className="rh-group-head">
                   <span className="rh-group-title">{g.title}</span>
-                  <span className="rh-group-meta">
-                    {g.total}語{g.due > 0 && <span className="rh-due-badge">復習 {g.due}</span>}
-                  </span>
+                  {!g.isMovie && (
+                    <span className="rh-group-meta">
+                      {g.total}語{g.due > 0 && <span className="rh-due-badge">復習 {g.due}</span>}
+                    </span>
+                  )}
                 </div>
                 {g.episodes.map((ep) => (
                   <div className="rh-ep-row" key={ep.entry.id}>
                     <button type="button" className="rh-ep-main" onClick={() => startEpisodeReview(g, ep)}>
-                      <span className="rh-ep-label">{epLabel(g, ep.entry)}</span>
+                      {epLabel(g, ep.entry) && <span className="rh-ep-label">{epLabel(g, ep.entry)}</span>}
                       <span className="rh-ep-meta">
                         {ep.total}語
                         {ep.due > 0 ? (
@@ -252,7 +256,7 @@ export default function ReviewHubScreen() {
                       type="button"
                       className="rh-ep-quiz"
                       onClick={() => startEpisodeQuiz(ep.entry)}
-                      aria-label={`${g.title} ${epLabel(g, ep.entry)} のクイズ`}
+                      aria-label={`${g.title}${epLabel(g, ep.entry) ? ` ${epLabel(g, ep.entry)}` : ''} のクイズ`}
                     >
                       クイズ
                     </button>
