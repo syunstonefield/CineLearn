@@ -6222,7 +6222,13 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
 .rh-gauge-pct { font-size: 12px; font-weight: 700; color: var(--green); white-space: nowrap; }
 .rh-gauge-mpct { font-size: 12px; font-weight: 700; color: var(--gold, #d99a00); white-space: nowrap; }
 .rh-gauge-full { font-size: 12px; font-weight: 700; color: var(--green); white-space: nowrap; }
-@media (max-width: 400px) { .rh-gauge-bar { width: 60px; } }
+@media (max-width: 400px) {
+  /* 375px: S1E1＋バー＋数字2段＋語数/バッジ＋クイズ を1行に収めるため、バーと余白を詰める */
+  .rh-gauge-bar { width: 44px; }
+  .rh-gauge { gap: 6px; }
+  .rh-ep-main { gap: 6px; padding-left: 12px; padding-right: 8px; }
+  .rh-ep-meta { gap: 5px; font-size: 11px; }
+}
 .rh-due-badge {
   display: inline-block; padding: 2px 8px; border-radius: 999px;
   font-size: 11px; font-weight: 700; color: #fff; background: var(--accent);
