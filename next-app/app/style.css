@@ -6199,6 +6199,20 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
 .rh-ep-label { font-size: 14px; font-weight: 700; }
 .rh-ep-meta { font-size: 12px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; margin-left: auto; } /* ラベル無し（映画）の行でも右端＝クイズの横に寄せる */
 .rh-ep-done { color: var(--green); }
+/* 習得ゲージ（行の左）: 覚えた=緑、マスター=金を同じバーに重ねる。ホーム作品カードと同色。 */
+.rh-gauge { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.rh-gauge-bar {
+  position: relative; width: 72px; height: 6px; border-radius: 999px; overflow: hidden; flex-shrink: 0;
+  background: color-mix(in srgb, var(--review-border) 60%, transparent);
+}
+.rh-gauge-learned, .rh-gauge-mastered {
+  position: absolute; left: 0; top: 0; height: 100%; border-radius: 999px; transition: width 0.4s ease;
+}
+.rh-gauge-learned { background: var(--green); }
+.rh-gauge-mastered { background: var(--gold, #d99a00); }
+.rh-gauge-pct { font-size: 12px; font-weight: 700; color: var(--green); white-space: nowrap; }
+.rh-gauge-full { font-size: 12px; font-weight: 700; color: var(--green); white-space: nowrap; }
+@media (max-width: 400px) { .rh-gauge-bar { width: 48px; } }
 .rh-due-badge {
   display: inline-block; padding: 2px 8px; border-radius: 999px;
   font-size: 11px; font-weight: 700; color: #fff; background: var(--accent);

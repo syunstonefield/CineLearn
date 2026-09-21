@@ -7,6 +7,8 @@ import {
   loadHistory,
   loadSrs,
   isDue,
+  isLearned,
+  isMastered,
   getDueReviewWords,
   DAILY_REVIEW_CAP,
 } from '@/lib/storage';
@@ -113,7 +115,15 @@ export default function ReviewHubScreen() {
         m.set(title, g);
       }
       const due = words.filter((w) => isWordDue(w, srs)).length;
-      g.episodes.push({ entry: h, total: words.length, due });
+      // 習得ゲージ用（覚えた=2回連続成功／マスター=覚えたの上位。ホームの作品カードと同じ判定）
+      let learned = 0;
+      let mastered = 0;
+      words.forEach((w) => {
+        const e = srs[String(w.word || '').toLowerCase()];
+        if (isLearned(e)) learned++;
+        if (isMastered(e)) mastered++;
+      });
+      g.episodes.push({ entry: h, total: words.length, due, learned, mastered });
       g.total += words.length;
       g.due += due;
     });
@@ -163,6 +173,26 @@ export default function ReviewHubScreen() {
     setCurrentHistoryId(null);
     if (myDue > 0) openReview(words.filter((w) => isWordDue(w, srs)).slice(0, DAILY_REVIEW_CAP));
     else openReview(words.slice(0, DAILY_REVIEW_CAP), { all: true });
+  };
+
+  // 習得ゲージ（行の左）。「あと何語」より「ここまで来た」を見せて復習意欲を上げる（オーナー提案 2026-09-22）。
+  //   バー1本＝覚えた率（緑）。マスターは同じバーの濃い部分（金）として重ねる。数字は「覚えた N%」だけ。
+  //   0% は数字を出さず薄いバーのみ（「0%」と書くと逆に萎える）。全語覚えたら「✅ 全部覚えた」。
+  //   覚えた率を主役にする理由: マスターは4回連続＋約3週間半かかり序盤は延々0%になるため。
+  const Gauge = ({ learned, mastered, total }) => {
+    if (!total) return null;
+    if (learned >= total) return <span className="rh-gauge-full">✅ 全部覚えた</span>;
+    const lp = Math.round((learned / total) * 100);
+    const mp = Math.round((mastered / total) * 100);
+    return (
+      <span className="rh-gauge" title={`覚えた ${learned}/${total}・マスター ${mastered}/${total}`}>
+        <span className="rh-gauge-bar" aria-hidden="true">
+          <span className="rh-gauge-learned" style={{ width: `${lp}%` }} />
+          <span className="rh-gauge-mastered" style={{ width: `${mp}%` }} />
+        </span>
+        {learned > 0 && <span className="rh-gauge-pct">覚えた {lp}%</span>}
+      </span>
+    );
   };
 
   // 映画は1行しか無いので「映画」というラベルは出さない（作品名の下に「映画」と書いても情報ゼロ・
@@ -243,6 +273,7 @@ export default function ReviewHubScreen() {
                   <div className="rh-ep-row" key={ep.entry.id}>
                     <button type="button" className="rh-ep-main" onClick={() => startEpisodeReview(g, ep)}>
                       {epLabel(g, ep.entry) && <span className="rh-ep-label">{epLabel(g, ep.entry)}</span>}
+                      <Gauge learned={ep.learned} mastered={ep.mastered} total={ep.total} />
                       <span className="rh-ep-meta">
                         {ep.total}語
                         {ep.due > 0 ? (
