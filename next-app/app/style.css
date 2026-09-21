@@ -6202,14 +6202,15 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
 /* 習得ゲージ（行の左）: 覚えた=緑、マスター=金を同じバーに重ねる。ホーム作品カードと同色。 */
 .rh-gauge { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
 .rh-gauge-bar {
-  position: relative; width: 88px; height: 12px; border-radius: 999px; overflow: hidden; flex-shrink: 0;
+  position: relative; width: 88px; height: 12px; border-radius: 3px; overflow: hidden; flex-shrink: 0;
   background: color-mix(in srgb, var(--review-border) 60%, transparent);
 }
 .rh-gauge-learned, .rh-gauge-mastered {
-  position: absolute; left: 0; top: 0; height: 100%; border-radius: 999px; transition: width 0.4s ease;
+  position: absolute; left: 0; top: 0; height: 100%; border-radius: 0; transition: width 0.4s ease;
 }
-.rh-gauge-learned { background: var(--green); }
-.rh-gauge-mastered { background: var(--gold, #d99a00); }
+/* 色は淡め（オーナー要望 2026-09-22）: バッジや数字より主張しない背景的な帯にする */
+.rh-gauge-learned { background: color-mix(in srgb, var(--green) 45%, var(--surface)); }
+.rh-gauge-mastered { background: color-mix(in srgb, var(--gold, #d99a00) 55%, var(--surface)); }
 .rh-gauge-pct { font-size: 12px; font-weight: 700; color: var(--green); white-space: nowrap; }
 .rh-gauge-full { font-size: 12px; font-weight: 700; color: var(--green); white-space: nowrap; }
 @media (max-width: 400px) { .rh-gauge-bar { width: 60px; } }
