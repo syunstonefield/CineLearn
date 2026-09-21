@@ -208,7 +208,7 @@ export default function ReviewHubScreen() {
             {(myWords || []).length > 0 && (
               <div className="rh-group">
                 <div className="rh-group-head">
-                  <span className="rh-group-title">✏️ 追加した単語</span>
+                  <span className="rh-group-title">📖 マイ単語帳</span>
                   <span className="rh-group-meta">{myWords.length}語</span>
                 </div>
                 <div className="rh-ep-row">
