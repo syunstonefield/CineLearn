@@ -6209,9 +6209,10 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
   position: absolute; left: 0; top: 0; height: 100%; border-radius: 0; transition: width 0.4s ease;
 }
 /* 色は淡め（オーナー要望 2026-09-22）: バッジや数字より主張しない背景的な帯にする */
-.rh-gauge-learned { background: color-mix(in srgb, var(--green) 45%, var(--surface)); }
-.rh-gauge-mastered { background: color-mix(in srgb, var(--gold, #d99a00) 55%, var(--surface)); }
+.rh-gauge-learned { background: color-mix(in srgb, var(--green) 70%, var(--surface)); }
+.rh-gauge-mastered { background: color-mix(in srgb, var(--gold, #d99a00) 78%, var(--surface)); }
 .rh-gauge-pct { font-size: 12px; font-weight: 700; color: var(--green); white-space: nowrap; }
+.rh-gauge-mpct { font-size: 12px; font-weight: 700; color: var(--gold, #d99a00); white-space: nowrap; }
 .rh-gauge-full { font-size: 12px; font-weight: 700; color: var(--green); white-space: nowrap; }
 @media (max-width: 400px) { .rh-gauge-bar { width: 60px; } }
 .rh-due-badge {
