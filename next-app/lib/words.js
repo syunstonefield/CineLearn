@@ -2,9 +2,8 @@
 // 拡張機能・Supabase が無い試作環境でも localStorage だけで完結するよう、
 // chrome.storage / cloudSync 依存は app.js 同様にガードして無効化する。
 import { tmdb } from './api';
-import { deleteMyWordCloud, pushMyWord } from './supabase';
-import { fetchJa } from './jatranslate';
-import { fetchCtxJa } from './ctxtranslate';
+import { deleteMyWordCloud, pushMyWord, MY_WORDS_MAX } from './supabase';
+import { fillTranslations } from './translateQueue';
 import { myWordsKey, deletedWordsKey } from './storage';
 import { trimExampleToSentence, EXAMPLE_MAX_CHARS } from './subtitles';
 
@@ -129,11 +128,64 @@ export async function addManualWord(profileId, entry) {
     } else {
       words.unshift(entry);
     }
-    await store.set(key, words.slice(0, 2000));
+    await store.set(key, words.slice(0, MY_WORDS_MAX));
   };
   await upsert(myWordsKey(null));
   if (profileId) await upsert(myWordsKey(profileId));
   return merged;
+}
+
+// ── ★単語帳メンバーシップ（2026-09-22・オーナー判断）──
+// 「✏️追加」チップ＝来歴（視聴中に拾った語）、★＝マイ単語帳に入っているか、を分ける。
+//   ・生成語（作品の単語リスト）にも★を付けて単語帳へ入れられる（source:'star'）
+//   ・★を外しても、視聴中に拾った語（ext/manual）は行を残し inWordbook:false にする＝作品の
+//     単語リストには残る。★でしか存在しない語（source:'star'）は行ごと消す（生成語は history 側に残る）
+// 復習対象（ホーム/今日の復習）は従来どおり出会った語すべて＝★の有無で変えない（オーナー判断1）。
+
+// 単語帳に表示する語（外した語を除く）。
+export async function getWordbookWords(profileId) {
+  const all = await getActiveWords(profileId);
+  return all.filter((w) => w.inWordbook !== false);
+}
+
+async function findMyWord(profileId, wordText) {
+  const lower = String(wordText || '').toLowerCase();
+  const words = (await store.get(myWordsKey(profileId))) || (await store.get(myWordsKey(null))) || [];
+  return words.find((w) => String(w.word || '').toLowerCase() === lower) || null;
+}
+
+// ★を付ける。既に行がある語（外した追加語など）は来歴（source）を守って旗だけ戻す。
+// 無ければ生成語の情報（意味・例文・訳・📍・S/E）ごと my_words へ入れる＝単語帳側で取り直さない。
+export async function starWord(profileId, entry) {
+  if (!entry?.word) return null;
+  const existing = await findMyWord(profileId, entry.word);
+  if (existing) {
+    const merged = await setWordbookFlag(profileId, entry.word, true);
+    return merged || existing;
+  }
+  const rec = { ...entry, source: entry.source || 'star', inWordbook: true };
+  const merged = await addManualWord(profileId, rec);
+  pushMyWord(merged || rec); // ログイン時のみクラウドへ（未ログインは内部 no-op）
+  return merged || rec;
+}
+
+// ★を外す。戻り値: 'deleted'（行ごと消した）| 'hidden'（旗を倒した）| null（無かった）。
+export async function unstarWord(profileId, wordText) {
+  const existing = await findMyWord(profileId, wordText);
+  if (!existing) return null;
+  if (existing.source === 'star') {
+    await deleteMyWord(profileId, wordText);
+    return 'deleted';
+  }
+  await setWordbookFlag(profileId, wordText, false);
+  return 'hidden';
+}
+
+// 旗だけを書き換える（ローカル両キー＋ログイン時はクラウド）。書き込みは saveWordTranslation の
+// 直列鎖に乗せる（並行 read-modify-write で他の語の更新を消さないため）。
+async function setWordbookFlag(profileId, wordText, inWordbook) {
+  const ok = await saveWordTranslation(profileId, wordText, { inWordbook });
+  return ok ? findMyWord(profileId, wordText) : null;
 }
 
 // 単語をすべて削除（既存 clearAllWords 相当）
@@ -211,37 +263,22 @@ export async function repairLongExamples(words, profileId) {
 //   - 例文の和訳 : fetchJa(例文)
 // どちらもキーは (語, 文) 単位なので、同じ語でも場面が違えば別の訳が生成・保存される。
 // 訳を取る前に、段落化した例文を1文へ詰め直す（詰めた行は訳を取り直す＝ペアを保つ）。
-export async function fillExtWordJa(extWords, profileId) {
+export async function fillExtWordJa(extWords, profileId, ctx = null) {
   let changed = await repairLongExamples(extWords, profileId);
-  for (const w of extWords) {
-    if (!w?.word) continue;
-    const sentence = w.example || w.sentence || '';
-    const patch = {};
-
-    // 意味（日本語）が未取得＝ ja が無く、definition も日本語を含まない（英語辞書定義 or 空）
-    const hasJa = !!w.ja || (!!w.definition && /[぀-ヿ一-鿿]/.test(w.definition));
-    if (!hasJa) {
-      const ja = (sentence ? await fetchCtxJa(w.word, sentence) : null) ?? (await fetchJa(w.word));
-      if (ja) {
-        patch.ja = ja;
-        w.ja = ja;
-        w.definition = ja; // 表示（VocabItem）は definition を見る
-        changed = true;
+  // 2026-09-22: 直列 await をやめ lib/translateQueue.js（語義は並列3本・例文訳は10文一括）へ。
+  // ctx（作品座標 {tmdbId, season, episode, type}）があれば一括訳が vocab_cache の空欄も埋める。
+  const got = await fillTranslations(extWords, {
+    ctxFor: () => ctx,
+    onPatch: (w, patch) => {
+      if (patch.ja) {
+        w.ja = patch.ja;
+        w.definition = patch.ja; // 表示（VocabItem）は definition を見る
       }
-    }
-
-    if (!w.example_ja && sentence) {
-      const exJa = await fetchJa(sentence);
-      if (exJa) {
-        patch.example_ja = exJa;
-        w.example_ja = exJa;
-        changed = true;
-      }
-    }
-
-    if (Object.keys(patch).length) await saveWordTranslation(profileId, w.word, patch);
-  }
-  return changed;
+      if (patch.example_ja) w.example_ja = patch.example_ja;
+    },
+    save: (word, patch) => saveWordTranslation(profileId, word, patch),
+  });
+  return changed || got;
 }
 
 // ── タイトル名寄せ（日本語 → 英語）─────────────────────────

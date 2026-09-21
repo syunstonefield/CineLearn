@@ -7,7 +7,9 @@ import { exampleFailLabel } from '@/lib/exampleBackfill';
 // 1単語カード。モバイルは折りたたみ（語＋和訳＋状態ドット＋📍時刻のみ）→タップで詳細展開。
 // PCでは常時展開（display制御は style.css のメディアクエリ）。
 // 詳細は常にDOMに描画し、開閉は is-expanded クラスで切り替える（PC常時表示を両立するため）。
-export default function VocabItem({ word, srs, testTiers, ts, priority, exampleSource, added, onSpeak, onSkip, onCopyTime, onDelete }) {
+// starred/onStar: ★マイ単語帳メンバーシップ（2026-09-22）。onStar(word, starred) を渡した文脈でだけ
+// 発音・Skip の横に「★ 単語帳 / ☆ 単語帳に入れる」トグルを出す（単語リスト・単語帳の両方）。
+export default function VocabItem({ word, srs, testTiers, ts, priority, exampleSource, added, starred, onSpeak, onSkip, onCopyTime, onDelete, onStar }) {
   const [expanded, setExpanded] = useState(false);
   const w = word;
   const e = srs[w.word.toLowerCase()];
@@ -174,7 +176,19 @@ export default function VocabItem({ word, srs, testTiers, ts, priority, exampleS
           >
             {isSkip ? 'Resume' : 'Skip'}
           </button>
-          {/* 単語帳など削除可能な文脈でのみ表示（VocabScreen は onDelete を渡さない） */}
+          {/* ★マイ単語帳に入れる/外す（紙の単語帳に付箋を貼る感覚・オーナー判断 2026-09-22） */}
+          {onStar && (
+            <button
+              type="button"
+              className={'btn-srs-skip btn-wordbook-star' + (starred ? ' is-on' : '')}
+              title={starred ? 'マイ単語帳から外す（作品の単語リストには残ります）' : 'マイ単語帳に入れる'}
+              aria-pressed={!!starred}
+              onClick={() => onStar(w.word, !!starred)}
+            >
+              {starred ? '★ 単語帳' : '☆ 単語帳に入れる'}
+            </button>
+          )}
+          {/* 🗑完全削除＝手動追加語のタイポ救済だけに残す（単語帳から外すのは★） */}
           {onDelete && (
             <button className="btn-srs-skip btn-word-del" onClick={() => onDelete(w.word)}>
               🗑 削除

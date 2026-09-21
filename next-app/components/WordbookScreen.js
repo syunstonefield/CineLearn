@@ -4,15 +4,15 @@ import { useEffect, useState } from 'react';
 import { useApp } from './AppProvider';
 import VocabItem from './VocabItem';
 import {
-  getActiveWords,
+  getWordbookWords,
   deleteMyWord,
+  unstarWord,
   clearAllWords,
   saveWordTranslation,
   repairLongExamples,
 } from '@/lib/words';
-import { loadSrs, skipWord, unskipWord, isLearned, isMastered, isStruggling } from '@/lib/storage';
-import { fetchJa } from '@/lib/jatranslate';
-import { fetchCtxJa } from '@/lib/ctxtranslate';
+import { loadSrs, skipWord, unskipWord, isLearned, isMastered, isStruggling, todayStr } from '@/lib/storage';
+import { fillTranslations } from '@/lib/translateQueue';
 import { speak } from '@/lib/speak';
 import { secToTimeLabel } from '@/lib/subtitles';
 import { backfillMissingExamples } from '@/lib/exampleBackfill';
@@ -51,7 +51,8 @@ export default function WordbookScreen() {
   useEffect(() => {
     setSrs(loadSrs());
     let cancelled = false;
-    getActiveWords(pid).then((w) => {
+    // ★を外した語（inWordbook:false）は出さない（2026-09-22）。作品の単語リスト側には残っている。
+    getWordbookWords(pid).then((w) => {
       if (!cancelled) setWords(w);
     });
     return () => {
@@ -62,11 +63,28 @@ export default function WordbookScreen() {
   // 単語帳を開いた時にクラウドから最新を取り込む（拡張で保存→約1秒後に後埋めした例文を反映）。
   // 後埋めが初回pullに間に合わないことがあるので、開いた直後＋数秒後の2回引いて取りこぼしを防ぐ。
   // refreshFromCloud は wordbookVersion を上げる→上の effect が再読込する。ログイン時のみ。
+  // 2026-09-22: 2回目は無条件にやめ、初回 pull の結果に「今日保存されたのに例文がまだ無い語」が
+  // ある時だけ引く（拡張の後埋めが着地するのを待つ場面はそれだけ）。全量 pull は語数に比例して
+  // egress を食うため（★で語数が増える）、根本は増分同期（pending-fixes）。
   useEffect(() => {
     if (!loggedIn) return;
-    refreshFromCloud();
-    const t = setTimeout(() => refreshFromCloud(), 6000);
-    return () => clearTimeout(t);
+    let t = null;
+    let cancelled = false;
+    (async () => {
+      await refreshFromCloud();
+      if (cancelled) return;
+      const today = todayStr();
+      const fresh = await getWordbookWords(pid);
+      const waiting = (fresh || []).some(
+        (w) => !(w.sentence || w.example || '').trim() && String(w.savedAt || '').startsWith(today)
+      );
+      if (waiting && !cancelled) t = setTimeout(() => refreshFromCloud(), 6000);
+    })();
+    return () => {
+      cancelled = true;
+      if (t) clearTimeout(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loggedIn, refreshFromCloud]);
 
   // 例文の和訳を /api/translate から取得（端末キャッシュ・短文のみ・鍵未設定なら null＝和訳なし）。
@@ -102,38 +120,31 @@ export default function WordbookScreen() {
         );
         if (hit && !cancelled) bumpWordbook(); // 保存済みを読み直して画面に反映
       }
-      for (const w of words) {
-        const wl = w.word.toLowerCase();
-        // 取得できた訳は my_words へ書き戻す（2026-08-06〜）。従来は画面の状態にしか置いておらず、
-        // 開き直すたびに取り直していた（共有キャッシュのおかげで課金はほぼ無かったが、
-        // 端末を変えるたびに再取得＝新規ユーザーぶんの生成は毎回発生していた）。
-        const patch = {};
-        // 単語の和訳。優先順: ①保存時の文脈訳(w.ja・拡張v1.2.2〜) ②例文を添えた文脈訳
-        // (wordsense・多義語をその場面の意味に解決) ③従来の1語訳（文脈なし・最後の保険）。
-        // docs/design-context-translation.md
-        if (w.ja) {
-          setWordJa((m) => (m[wl] === w.ja ? m : { ...m, [wl]: w.ja }));
-        } else {
-          const sent0 = w.sentence || w.example;
-          const wja = (sent0 ? await fetchCtxJa(w.word, sent0) : null) ?? (await fetchJa(w.word));
-          if (cancelled) return;
-          if (wja != null) {
-            setWordJa((m) => (m[wl] === wja ? m : { ...m, [wl]: wja }));
-            patch.ja = wja;
-          }
-        }
-        // 例文の和訳
-        const sent = w.example || w.sentence;
-        if (sent && !w.example_ja) {
-          const ja = await fetchJa(sent);
-          if (cancelled) return;
-          if (ja != null) {
-            setExJa((m) => (m[wl] === ja ? m : { ...m, [wl]: ja }));
-            patch.example_ja = ja;
-          }
-        }
-        if (Object.keys(patch).length) saveWordTranslation(pid, w.word, patch).catch(() => {});
-      }
+      // 既に訳を持つ語（拡張v1.2.2〜の保存語・★で入れた生成語）は通信なしで即表示。
+      const jaInit = {};
+      for (const w of words) if (w.ja) jaInit[w.word.toLowerCase()] = w.ja;
+      if (Object.keys(jaInit).length) setWordJa((m) => ({ ...m, ...jaInit }));
+      // 残り（語義なし・例文訳なし）は並列＋10文一括で後埋めし、取れた訳は my_words へ書き戻す
+      // （2026-09-22・旧実装は1語ずつ直列 await＝1000語で最悪2000往復）。lib/translateQueue.js
+      const knownFor = (w) =>
+        w?.dramaTitle
+          ? (settings.myDramas || []).find((d) => sameWorkTitle(w.dramaTitle, d.title) || sameWorkTitle(w.dramaTitle, d.englishTitle))
+          : null;
+      await fillTranslations(words, {
+        isCancelled: () => cancelled,
+        ctxFor: (w) => {
+          const known = knownFor(w);
+          if (!known?.tmdbId) return null; // 作品を確定できない語は共有キャッシュへの書き戻し座標を付けない
+          const type = known.type || known.mediaType || (w.season == null ? 'movie' : 'tv');
+          return { tmdbId: known.tmdbId, season: w.season ?? null, episode: w.episode ?? null, type };
+        },
+        onPatch: (w, patch) => {
+          const wl = w.word.toLowerCase();
+          if (patch.ja) setWordJa((m) => (m[wl] === patch.ja ? m : { ...m, [wl]: patch.ja }));
+          if (patch.example_ja) setExJa((m) => (m[wl] === patch.example_ja ? m : { ...m, [wl]: patch.example_ja }));
+        },
+        save: (word, patch) => saveWordTranslation(pid, word, patch).catch(() => {}),
+      });
     })();
     return () => {
       cancelled = true;
@@ -173,8 +184,16 @@ export default function WordbookScreen() {
     setSrs(loadSrs());
   };
   const handleCopyTime = (t) => navigator.clipboard?.writeText(t).catch(() => {});
+  // 🗑完全削除＝手動追加語のタイポ救済だけ。単語帳から外すのは★（onStar）。
   const onDelete = async (word) => {
+    if (!confirm(`「${word}」を完全に削除しますか？（作品の単語リストからも消えます）`)) return;
     await deleteMyWord(pid, word);
+    bumpWordbook();
+  };
+  // ★を外す。視聴中に拾った語は作品の単語リストに残り、★でしか無い語は行ごと消える（lib/words.js）。
+  const onStar = async (word, starred) => {
+    if (!starred) return; // 単語帳の行は常に★ON＝ここでは外す操作だけ
+    await unstarWord(pid, word);
     bumpWordbook();
   };
   const onClear = async () => {
@@ -194,7 +213,7 @@ export default function WordbookScreen() {
       <div className="wb-screen">
         <div className="wb-head">
           <h1 className="wb-h1">📖 マイ単語帳</h1>
-          <p className="wb-sub">Netflix・Amazon Prime・Disney+の字幕で単語をクリックすると、ここに保存されます</p>
+          <p className="wb-sub">字幕で単語をクリックした語と、単語リストで☆を付けた語がここに集まります（★を外すとリストには残ります）</p>
         </div>
 
         {words === null ? (
@@ -318,10 +337,12 @@ export default function WordbookScreen() {
                       ts={w.tsSec != null ? { sec: w.tsSec, label: secToTimeLabel(w.tsSec) } : null}
                       priority={isStruggling(srs[w.word.toLowerCase()])}
                       exampleSource={wordSource(w, unassigned)}
+                      starred
                       onSpeak={speak}
                       onSkip={handleSkip}
                       onCopyTime={handleCopyTime}
-                      onDelete={onDelete}
+                      onStar={onStar}
+                      onDelete={w.source === 'manual' ? onDelete : undefined}
                     />
                   </div>
                 );

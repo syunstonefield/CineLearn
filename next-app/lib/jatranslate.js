@@ -60,6 +60,24 @@ async function viaClaude(t) {
   }
 }
 
+// 端末キャッシュへの直接アクセス（一括訳 lib/translateQueue.js 用・キーと形式は fetchJa と同じ）。
+//   readSentenceCache: 成功='訳' / 失敗(TTL内)=null / 未キャッシュ=undefined
+export function readSentenceCache(text) {
+  const key = String(text || '').trim().toLowerCase();
+  if (!key) return null;
+  return readCached(loadCache(), key);
+}
+export function writeSentenceCacheMany(entries) {
+  if (!entries?.length) return;
+  const cache = loadCache();
+  for (const [text, ja] of entries) {
+    const key = String(text || '').trim().toLowerCase();
+    if (!key) continue;
+    cache[key] = ja ? { v: ja } : { v: null, at: Date.now() };
+  }
+  saveCache(cache);
+}
+
 export async function fetchJa(text) {
   const t = (text || '').trim();
   if (!t) return null;

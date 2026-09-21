@@ -34,6 +34,9 @@ import {
   fillExtWordJa,
   addManualWord,
   deleteMyWord,
+  getActiveWords,
+  starWord,
+  unstarWord,
 } from '@/lib/words';
 import { pushMyWord, ensureFreshSession } from '@/lib/supabase';
 import { fetchJa } from '@/lib/jatranslate';
@@ -93,6 +96,9 @@ export default function VocabScreen() {
   const [vocab, setVocab] = useState([]);
   const [source, setSource] = useState('');
   const [extWords, setExtWords] = useState([]);
+  // ★マイ単語帳メンバーシップ（2026-09-22）: 小文字の語 → my_words の行。inWordbook が false でない語だけ。
+  // 生成語を★しても loadExtWords は既存語を除外するので「追加した単語」には出ない＝この集合で行の★を描く。
+  const [wordbookMap, setWordbookMap] = useState(() => new Map());
   // #20 手動追加（スマホ等・拡張なしでこの話に単語を足す）
   const [addWordText, setAddWordText] = useState('');
   const [addBusy, setAddBusy] = useState(false);
@@ -205,6 +211,24 @@ export default function VocabScreen() {
     loadExtWords(season, episode, vocab);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [app.wordbookVersion]);
+
+  // ★の集合はローカル JSON だけで作れる（通信なし）。単語帳の増減・クラウド取り込みで引き直す。
+  useEffect(() => {
+    let cancelled = false;
+    getActiveWords(pid)
+      .then((words) => {
+        if (cancelled) return;
+        const m = new Map();
+        (words || []).forEach((w) => {
+          if (w?.word && w.inWordbook !== false) m.set(String(w.word).toLowerCase(), w);
+        });
+        setWordbookMap(m);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [pid, app.wordbookVersion, drama?.title]);
 
   // 📍時刻を持たない「追加した単語」の後埋めは lib/exampleBackfill.js に統合した（2026-09-12・A13）。
   //   生SRTが端末に無いので、例文をアンカー（lineText）としてサーバの同じ照合器に時刻を聞く。
@@ -389,7 +413,11 @@ export default function VocabScreen() {
       // 未取得の和訳（単語の意味・例文）をバックグラウンドで後埋めし、my_words へ永続化する。
       // 共有キャッシュ経路のみを使うので2人目以降は0円・同じ端末では2回目からネットワーク無し。
       if (newExt.length) {
-        fillExtWordJa(newExt, pid)
+        const isMovieNow = drama?.type === 'movie' || drama?.mediaType === 'movie';
+        const ctx = drama?.tmdbId
+          ? { tmdbId: drama.tmdbId, season: isMovieNow ? null : se, episode: isMovieNow ? null : ep, type: isMovieNow ? 'movie' : 'tv' }
+          : null;
+        fillExtWordJa(newExt, pid, ctx)
           .then((changed) => {
             if (changed && myReq === reqId.current) setExtWords([...newExt]);
           })
@@ -1078,13 +1106,55 @@ export default function VocabScreen() {
     }
   };
 
-  // 追加した単語の削除（タイポ救済）。ローカル両キー＋ログイン時はクラウドの行も消す
-  // （deleteMyWord 内で伝搬）。表示は即時に間引く。
+  // 追加した単語の完全削除（手動追加語のタイポ救済だけ）。ローカル両キー＋ログイン時はクラウドの行も消す
+  // （deleteMyWord 内で伝搬）。表示は即時に間引く。単語帳から外すだけなら★（handleStar）。
   const handleDeleteExtWord = async (word) => {
-    if (!confirm(`「${word}」を単語帳から削除しますか？`)) return;
+    if (!confirm(`「${word}」を完全に削除しますか？（単語帳・この話のリストの両方から消えます）`)) return;
     await deleteMyWord(pid, word);
     setExtWords((list) => list.filter((w) => w.word.toLowerCase() !== word.toLowerCase()));
+    app.bumpWordbook();
   };
+
+  // ★マイ単語帳に入れる/外す（2026-09-22）。
+  //   入れる: 生成語の意味・例文・訳・📍・S/E をそのまま my_words へ（単語帳側で取り直さない）。
+  //   外す  : ★でしか無い語は行ごと消え、視聴中に拾った語（ext/manual）は旗だけ倒れてリストに残る。
+  const handleStar = async (word, starred) => {
+    const lower = String(word).toLowerCase();
+    if (starred) {
+      await unstarWord(pid, word);
+      setWordbookMap((m) => {
+        const n = new Map(m);
+        n.delete(lower);
+        return n;
+      });
+      app.bumpWordbook();
+      return;
+    }
+    const src =
+      [...sortedVocab, ...extWords].find((x) => x.word.toLowerCase() === lower) || { word };
+    const t = tsFor(src);
+    const entry = {
+      word: src.word,
+      sentence: src.example || src.sentence || '',
+      phonetic: src.phonetic || '',
+      pos: src.pos || '',
+      definition: src.ja || src.definition || '',
+      ja: src.ja || src.definition || null,
+      example_ja: src.example_ja || '',
+      tsSec: t?.sec ?? src.tsSec ?? null,
+      savedAt: todayStr(),
+      source: src.source === 'ext' ? src.origin || 'ext' : 'star',
+      dramaTitle: drama.title,
+      season: isMovie ? null : season,
+      episode: isMovie ? null : episode,
+    };
+    const merged = await starWord(pid, entry);
+    setWordbookMap((m) => new Map(m).set(lower, merged || entry));
+    app.bumpWordbook();
+  };
+  const isStarred = (w) => wordbookMap.has(String(w.word).toLowerCase());
+  // 🗑（完全削除）は手動追加語だけ（origin==='manual'）。拡張保存語は来歴なので★で外すのみ。
+  const deleteFor = (w) => (w.source === 'ext' && w.origin === 'manual' ? handleDeleteExtWord : undefined);
   const pickSeason = (se) => {
     if (se === season) return;
     setSeason(se);
@@ -1156,10 +1226,12 @@ export default function VocabScreen() {
               testTiers={testTiers}
               ts={tsFor(w)}
               exampleSource={exampleCredit}
+              starred={isStarred(w)}
               onSpeak={speak}
               onSkip={handleSkip}
               onCopyTime={handleCopyTime}
-              onDelete={handleDeleteExtWord}
+              onStar={handleStar}
+              onDelete={deleteFor(w)}
             />
           ))}
         </div>
@@ -1538,10 +1610,12 @@ export default function VocabScreen() {
                     ts={tsFor(w)}
                     exampleSource={exampleCredit}
                     added={w.source === 'ext'}
+                    starred={isStarred(w)}
                     onSpeak={speak}
                     onSkip={handleSkip}
                     onCopyTime={handleCopyTime}
-                    onDelete={w.source === 'ext' ? handleDeleteExtWord : undefined}
+                    onStar={handleStar}
+                    onDelete={deleteFor(w)}
                   />
                 ))}
               </div>
@@ -1559,9 +1633,11 @@ export default function VocabScreen() {
                         srs={srs}
                         testTiers={testTiers}
                         ts={tsFor(w)}
+                        starred={isStarred(w)}
                         onSpeak={speak}
                         onSkip={handleSkip}
                         onCopyTime={handleCopyTime}
+                        onStar={handleStar}
                       />
                     ))}
                   </div>

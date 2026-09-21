@@ -102,6 +102,23 @@ export async function ensureFreshSession() {
   return false;
 }
 
+// my_words を created_at 降順で末尾までページ送りして集める（2026-09-22）。
+// 1ページ 1000 行・上限 MY_WORDS_MAX。途中でネットワーク失敗したら null（呼び出し側は上書きしない）。
+export const MY_WORDS_MAX = 5000;
+const MY_WORDS_PAGE = 1000;
+async function fetchAllMyWords(uid) {
+  const all = [];
+  for (let offset = 0; offset < MY_WORDS_MAX; offset += MY_WORDS_PAGE) {
+    const page = await sbFetch(
+      `/rest/v1/my_words?user_id=eq.${uid}&select=*&order=created_at.desc&limit=${MY_WORDS_PAGE}&offset=${offset}`
+    );
+    if (!Array.isArray(page)) return offset === 0 ? page : all; // 2ページ目以降の失敗は取れた分で確定
+    all.push(...page);
+    if (page.length < MY_WORDS_PAGE) break;
+  }
+  return all;
+}
+
 // クラウド → localStorage に取り込む（★読み取り専用★）。
 // js/supabase.js の pullFromCloud を移植。DOM 更新は React 側に任せて削除。
 // profileId を渡すと my_words をプロフィール別キーにも反映する（既存挙動）。
@@ -207,9 +224,11 @@ export async function pullFromCloud(profileId = null) {
   }
 
   // my_words（グローバルキーに保存。プロフィール別キーは選択時にコピーする）
-  const words = await sbFetch(
-    `/rest/v1/my_words?user_id=eq.${uid}&select=*&order=created_at.desc&limit=2000`
-  );
+  // 2026-09-22: 固定天井 limit=2000 を廃し、1000行ずつ末尾までページ送りする（★で生成語も入る
+  // ようになり、2001語目以降の古い語が黙って欠落する事故が現実的になった）。安全上限は
+  // MY_WORDS_MAX（localStorage 約5MB/オリジンの制約・1語≈600B）。索引は
+  // supabase_my_words_in_wordbook.sql の mywords_user_created。
+  const words = await fetchAllMyWords(uid);
   if (Array.isArray(words)) {
     // example_ja は「その例文」の訳なので、例文と必ずペアで扱う。拡張が別の場面で例文を
     // 差し替えた行では訳だけ古いまま残り得るため、ローカルの旧レコードと例文を突き合わせ、
@@ -225,6 +244,9 @@ export async function pullFromCloud(profileId = null) {
     const prevTitle = new Map();
     // 例文の失敗理由（クラウドに列が無いローカル専用フィールド）
     const prevFail = new Map();
+    // ★単語帳メンバーシップ（in_wordbook）。列がまだ無いDBでは応答に載らない（undefined）ので、
+    // その間はローカルの旗を残す（全量上書きで「外した」状態が毎回 true に戻らないように）。
+    const prevInWordbook = new Map();
     try {
       JSON.parse(localStorage.getItem('cl_my_words') || '[]').forEach((p) => {
         if (!p?.word) return;
@@ -234,6 +256,7 @@ export async function pullFromCloud(profileId = null) {
         // 例文の取得結果（成功=文／失敗=理由）は端末ローカルにしか無い。上書きで消さないよう控える。
         if (p.exampleFail) prevFail.set(k, { reason: p.exampleFail, at: p.exampleFailAt || '' });
         if (p.dramaTitle) prevTitle.set(k, { title: p.dramaTitle, season: p.season ?? null, episode: p.episode ?? null });
+        if (p.inWordbook === false) prevInWordbook.set(k, false);
       });
     } catch {
       /* 旧データの破損は無視（例文訳を捨てる方向に倒れるだけ） */
@@ -279,6 +302,8 @@ export async function pullFromCloud(profileId = null) {
           // （毎回の pull で消えると「無言で例文なし」に戻り、可視化の投資が無駄になる）。
           exampleFail: sentence ? '' : prevFail.get(key)?.reason || '',
           exampleFailAt: sentence ? '' : prevFail.get(key)?.at || '',
+          // ★単語帳に入っているか。クラウドが列を持てばそれが正、無ければローカルの旗を残す。
+          inWordbook: typeof w.in_wordbook === 'boolean' ? w.in_wordbook : prevInWordbook.get(key) ?? true,
         };
       })
     );
@@ -455,6 +480,13 @@ function isMissingTsSec(res) {
   const msg = `${res?.code || ''} ${res?.message || ''}`;
   return /PGRST204/.test(msg) || /ts_sec/.test(msg);
 }
+// in_wordbook（★単語帳メンバーシップ・supabase_my_words_in_wordbook.sql）も同じ作法。
+// 列が無いDBでは PGRST204 で行ごと弾かれるので、一度弾かれたらセッション中は送らない。
+let _inWordbookUnsupported = false;
+function isMissingInWordbook(res) {
+  const msg = `${res?.code || ''} ${res?.message || ''}`;
+  return /PGRST204/.test(msg) && /in_wordbook/.test(msg);
+}
 
 export async function pushMyWord(w) {
   if (!isLoggedIn()) return false;
@@ -474,6 +506,8 @@ export async function pushMyWord(w) {
   else if (w._clearExampleJa) row.example_ja = null;
   if (w.definition) row.definition = w.definition;
   if (Array.isArray(w.encounters) && w.encounters.length) row.encounters = w.encounters; // 遭遇ログ（拡張と同じ）
+  // ★単語帳に入っているか。boolean で明示された時だけ送る（省略＝据え置き・DB既定は true）。
+  if (typeof w.inWordbook === 'boolean' && !_inWordbookUnsupported) row.in_wordbook = w.inWordbook;
   if (w.dramaTitle) {
     // 場面座標（作品・S/E・📍時刻）は一組で送る（拡張 background.js と同じ規則）。
     // ts_sec も同組に入れる＝作品が変わって場面座標が消えた再保存で、古い時刻だけが
@@ -491,9 +525,17 @@ export async function pushMyWord(w) {
   // ts_sec 列がまだ無いDB（supabase_my_words_tssec.sql 未実行）では PostgREST が
   // PGRST204 を返して行ごと保存されない。列を外して1回だけ再送し、以後は送らない
   // （＝migration 前後どちらの順でデプロイしても単語の同期自体は壊れない）。
-  if (isMissingTsSec(res) && 'ts_sec' in row) {
+  let retry = false;
+  if (isMissingInWordbook(res) && 'in_wordbook' in row) {
+    _inWordbookUnsupported = true;
+    delete row.in_wordbook;
+    retry = true;
+  } else if (isMissingTsSec(res) && 'ts_sec' in row) {
     _tsSecUnsupported = true;
     delete row.ts_sec;
+    retry = true;
+  }
+  if (retry) {
     await sbFetch('/rest/v1/my_words', {
       method: 'POST',
       headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
