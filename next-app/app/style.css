@@ -6202,7 +6202,13 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
 /* 習得ゲージ（行の左）: 覚えた=緑、マスター=金を同じバーに重ねる。ホーム作品カードと同色。 */
 /* 狭い幅では数字が右の語数/バッジに食い込まないよう、ゲージ内で折り返す（flex-wrap）。
    親 .rh-ep-main の gap/justify は据え置き＝広い幅では1行のまま。 */
-.rh-gauge { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 2px 8px; min-width: 0; flex: 0 1 auto; }
+.rh-gauge { display: inline-flex; align-items: center; gap: 8px; min-width: 0; flex: 0 1 auto; }
+.rh-gauge-pcts { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+/* スマホ幅: 覚えた／マスターをバーの横に縦1列で積む（折り返しでバーの下に落とさない） */
+@media (max-width: 600px) {
+  .rh-gauge-pcts { flex-direction: column; align-items: flex-start; gap: 0; line-height: 1.25; }
+  .rh-gauge-pct, .rh-gauge-mpct { font-size: 11px; }
+}
 .rh-gauge-bar {
   position: relative; width: 88px; height: 12px; border-radius: 3px; overflow: hidden; flex-shrink: 0;
   background: color-mix(in srgb, var(--review-border) 60%, transparent);

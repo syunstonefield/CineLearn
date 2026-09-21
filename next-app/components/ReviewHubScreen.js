@@ -190,9 +190,14 @@ export default function ReviewHubScreen() {
           <span className="rh-gauge-learned" style={{ width: `${lp}%` }} />
           <span className="rh-gauge-mastered" style={{ width: `${mp}%` }} />
         </span>
-        {learned > 0 && <span className="rh-gauge-pct">覚えた {lp}%</span>}
-        {/* マスター率は到達したときだけ数字を出す（序盤は延々0%になるため） */}
-        {mastered > 0 && <span className="rh-gauge-mpct">マスター {mp}%</span>}
+        {/* 数字はバーの横にまとめる。スマホ幅では縦1列（覚えた／マスター）に積む（オーナー要望 2026-09-22） */}
+        {learned > 0 && (
+          <span className="rh-gauge-pcts">
+            <span className="rh-gauge-pct">覚えた {lp}%</span>
+            {/* マスター率は到達したときだけ数字を出す（序盤は延々0%になるため） */}
+            {mastered > 0 && <span className="rh-gauge-mpct">マスター {mp}%</span>}
+          </span>
+        )}
       </span>
     );
   };
