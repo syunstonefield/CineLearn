@@ -176,7 +176,7 @@ export default function ReviewHubScreen() {
   };
 
   // 習得ゲージ（行の左）。「あと何語」より「ここまで来た」を見せて復習意欲を上げる（オーナー提案 2026-09-22）。
-  //   バー1本＝覚えた率（緑）。マスターは同じバーの濃い部分（金）として重ねる。数字は「覚えた N%」＋マスター到達後は「⭐ N%」。
+  //   バー1本＝覚えた率（緑）。マスターは同じバーの濃い部分（金）として重ねる。数字は「覚えた N%」＋マスター到達後は「マスター N%」。
   //   0% は数字を出さず薄いバーのみ（「0%」と書くと逆に萎える）。全語覚えたら「✅ 全部覚えた」。
   //   覚えた率を主役にする理由: マスターは4回連続＋約3週間半かかり序盤は延々0%になるため。
   const Gauge = ({ learned, mastered, total }) => {
@@ -192,7 +192,7 @@ export default function ReviewHubScreen() {
         </span>
         {learned > 0 && <span className="rh-gauge-pct">覚えた {lp}%</span>}
         {/* マスター率は到達したときだけ数字を出す（序盤は延々0%になるため） */}
-        {mastered > 0 && <span className="rh-gauge-mpct">⭐ {mp}%</span>}
+        {mastered > 0 && <span className="rh-gauge-mpct">マスター {mp}%</span>}
       </span>
     );
   };
