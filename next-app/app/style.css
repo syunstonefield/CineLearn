@@ -3,6 +3,7 @@
   --surface: #ffffff;
   --surface2: #f0eeea;
   --border: rgba(0,0,0,0.08);
+  --review-border: rgba(0,0,0,0.22); /* 復習画面の枠。--border(8%)だと --bg/--surface2 に溶けて「枠が見えない」（オーナー報告 2026-09-22） */
   --accent: #c17f3b;
   --accent2: #5b4fd4;
   --text: #1a1a1a;
@@ -2354,7 +2355,7 @@ header {
   margin-top: 20px;
   padding: 12px 28px;
   background: var(--surface2);
-  border: 1px solid var(--border);
+  border: 1px solid var(--review-border);
   border-radius: 10px;
   font-size: 14px;
   color: var(--text-muted);
@@ -2392,7 +2393,7 @@ header {
   text-align: center;
   line-height: 1.6;
   padding: 0 8px 8px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--review-border);
 }
 .review-example-ja {
   font-style: normal;
@@ -2460,7 +2461,7 @@ header {
   gap: 4px;
   padding: 14px 6px;
   border-radius: 12px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--review-border);
   cursor: pointer;
   font-family: 'DM Sans', sans-serif;
   text-align: center;
@@ -2469,7 +2470,7 @@ header {
   color: var(--text);
 }
 .btn-rate-emoji { font-size: 22px; line-height: 1; }
-.btn-rate-label { font-size: 14px; font-weight: 700; padding-bottom: 5px; border-bottom: 2px solid var(--border); white-space: nowrap; }
+.btn-rate-label { font-size: 14px; font-weight: 700; padding-bottom: 5px; border-bottom: 2px solid var(--review-border); white-space: nowrap; }
 .btn-rate-sub { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
 .btn-rate-fail .btn-rate-label { border-bottom-color: var(--red); }
 .btn-rate-hard .btn-rate-label { border-bottom-color: var(--gold, #d99a00); }
@@ -4452,6 +4453,7 @@ html[data-theme="dark"] {
   --surface: #201b15;
   --surface2: #2b2419;
   --border: rgba(255,255,255,0.12);
+  --review-border: rgba(255,255,255,0.28);
   --accent: #d8a24a;
   --accent2: #8b80ff;
   --text: #f3efe8;
