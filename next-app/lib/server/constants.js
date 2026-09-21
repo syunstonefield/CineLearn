@@ -51,6 +51,13 @@ export const EXAMPLE_MANUAL_LIMITS = {
   perUserEpisodeDay: envInt('CL_EXAMPLE_MANUAL_PER_USER_EP_DAY', 20),
   perEpisodeDay: envInt('CL_EXAMPLE_MANUAL_PER_EP_DAY', 60),
 };
+// 手動追加で raw キャッシュが無い（＝未取得 or TTL 失効）時に、その場で字幕を取り直す枠。
+//   OS の DL 枠を焼かないための専用の締め。語ごとではなく**話ごと**に効くのが要点で、
+//   1話ぶん取れば以降の手動追加は raw キャッシュに当たるため、通常利用では1日1回しか発火しない。
+export const EXAMPLE_MANUAL_DL_LIMITS = {
+  perUserDay: envInt('CL_EXAMPLE_MANUAL_DL_PER_USER_DAY', 5), // 1人が温められる話数/日
+  perEpisodeDay: envInt('CL_EXAMPLE_MANUAL_DL_PER_EP_DAY', 2), // 同じ話の取り直し/日（失敗時の再試行ぶん）
+};
 // 既存 anchor/near 経路の話単位天井（rl:example:<ip>:ep:<cacheKey>:d:<day>）。
 export const EXAMPLE_EPISODE_DAY_LIMIT = envInt('CL_EXAMPLE_PER_EP_DAY', 100);
 

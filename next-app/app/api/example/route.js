@@ -25,7 +25,7 @@ import { fetchEpisodeSrt } from '@/lib/server/opensubtitles';
 import { rawCacheKey, readRawCache } from '@/lib/server/subtitleRawCache';
 import { vocabCacheKey, readVocabRow } from '@/lib/server/vocabCache';
 import { manualWordProblem } from '@/lib/server/commonWords';
-import { EXAMPLE_MANUAL_LIMITS, EXAMPLE_EPISODE_DAY_LIMIT, UpstreamError } from '@/lib/server/constants';
+import { EXAMPLE_MANUAL_LIMITS, EXAMPLE_MANUAL_DL_LIMITS, EXAMPLE_EPISODE_DAY_LIMIT, UpstreamError } from '@/lib/server/constants';
 import {
   getWordVariants,
   exampleContainsWord,
@@ -287,9 +287,40 @@ export async function POST(req) {
       if (rl.unavailable) return json({ found: false, reason: 'unavailable', tmdbId: id, type }, 503);
       return json({ found: false, reason: 'rate_limited', tmdbId: id, type }, 429);
     }
-    // raw cache に無ければ OS DL は誘発しない（例文なしで保存させる）。
-    const raw = await readRawCache(rawKey);
-    if (!raw) return json({ found: false, reason: 'no_raw', tmdbId: id, type });
+    // raw cache（TTLつき）に無ければ、その場で1回だけ取り直す（2026-09-22 オーナー要望）。
+    //   ★従来はここで諦めていた（OS DL を誘発しない設計）。その結果、**同じ話でも字幕キャッシュの
+    //     TTL が切れた後は手動追加の例文が永久に付かない**——「前は例文付きで保存できた語が、
+    //     消して入れ直すと付かない」という実機の症状になっていた。
+    //   枠の焼き過ぎは専用の締めで防ぐ: 語ごとではなく**話ごと**に効くので、1話ぶん取れば以降の
+    //   手動追加は raw キャッシュに当たり、通常利用では1日1回しか発火しない。
+    let raw = await readRawCache(rawKey);
+    if (!raw) {
+      const dl = await checkRateLimit(req, 'example-manual-dl', { perMin: 0, perHour: 0, perDay: 0 }, {
+        failClosed: true,
+        ipLimitsOff: true,
+        extra: [
+          { keyBase: `rl:example-manual-dl:user:${auth.uid}`, window: 'day', limit: EXAMPLE_MANUAL_DL_LIMITS.perUserDay, scope: 'user' },
+          { keyBase: `rl:example-manual-dl:ep:${cacheKey}`, window: 'day', limit: EXAMPLE_MANUAL_DL_LIMITS.perEpisodeDay, scope: 'episode' },
+        ],
+      });
+      if (!dl.ok) {
+        // 取り直し枠が尽きた＝今日はもう温められない。例文なしで保存させる（従来と同じ振る舞い）。
+        return json({ found: false, reason: dl.unavailable ? 'unavailable' : 'no_raw', tmdbId: id, type }, dl.unavailable ? 503 : 200);
+      }
+      try {
+        const sub = await fetchEpisodeSrt({ tmdbId: id, type, season: s, episode: e });
+        if (!sub?.raw) return json({ found: false, reason: 'no_subtitle_file', tmdbId: id, type });
+        raw = sub.raw;
+        console.info('[CL:EXAMPLE] manual raw refetch', { subject: `user:${auth.uid.slice(0, 8)}`, cacheKey, chars: raw.length });
+      } catch (err) {
+        if (err instanceof UpstreamError) {
+          console.warn('[CL:EXAMPLE] manual subtitle fetch failed', { cacheKey, reason: err.reason, status: err.status ?? null });
+          return json({ found: false, reason: err.reason === 'os_quota' ? 'os_quota' : 'subtitle_fetch_failed', tmdbId: id, type });
+        }
+        console.error('[CL:EXAMPLE] manual internal', String(err?.message || err));
+        return json({ found: false, reason: 'subtitle_fetch_failed', tmdbId: id, type });
+      }
+    }
     const hit = findExampleForWord(raw, word);
     console.info('[CL:EXAMPLE] manual', { subject: `user:${auth.uid.slice(0, 8)}`, cacheKey, word, via: hit ? 'raw' : 'no_match' });
     if (!hit) return json({ found: false, reason: 'no_match', tmdbId: id, type });
