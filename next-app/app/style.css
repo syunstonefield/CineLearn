@@ -5823,7 +5823,15 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
 .wb-actions { display: inline-flex; align-items: center; gap: 8px; }
 .wb-sync { padding: 4px 10px; font-size: 12px; }
 
-/* 削除ボタン（VocabItem の詳細アクション内・onDelete を渡した文脈＝単語帳のみ表示） */
+/* ★マイ単語帳トグル（VocabItem の詳細アクション内・発音/Skip の横） */
+.btn-wordbook-star.is-on {
+  color: #b8860b !important;
+  border-color: rgba(245, 197, 24, 0.55) !important;
+  background: rgba(245, 197, 24, 0.10);
+}
+.btn-wordbook-star.is-on:hover { background: rgba(245, 197, 24, 0.18); }
+
+/* 削除ボタン（VocabItem の詳細アクション内・onDelete を渡した文脈＝手動追加語のみ表示） */
 .btn-word-del {
   color: var(--red) !important;
   border-color: color-mix(in srgb, var(--red) 35%, var(--border)) !important;
@@ -6189,7 +6197,7 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
 }
 .rh-ep-main:hover { background: color-mix(in srgb, var(--accent) 6%, var(--surface)); }
 .rh-ep-label { font-size: 14px; font-weight: 700; }
-.rh-ep-meta { font-size: 12px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.rh-ep-meta { font-size: 12px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; margin-left: auto; } /* ラベル無し（映画）の行でも右端＝クイズの横に寄せる */
 .rh-ep-done { color: var(--green); }
 .rh-due-badge {
   display: inline-block; padding: 2px 8px; border-radius: 999px;
