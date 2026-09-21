@@ -6190,7 +6190,7 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
 .rh-ep-row { display: flex; align-items: stretch; border-top: 1px solid var(--review-border); }
 .rh-ep-row:first-of-type { border-top: none; }
 .rh-ep-main {
-  flex: 1; min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  flex: 1; min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px; overflow: hidden;
   background: none; border: none; cursor: pointer; font-family: inherit; color: inherit;
   padding: 13px 14px; text-align: left;
   transition: background 0.12s ease;
@@ -6200,7 +6200,9 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
 .rh-ep-meta { font-size: 12px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; margin-left: auto; } /* ラベル無し（映画）の行でも右端＝クイズの横に寄せる */
 .rh-ep-done { color: var(--green); }
 /* 習得ゲージ（行の左）: 覚えた=緑、マスター=金を同じバーに重ねる。ホーム作品カードと同色。 */
-.rh-gauge { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+/* 狭い幅では数字が右の語数/バッジに食い込まないよう、ゲージ内で折り返す（flex-wrap）。
+   親 .rh-ep-main の gap/justify は据え置き＝広い幅では1行のまま。 */
+.rh-gauge { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 2px 8px; min-width: 0; flex: 0 1 auto; }
 .rh-gauge-bar {
   position: relative; width: 88px; height: 12px; border-radius: 3px; overflow: hidden; flex-shrink: 0;
   background: color-mix(in srgb, var(--review-border) 60%, transparent);
