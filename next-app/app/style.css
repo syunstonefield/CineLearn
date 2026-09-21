@@ -6165,23 +6165,6 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
 .rh-hero-btn:hover { transform: translateY(-1px); filter: brightness(1.04); }
 .rh-hero-btn:active { transform: translateY(0) scale(0.98); }
 
-/* 全作品からランダム出題（1タップ導線） */
-.rh-random {
-  width: 100%; display: flex; align-items: center; gap: 12px; text-align: left;
-  background: var(--surface); border: 1px solid var(--review-border); border-radius: 14px;
-  padding: 14px 16px; cursor: pointer; font-family: inherit; color: inherit;
-  transition: background 0.12s ease, border-color 0.12s ease;
-}
-.rh-random:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
-  border-color: color-mix(in srgb, var(--accent) 32%, var(--review-border));
-}
-.rh-random:disabled { opacity: 0.55; cursor: default; }
-.rh-random-icon { font-size: 22px; line-height: 1; flex-shrink: 0; }
-.rh-random-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.rh-random-title { font-size: 15px; font-weight: 700; }
-.rh-random-sub { font-size: 12px; color: var(--text-muted); }
-
 .rh-section-label {
   font-size: 12px; font-weight: 700; color: var(--text-muted);
   margin: 20px 0 8px; letter-spacing: 0.04em;

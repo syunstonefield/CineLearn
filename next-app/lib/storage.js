@@ -194,10 +194,14 @@ export function getDueReviewWords(history = loadHistory(), srs = loadSrs(), extr
     const e = srs[w.word.toLowerCase()];
     return !e || isDue(e);
   });
+  // 期日到来（SRS登録済み）を先に、その後に未学習。段の中はシャッフル＝上限20語で切っても
+  // 毎日同じ先頭20語にならない（未学習が数百ある実運用で「毎回同じ」になっていた・2026-09-22）。
+  // 期日到来はSRSの約束なので段は崩さない（未学習に押し出されない）。
+  const rnd = new Map(eligible.map((w) => [w, Math.random()]));
   eligible.sort((a, b) => {
     const pa = srs[a.word.toLowerCase()] ? 0 : 1;
     const pb = srs[b.word.toLowerCase()] ? 0 : 1;
-    return pa - pb;
+    return pa - pb || rnd.get(a) - rnd.get(b);
   });
   return eligible;
 }

@@ -7,8 +7,6 @@ import {
   loadHistory,
   loadSrs,
   isDue,
-  isMastered,
-  getAllVocabWords,
   getDueReviewWords,
   DAILY_REVIEW_CAP,
 } from '@/lib/storage';
@@ -16,12 +14,12 @@ import {
 // 復習ハブ（ボトムナビ「復習」の着地点）。
 // それまでは復習/クイズに入るのに単語リストの最下部までスクロールする必要があった
 // （単語が増えるほど遠い・2026-08-07 実使用フィードバック）。ここで
-//   ①今日の復習（全作品横断・従来のタブ動作）
-//   ②全作品からランダム出題
-//   ③エピソードを選んで復習／クイズ
+//   ①今日の復習（全作品横断・従来のタブ動作。中身は期日到来→未学習の優先を保ちつつ日替わりシャッフル）
+//   ②エピソードを選んで復習／クイズ
 // を親指の届く位置に集約する。
-
-const RANDOM_SIZE = 10;
+// 「全作品からランダム出題」は 2026-09-22 に撤去した：未学習語が多い実運用では母集団が
+// 今日の復習とほぼ同じになり、違いが語数と順番だけだった（オーナー指摘）。日替わり感は
+// getDueReviewWords 側のシャッフルで担う。
 
 // ReviewModal が読める形へ整える（拡張保存語は definition/example を持たず ja/sentence を持つ）。
 function toCard(w) {
@@ -134,40 +132,11 @@ export default function ReviewHubScreen() {
     [mounted, history, srs, myWords]
   );
 
-  // ランダム出題の母集団：全履歴＋拡張で保存した単語（重複は語で排除）。
-  // マスター済みは出題しない（#7b）。除外して少なすぎる時だけ全語に戻す。
-  const randomPool = useMemo(() => {
-    // getAllVocabWords の _src.type は履歴に型が無いので常に undefined＝TV扱いになる。
-    // 映画に「S1E1」と書かないよう、ライブラリの型で補正してから出所明示に渡す。
-    const pool = getAllVocabWords(history).map((w) =>
-      toCard({
-        ...w,
-        _src: { ...(w._src || {}), type: movieTitles.has(w._src?.title) ? 'movie' : w._src?.type },
-      })
-    );
-    const seen = new Set(pool.map((w) => String(w.word || '').toLowerCase()));
-    (myWords || []).forEach((w) => {
-      const k = String(w.word || '').toLowerCase();
-      if (!k || seen.has(k)) return;
-      seen.add(k);
-      pool.push(toCard({ ...w, _src: srcForMyWord(w, movieTitles) }));
-    });
-    const unmastered = pool.filter((w) => !isMastered(srs[String(w.word || '').toLowerCase()]));
-    return unmastered.length >= 4 ? unmastered : pool;
-  }, [history, myWords, srs, movieTitles]);
-
   const myDue = useMemo(() => (myWords || []).filter((w) => isWordDue(w, srs)).length, [myWords, srs]);
 
   const startToday = () => {
     setCurrentHistoryId(null); // 横断復習（特定エピソードに紐づかない）
     openReview(getDueReviewWords(history, srs, myWords).slice(0, DAILY_REVIEW_CAP));
-  };
-
-  const startRandom = () => {
-    const picked = [...randomPool].sort(() => Math.random() - 0.5).slice(0, RANDOM_SIZE);
-    if (!picked.length) return;
-    setCurrentHistoryId(null);
-    openReview(picked, { all: true }); // ランダムは期日を問わない＝空にしない
   };
 
   const startEpisodeReview = (g, ep) => {
@@ -204,7 +173,7 @@ export default function ReviewHubScreen() {
       <div className="rh-screen">
         <div className="rh-head">
           <h1 className="rh-h1">🔁 復習</h1>
-          <p className="rh-sub">今日の分・ランダム・エピソード別から選べます</p>
+          <p className="rh-sub">今日の分・エピソード別から選べます</p>
         </div>
 
         {/* ① 今日の復習（従来のタブ動作＝全作品横断の期日到来分） */}
@@ -212,7 +181,7 @@ export default function ReviewHubScreen() {
           <div className="rh-hero-main">
             <div className="rh-hero-title">{todayCount > 0 ? '今日の復習' : '今日の復習は完了！'}</div>
             <div className="rh-hero-sub">
-              {todayCount > 0 ? `全作品から ${todayCount}語` : 'ランダムやエピソード別で追加の復習もできます'}
+              {todayCount > 0 ? `全作品から ${todayCount}語` : 'エピソード別で追加の復習もできます'}
             </div>
           </div>
           {todayCount > 0 && (
@@ -222,25 +191,7 @@ export default function ReviewHubScreen() {
           )}
         </div>
 
-        {/* ② 全作品からランダム出題 */}
-        <button
-          type="button"
-          className="rh-random"
-          onClick={startRandom}
-          disabled={randomPool.length === 0}
-        >
-          <span className="rh-random-icon" aria-hidden="true">🎲</span>
-          <span className="rh-random-text">
-            <span className="rh-random-title">全作品からランダム出題</span>
-            <span className="rh-random-sub">
-              {randomPool.length === 0
-                ? 'まだ単語がありません'
-                : `${Math.min(RANDOM_SIZE, randomPool.length)}語をシャッフルして出題（${randomPool.length}語から）`}
-            </span>
-          </span>
-        </button>
-
-        {/* ③ エピソードを選ぶ */}
+        {/* ② エピソードを選ぶ */}
         <div className="rh-section-label">エピソードを選ぶ</div>
 
         {!hasAnything ? (
