@@ -6363,12 +6363,14 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
   font-family: inherit; font-size: 12px; line-height: 1.5; text-align: center;
 }
 .review-kbd-or { margin: 0 5px; color: var(--text-muted); font-size: 12px; }
-.review-keys-line { margin-top: 12px; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 13px; }
-.review-keys-label { font-weight: 700; }
 .review-keys-table { margin: 12px auto 0; border-collapse: collapse; font-size: 13px; }
 .review-keys-table td { padding: 5px 10px; vertical-align: middle; }
-.review-keys-table td:first-child { white-space: nowrap; text-align: right; }
+.review-keys-table td:nth-child(2) { white-space: nowrap; text-align: right; }
 .review-keys-table td:last-child { font-weight: 700; text-align: left; }
+.review-keys-dev { font-size: 14px; padding-right: 2px !important; }
+.review-keys-gesture { font-size: 13px; }
+/* スマホ行 → PC行 の境目に薄い線（順序はスマホ＞PC） */
+.review-keys-table tr.is-pc:first-of-type td, .review-keys-table tr.is-mobile + tr.is-pc td { border-top: 1px solid var(--review-border); }
 .review-keys-note { margin-top: 10px; font-size: 12px; color: var(--text-muted); line-height: 1.5; }
 /* キーのヒントはキーボードのある環境（ポインタが細かい＝PC）だけ。スマホはスワイプヒント（既存）。 */
 .review-key-hint { display: none; text-align: center; font-size: 11px; color: var(--text-muted); margin-top: 10px; }

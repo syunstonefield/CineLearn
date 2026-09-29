@@ -26,6 +26,8 @@ const KEY_ICON = {
   width: 40, height: 40, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor',
   strokeWidth: 1.7, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true,
 };
+// 各スライドは「スマホ → PC」の順で並べる（オーナー要望 2026-09-29）。
+//   row = { dev:'📱'|'💻', keys:[...]（PC）| gesture:'…'（スマホ）, label }
 const KEYS_SLIDES = [
   {
     icon: (
@@ -37,8 +39,11 @@ const KEYS_SLIDES = [
       </svg>
     ),
     title: '意味を確認する',
-    desc: 'PCでは Space または Enter。スマホではカードをタップします。意味を開くまでは採点できません（見ずに答えないため）。',
-    keys: [['Space', 'Enter'], '意味を確認'],
+    desc: '意味を開くまでは採点できません（見ずに答えないため）。',
+    rows: [
+      { dev: '📱', gesture: 'カードをタップ', label: '意味を確認' },
+      { dev: '💻', keys: ['Space', 'Enter'], label: '意味を確認' },
+    ],
   },
   {
     icon: (
@@ -47,13 +52,15 @@ const KEYS_SLIDES = [
       </svg>
     ),
     title: '採点する',
-    desc: '矢印の向きはスワイプと同じです。右＝知ってた、左＝知らなかった、下＝うろ覚え（あとで復習）。数字の 3 / 1 / 2 でも同じ操作ができます。',
-    table: [
-      [['→', '3'], '知ってた'],
-      [['↓', '2'], 'うろ覚え'],
-      [['←', '1'], '知らなかった'],
+    desc: '右＝知ってた、左＝知らなかった。スワイプも矢印キーも同じ向きです。',
+    rows: [
+      { dev: '📱', gesture: '右にスワイプ', label: '知ってた' },
+      { dev: '📱', gesture: '左にスワイプ', label: '知らなかった' },
+      { dev: '📱', gesture: 'ボタンをタップ', label: 'うろ覚え' },
+      { dev: '💻', keys: ['→', '3'], label: '知ってた' },
+      { dev: '💻', keys: ['↓', '2'], label: 'うろ覚え' },
+      { dev: '💻', keys: ['←', '1'], label: '知らなかった' },
     ],
-    note: 'スマホ：右スワイプ＝知ってた／左スワイプ＝知らなかった。うろ覚えはボタンで。',
   },
   {
     icon: (
@@ -62,8 +69,11 @@ const KEYS_SLIDES = [
       </svg>
     ),
     title: '押し間違えたら戻る',
-    desc: '↑ または Backspace で前のカードに戻り、採点を取り消してやり直せます。スマホではカード左上の「↩ 前のカードに戻る」。',
-    keys: [['↑', 'Backspace'], '前のカードに戻る'],
+    desc: '前のカードに戻って、採点を取り消してやり直せます。',
+    rows: [
+      { dev: '📱', gesture: '左上の「↩ 前のカードに戻る」', label: '1枚戻る' },
+      { dev: '💻', keys: ['↑', 'Backspace'], label: '1枚戻る' },
+    ],
   },
   {
     icon: (
@@ -133,25 +143,19 @@ function KeysHelp({ onClose }) {
             <div className="tutorial-badge">{slide.icon}</div>
             <h2 className="onboarding-title">{slide.title}</h2>
             <p className="tutorial-desc">{slide.desc}</p>
-            {slide.keys && (
-              <div className="review-keys-line">
-                {renderKeys(slide.keys[0])}
-                <span className="review-keys-label">{slide.keys[1]}</span>
-              </div>
-            )}
-            {slide.table && (
+            {slide.rows && (
               <table className="review-keys-table">
                 <tbody>
-                  {slide.table.map(([ks, label]) => (
-                    <tr key={label}>
-                      <td>{renderKeys(ks)}</td>
-                      <td>{label}</td>
+                  {slide.rows.map((r, i) => (
+                    <tr key={i} className={r.dev === '💻' ? 'is-pc' : 'is-mobile'}>
+                      <td className="review-keys-dev" aria-label={r.dev === '💻' ? 'PC' : 'スマホ'}>{r.dev}</td>
+                      <td>{r.keys ? renderKeys(r.keys) : <span className="review-keys-gesture">{r.gesture}</span>}</td>
+                      <td>{r.label}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             )}
-            {slide.note && <div className="review-keys-note">{slide.note}</div>}
           </div>
         </div>
         <div className="tutorial-footer">
