@@ -19,24 +19,159 @@ import { addExp, levelInfo, expForReviewSession } from '@/lib/exp';
 
 const KEYS_SEEN_KEY = 'cl_review_keys_seen';
 
-// 操作ヘルプ（初回に一度だけ自動表示・以後は右上の「?」）。PC＝キーボード、スマホ＝スワイプの両方を載せる。
+// 操作ヘルプ（初回に一度だけ自動表示・以後は右上の「?」）。
+// 使い方ガイド（WelcomeTutorial）と同じスライド型モーダルにする（オーナー要望 2026-09-29）。
+// PC＝キーボード、スマホ＝タップ/スワイプを各スライドに併記。Enter/Space/→ で次へ・← で戻る・Esc で閉じる。
+const KEY_ICON = {
+  width: 40, height: 40, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor',
+  strokeWidth: 1.7, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true,
+};
+const KEYS_SLIDES = [
+  {
+    icon: (
+      <svg {...KEY_ICON}>
+        <rect x="2.5" y="6" width="19" height="12" rx="2" />
+        <line x1="7" y1="14.5" x2="17" y2="14.5" />
+        <circle cx="7" cy="10" r="0.6" fill="currentColor" /><circle cx="10.3" cy="10" r="0.6" fill="currentColor" />
+        <circle cx="13.7" cy="10" r="0.6" fill="currentColor" /><circle cx="17" cy="10" r="0.6" fill="currentColor" />
+      </svg>
+    ),
+    title: '意味を確認する',
+    desc: 'PCでは Space または Enter。スマホではカードをタップします。意味を開くまでは採点できません（見ずに答えないため）。',
+    keys: [['Space', 'Enter'], '意味を確認'],
+  },
+  {
+    icon: (
+      <svg {...KEY_ICON}>
+        <line x1="4" y1="12" x2="20" y2="12" /><polyline points="14 6 20 12 14 18" /><polyline points="10 6 4 12 10 18" />
+      </svg>
+    ),
+    title: '採点する',
+    desc: '矢印の向きはスワイプと同じです。右＝知ってた、左＝知らなかった、下＝うろ覚え（あとで復習）。数字の 3 / 1 / 2 でも同じ操作ができます。',
+    table: [
+      [['→', '3'], '知ってた'],
+      [['↓', '2'], 'うろ覚え'],
+      [['←', '1'], '知らなかった'],
+    ],
+    note: 'スマホ：右スワイプ＝知ってた／左スワイプ＝知らなかった。うろ覚えはボタンで。',
+  },
+  {
+    icon: (
+      <svg {...KEY_ICON}>
+        <polyline points="9 14 4 9 9 4" /><path d="M20 20v-7a4 4 0 0 0-4-4H4" />
+      </svg>
+    ),
+    title: '押し間違えたら戻る',
+    desc: '↑ または Backspace で前のカードに戻り、採点を取り消してやり直せます。スマホではカード左上の「↩ 前のカードに戻る」。',
+    keys: [['↑', 'Backspace'], '前のカードに戻る'],
+  },
+  {
+    icon: (
+      <svg {...KEY_ICON}>
+        <circle cx="12" cy="12" r="9.5" /><path d="M9.5 9.5a2.5 2.5 0 1 1 3.6 2.2c-.7.4-1.1 1-1.1 1.8v.5" /><circle cx="12" cy="17" r="0.7" fill="currentColor" />
+      </svg>
+    ),
+    title: 'いつでも見返せます',
+    desc: 'この操作ガイドは復習画面の右上「?」からいつでも開けます。',
+  },
+];
+
+function Kbd({ k }) {
+  return <kbd className="review-kbd">{k}</kbd>;
+}
+
 function KeysHelp({ onClose }) {
+  const [step, setStep] = useState(0);
+  const isFirst = step === 0;
+  const isLast = step === KEYS_SLIDES.length - 1;
+  const slide = KEYS_SLIDES[step];
+  const next = () => (isLast ? onClose() : setStep((s) => s + 1));
+  const prev = () => setStep((s) => Math.max(0, s - 1));
+
+  // ガイド表示中はこちらがキーを受ける（ReviewModal 側は showKeys 中は何もしない）。
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const k = e.key;
+      if (k === 'Escape') {
+        e.preventDefault();
+        onClose();
+      } else if (k === 'Enter' || k === ' ' || k === 'ArrowRight') {
+        e.preventDefault();
+        next();
+      } else if (k === 'ArrowLeft') {
+        e.preventDefault();
+        prev();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+
+  const renderKeys = (ks) =>
+    ks.map((k, i) => (
+      <span key={k}>
+        {i > 0 && <span className="review-kbd-or">/</span>}
+        <Kbd k={k} />
+      </span>
+    ));
+
   return (
-    <div className="review-keys" role="dialog" aria-label="復習の操作方法">
-      <div className="review-keys-title">操作方法</div>
-      <table className="review-keys-table">
-        <tbody>
-          <tr><td><kbd>Space</kbd> / <kbd>Enter</kbd></td><td>意味を確認</td></tr>
-          <tr><td><kbd>→</kbd> または <kbd>3</kbd></td><td>知ってた</td></tr>
-          <tr><td><kbd>↓</kbd> または <kbd>2</kbd></td><td>うろ覚え</td></tr>
-          <tr><td><kbd>←</kbd> または <kbd>1</kbd></td><td>知らなかった</td></tr>
-          <tr><td><kbd>↑</kbd> / <kbd>Backspace</kbd></td><td>前のカードに戻る（採点を取り消し）</td></tr>
-        </tbody>
-      </table>
-      <div className="review-keys-note">スマホはカードをタップで意味を確認、左スワイプ＝知らなかった／右スワイプ＝知ってた。</div>
-      <button type="button" className="btn-primary review-keys-ok" onClick={onClose}>
-        わかった
-      </button>
+    <div className="modal-overlay tutorial-overlay">
+      <div className="modal-panel tutorial-panel" role="dialog" aria-modal="true" aria-label="復習の操作ガイド">
+        <button className="modal-close tutorial-skip-x" onClick={onClose} aria-label="閉じる">
+          ✕
+        </button>
+        <div className="tutorial-body">
+          <div className="onboarding-steps">
+            {KEYS_SLIDES.map((_, i) => (
+              <div key={i} className={'onboarding-step' + (i === step ? ' active' : '')} />
+            ))}
+          </div>
+          <div className="tutorial-slide" key={step}>
+            <div className="tutorial-badge">{slide.icon}</div>
+            <h2 className="onboarding-title">{slide.title}</h2>
+            <p className="tutorial-desc">{slide.desc}</p>
+            {slide.keys && (
+              <div className="review-keys-line">
+                {renderKeys(slide.keys[0])}
+                <span className="review-keys-label">{slide.keys[1]}</span>
+              </div>
+            )}
+            {slide.table && (
+              <table className="review-keys-table">
+                <tbody>
+                  {slide.table.map(([ks, label]) => (
+                    <tr key={label}>
+                      <td>{renderKeys(ks)}</td>
+                      <td>{label}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            {slide.note && <div className="review-keys-note">{slide.note}</div>}
+          </div>
+        </div>
+        <div className="tutorial-footer">
+          <button className="btn-primary" style={{ width: '100%' }} onClick={next}>
+            {isLast ? '閉じる' : '次へ →'}
+          </button>
+          <div className="tutorial-subnav">
+            {!isFirst && (
+              <button className="btn-text-link" onClick={prev}>
+                ← 戻る
+              </button>
+            )}
+            {!isLast && (
+              <button className="btn-text-link" onClick={onClose}>
+                スキップ
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -155,13 +290,7 @@ export default function ReviewModal({ asPage = false }) {
       const t = e.target;
       const tag = (t?.tagName || '').toLowerCase();
       if (tag === 'input' || tag === 'textarea' || tag === 'select' || t?.isContentEditable) return;
-      if (showKeys) {
-        if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          setShowKeys(false);
-        }
-        return;
-      }
+      if (showKeys) return; // ガイド表示中は KeysHelp 側が受ける
       if (done) return;
       const k = e.key;
       const isOpen = k === ' ' || k === 'Enter';
