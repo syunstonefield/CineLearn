@@ -17,6 +17,30 @@ import {
 } from '@/lib/storage';
 import { addExp, levelInfo, expForReviewSession } from '@/lib/exp';
 
+const KEYS_SEEN_KEY = 'cl_review_keys_seen';
+
+// 操作ヘルプ（初回に一度だけ自動表示・以後は右上の「?」）。PC＝キーボード、スマホ＝スワイプの両方を載せる。
+function KeysHelp({ onClose }) {
+  return (
+    <div className="review-keys" role="dialog" aria-label="復習の操作方法">
+      <div className="review-keys-title">操作方法</div>
+      <table className="review-keys-table">
+        <tbody>
+          <tr><td><kbd>Space</kbd> / <kbd>Enter</kbd></td><td>意味を確認</td></tr>
+          <tr><td><kbd>→</kbd> または <kbd>3</kbd></td><td>知ってた</td></tr>
+          <tr><td><kbd>↓</kbd> または <kbd>2</kbd></td><td>うろ覚え</td></tr>
+          <tr><td><kbd>←</kbd> または <kbd>1</kbd></td><td>知らなかった</td></tr>
+          <tr><td><kbd>↑</kbd> / <kbd>Backspace</kbd></td><td>前のカードに戻る（採点を取り消し）</td></tr>
+        </tbody>
+      </table>
+      <div className="review-keys-note">スマホはカードをタップで意味を確認、左スワイプ＝知らなかった／右スワイプ＝知ってた。</div>
+      <button type="button" className="btn-primary review-keys-ok" onClick={onClose}>
+        わかった
+      </button>
+    </div>
+  );
+}
+
 // 既存 startReview / renderReviewCard（SRSフラッシュカード）の再現。
 export default function ReviewModal({ asPage = false }) {
   const { reviewWords, reviewAll, closeReview, currentHistoryId } = useApp();
@@ -34,6 +58,19 @@ export default function ReviewModal({ asPage = false }) {
   const [retryMode, setRetryMode] = useState(false);
   // 採点の取り消し用スナップショット（押し間違い救済）。1枚採点するごとに積む。
   const [undoStack, setUndoStack] = useState([]);
+  // 操作ヘルプ（キー／スワイプ）。初めて復習を開いた時に一度だけ自動表示し、以後は右上の「?」から
+  // （オーナー要望 2026-09-29）。既読は端末ローカル（cl_review_keys_seen）。
+  const [showKeys, setShowKeys] = useState(false);
+  useEffect(() => {
+    if (!reviewWords) return;
+    try {
+      if (localStorage.getItem(KEYS_SEEN_KEY) === '1') return;
+      localStorage.setItem(KEYS_SEEN_KEY, '1');
+    } catch {
+      return;
+    }
+    setShowKeys(true);
+  }, [reviewWords]);
   const initKey = useMemo(() => (reviewWords ? reviewWords.map((w) => w.word).join('|') : ''), [reviewWords]);
   const [builtKey, setBuiltKey] = useState(null);
 
@@ -106,6 +143,69 @@ export default function ReviewModal({ asPage = false }) {
   };
 
   const done = idx >= queue.length;
+
+  // PCのキーボード操作（オーナー要望 2026-09-29・割り当てはスワイプの左右と一致させる）。
+  //   Space/Enter＝意味を確認。開いた後: →知ってた ←知らなかった ↓うろ覚え ↑/Backspace 前に戻る。
+  //   1/2/3 も同じ（Anki 経験者向け）。開く前の矢印は無効（見ずに採点させない＝スワイプと同じ）。
+  //   再挑戦パス（採点なし）は Space/Enter/→ のどれでも次へ。入力欄にフォーカス中は無効。
+  useEffect(() => {
+    if (!reviewWords) return undefined;
+    const onKey = (e) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target;
+      const tag = (t?.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select' || t?.isContentEditable) return;
+      if (showKeys) {
+        if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          setShowKeys(false);
+        }
+        return;
+      }
+      if (done) return;
+      const k = e.key;
+      const isOpen = k === ' ' || k === 'Enter';
+      if (!flipped) {
+        if (isOpen) {
+          e.preventDefault();
+          setFlipped(true);
+        } else if (k === 'ArrowUp' || k === 'Backspace') {
+          if (idx > 0) {
+            e.preventDefault();
+            undo();
+          }
+        }
+        return;
+      }
+      if (retryMode) {
+        if (isOpen || k === 'ArrowRight') {
+          e.preventDefault();
+          rate(null);
+        } else if (k === 'ArrowUp' || k === 'Backspace') {
+          if (idx > 0) {
+            e.preventDefault();
+            undo();
+          }
+        }
+        return;
+      }
+      const map = { ArrowRight: 5, 3: 5, ArrowLeft: 0, 1: 0, ArrowDown: 3, 2: 3 };
+      if (k in map) {
+        e.preventDefault();
+        rate(map[k]);
+      } else if (k === 'ArrowUp' || k === 'Backspace') {
+        if (idx > 0) {
+          e.preventDefault();
+          undo();
+        }
+      } else if (isOpen) {
+        e.preventDefault(); // 開いた後の Space/Enter は何もしない（連打で採点が飛ぶ事故を防ぐ）
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reviewWords, showKeys, done, flipped, retryMode, idx, queue, promo, ratings, undoStack]);
   // 進捗バー：消化済み（idx）/ 全体。完了画面では満タン表示。
   const pct = queue.length ? Math.round(((done ? queue.length : idx) / queue.length) * 100) : 0;
 
@@ -119,10 +219,22 @@ export default function ReviewModal({ asPage = false }) {
       <div className={asPage ? 'review-panel' : 'modal-panel review-modal-panel'}>
         <div className="modal-header">
           <span className="modal-title">🃏 復習</span>
-          <button className="modal-close" onClick={closeReview}>
+          <span className="review-head-btns">
+            <button
+              type="button"
+              className="modal-close review-keys-btn"
+              onClick={() => setShowKeys((v) => !v)}
+              aria-label="操作方法"
+              title="操作方法（キーボード／スワイプ）"
+            >
+              ?
+            </button>
+            <button className="modal-close" onClick={closeReview}>
             ✕
           </button>
+          </span>
         </div>
+        {showKeys && <KeysHelp onClose={() => setShowKeys(false)} />}
         {!done && (
           <div className="review-progress" aria-hidden="true">
             <span className="review-progress-fill" style={{ width: `${pct}%` }} />
@@ -268,14 +380,24 @@ function ReviewCard({ word: w, idx, total, flipped, retryMode, onFlip, onRate, o
       </div>
       <div className="review-card-actions">
         {!flipped ? (
-          <button className="review-flip" onClick={onFlip}>
-            タップして意味を確認 →
-          </button>
+          <>
+            <button className="review-flip" onClick={onFlip}>
+              タップして意味を確認 →
+            </button>
+            <div className="review-key-hint" aria-hidden="true">
+              <kbd>Space</kbd> で意味を確認
+            </div>
+          </>
         ) : retryMode ? (
           // 再挑戦パス：採点ボタンを出さず「次へ」だけ
-          <button className="review-flip review-next" onClick={() => onRate(null)}>
-            次へ →
-          </button>
+          <>
+            <button className="review-flip review-next" onClick={() => onRate(null)}>
+              次へ →
+            </button>
+            <div className="review-key-hint" aria-hidden="true">
+              <kbd>Space</kbd> / <kbd>→</kbd> 次へ　<kbd>↑</kbd> 戻る
+            </div>
+          </>
         ) : (
           <>
             <div className="review-rate-btns">
@@ -297,6 +419,9 @@ function ReviewCard({ word: w, idx, total, flipped, retryMode, onFlip, onRate, o
             </div>
             <div className="review-swipe-hint" aria-hidden="true">
               ← 知らなかった　｜　知ってた →
+            </div>
+            <div className="review-key-hint" aria-hidden="true">
+              <kbd>←</kbd> 知らなかった　<kbd>↓</kbd> うろ覚え　<kbd>→</kbd> 知ってた　<kbd>↑</kbd> 戻る
             </div>
           </>
         )}
