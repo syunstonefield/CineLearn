@@ -122,18 +122,37 @@ export default function VocabScreen() {
   //   genNote  … error 相の補助導線。{ login:true } で「ログインする」ボタン（生成枠の 429・A12(3)）
   //   notShared… 生成はできたが品質/coverage ゲートを通らず共有キャッシュに書かれなかった（A12(5)）
   const [genNote, setGenNote] = useState(null);
-  // 匿名の生成枠 429 で「ログインする」を出した後にログインが完了したら、導線と文言を畳む
-  //（出しっぱなしだと次に押すべき「単語を再生成」が埋もれる・レビュー指摘）。
+  // 「ログインしてこの作品を予習する」（カタログ外パネル）／「ログインする」（生成枠 429）から AuthModal を開いた
+  // 印。ログイン完了後にそのまま生成へ進む（2026-09-29 オーナー報告: ログインは成功しているのに画面が
+  // 変わらず、失敗したように見えた）。ヘッダ等の別経路からのログインでは自動生成しない。
+  const genAfterLoginRef = useRef(false);
+  const loginThenGenerate = () => {
+    genAfterLoginRef.current = true;
+    openAuth();
+  };
   useEffect(() => {
-    if (loggedIn && genNote?.login) {
-      setGenNote(null);
-      setMessage('ログインしました。「単語を再生成」で続けられます');
+    if (!loggedIn) {
+      genAfterLoginRef.current = false; // ログアウトしたら印は捨てる
+      return;
     }
-    // カタログ外（soon）はログインで解除される＝生成ボタンを出し直す（サーバが再判定する）
-    if (loggedIn && phase === 'soon') {
+    const resume = genAfterLoginRef.current;
+    genAfterLoginRef.current = false;
+    if (genNote?.login) setGenNote(null);
+    if (resume && (phase === 'soon' || phase === 'error')) {
+      // 本人の意図は「ログインして作る」なので、ボタンをもう一度押させずに生成へ進む
+      setMessage('ログインしました。単語リストを作成します…');
+      setGenBtn({ text: '予習をはじめる →', disabled: false, hidden: false });
+      setPhase('ready');
+      onGenerate();
+      return;
+    }
+    // 別経路のログイン: カタログ外（soon）は解除されるので生成ボタンを出し直す（サーバが再判定する）
+    if (phase === 'soon') {
       setPhase('ready');
       setMessage('ログインしました。「予習をはじめる」で単語リストを作れます');
       setGenBtn({ text: '予習をはじめる →', disabled: false, hidden: false });
+    } else if (genNote?.login) {
+      setMessage('ログインしました。「単語を再生成」で続けられます');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loggedIn]);
@@ -1686,7 +1705,7 @@ export default function VocabScreen() {
               <div className="soon-title">この作品はログインすると予習できます</div>
               <div className="soon-sub">ログインなしで使えるのは対応作品のみです。ログインすれば、どの作品でも1日30話まで単語リストを作れます</div>
               {/* カタログゲートは未ログインだけに掛かる（2026-09-21 オーナー判断）。ログインが最短の解決なので最上段に置く */}
-              <button type="button" className="soon-request-btn" onClick={openAuth}>
+              <button type="button" className="soon-request-btn" onClick={loginThenGenerate}>
                 🔑 ログインしてこの作品を予習する
               </button>
               <div className="soon-sub" style={{ marginTop: 14 }}>ログインしない場合は、リクエストの多い作品から毎週カタログに追加しています</div>
@@ -1723,7 +1742,7 @@ export default function VocabScreen() {
               {/* 生成枠（匿名/日）に達した時の補助導線: ログインすると枠が増える（A12(3)）。
                   AuthModal を直接開く。 */}
               {phase === 'error' && genNote?.login && (
-                <button type="button" className="btn-secondary" style={{ marginTop: 8 }} onClick={openAuth}>
+                <button type="button" className="btn-secondary" style={{ marginTop: 8 }} onClick={loginThenGenerate}>
                   ログインする
                 </button>
               )}
