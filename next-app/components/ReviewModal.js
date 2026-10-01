@@ -39,10 +39,10 @@ const KEYS_SLIDES = [
       </svg>
     ),
     title: '意味を確認する',
-    desc: '意味を開くまでは採点できません（見ずに答えないため）。',
+    desc: '意味を開くまでは採点できません（見ずに答えないため）。PCは右手だけで Shift → 矢印 と回せます。',
     rows: [
       { dev: '📱', gesture: 'カードをタップ', label: '意味を確認' },
-      { dev: '💻', keys: ['Space', 'Enter'], label: '意味を確認' },
+      { dev: '💻', keys: ['Shift', 'Space', 'Enter'], label: '意味を確認' },
     ],
   },
   {
@@ -284,7 +284,7 @@ export default function ReviewModal({ asPage = false }) {
   const done = idx >= queue.length;
 
   // PCのキーボード操作（オーナー要望 2026-09-29・割り当てはスワイプの左右と一致させる）。
-  //   Space/Enter＝意味を確認。開いた後: →知ってた ←知らなかった ↓うろ覚え ↑/Backspace 前に戻る。
+  //   Space/Enter/Shift＝意味を確認。開いた後: →知ってた ←知らなかった ↓うろ覚え ↑/Backspace 前に戻る。
   //   1/2/3 も同じ（Anki 経験者向け）。開く前の矢印は無効（見ずに採点させない＝スワイプと同じ）。
   //   再挑戦パス（採点なし）は Space/Enter/→ のどれでも次へ。入力欄にフォーカス中は無効。
   useEffect(() => {
@@ -296,8 +296,10 @@ export default function ReviewModal({ asPage = false }) {
       if (tag === 'input' || tag === 'textarea' || tag === 'select' || t?.isContentEditable) return;
       if (showKeys) return; // ガイド表示中は KeysHelp 側が受ける
       if (done) return;
+      if (e.repeat) return; // 押しっぱなしで複数枚進まない（特に Shift／矢印）
       const k = e.key;
-      const isOpen = k === ' ' || k === 'Enter';
+      // Shift 単押しも「意味を確認」にする＝右手だけで Shift→矢印 と回せる（オーナー要望 2026-10-01）
+      const isOpen = k === ' ' || k === 'Enter' || k === 'Shift';
       if (!flipped) {
         if (isOpen) {
           e.preventDefault();
@@ -518,7 +520,7 @@ function ReviewCard({ word: w, idx, total, flipped, retryMode, onFlip, onRate, o
               タップして意味を確認 →
             </button>
             <div className="review-key-hint" aria-hidden="true">
-              <kbd>Space</kbd> で意味を確認
+              <kbd>Shift</kbd> / <kbd>Space</kbd> で意味を確認
             </div>
           </>
         ) : retryMode ? (
@@ -528,7 +530,7 @@ function ReviewCard({ word: w, idx, total, flipped, retryMode, onFlip, onRate, o
               次へ →
             </button>
             <div className="review-key-hint" aria-hidden="true">
-              <kbd>Space</kbd> / <kbd>→</kbd> 次へ　<kbd>↑</kbd> 戻る
+              <kbd>Shift</kbd> / <kbd>Space</kbd> / <kbd>→</kbd> 次へ　<kbd>↑</kbd> 戻る
             </div>
           </>
         ) : (
