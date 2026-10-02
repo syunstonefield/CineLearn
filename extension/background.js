@@ -45,6 +45,30 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       .catch(() => sendResponse({ found: false, reason: 'network' }));
     return true; // 非同期レスポンス
   }
+  // 字幕マーカー用の語リスト（v1.2.9）: 作品名＋S/E → その話の自動生成リストの語（文字列だけ）。
+  // 読み取り専用・未生成なら found:false（生成は起動しない＝視聴のたびの AI 費用を避ける）。
+  // ログイン済みなら Bearer を添える（カタログ外の作品はログイン済みだけ配信＝/api/vocab-generate と同じ規則）。
+  if (msg.type === 'CL_FETCH_VOCAB_MARKS') {
+    getFreshSession()
+      .catch(() => null)
+      .then((session) => fetch(`${CINELEARN_NEXT_URL}/api/vocab-marks`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify(msg.payload || {}),
+      }))
+      .then(r => {
+        if (r.ok) return r.json();
+        return r.json()
+          .then(b => ({ found: false, reason: b?.reason || ('http_' + r.status) }))
+          .catch(() => ({ found: false, reason: 'http_' + r.status }));
+      })
+      .then(data => sendResponse(data))
+      .catch(() => sendResponse({ found: false, reason: 'network' }));
+    return true; // 非同期レスポンス
+  }
   // 文脈つき語義（v1.2.2）: 字幕文＋語をサーバへ渡し「この場面では」の意味を得る。
   // サーバ側（/api/claude mode:'wordsense'）でプロンプト構築・Haiku・sense_hash共有キャッシュ。
   if (msg.type === 'CL_WORDSENSE') {

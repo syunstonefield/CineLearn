@@ -56,7 +56,10 @@ export async function POST(req) {
   // カタログゲート（未ログインのみ・/api/vocab-generate と同じ）。Auth 不調は匿名扱い＝ゲートにかかる
   //（権限は付与しない）が、isInCatalog 自体の不調は fail-open。
   const auth = await resolveUserId(req);
-  if (!auth.uid && !(await isInCatalog(id))) return json({ found: false, reason: 'blocked', tmdbId: id, type });
+  // auth は診断用（none=トークン無し / invalid=失効 / unavailable=Auth不調）。拡張のログで切り分ける。
+  if (!auth.uid && !(await isInCatalog(id))) {
+    return json({ found: false, reason: 'blocked', auth: auth.reason, tmdbId: id, type });
+  }
 
   const q = await readVocabRow(cacheKey);
   if (!q.ok) return json({ found: false, reason: 'unavailable', tmdbId: id, type }, 503);

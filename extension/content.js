@@ -20,17 +20,24 @@ function esc(s) {
 
 // ── 字幕マーカー設定と「この作品の単語」セット ─────────────────────────
 // マーカーは没入優先の設計（docs/design-curated-catalog 討論・オーナー承認）:
-//   v1.2.9〜 この作品で保存した語＝淡いクリーム色の文字（デフォルト'subtle'）・一時停止中だけ少し濃く。
+//   v1.2.9〜 この作品で保存した語＋この話の自動生成リストの語＝淡いクリーム色の文字（デフォルト'subtle'）・一時停止中だけ少し濃く。
 //   色は1色だけ（保存語と自動生成リストを区別しない＝「クリーム色＝この作品の大事な語」・オーナー決定 2026-10-02）。
 //   赤/橙・太字・動きは使わない（やり残しの合図＝罪悪感UIになるため）。
 //   難語マーカー=デフォルトOFF（オプトイン）。設定は options.html → chrome.storage。
 let clMarkerMode = 'subtle'; // 'off' | 'subtle' | 'strong'
 let clHardMarker = false;    // 難語マーカー（CL_COMMON_WORDS 非掲載語に印）
 let savedWordsAll = [];      // 保存済み語 [{ word, titles:Set<正規化作品名> }]（encounters の作品も含む）
-let clMarkSet = new Set();   // いま観ている作品の印対象語（小文字）
+let clMarkSet = new Set();   // いま観ている作品で保存した語（小文字）
+let clAutoMarkSet = new Set(); // いま観ている話の自動生成リストの語（小文字・サーバ /api/vocab-marks 由来）
 let clMarkTitle = null;      // clMarkSet を作った時の作品名（正規化済み・'' は未検出）
+let clMarkEpKey = null;      // clAutoMarkSet を作った時の「作品|S|E」キー
 let clMarkTitleAt = 0;       // 作品名を最後に確かめた時刻（getEpisodeContext は重いので間引く）
 const CL_MARK_TITLE_GAP_MS = 3000;
+// 自動生成リストのローカル保持。見つかった話は7日・未生成/未解決は1日（生成されたら翌日には拾う）。
+const CL_VOCAB_MARKS_KEY = 'cl_vocab_marks_v2'; // v2: 旧キーに残った blocked の空振りを引きずらない
+const CL_VOCAB_MARKS_TTL_HIT_MS = 7 * 24 * 3600 * 1000;
+const CL_VOCAB_MARKS_TTL_MISS_MS = 24 * 3600 * 1000;
+const CL_VOCAB_MARKS_MAX = 60; // 保持する話数の上限（古い順に落とす）
 
 const normMarkTitle = (t) => String(t || '').trim().toLowerCase();
 
@@ -67,12 +74,67 @@ function syncMarkTitle() {
   const now = Date.now();
   if (now - clMarkTitleAt < CL_MARK_TITLE_GAP_MS) return;
   clMarkTitleAt = now;
-  let t = '';
-  try { t = normMarkTitle(getEpisodeContext().dramaTitle); } catch { /* 取れなければ印なし */ }
-  if (t === clMarkTitle) return;
-  clMarkTitle = t;
-  rebuildMarkSet();
+  let ctx = null;
+  try { ctx = getEpisodeContext(); } catch { /* 取れなければ印なし */ }
+  const t = normMarkTitle(ctx?.dramaTitle);
+  if (t !== clMarkTitle) {
+    clMarkTitle = t;
+    rebuildMarkSet();
+    refreshMarkers();
+  }
+  // 話が変わったら自動生成リストを引き直す（作品名が無い間は何もしない）
+  const epKey = t ? `${t}|${ctx?.season ?? ''}|${ctx?.episode ?? ''}` : '';
+  if (epKey !== clMarkEpKey) {
+    clMarkEpKey = epKey;
+    clAutoMarkSet = new Set();
+    refreshMarkers();
+    if (epKey) loadAutoMarks(epKey, ctx);
+  }
+}
+
+// この話の自動生成リストの語を、ローカル保持→無ければサーバ（background 経由）から取る。
+// 取れたら clAutoMarkSet に入れて印を付け直す。失敗は黙って印なし（視聴を邪魔しない）。
+function loadAutoMarks(epKey, ctx) {
+  if (!chrome.runtime?.id) return;
+  chrome.storage.local.get([CL_VOCAB_MARKS_KEY], (r) => {
+    const store = r[CL_VOCAB_MARKS_KEY] || {};
+    const hit = store[epKey];
+    const now = Date.now();
+    if (hit && now - hit.at < (hit.words ? CL_VOCAB_MARKS_TTL_HIT_MS : CL_VOCAB_MARKS_TTL_MISS_MS)) {
+      console.debug('[CL:marks] local', epKey, hit.words ? hit.words.length + ' words' : 'no list');
+      applyAutoMarks(epKey, hit.words || []);
+      return;
+    }
+    const payload = { title: ctx.dramaTitle, season: ctx.season ?? null, episode: ctx.episode ?? null };
+    try {
+      chrome.runtime.sendMessage({ type: 'CL_FETCH_VOCAB_MARKS', payload }, (res) => {
+        if (chrome.runtime.lastError) return;
+        const words = res?.found && Array.isArray(res.words) ? res.words : null;
+        if (!res?.found) console.debug('[CL:marks] no list', ctx.dramaTitle, res?.reason, res?.auth ? `auth=${res.auth}` : '');
+        else console.debug('[CL:marks] list', ctx.dramaTitle, `S${ctx.season}E${ctx.episode}`, words.length, 'words');
+        // 一時的な不調（混雑・通信）と blocked（ログインすれば通る）は保持しない＝次の機会にまた引く
+        if (!words && ['rate_limited', 'unavailable', 'network', 'blocked', 'forbidden'].includes(res?.reason)) return;
+        // 保持（古い順に落として肥大を防ぐ）
+        const entries = Object.entries(store).filter(([k]) => k !== epKey);
+        entries.sort((a, b) => (a[1]?.at || 0) - (b[1]?.at || 0));
+        while (entries.length >= CL_VOCAB_MARKS_MAX) entries.shift();
+        const next = Object.fromEntries(entries);
+        next[epKey] = { at: now, words };
+        chrome.storage.local.set({ [CL_VOCAB_MARKS_KEY]: next });
+        applyAutoMarks(epKey, words || []);
+      });
+    } catch { /* 接続切れ時は無視 */ }
+  });
+}
+
+function applyAutoMarks(epKey, words) {
+  if (epKey !== clMarkEpKey) { console.debug('[CL:marks] stale', epKey, '→', clMarkEpKey); return; } // 待っている間に話が変わった
+  // 複数語の項目（"take off" 等）は字幕では1語ずつになるので、各語に分けて持つ（2文字以下の語は捨てる）
+  clAutoMarkSet = new Set(
+    words.flatMap((w) => String(w || '').toLowerCase().split(/[^a-z']+/)).filter((x) => x.length >= 3)
+  );
   refreshMarkers();
+  console.debug('[CL:marks] applied', clAutoMarkSet.size, 'words; marked now:', document.querySelectorAll('.cl-word.cl-mark').length);
 }
 
 // 字幕の語形（affording / deals / used）でも保存語（afford / deal / use）に当たるよう、
@@ -113,7 +175,7 @@ function decorateWordSpan(span, word) {
   span.classList.remove('cl-mark', 'cl-hard');
   if (clMarkerMode === 'off') return;
   const wl = String(word || '').toLowerCase();
-  if (markForms(wl).some((x) => clMarkSet.has(x))) {
+  if (markForms(wl).some((x) => clMarkSet.has(x) || clAutoMarkSet.has(x))) {
     span.classList.add('cl-mark');
   } else if (
     clHardMarker &&
@@ -858,25 +920,39 @@ function extractSEStrict(text) {
   return null;
 }
 
+// Shadow DOM から S/E を拾う。2026-10-02 ワンダヴィジョン実測: 再生中の話は <title-bug>（プレイヤーの作品名表示・
+// "ワンダヴィジョン S1：第2話「…」"）にあり、<pivot-tray-tile>（次の話・おすすめのタイル）には別の話
+// "S1：第3話" が出る。先に見つかった方を採る従来方式はコントロールUIが出る前にタイルを拾って誤判定した
+// （E2視聴中にS1E3と確定→例文と単語リストがズレる）。
+//   * トレイ/タイル/次の話系のホストは読まない
+//   * ホスト名に title を含む要素からの値は strong（確定）・それ以外は weak（暫定）。strong を優先して返す
+const SE_HOST_SKIP_RE = /tray|tile|next|recommend|upnext|carousel|list/i;
+const SE_HOST_STRONG_RE = /title/i;
 function disneyShadowSE() {
   const seen = new Set();
+  let weak = null;
   const scan = (root, depth) => {
     if (!root || depth > 6) return null;
     for (const el of root.querySelectorAll('*')) {
       const sr = el.shadowRoot;
       if (!sr || seen.has(sr)) continue;
       seen.add(sr);
+      const tag = el.tagName || '';
+      if (SE_HOST_SKIP_RE.test(tag)) continue; // タイルの中も読まない（別の話の S/E しか無い）
       const se = extractSEStrict(sr.textContent || '');
-      if (se) return se;
+      if (se) {
+        if (SE_HOST_STRONG_RE.test(tag)) return { ...se, strong: true };
+        if (!weak) weak = { ...se, strong: false };
+      }
       const deep = scan(sr, depth + 1);
       if (deep) return deep;
     }
     return null;
   };
   try {
-    return scan(document, 0);
+    return scan(document, 0) || weak;
   } catch {
-    return null;
+    return weak;
   }
 }
 
@@ -893,18 +969,27 @@ const SE_HINT_SCAN_GAP_MS = 10000;
 
 function captureSEHint(force = false) {
   if (!IS_DISNEY) return;
-  if (lastKnownSE && lastKnownSE.href === location.href) return; // このエピソードでは確定済み
+  // strong（タブタイトル or プレイヤーの作品名表示）で確定済みなら終わり。weak（暫定）は strong が出るまで走査を続ける
+  if (lastKnownSE && lastKnownSE.href === location.href && lastKnownSE.strong) return;
   const now = Date.now();
   if (!force && now < _seHintNextScanAt) return;
   if (force && now < _seHintForceGateAt) return;
   _seHintForceGateAt = now + 800;
   _seHintNextScanAt = now + SE_HINT_SCAN_GAP_MS;
-  const se = extractSE(document.title) || disneyShadowSE();
-  if (se) {
-    lastKnownSE = { season: se.season, episode: se.episode, href: location.href, at: now };
-    console.debug('[CL:SE] hint captured', lastKnownSE.season, lastKnownSE.episode);
-    flushPendingSEWords();
-  }
+  const fromTitle = extractSE(document.title);
+  const se = fromTitle ? { ...fromTitle, strong: true } : disneyShadowSE();
+  if (se) setKnownSE(se, now);
+}
+
+// lastKnownSE の更新。weak→strong の昇格や値の訂正はログに残す（誤判定の追跡用）。
+function setKnownSE(se, now = Date.now()) {
+  const prev = lastKnownSE && lastKnownSE.href === location.href ? lastKnownSE : null;
+  if (prev && prev.strong && !se.strong) return;
+  if (prev && prev.season === se.season && prev.episode === se.episode && prev.strong === !!se.strong) return;
+  lastKnownSE = { season: se.season, episode: se.episode, strong: !!se.strong, href: location.href, at: now };
+  console.debug('[CL:SE] hint captured', se.season, se.episode, se.strong ? '(strong)' : '(weak)',
+    prev ? `was S${prev.season}E${prev.episode}` : '');
+  flushPendingSEWords();
 }
 
 // S/E 不明のまま保存された語。S/E 確定時に season/episode を patch して例文を取り直す。
@@ -971,12 +1056,9 @@ function getEpisodeContext() {
       if (!se && Date.now() >= _seHintNextScanAt) {
         _seHintNextScanAt = Date.now() + SE_HINT_SCAN_GAP_MS;
         se = disneyShadowSE();
-        if (se) {
-          lastKnownSE = { season: se.season, episode: se.episode, href: location.href, at: Date.now() };
-          // ここで確定したら自己修復も発火させる（captureSEHint は確定後に早期returnするため、
-          // この経路が唯一の確定契機だと flush 契機が永久に来ない・レビュー指摘の必須修正）。
-          setTimeout(flushPendingSEWords, 0);
-        }
+        // ここで確定したら自己修復も発火させる（captureSEHint は確定後に早期returnするため、
+        // この経路が唯一の確定契機だと flush 契機が永久に来ない・レビュー指摘の必須修正）。
+        if (se) setKnownSE(se);
       }
       // 診断ログは値が変わった時だけ（毎ティックのスパム防止）
       const seLabel = se ? `S${se.season}E${se.episode}` : 'S/E不明';
