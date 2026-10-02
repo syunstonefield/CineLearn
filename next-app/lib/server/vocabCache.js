@@ -214,3 +214,14 @@ export async function writeVocabRow(input, { fetchImpl = fetch, log = console, n
   log.info?.(`[CL:VOCABCACHE] wrote ${cacheKey} words=${store.length} by=${row.contributed_by ? row.contributed_by.slice(0, 5) + '…' : '-'}`);
   return { written: true, count: store.length, cacheKey };
 }
+
+// 旧形式（word）と短縮形（w）の両方から語だけを取り出す（lib/vocab.js expandShortKeys と同じ互換規則）。
+export function wordStrings(words) {
+  if (!Array.isArray(words)) return [];
+  const out = new Set();
+  for (const w of words) {
+    const s = String(w?.word ?? w?.w ?? '').trim().toLowerCase();
+    if (s) out.add(s);
+  }
+  return [...out];
+}
