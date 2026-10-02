@@ -694,11 +694,53 @@ function vidLog(msg, v) {
 // 動作中の目印（ログが空＝拡張が動いていない、と切り分けられる）
 vidLog(`CineLearn ${chrome.runtime?.getManifest?.()?.version || '?'} loaded on ${location.hostname}`);
 document.addEventListener('fullscreenchange', () => vidLog(`fullscreenchange → ${document.fullscreenElement ? 'ON' : 'OFF'}`));
+// ◀▶ シークの計測: 発行からの経過 ms を seeking/seeked/playing/waiting/stalled に添える（playing で終了・10秒で打ち切り）
+let seekTrace = null; // { t0, target, from, v }
+// 読み込み済み範囲（buffered）を "a-b, c-d" で。target がその中かも返す（Disney+ の仮説検証:
+// currentTime シークは buffered 内なら即座・外ならプレイヤーが読み込みに来ず永久 waiting）。
+function bufferedInfo(v, target) {
+  const parts = [];
+  let inside = false;
+  try {
+    for (let i = 0; i < v.buffered.length; i++) {
+      const a = v.buffered.start(i), b = v.buffered.end(i);
+      parts.push(`${a.toFixed(1)}-${b.toFixed(1)}`);
+      if (target >= a && target <= b) inside = true;
+    }
+  } catch { /* buffered 不可 */ }
+  return { text: parts.join(', ') || '(none)', inside };
+}
+function beginSeekTrace(v, target) {
+  const b = bufferedInfo(v, target);
+  seekTrace = { t0: performance.now(), target, from: v.currentTime, v, seeked: false };
+  vidLog(`CL seek → ${target.toFixed(1)} (from ${v.currentTime.toFixed(1)}, paused=${v.paused}, rs=${v.readyState}) buffered=[${b.text}] target ${b.inside ? 'IN' : 'OUT'}`);
+  const mine = seekTrace;
+  // 応急処置（Disney+）: 500ms たっても seeked が来なければ、元の位置（直前まで再生していた＝読み込み済み）へ
+  // 戻して再生を続ける。永久 waiting（フリーズ）を避ける。診断ログに残す。
+  if (IS_DISNEY) {
+    setTimeout(() => {
+      if (seekTrace !== mine || mine.seeked) return;
+      const bb = bufferedInfo(v, mine.from);
+      vidLog(`CL seek stuck (no seeked in 500ms) → revert to ${mine.from.toFixed(1)} (from buffered=${bb.inside ? 'IN' : 'OUT'})`);
+      seekTrace = null;
+      try { v.currentTime = mine.from; } catch {}
+      if (v.paused) v.play().catch(() => {});
+      showMiniToast?.('この位置は読み込み済みの範囲外のため戻れませんでした');
+    }, 500);
+  }
+  setTimeout(() => { if (seekTrace === mine) { vidLog('CL seek trace timeout (no playing within 10s)'); seekTrace = null; } }, 10100);
+}
 for (const ev of ['play', 'playing', 'pause', 'waiting', 'stalled', 'seeking', 'seeked', 'error', 'emptied', 'ratechange']) {
   document.addEventListener(ev, (e) => {
     const v = e.target;
     if (v?.tagName !== 'VIDEO' || !v.videoWidth) return; // 本編（映像サイズのある video）だけ
-    vidLog(`event ${ev}${ev === 'error' ? ' code=' + (v.error?.code ?? '?') + ' ' + (v.error?.message || '') : ''}`, v);
+    let since = '';
+    if (seekTrace && ['seeking', 'seeked', 'playing', 'waiting', 'stalled'].includes(ev)) {
+      since = ` (+${Math.round(performance.now() - seekTrace.t0)}ms since seek)`;
+      if (ev === 'seeked') seekTrace.seeked = true;
+      if (ev === 'playing') { vidLog(`CL seek done: playing at ${v.currentTime.toFixed(1)}${since}`); seekTrace = null; }
+    }
+    vidLog(`event ${ev}${ev === 'error' ? ' code=' + (v.error?.code ?? '?') + ' ' + (v.error?.message || '') : ''}${since}`, v);
   }, true);
 }
 
@@ -1918,6 +1960,30 @@ function getOnScreenCaption() {
 //   補正値 SEEK_MIN_STEP を上下すれば「届かない↔飛びすぎ」を調整できる。
 const SEEK_MIN_STEP = 2.5; // 補正値（秒）: 1押しで最低これだけ時間を移動する
 
+// 基準ブロックから dir 方向の次の目標ブロック index（無ければ null）。seekRelative と淡色化で共用。
+function navTargetIdx(curIdx, dir) {
+  const baseT = captionTimeline[curIdx].start;
+  if (dir < 0) {
+    // baseT より SEEK_MIN_STEP 秒以上前の最初のブロック（断片はスキップ）
+    let j = curIdx - 1;
+    while (j - 1 >= 0 && baseT - captionTimeline[j].start < SEEK_MIN_STEP) j--;
+    return j >= 0 ? j : null;
+  }
+  // baseT より SEEK_MIN_STEP 秒以上後の最初のブロック（記録済みのみ）
+  let j = curIdx + 1;
+  while (j + 1 < captionTimeline.length && captionTimeline[j].start - baseT < SEEK_MIN_STEP) j++;
+  return j < captionTimeline.length && captionTimeline[j].start > baseT ? j : null;
+}
+
+// Disney+: 公開API currentTime のシークは、ブラウザの読み込み済み範囲（buffered）の中なら Disney+ 自身の
+// シークと同じ速さ（実測 30〜110ms）で動くが、外だとプレイヤーが読み込みに来ず永久 waiting になる
+// （2026-10-02 実機ログで IN=成功/OUT=失敗が完全に一致）。そのため Disney+ では buffered 内の目標にだけ動く。
+// 読み込み済み範囲は再生位置の約9秒前〜15秒先（実測）＝「1文戻る」はほぼ範囲内、2〜3文は範囲外になりやすい。
+function navTargetReachable(video, t) {
+  if (!IS_DISNEY) return true;
+  return bufferedInfo(video, t).inside;
+}
+
 function seekRelative(dir) {
   const video = getActiveVideo();
   if (!video || !captionTimeline.length) return;
@@ -1934,24 +2000,18 @@ function seekRelative(dir) {
   }
   navTime = now;
 
-  const baseT = captionTimeline[curIdx].start;
-  let targetIdx = null;
-  if (dir < 0) {
-    // baseT より SEEK_MIN_STEP 秒以上前の最初のブロック（断片はスキップ）
-    let j = curIdx - 1;
-    while (j - 1 >= 0 && baseT - captionTimeline[j].start < SEEK_MIN_STEP) j--;
-    if (j >= 0) targetIdx = j;
-  } else {
-    // baseT より SEEK_MIN_STEP 秒以上後の最初のブロック（記録済みのみ）
-    let j = curIdx + 1;
-    while (j + 1 < captionTimeline.length && captionTimeline[j].start - baseT < SEEK_MIN_STEP) j++;
-    if (j < captionTimeline.length && captionTimeline[j].start > baseT) targetIdx = j;
+  const targetIdx = navTargetIdx(curIdx, dir);
+  if (targetIdx == null) return;
+  const t = captionTimeline[targetIdx].start;
+  if (!navTargetReachable(video, t)) {
+    // 範囲外へは行かない（連打の積み上げ位置も進めない＝次に範囲内へ戻った時に正しく続く）
+    const b = bufferedInfo(video, t);
+    vidLog(`CL nav blocked: target ${t.toFixed(1)} OUT of buffered=[${b.text}]`);
+    showMiniToast(dir < 0 ? 'Disney+ では読み込み済みの範囲（数秒前まで）にだけ戻れます' : 'Disney+ では読み込み済みの範囲にだけ進めます');
+    return;
   }
-
-  if (targetIdx != null) {
-    navStart = targetIdx;
-    scheduleSeek(video, captionTimeline[targetIdx].start);
-  }
+  navStart = targetIdx;
+  scheduleSeek(video, t);
 }
 
 // ◀▶ ボタンの淡色化。先頭では◀、未視聴フロンティアでは▶を淡く。
@@ -1960,8 +2020,16 @@ function updateNavButtonsState() {
   const len = captionTimeline.length;
   const cur = len ? getCurrentBlockIndex() : -1;
   const curIdx = cur < 0 ? 0 : cur;
-  clPrevBtn.classList.toggle('cl-ctrl-disabled', !(len && curIdx - 1 >= 0));
-  clNextBtn.classList.toggle('cl-ctrl-disabled', !(len && curIdx + 1 < len));
+  // Disney+ は目標が読み込み済み範囲の外なら淡色（押しても動かないことを先に示す）
+  const video = IS_DISNEY ? getActiveVideo() : null;
+  const can = (dir) => {
+    if (!len) return false;
+    const idx = navTargetIdx(curIdx, dir);
+    if (idx == null) return false;
+    return !video || navTargetReachable(video, captionTimeline[idx].start);
+  };
+  clPrevBtn.classList.toggle('cl-ctrl-disabled', !can(-1));
+  clNextBtn.classList.toggle('cl-ctrl-disabled', !can(+1));
 }
 
 // 連打を1回のシークにまとめてプレイヤーのフリーズを防ぐ。
@@ -1982,6 +2050,7 @@ function scheduleSeek(video, time) {
     clearInterval(pauseKeepAlive);
     pauseKeepAlive = null;
     pausedVideoRef = null;
+    beginSeekTrace(v, target);
 
     if (IS_NETFLIX) {
       // Netflix は currentTime を直接書き換えるとシーク先が未バッファで
@@ -2153,7 +2222,22 @@ function createSubtitleControls() {
     // 条項に正面衝突として不採用。同レビューの着地点「案Bが安定しなければ出さない」に従い ◀▶ は無効。
     // Netflix の内部APIseek は currentTime がハードクラッシュする技術的例外として維持し、広げない。
     // clPrevBtn/clNextBtn は null のまま → updateNavButtonsState は guard で no-op。
-    clControls.append(makeBtn('📋', '今のセリフを1文コピー', () => copyCurrentSentence()));
+    // 2026-10-02 診断モード（options「Disney+ で ◀▶ を試験的に表示」・既定OFF）: 方式は同じ案B（公開API
+    // currentTime）のまま、シークごとの seeking→seeked→playing の所要時間と waiting/stalled を再生ログに
+    // 残して「Disney+ 自身のシーク(実測70ms)と同程度か・何秒も止まるか」を数字で確かめる。
+    // 前回(07-03)の試行は、ホバー停止中の参照喪失バグ(6f2cc76 で根治)の影響下で評価していた疑いがある。
+    const copyBtn = makeBtn('📋', '今のセリフを1文コピー', () => copyCurrentSentence());
+    clControls.append(copyBtn);
+    if (chrome.runtime?.id) {
+      chrome.storage.local.get(['cl_disney_nav_trial'], (r) => {
+        if (r.cl_disney_nav_trial !== '1' || !clControls) return;
+        clPrevBtn = makeBtn('◀', '前のセリフへ戻る（診断モード）', () => seekRelative(-1));
+        clNextBtn = makeBtn('▶', '次のセリフへ進む（診断モード）', () => seekRelative(+1));
+        clControls.prepend(clPrevBtn);
+        clControls.append(clNextBtn);
+        vidLog('Disney+ ◀▶ trial mode ON');
+      });
+    }
   } else {
     clPrevBtn = makeBtn('◀',  '前のセリフへ戻る',      () => seekRelative(-1));
     clNextBtn = makeBtn('▶',  '次のセリフへ進む',      () => seekRelative(+1));
