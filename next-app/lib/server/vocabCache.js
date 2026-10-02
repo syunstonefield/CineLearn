@@ -225,3 +225,20 @@ export function wordStrings(words) {
   }
   return [...out];
 }
+
+// 字幕マーカー＋ポップアップ即時表示用: 語・日本語の意味・品詞だけ（例文・レベル・チャンクは配らない）。
+// 意味は自前の生成文（字幕本文ではない）。長すぎる定義は 80 字で切る（ポップアップ1行分）。
+export function wordMeanings(words) {
+  if (!Array.isArray(words)) return [];
+  const seen = new Set();
+  const out = [];
+  for (const w of words) {
+    const s = String(w?.word ?? w?.w ?? '').trim().toLowerCase();
+    if (!s || seen.has(s)) continue;
+    seen.add(s);
+    const d = String(w?.definition ?? w?.d ?? '').trim().slice(0, 80);
+    const p = String(w?.pos ?? w?.p ?? '').trim().slice(0, 20);
+    out.push(d ? { w: s, d, p } : { w: s });
+  }
+  return out;
+}

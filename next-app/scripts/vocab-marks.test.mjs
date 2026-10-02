@@ -1,7 +1,7 @@
 // /api/vocab-marks（字幕マーカー用の語リスト）と lib/server/tmdbResolve.js の単体テスト。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { wordStrings } from '../lib/server/vocabCache.js';
+import { wordStrings, wordMeanings } from '../lib/server/vocabCache.js';
 import { titleQueryCandidates, pickTmdbCandidate, normTitle } from '../lib/server/tmdbResolve.js';
 
 test('wordStrings: 旧形式(word)と短縮形(w)の両方から小文字の語だけを重複なく取り出す', () => {
@@ -35,4 +35,20 @@ test('pickTmdbCandidate: 正規化一致のみ採用し、同点は人気度で�
   assert.equal(pickTmdbCandidate(results, 'suits', true), 3);
   assert.equal(pickTmdbCandidate(results, 'friends', false), null);
   assert.equal(normTitle('Iron Man: Rise!'), 'ironmanrise');
+});
+
+test('wordMeanings: 語・意味・品詞だけ（例文は含めない）、意味なしは語のみ', () => {
+  const words = [
+    { w: 'afford', d: '〜する余裕がある', p: '動詞', e: 'secret example', l: 'B2' },
+    { word: 'Deal', definition: '取引', pos: '名詞', example: 'secret' },
+    { w: 'bare' },
+    { w: 'afford', d: 'dup' },
+  ];
+  const out = wordMeanings(words);
+  assert.deepEqual(out, [
+    { w: 'afford', d: '〜する余裕がある', p: '動詞' },
+    { w: 'deal', d: '取引', p: '名詞' },
+    { w: 'bare' },
+  ]);
+  assert.ok(!JSON.stringify(out).includes('secret'));
 });

@@ -1,7 +1,7 @@
 // 字幕マーカー用の語リスト（拡張 v1.2.9〜）。
 //   拡張は「いま観ている作品の自動生成リストの語」を字幕の中で淡いクリーム色にするため、語の文字列だけが要る。
 //   拡張は TMDB ID を持たない（画面の作品名だけ）ので、ここで作品名→ID を解決し vocab_cache を引いて
-//   語の文字列配列だけを返す（定義・例文・レベルは配らない＝最小限の配信）。
+//   語＋日本語の意味＋品詞だけを返す（例文・レベル・チャンクは配らない＝最小限の配信。意味は自前の生成文）。
 //   読み取り専用。キャッシュ未生成（miss）でも**生成は起動しない**（視聴のたびに AI 費用が出るのを避ける）。
 //   カタログゲートは /api/vocab-generate と同じ規則＝**未ログインのみ**（ログイン済みはどの作品でも可。拡張は
 //   Authorization: Bearer を添える）。カタログ外の未ログインは { found:false, reason:'blocked' }。
@@ -13,7 +13,7 @@ import { allowedOrigin } from '@/lib/server/origin';
 import { checkRateLimit } from '@/lib/ratelimit';
 import { resolveUserId } from '@/lib/server/auth';
 import { resolveTmdbId } from '@/lib/server/tmdbResolve';
-import { vocabCacheKey, readVocabRow, isInCatalog, wordStrings } from '@/lib/server/vocabCache';
+import { vocabCacheKey, readVocabRow, isInCatalog, wordMeanings } from '@/lib/server/vocabCache';
 
 function json(obj, status = 200) {
   return new Response(JSON.stringify(obj), {
@@ -65,5 +65,6 @@ export async function POST(req) {
   if (!q.ok) return json({ found: false, reason: 'unavailable', tmdbId: id, type }, 503);
   if (!q.row) return json({ found: false, reason: 'miss', tmdbId: id, type });
 
-  return json({ found: true, tmdbId: id, type, words: wordStrings(q.row.words) });
+  // v1.2.9 拡張: words は [{ w, d?, p? }]（語・意味・品詞）。ポップアップがクリック即時に意味を出すため。
+  return json({ found: true, tmdbId: id, type, words: wordMeanings(q.row.words) });
 }
