@@ -3,13 +3,15 @@
 //   拡張は TMDB ID を持たない（画面の作品名だけ）ので、ここで作品名→ID を解決し vocab_cache を引いて
 //   語の文字列配列だけを返す（定義・例文・レベルは配らない＝最小限の配信）。
 //   読み取り専用。キャッシュ未生成（miss）でも**生成は起動しない**（視聴のたびに AI 費用が出るのを避ける）。
-//   /api/vocab と同じく、カタログゲート有効時はカタログ外を { found:false, reason:'blocked' } で返す。
+//   カタログゲートは /api/vocab-generate と同じ規則＝**未ログインのみ**（ログイン済みはどの作品でも可。拡張は
+//   Authorization: Bearer を添える）。カタログ外の未ログインは { found:false, reason:'blocked' }。
 // found:false には必ず reason を添える（/api/example と同じ診断方針）。
 
 export const dynamic = 'force-dynamic';
 
 import { allowedOrigin } from '@/lib/server/origin';
 import { checkRateLimit } from '@/lib/ratelimit';
+import { resolveUserId } from '@/lib/server/auth';
 import { resolveTmdbId } from '@/lib/server/tmdbResolve';
 import { vocabCacheKey, readVocabRow, isInCatalog, wordStrings } from '@/lib/server/vocabCache';
 
@@ -51,7 +53,10 @@ export async function POST(req) {
   const cacheKey = vocabCacheKey(id, type, hasSE ? Number(body.season) : 0, hasSE ? Number(body.episode) : 0);
   if (!cacheKey) return json({ found: false, reason: 'bad_request', type });
 
-  if (!(await isInCatalog(id))) return json({ found: false, reason: 'blocked', tmdbId: id, type });
+  // カタログゲート（未ログインのみ・/api/vocab-generate と同じ）。Auth 不調は匿名扱い＝ゲートにかかる
+  //（権限は付与しない）が、isInCatalog 自体の不調は fail-open。
+  const auth = await resolveUserId(req);
+  if (!auth.uid && !(await isInCatalog(id))) return json({ found: false, reason: 'blocked', tmdbId: id, type });
 
   const q = await readVocabRow(cacheKey);
   if (!q.ok) return json({ found: false, reason: 'unavailable', tmdbId: id, type }, 503);
