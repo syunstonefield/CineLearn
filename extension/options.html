@@ -45,6 +45,18 @@
   </div>
 
   <div class="saved" id="saved-note">✓ 保存しました</div>
+
+  <div class="row" style="margin-top:22px;border-top:1px solid #e6dfd3;padding-top:14px">
+    <div class="label">再生ログ（不具合の切り分け用）</div>
+    <div class="hint">視聴中の一時停止・再生・読み込み待ちの記録（直近300行・端末内のみ）。「再生が戻らない／フリーズ」が起きた直後にここを開いてコピーしてください。</div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button id="vidlog-show" type="button" style="flex:1;padding:7px;font-size:12px;border:1px solid #d8cfc0;border-radius:8px;background:#fff;cursor:pointer;font-family:inherit">表示</button>
+      <button id="vidlog-copy" type="button" style="flex:1;padding:7px;font-size:12px;border:1px solid #d8cfc0;border-radius:8px;background:#fff;cursor:pointer;font-family:inherit">コピー</button>
+      <button id="vidlog-clear" type="button" style="padding:7px 10px;font-size:12px;border:1px solid #d8cfc0;border-radius:8px;background:#fff;cursor:pointer;font-family:inherit">消去</button>
+    </div>
+    <textarea id="vidlog" readonly style="display:none;width:100%;height:220px;margin-top:8px;font:11px/1.5 Menlo,monospace;border:1px solid #d8cfc0;border-radius:8px;padding:8px;box-sizing:border-box;background:#fff;white-space:pre"></textarea>
+    <div class="hint" id="vidlog-note"></div>
+  </div>
   <script src="options.js"></script>
 </body>
 </html>

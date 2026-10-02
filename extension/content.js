@@ -589,13 +589,30 @@ function init() {
   clHoverTip.style.display = 'none';
   document.body.appendChild(clHoverTip);
 
-  // ポップアップ外クリックで閉じる
+  // ポップアップ外クリックで閉じる（capture＝プレイヤーのクリック処理より先に受ける）
+  // Disney+: 拡張が video.pause() で止めている間、プレイヤー側は自分の状態を「再生中」のままにしている。
+  // そこへ画面タップが届くと、プレイヤーは「再生中→停止」のトグルとして処理する（250ms のダブルクリック
+  // 待ちの後）。拡張の再開(150ms後の play)は通るが、その直後にプレイヤーの pause で止め直され、
+  // 結果「タップしても再開せず、2回目のタップでやっと再生」になる（2026-10-02 実測ログで確定:
+  // click → +150ms play(拡張) → +250ms pause(プレイヤー) → 次の click で play()(プレイヤー)）。
+  // 対策: 拡張が止めている間のタップは「再開」の意思とみなし、拡張が再開してプレイヤーには渡さない
+  // （プレイヤーの状態「再生中」と実際の再生が一致した状態に戻る）。拡張の UI 上のクリックは対象外。
   document.addEventListener('click', (e) => {
-    if (popup && !popup.contains(e.target) &&
-        !e.target.classList?.contains('cl-word')) {
-      closePopupAndResume();
+    const t = e.target;
+    const onOurUi =
+      (popup && popup.contains(t)) ||
+      t?.classList?.contains('cl-word') ||
+      !!t?.closest?.('#cl-controls, #cl-badge, #cl-hint, #cl-hovertip');
+    if (onOurUi) return;
+    const popupOpen = !!popup && popup.style.display === 'flex';
+    const weHoldPause = !!pausedVideoRef;
+    if (popupOpen) closePopupAndResume();
+    if (IS_DISNEY && (popupOpen || weHoldPause)) {
+      e.stopPropagation();
+      if (!popupOpen) { isSubtitleHovered = false; resumeVideo(); }
+      vidLog(`tap on <${(t?.tagName || '').toLowerCase()}> while paused by CL → resume, player toggle suppressed (popupOpen=${popupOpen})`);
     }
-  });
+  }, true);
 
   // ◀ 📋 ▶ コントロール群を作成
   createSubtitleControls();
@@ -652,11 +669,50 @@ if (document.readyState === 'loading') {
 let pausedVideoRef  = null;
 let pauseKeepAlive  = null;
 
+// 再生状態の診断ログ（[CL:vid]）。「クリック後に再生が戻らない／フリーズ」の再現が稀で、ページ側に
+// 貼る記録コードはリロードで消えるため、拡張に常設する（console.debug＝Verbose 表示時のみ）。
+// 拡張自身の pause()/play() は理由付きで出し、プレイヤー起点のイベントと見分ける。
+// 記録は chrome.storage.local 'cl_vid_log'（直近300行）にも溜め、設定画面の「再生ログ」から取り出せる
+// （DevTools を閉じている時だけ起きる症状のため・コンソール頼みにしない）。書き込みは1秒間引き。
+const vidState = (v) => `paused=${v.paused} rs=${v.readyState} ns=${v.networkState} t=${(v.currentTime || 0).toFixed(1)}`;
+const CL_VID_LOG_KEY = 'cl_vid_log';
+const vidLogBuf = [];
+let vidLogFlushTimer = null;
+function vidLog(msg, v) {
+  const fs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+  const line = `${new Date().toISOString().slice(11, 23)} ${fs ? '[FS] ' : ''}${msg}${v ? ' | ' + vidState(v) : ''}`;
+  console.debug('[CL:vid]', line);
+  vidLogBuf.push(line);
+  if (vidLogBuf.length > 300) vidLogBuf.splice(0, vidLogBuf.length - 300);
+  if (!vidLogFlushTimer && chrome.runtime?.id) {
+    vidLogFlushTimer = setTimeout(() => {
+      vidLogFlushTimer = null;
+      try { chrome.storage.local.set({ [CL_VID_LOG_KEY]: vidLogBuf.slice() }); } catch { /* 接続切れ */ }
+    }, 1000);
+  }
+}
+// 動作中の目印（ログが空＝拡張が動いていない、と切り分けられる）
+vidLog(`CineLearn ${chrome.runtime?.getManifest?.()?.version || '?'} loaded on ${location.hostname}`);
+document.addEventListener('fullscreenchange', () => vidLog(`fullscreenchange → ${document.fullscreenElement ? 'ON' : 'OFF'}`));
+for (const ev of ['play', 'playing', 'pause', 'waiting', 'stalled', 'seeking', 'seeked', 'error', 'emptied', 'ratechange']) {
+  document.addEventListener(ev, (e) => {
+    const v = e.target;
+    if (v?.tagName !== 'VIDEO' || !v.videoWidth) return; // 本編（映像サイズのある video）だけ
+    vidLog(`event ${ev}${ev === 'error' ? ' code=' + (v.error?.code ?? '?') + ' ' + (v.error?.message || '') : ''}`, v);
+  }, true);
+}
+
 function pauseVideo() {
-  const video = Array.from(document.querySelectorAll('video')).find(v => !v.paused);
-  if (!video) return;
-  pausedVideoRef = video;
-  video.pause();
+  let video = Array.from(document.querySelectorAll('video')).find(v => !v.paused);
+  if (!video) {
+    // 既に拡張が止めている（ホバー外→再ホバーの往復）。参照は保ったまま keepalive だけ張り直す
+    if (!pausedVideoRef) return;
+    video = pausedVideoRef;
+  } else {
+    pausedVideoRef = video;
+    vidLog('CL pause() (hover/popup)', video);
+    video.pause();
+  }
 
   // Disney+ は keepalive(50ms毎の再pause)で再生を握り続けると native の再生ボタンが効かなくなる
   // （再生→即re-pause の綱引き）。1回だけ pause し、以降の再生制御はユーザー/プレイヤーに委ねる。
@@ -677,11 +733,17 @@ function resumeVideo() {
 
   const video = pausedVideoRef;
   if (!video) return;
-  pausedVideoRef = null;
+  // ★参照はここでは手放さない。旧実装は予約時に null にしていたため、150ms 後に「まだホバー中/
+  //   ポップアップ中」で見送ると参照が消え、その後ポップアップを閉じても再開を呼べなかった
+  //   （ホバー→わずかに外れる→クリック、で必ず発生。Disney+ 側は「再生中」のつもりなのでタップも
+  //   効かず、10秒スキップまで止まったまま＝「フリーズ」の正体。2026-10-02 実機ログで確定）。
 
   setTimeout(() => {
-    if (isSubtitleHovered || popup?.style.display === 'flex') return;
-    video.play().catch(() => {});
+    if (isSubtitleHovered || popup?.style.display === 'flex') { vidLog('CL play() skipped (still hovered/popup open; ref kept)', video); return; }
+    if (pausedVideoRef !== video) return; // 別の予約／ユーザー操作で処理済み
+    pausedVideoRef = null;
+    vidLog('CL play() (resume)', video);
+    video.play().then(() => vidLog('CL play() resolved', video)).catch((err) => vidLog(`CL play() rejected: ${err?.name} ${err?.message}`, video));
   }, 150);
 }
 
@@ -697,6 +759,7 @@ document.addEventListener('play', (e) => {
 
 function closePopupAndResume() {
   if (!popup) return;
+  if (popup.style.display !== 'none') vidLog(`popup close (hovered=${isSubtitleHovered})`);
   popup.style.display = 'none';
   if (!isSubtitleHovered) resumeVideo();
 }
@@ -1438,6 +1501,7 @@ function requestExampleBackfill(entry, lineText, isRetry = false) {
 async function showWordPopup(word, sentence, rect) {
   if (!popup) return;
   popupToken++; // 新しい表示世代（前の語あての遅延差し替えを無効化）
+  vidLog(`popup open "${word}"`, getActiveVideo?.() || undefined);
   hideHoverTip(); // 詳細ポップアップと重ねない
 
   // Netflix のオーバーレイが消える前に即座に取得

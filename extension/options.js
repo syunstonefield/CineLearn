@@ -29,3 +29,28 @@ function save() {
 
 modeSel.addEventListener('change', save);
 hardChk.addEventListener('change', save);
+
+// ── 再生ログ（content.js の vidLog が chrome.storage.local 'cl_vid_log' に溜める直近300行）──
+const vidlogTa = document.getElementById('vidlog');
+const vidlogNote = document.getElementById('vidlog-note');
+function loadVidLog(cb) {
+  chrome.storage.local.get(['cl_vid_log'], (r) => cb((r.cl_vid_log || []).join('\n')));
+}
+document.getElementById('vidlog-show').addEventListener('click', () => {
+  loadVidLog((text) => {
+    vidlogTa.style.display = 'block';
+    vidlogTa.value = text || '（まだ記録がありません。視聴ページを再読み込みしてから操作してください）';
+    vidlogTa.scrollTop = vidlogTa.scrollHeight;
+  });
+});
+document.getElementById('vidlog-copy').addEventListener('click', () => {
+  loadVidLog((text) => {
+    navigator.clipboard.writeText(text || '').then(
+      () => { vidlogNote.textContent = `✓ ${text ? text.split('\n').length : 0} 行をコピーしました`; },
+      () => { vidlogTa.style.display = 'block'; vidlogTa.value = text; vidlogTa.select(); vidlogNote.textContent = '選択してコピーしてください'; }
+    );
+  });
+});
+document.getElementById('vidlog-clear').addEventListener('click', () => {
+  chrome.storage.local.remove('cl_vid_log', () => { vidlogTa.value = ''; vidlogNote.textContent = '消去しました'; });
+});
