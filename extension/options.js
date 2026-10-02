@@ -4,14 +4,12 @@
 
 const modeSel = document.getElementById('marker-mode');
 const hardChk = document.getElementById('hard-marker');
-const disneyNavChk = document.getElementById('disney-nav-trial');
 const savedNote = document.getElementById('saved-note');
 
 // 現在値をロード（既定: subtle / 難語OFF＝没入優先のデフォルト）
-chrome.storage.local.get(['cl_marker_mode', 'cl_hard_marker', 'cl_disney_nav_trial'], (r) => {
+chrome.storage.local.get(['cl_marker_mode', 'cl_hard_marker'], (r) => {
   modeSel.value = r.cl_marker_mode || 'subtle';
   hardChk.checked = r.cl_hard_marker === '1';
-  disneyNavChk.checked = r.cl_disney_nav_trial === '1';
 });
 
 let savedTimer = null;
@@ -20,7 +18,6 @@ function save() {
     {
       cl_marker_mode: modeSel.value,
       cl_hard_marker: hardChk.checked ? '1' : '0',
-      cl_disney_nav_trial: disneyNavChk.checked ? '1' : '0',
     },
     () => {
       savedNote.style.visibility = 'visible';
@@ -32,7 +29,6 @@ function save() {
 
 modeSel.addEventListener('change', save);
 hardChk.addEventListener('change', save);
-disneyNavChk.addEventListener('change', save);
 
 // ── 再生ログ（content.js の vidLog が chrome.storage.local 'cl_vid_log' に溜める直近300行）──
 const vidlogTa = document.getElementById('vidlog');

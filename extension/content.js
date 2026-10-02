@@ -2213,40 +2213,20 @@ function createSubtitleControls() {
     return b;
   };
 
-  if (IS_DISNEY) {
-    // Disney+ は ◀▶ を出さない（📋コピー・単語保存・字幕DOM読み・例文は有効）。
-    // 2026-07-03 に一度 case B（公開API video.currentTime）で有効化を試みたが、Disney の
-    // DRM ストリームは currentTime で少しでもシークするとデコーダがリセットされ、1回のシークでも
-    // 必ずリロード（rebuffer）表示が入る（拡張を通さない素の play()→currentTime でも再現＝方式の性質）。
-    // 滑らかにするには内部プレイヤーAPI（案A）が要るが、法務レビュー(2026-07-03)で reverse engineer
-    // 条項に正面衝突として不採用。同レビューの着地点「案Bが安定しなければ出さない」に従い ◀▶ は無効。
-    // Netflix の内部APIseek は currentTime がハードクラッシュする技術的例外として維持し、広げない。
-    // clPrevBtn/clNextBtn は null のまま → updateNavButtonsState は guard で no-op。
-    // 2026-10-02 診断モード（options「Disney+ で ◀▶ を試験的に表示」・既定OFF）: 方式は同じ案B（公開API
-    // currentTime）のまま、シークごとの seeking→seeked→playing の所要時間と waiting/stalled を再生ログに
-    // 残して「Disney+ 自身のシーク(実測70ms)と同程度か・何秒も止まるか」を数字で確かめる。
-    // 前回(07-03)の試行は、ホバー停止中の参照喪失バグ(6f2cc76 で根治)の影響下で評価していた疑いがある。
-    const copyBtn = makeBtn('📋', '今のセリフを1文コピー', () => copyCurrentSentence());
-    clControls.append(copyBtn);
-    if (chrome.runtime?.id) {
-      chrome.storage.local.get(['cl_disney_nav_trial'], (r) => {
-        if (r.cl_disney_nav_trial !== '1' || !clControls) return;
-        clPrevBtn = makeBtn('◀', '前のセリフへ戻る（診断モード）', () => seekRelative(-1));
-        clNextBtn = makeBtn('▶', '次のセリフへ進む（診断モード）', () => seekRelative(+1));
-        clControls.prepend(clPrevBtn);
-        clControls.append(clNextBtn);
-        vidLog('Disney+ ◀▶ trial mode ON');
-      });
-    }
-  } else {
-    clPrevBtn = makeBtn('◀',  '前のセリフへ戻る',      () => seekRelative(-1));
-    clNextBtn = makeBtn('▶',  '次のセリフへ進む',      () => seekRelative(+1));
-    clControls.append(
-      clPrevBtn,
-      makeBtn('📋', '今のセリフを1文コピー', () => copyCurrentSentence()),
-      clNextBtn,
-    );
-  }
+  // Disney+ も ◀▶ を標準表示（2026-10-02 オーナー決定）。方式は公開API currentTime（案B・法務許容）のまま。
+  // 2026-07-03 は「1回のシークでも必ず rebuffer」として無効化していたが、再生ログ計測で真因が判明:
+  // 行き先がブラウザの buffered 範囲の内なら Disney+ 自身のシークと同じ 14〜110ms で再生継続し、外なら
+  // プレイヤーが読み込みに来ず永久 waiting（IN/OUT が実機ログで完全一致）。そのため Disney+ では
+  // seekRelative/updateNavButtonsState が buffered 内の目標にだけ動く（範囲外＝淡色＋案内）＋500ms 安全網。
+  // 内部プレイヤーAPIは使わない（reverse engineer 条項・Netflix の内部APIシークは currentTime がハード
+  // クラッシュする技術的例外として維持し、広げない）。
+  clPrevBtn = makeBtn('◀',  '前のセリフへ戻る',      () => seekRelative(-1));
+  clNextBtn = makeBtn('▶',  '次のセリフへ進む',      () => seekRelative(+1));
+  clControls.append(
+    clPrevBtn,
+    makeBtn('📋', '今のセリフを1文コピー', () => copyCurrentSentence()),
+    clNextBtn,
+  );
   document.body.appendChild(clControls);
 
   // 全画面の出入りで親要素を移し替え、リサイズで位置を再計算する
