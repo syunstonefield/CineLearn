@@ -29,12 +29,19 @@ let clHardMarker = false;    // 難語マーカー（CL_COMMON_WORDS 非掲載�
 let savedWordsAll = [];      // 保存済み語 [{ word, titles:Set<正規化作品名> }]（encounters の作品も含む）
 let clMarkSet = new Set();   // いま観ている作品で保存した語（小文字）
 let clAutoMarkSet = new Set(); // いま観ている話の自動生成リストの語（小文字・サーバ /api/vocab-marks 由来）
+let clSavedMeaning = new Map(); // いま観ている作品で保存した語 → { ja, pos }（ポップアップ即時表示用）
+let clAutoMeaning = new Map();  // いま観ている話の単語リストの語 → { ja, pos }（同上・例文は持たない）
+// 複数語の項目（"mind your ps and qs" 等）。各語をバラして印を付けると会話中の on/and まで光る
+// （オーナー報告 2026-10-02）ので、**その字幕行に句が丸ごと出ている時だけ**句の各語に印を付ける。
+let clSavedPhrases = [];        // 保存した句（正規化済み・空白区切り）
+let clAutoPhrases = [];         // 単語リストの句（同上）
+const normPhraseText = (t) => ' ' + String(t || '').toLowerCase().replace(/[’‘`´]/g, "'").replace(/[^a-z']+/g, ' ').trim() + ' ';
 let clMarkTitle = null;      // clMarkSet を作った時の作品名（正規化済み・'' は未検出）
 let clMarkEpKey = null;      // clAutoMarkSet を作った時の「作品|S|E」キー
 let clMarkTitleAt = 0;       // 作品名を最後に確かめた時刻（getEpisodeContext は重いので間引く）
 const CL_MARK_TITLE_GAP_MS = 3000;
 // 自動生成リストのローカル保持。見つかった話は7日・未生成/未解決は1日（生成されたら翌日には拾う）。
-const CL_VOCAB_MARKS_KEY = 'cl_vocab_marks_v2'; // v2: 旧キーに残った blocked の空振りを引きずらない
+const CL_VOCAB_MARKS_KEY = 'cl_vocab_marks_v3'; // v3: 語に意味・品詞を同梱（v2 は文字列のみ）
 const CL_VOCAB_MARKS_TTL_HIT_MS = 7 * 24 * 3600 * 1000;
 const CL_VOCAB_MARKS_TTL_MISS_MS = 24 * 3600 * 1000;
 const CL_VOCAB_MARKS_MAX = 60; // 保持する話数の上限（古い順に落とす）
@@ -51,6 +58,8 @@ function refreshSavedWords() {
       savedWordsAll = words
         .map((w) => ({
           word: String(w.word || '').toLowerCase(),
+          ja: String(w.ja || '').trim(),
+          pos: String(w.pos || '').trim(),
           titles: new Set(
             [w.dramaTitle, ...(Array.isArray(w.encounters) ? w.encounters.map((e) => e?.dramaTitle) : [])]
               .map(normMarkTitle).filter(Boolean)
@@ -66,7 +75,45 @@ function refreshSavedWords() {
 // いま観ている作品で保存した語だけを印対象にする（作品名が取れない間は印なし）
 function rebuildMarkSet() {
   const t = clMarkTitle || '';
-  clMarkSet = new Set(t ? savedWordsAll.filter((w) => w.titles.has(t)).map((w) => w.word) : []);
+  const mine = t ? savedWordsAll.filter((w) => w.titles.has(t)) : [];
+  const single = mine.filter((w) => !/\s/.test(w.word));
+  clMarkSet = new Set(single.map((w) => w.word));
+  clSavedMeaning = new Map(mine.filter((w) => w.ja).map((w) => [normPhraseText(w.word).trim(), { ja: w.ja, pos: w.pos }]));
+  clSavedPhrases = mine.filter((w) => /\s/.test(w.word)).map((w) => normPhraseText(w.word).trim()).filter((p) => p.includes(' '));
+}
+
+// この字幕行に丸ごと出ている句のうち、この語を含むもの（無ければ null）
+function phraseHitFor(wl, sentence) {
+  if (!sentence || (!clSavedPhrases.length && !clAutoPhrases.length)) return null;
+  const line = normPhraseText(sentence);
+  for (const p of clSavedPhrases) {
+    if ((' ' + p + ' ').includes(' ' + wl + ' ') && line.includes(' ' + p + ' ')) return { phrase: p, saved: true };
+  }
+  for (const p of clAutoPhrases) {
+    if ((' ' + p + ' ').includes(' ' + wl + ' ') && line.includes(' ' + p + ' ')) return { phrase: p, saved: false };
+  }
+  return null;
+}
+
+// クリックした語の「手元で分かっている意味」。①この作品で保存した語の確定訳 ②この話の単語リストの意味。
+// 字幕の語形（deals/affording）でも原形に当てる。無ければ null（＝従来の辞書/翻訳/文脈訳の経路へ）。
+function knownMeaningFor(word, sentence) {
+  const wl = String(word || '').toLowerCase();
+  // 句の一部をクリックした時は句の意味を出す（"on" 単体ではなく "mind your ps and qs" の意味）
+  const ph = phraseHitFor(wl, sentence);
+  if (ph) {
+    const m = (ph.saved ? clSavedMeaning : clAutoMeaning).get(ph.phrase);
+    if (m) return { ja: m.ja, pos: m.pos, label: ph.saved ? '保存済み' : '単語リスト', phrase: ph.phrase };
+  }
+  for (const f of markForms(wl)) {
+    const sv = clSavedMeaning.get(f);
+    if (sv) return { ja: sv.ja, pos: sv.pos, label: '保存済み' };
+  }
+  for (const f of markForms(wl)) {
+    const au = clAutoMeaning.get(f);
+    if (au) return { ja: au.ja, pos: au.pos, label: '単語リスト' };
+  }
+  return null;
 }
 
 // 作品が切り替わったら（Netflix の連続再生・メタの遅延到着）印対象を作り直す
@@ -129,10 +176,23 @@ function loadAutoMarks(epKey, ctx) {
 
 function applyAutoMarks(epKey, words) {
   if (epKey !== clMarkEpKey) { console.debug('[CL:marks] stale', epKey, '→', clMarkEpKey); return; } // 待っている間に話が変わった
-  // 複数語の項目（"take off" 等）は字幕では1語ずつになるので、各語に分けて持つ（2文字以下の語は捨てる）
-  clAutoMarkSet = new Set(
-    words.flatMap((w) => String(w || '').toLowerCase().split(/[^a-z']+/)).filter((x) => x.length >= 3)
-  );
+  // 要素は { w, d, p }（v3）か文字列（旧）。複数語の項目（"take off" 等）は字幕では1語ずつになるので、
+  // 印は各語に分けて持つ（2文字以下の語は捨てる）。意味は項目そのものと各語の両方に結ぶ。
+  clAutoMarkSet = new Set();
+  clAutoMeaning = new Map();
+  clAutoPhrases = [];
+  for (const item of words) {
+    const w = normPhraseText(item && typeof item === 'object' ? item.w : item).trim();
+    if (!w) continue;
+    const ja = item && typeof item === 'object' ? String(item.d || '').trim() : '';
+    const m = ja ? { ja, pos: String(item.p || '').trim() } : null;
+    if (w.includes(' ')) {
+      clAutoPhrases.push(w); // 句＝その行に丸ごと出ている時だけ印（各語はバラさない）
+    } else if (w.length >= 3) {
+      clAutoMarkSet.add(w);
+    }
+    if (m && !clAutoMeaning.has(w)) clAutoMeaning.set(w, m);
+  }
   refreshMarkers();
   console.debug('[CL:marks] applied', clAutoMarkSet.size, 'words; marked now:', document.querySelectorAll('.cl-word.cl-mark').length);
 }
@@ -175,7 +235,7 @@ function decorateWordSpan(span, word) {
   span.classList.remove('cl-mark', 'cl-hard');
   if (clMarkerMode === 'off') return;
   const wl = String(word || '').toLowerCase();
-  if (markForms(wl).some((x) => clMarkSet.has(x) || clAutoMarkSet.has(x))) {
+  if (markForms(wl).some((x) => clMarkSet.has(x) || clAutoMarkSet.has(x)) || phraseHitFor(wl, span.dataset?.sentence)) {
     span.classList.add('cl-mark');
   } else if (
     clHardMarker &&
@@ -549,6 +609,7 @@ function init() {
   // v1.2.2 字幕マーカー: 設定と保存済み語をロードし、変更に追従する
   loadMarkerSettings();
   refreshSavedWords();
+  loadEjdict(); // 同梱英和辞書を先読み（クリック時にローカル訳を同期で出せる＝ポップアップ即時描画）
   try {
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area !== 'local') return;
@@ -1400,57 +1461,64 @@ async function showWordPopup(word, sentence, rect) {
   }
   Object.assign(popup.style, { display: 'flex', left: `${left}px` });
 
-  popup.innerHTML = `
-    <div style="padding:16px">
-      <div style="font-size:20px;font-weight:700;color:${ACCENT}">${esc(word)}</div>
-      <div style="font-size:12px;color:#aaa;margin-top:4px">辞書を検索中...</div>
-    </div>`;
+  // ── 段階表示（v1.2.9: 即時描画）──────────────────────────────────────
+  // 旧実装は英英辞書API（dictionaryapi.dev・1〜3秒・502多発で再試行あり）と文脈訳(0.8s)を
+  // 「両方待ってから」初描画していた＝クリックから意味が出るまでが長い（オーナー報告 2026-10-02）。
+  // 新実装はクリックの瞬間に描き、届いた順に差し込む:
+  //   即時: 語＋「手元で分かっている意味」（①この作品で保存した語の確定訳 ②この話の単語リストの意味
+  //         ③同梱ローカル英和辞書）
+  //   後着: 英英定義・発音・品詞（dictionaryapi.dev）／「この場面では」文脈訳（AI・共有キャッシュ）
+  // 手元に①②がある語は文脈訳（AI）を呼ばない＝速くて COGS も下がる（作品の文脈に合った意味が既にある）。
+  const myToken = popupToken;
+  const stillMine = () => popupToken === myToken && popup && popup.style.display !== 'none';
 
-  // 英英定義・英日訳・文脈訳を並行取得。
-  // 文脈訳（「この場面では」）の段階表示: docs/design-context-translation.md §2
-  //   キャッシュ命中→即時 / ~800ms以内に来れば確定訳のみ表示（二度読みなし）/
-  //   遅ければ1語速報を薄色で暫定表示→1.5sタイムアウトで速報を無言で確定。
-  // フレーズ（複数語）は英英辞書APIに見出しが無く必ず404になるので呼ばない
-  // （無駄な待ちを省く。フレーズの訳は文脈訳 wordsense が担う）。
-  const dictP = word.includes(' ') ? Promise.resolve(null) : lookupWord(word);
-  const quickP = getJaCached(word); // 1語速報（ローカル辞書→翻訳API・文脈なし）
-  const ctxP = sentence ? getCtxJaCached(word, sentence) : Promise.resolve(null);
+  const known = knownMeaningFor(word, sentence); // { ja, pos, label, phrase? } | null
+  let dict = null;                               // 英英（後着）
+  let jaCtx = null;                              // 文脈訳（確定・後着）
+  let jaQuick = known?.ja || null;               // 即時訳（手元の意味 or ローカル辞書）
+  let jaLabel = known?.label || '';              // 即時訳のラベル（保存済み／単語リスト。辞書は無印）
+  if (!jaQuick && ejdict) jaQuick = ejLookup(word) || null; // ロード済みなら同期で引ける
+  let currentJa = jaQuick;                       // 保存時に entry.ja に入る値（文脈訳が来たら置換）
 
-  const ctxFast = await Promise.race([ctxP, clSleep(800).then(() => undefined)]);
-  const dict = await dictP;
-  let jaCtx = ctxFast || null;                       // 文脈訳（確定）
-  let jaQuick = jaCtx ? null : (await Promise.race([quickP, clSleep(300).then(() => undefined)])) || null;
-  let currentJa = jaCtx || jaQuick || null;          // 保存時に entry.ja に入る値
-
-  // 訳行のHTML（jaLine）。文脈訳=「この場面では」ラベル・速報暫定=薄色。
+  const labelTag = (text) =>
+    `<span style="font-size:10px;color:${ACCENT};border:1px solid ${ACCENT}55;border-radius:3px;padding:1px 5px;margin-right:6px;vertical-align:1px">${esc(text)}</span>`;
   const jaLineHtml = () => {
     if (jaCtx) {
-      return `<div id="cl-ja-line" style="margin-top:8px;font-size:15px;color:#222;font-weight:600;line-height:1.5">
-        <span style="font-size:10px;color:${ACCENT};border:1px solid ${ACCENT}55;border-radius:3px;padding:1px 5px;margin-right:6px;vertical-align:1px">この場面では</span>${esc(jaCtx)}</div>`;
+      return `<div id="cl-ja-line" style="margin-top:8px;font-size:15px;color:#222;font-weight:600;line-height:1.5">${labelTag('この場面では')}${esc(jaCtx)}</div>`;
     }
     if (jaQuick) {
-      return `<div id="cl-ja-line" style="margin-top:8px;font-size:15px;color:#999;font-weight:600;line-height:1.5">${esc(jaQuick)}</div>`;
+      // 手元の意味（保存済み／単語リスト）は確定色・ローカル辞書の一語訳は暫定の薄色
+      const color = jaLabel ? '#222' : '#999';
+      const phraseNote = known?.phrase && known.phrase !== word.toLowerCase() ? `<span style="font-size:11px;color:#888;font-weight:400;margin-right:6px">${esc(known.phrase)}:</span>` : '';
+      return `<div id="cl-ja-line" style="margin-top:8px;font-size:15px;color:${color};font-weight:600;line-height:1.5">${jaLabel ? labelTag(jaLabel) : ''}${phraseNote}${esc(jaQuick)}</div>`;
     }
     return '';
   };
+  const posOf = () => dict?.pos || known?.pos || '';
 
-  popup.innerHTML = `
-    <div style="padding:16px 16px 12px;border-bottom:1px solid #f0f0f0">
+  // 本文だけ描き直す（ボタンは固定＝ハンドラは1回だけ付ける）
+  const renderBody = () => {
+    const body = document.getElementById('cl-popup-body');
+    if (!body) return;
+    body.innerHTML = `
       <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px">
         <span style="font-size:20px;font-weight:700;color:${ACCENT}">${esc(word)}</span>
         <span style="font-size:12px;color:#aaa">${esc(dict?.phonetic || '')}</span>
       </div>
-      ${dict?.pos ? `<span style="font-size:10px;color:#5b4fd4;
+      ${posOf() ? `<span style="font-size:10px;color:#5b4fd4;
         border:1px solid rgba(91,79,212,0.3);border-radius:3px;padding:1px 6px">
-        ${esc(dict.pos)}</span>` : ''}
+        ${esc(posOf())}</span>` : ''}
       ${jaLineHtml()}
       ${dict?.definition ? `<div style="margin-top:${currentJa ? '6px' : '8px'};font-size:13px;
         color:${currentJa ? '#777' : '#333'};line-height:1.6">${esc(dict.definition)}</div>` : ''}
-      ${(!currentJa && !dict?.definition) ? `<div id="cl-ja-empty" style="margin-top:8px;font-size:13px;color:#aaa">訳・定義が見つかりませんでした</div>` : ''}
+      ${(!currentJa && !dict?.definition) ? `<div id="cl-ja-empty" style="margin-top:8px;font-size:13px;color:#aaa">${pending ? '辞書を検索中...' : '訳・定義が見つかりませんでした'}</div>` : ''}
       ${sentence ? `<div style="margin-top:8px;font-size:11px;color:#aaa;
         line-height:1.5;font-style:italic;
-        border-top:1px solid #f5f5f5;padding-top:8px">"${esc(sentence)}"</div>` : ''}
-    </div>
+        border-top:1px solid #f5f5f5;padding-top:8px">"${esc(sentence)}"</div>` : ''}`;
+  };
+
+  popup.innerHTML = `
+    <div id="cl-popup-body" style="padding:16px 16px 12px;border-bottom:1px solid #f0f0f0"></div>
     <div style="padding:10px 16px;display:flex;gap:8px">
       <button id="cl-save-btn" style="flex:1;background:${ACCENT};color:#fff;
         border:none;padding:9px;border-radius:10px;font-size:13px;font-weight:500;
@@ -1459,40 +1527,37 @@ async function showWordPopup(word, sentence, rect) {
         border:none;padding:9px 14px;border-radius:10px;font-size:13px;
         cursor:pointer;font-family:inherit;">✕</button>
     </div>`;
+  let pending = 2; // 未着の後着ソース数（英英・訳）。0 になるまで「検索中」を出す
+  renderBody();
 
-  // 文脈訳が後から届いたら、このポップアップが同じ語で開いている限り自動で差し替える。
-  // （当初は1.5s締切で打ち切っていたが、コールドスタート時に「再クリックしないと
-  //   この場面での意味が出ない」ため、オーナー判断2026-07-11で常時自動更新に変更。
-  //   別の語のポップアップに切り替わった後は popupToken 不一致で反映しない。）
-  if (!jaCtx && sentence) {
-    const myToken = popupToken;
-    const stillMine = () => popupToken === myToken && popup && popup.style.display !== 'none';
-    ctxP.then((late) => {
-      if (!late || !stillMine()) return;
-      jaCtx = late;
-      currentJa = late;
-      const line = document.getElementById('cl-ja-line');
-      const emptyLine = document.getElementById('cl-ja-empty');
-      const html = `<span style="font-size:10px;color:${ACCENT};border:1px solid ${ACCENT}55;border-radius:3px;padding:1px 5px;margin-right:6px;vertical-align:1px">この場面では</span>${esc(late)}`;
-      if (line) {
-        line.style.color = '#222';
-        line.innerHTML = html;
-      } else if (emptyLine) {
-        emptyLine.outerHTML = `<div id="cl-ja-line" style="margin-top:8px;font-size:15px;color:#222;font-weight:600;line-height:1.5">${html}</div>`;
-      }
+  // 英英定義（フレーズは見出しが無く必ず404なので呼ばない。訳は文脈訳 wordsense が担う）
+  const dictP = word.includes(' ') ? Promise.resolve(null) : lookupWord(word);
+  dictP.then((d) => {
+    pending--;
+    if (!stillMine()) return;
+    dict = d;
+    renderBody();
+  });
+
+  // 訳: 手元の意味が無い語だけ、ローカル辞書→翻訳API（速報）と文脈訳（AI）を引く
+  if (known) {
+    pending--;
+    if (stillMine()) renderBody();
+  } else {
+    const quickP = getJaCached(word);
+    const ctxP = sentence ? getCtxJaCached(word, sentence) : Promise.resolve(null);
+    quickP.then((q) => {
+      if (!q || !stillMine() || jaCtx) return;
+      jaQuick = q;
+      if (!currentJa) currentJa = q;
+      renderBody();
     });
-    // 速報がまだ間に合っていなければ遅延到着分も拾う（薄色のまま表示）
-    if (!jaQuick) {
-      quickP.then((q) => {
-        if (!q || jaCtx || !stillMine()) return;
-        jaQuick = q;
-        if (!currentJa) currentJa = q;
-        const emptyLine = document.getElementById('cl-ja-empty');
-        if (emptyLine) {
-          emptyLine.outerHTML = `<div id="cl-ja-line" style="margin-top:8px;font-size:15px;color:#999;font-weight:600;line-height:1.5">${esc(q)}</div>`;
-        }
-      });
-    }
+    ctxP.then((late) => {
+      pending--;
+      if (!stillMine()) return;
+      if (late) { jaCtx = late; currentJa = late; }
+      renderBody();
+    });
   }
 
   document.getElementById('cl-save-btn').addEventListener('click', (e) => {
@@ -1516,7 +1581,7 @@ async function showWordPopup(word, sentence, rect) {
       // 例文は下の requestExampleBackfill が OpenSubtitles 由来の1文で後から埋める。
       sentence:   '',
       phonetic:   dict?.phonetic || '',
-      pos:        dict?.pos || '',
+      pos:        posOf(),
       definition: dict?.definition || '',
       ja:         currentJa || '',  // ポップアップで見せた訳を固定保存（単語帳・復習と一致させる）
       savedAt:    new Date().toISOString().slice(0, 10), // ISO（アプリ側で表示変換）
