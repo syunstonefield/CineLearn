@@ -188,7 +188,7 @@ export default function VocabItem({ word, srs, testTiers, ts, priority, exampleS
               {starred ? '★ 単語帳' : '☆ 単語帳に入れる'}
             </button>
           )}
-          {/* 🗑完全削除＝手動追加語のタイポ救済だけに残す（単語帳から外すのは★） */}
+          {/* 🗑完全削除＝視聴中に拾った語の誤保存/タイポ救済（単語帳から外すだけなら★） */}
           {onDelete && (
             <button className="btn-srs-skip btn-word-del" onClick={() => onDelete(w.word)}>
               🗑 削除

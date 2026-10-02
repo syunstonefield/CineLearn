@@ -1125,7 +1125,7 @@ export default function VocabScreen() {
     }
   };
 
-  // 追加した単語の完全削除（手動追加語のタイポ救済だけ）。ローカル両キー＋ログイン時はクラウドの行も消す
+  // 追加した単語の完全削除（誤クリック保存・タイポの救済）。ローカル両キー＋ログイン時はクラウドの行も消す
   // （deleteMyWord 内で伝搬）。表示は即時に間引く。単語帳から外すだけなら★（handleStar）。
   const handleDeleteExtWord = async (word) => {
     if (!confirm(`「${word}」を完全に削除しますか？（単語帳・この話のリストの両方から消えます）`)) return;
@@ -1172,8 +1172,9 @@ export default function VocabScreen() {
     app.bumpWordbook();
   };
   const isStarred = (w) => wordbookMap.has(String(w.word).toLowerCase());
-  // 🗑（完全削除）は手動追加語だけ（origin==='manual'）。拡張保存語は来歴なので★で外すのみ。
-  const deleteFor = (w) => (w.source === 'ext' && w.origin === 'manual' ? handleDeleteExtWord : undefined);
+  // 🗑（完全削除）は視聴中に拾った語すべて（拡張のクリック保存＋手動追加）。誤クリック保存の救済
+  //   （オーナー要望 2026-10-02・旧: 手動追加語だけ）。生成語は my_words に行が無いので対象外＝★で出し入れ。
+  const deleteFor = (w) => (w.source === 'ext' && w.origin !== 'star' ? handleDeleteExtWord : undefined);
   const pickSeason = (se) => {
     if (se === season) return;
     setSeason(se);

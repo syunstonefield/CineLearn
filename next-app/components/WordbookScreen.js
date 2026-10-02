@@ -184,7 +184,8 @@ export default function WordbookScreen() {
     setSrs(loadSrs());
   };
   const handleCopyTime = (t) => navigator.clipboard?.writeText(t).catch(() => {});
-  // 🗑完全削除＝手動追加語のタイポ救済だけ。単語帳から外すのは★（onStar）。
+  // 🗑完全削除＝視聴中に拾った語（拡張保存・手動追加）の誤保存/タイポ救済（2026-10-02 拡張保存語にも拡大）。
+  //   ★でしか無い語（source:'star'）は★を外せば行ごと消えるので🗑は出さない。単語帳から外すだけなら★（onStar）。
   const onDelete = async (word) => {
     if (!confirm(`「${word}」を完全に削除しますか？（作品の単語リストからも消えます）`)) return;
     await deleteMyWord(pid, word);
@@ -342,7 +343,7 @@ export default function WordbookScreen() {
                       onSkip={handleSkip}
                       onCopyTime={handleCopyTime}
                       onStar={onStar}
-                      onDelete={w.source === 'manual' ? onDelete : undefined}
+                      onDelete={w.source !== 'star' ? onDelete : undefined}
                     />
                   </div>
                 );
