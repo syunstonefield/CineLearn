@@ -751,6 +751,7 @@ const sePatterns = [
   // "Season 2 recap Episode 5" のような自然文は英字を許さず弾く）
   /[Ss]eason\s*(\d+)[^A-Za-z0-9]{1,6}[Ee]pisode\s*(\d+)/,
   /[Ss](\d+)\s*[:：]?\s*[Ee](\d+)/,   // "S1E1" / "S1:E1"（Netflix表記）
+  /[Ss](\d+)\s*[:：]?\s*第\s*(\d+)\s*話/, // "S1：第3話"（Disney+ 日本語UI・ワンダヴィジョンで実測 2026-10-02）
   /(\d+)\s*[×x]\s*(\d+)/,
   /シーズン\s*(\d+)[^\d]+エピソード\s*(\d+)/,
   /シーズン\s*(\d+)[^\d]+第\s*(\d+)\s*話/,
@@ -782,6 +783,7 @@ function extractSE(text) {
 const STRICT_SE_RE = [
   /[Ss]eason\s*(\d+)[^A-Za-z0-9]{1,6}[Ee]pisode\s*(\d+)/,
   /[Ss](\d+)\s*[:：]?\s*[Ee](\d+)/,
+  /[Ss](\d+)\s*[:：]?\s*第\s*(\d+)\s*話/, // Disney+ 日本語UI "S1：第3話"（これが無いと S/E 不明＝映画扱いで例文が付かない）
   /シーズン\s*(\d+)[^\d]+エピソード\s*(\d+)/,
   /シーズン\s*(\d+)[^\d]+第\s*(\d+)\s*話/,
 ];
