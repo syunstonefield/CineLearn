@@ -5,9 +5,11 @@
   ハイライトは JS が .cl-word-active を付け外しすることで実現する。
 */
 
+/* 印の無い語の下線は再生中は出さない（全語に線があると「この作品の単語」の色が埋もれる）。
+   幅だけ確保して色を透明にし、停止中・ホバーで色を入れても字幕がガタつかないようにする。 */
 .cl-word {
   cursor: pointer !important;
-  border-bottom: 2px dotted #c17f3b !important;
+  border-bottom: 2px dotted transparent !important;
   border-radius: 2px !important;
   padding: 0 1px !important;
   display: inline !important;
@@ -205,26 +207,44 @@ html.cl-disabled #cl-controls { display: none !important; }
 }
 .cl-hint-ok:hover { background: #a96c2f !important; }
 
-/* ── v1.2.2 字幕マーカー（没入優先: 淡い下点線・停止中だけ強調）────────── */
-/* 保存済み語＝金の下点線 */
-.cl-word.cl-saved {
-  border-bottom: 2px dotted rgba(200, 169, 110, 0.5);
-  padding-bottom: 1px;
+/* ── 字幕マーカー（v1.2.9〜 没入優先: この作品の単語＝淡いクリーム色の文字）──────────
+   色は1色だけ（保存語と自動生成リストを区別しない）。赤/橙・太字・動きは使わない＝罪悪感UIにしない。
+   白字幕とほぼ同じ明るさのクリームなので、視界の端では目立たず、目を向けると分かる。
+   OFF（html.cl-disabled）時に効かないよう :where(html:not(.cl-disabled)) で囲む
+   （:where は詳細度0＝後段のホバー白抜きとOFF時の color:inherit が素直に勝つ）。 */
+
+/* 一時停止中は全語に淡い下点線（ここはクリックできる、の手がかり＝学習の顔） */
+:where(html.cl-video-paused:not(.cl-disabled)) .cl-word {
+  border-bottom-color: rgba(193, 127, 59, 0.45) !important;
 }
-/* 難語（オプトイン）＝青系の下点線・保存済みより控えめ */
-.cl-word.cl-hard {
-  border-bottom: 2px dotted rgba(150, 168, 255, 0.38);
-  padding-bottom: 1px;
+
+/* この作品の単語＝淡いクリーム */
+:where(html:not(.cl-disabled)) .cl-word.cl-mark {
+  color: #f7e6c0 !important;
 }
-/* 一時停止中は少し明るく（学習の顔） */
-.cl-video-paused .cl-word.cl-saved { border-bottom-color: rgba(200, 169, 110, 0.95); }
-.cl-video-paused .cl-word.cl-hard  { border-bottom-color: rgba(150, 168, 255, 0.75); }
-/* 設定「しっかり」: 常時強め＋ほんのり背景 */
-.cl-marker-strong .cl-word.cl-saved {
-  border-bottom-color: rgba(200, 169, 110, 0.95);
-  background: rgba(200, 169, 110, 0.14);
-  border-radius: 3px;
+/* 一時停止中・設定「しっかり」は少し濃く */
+:where(html.cl-video-paused:not(.cl-disabled)) .cl-word.cl-mark,
+:where(html.cl-marker-strong:not(.cl-disabled)) .cl-word.cl-mark {
+  color: #f2d08e !important;
 }
-.cl-marker-strong .cl-word.cl-hard {
-  border-bottom-color: rgba(150, 168, 255, 0.8);
+/* 設定「しっかり」: 常時ほんのり背景も */
+:where(html.cl-marker-strong:not(.cl-disabled)) .cl-word.cl-mark {
+  background: rgba(214, 182, 120, 0.16) !important;
+  border-radius: 3px !important;
+}
+
+/* 難語（オプトイン）＝青系の下点線・この作品の単語より控えめ */
+:where(html:not(.cl-disabled)) .cl-word.cl-hard {
+  border-bottom-color: rgba(150, 168, 255, 0.38) !important;
+}
+:where(html.cl-video-paused:not(.cl-disabled)) .cl-word.cl-hard,
+:where(html.cl-marker-strong:not(.cl-disabled)) .cl-word.cl-hard {
+  border-bottom-color: rgba(150, 168, 255, 0.75) !important;
+}
+
+/* ホバー中は印より優先して白抜き（橙背景の上でクリームは沈むため）。印の規則より後ろに置く */
+.cl-word.cl-word-active {
+  color: #fff !important;
+  background: rgba(193, 127, 59, 0.65) !important;
+  border-bottom-color: #c17f3b !important;
 }

@@ -18,13 +18,21 @@ function esc(s) {
   ));
 }
 
-// ── v1.2.2: 字幕マーカー設定と保存済み語セット ─────────────────────────
+// ── 字幕マーカー設定と「この作品の単語」セット ─────────────────────────
 // マーカーは没入優先の設計（docs/design-curated-catalog 討論・オーナー承認）:
-//   保存済み語=淡い金の下点線（デフォルト'subtle'）・一時停止中だけ少し強調・
+//   v1.2.9〜 この作品で保存した語＝淡いクリーム色の文字（デフォルト'subtle'）・一時停止中だけ少し濃く。
+//   色は1色だけ（保存語と自動生成リストを区別しない＝「クリーム色＝この作品の大事な語」・オーナー決定 2026-10-02）。
+//   赤/橙・太字・動きは使わない（やり残しの合図＝罪悪感UIになるため）。
 //   難語マーカー=デフォルトOFF（オプトイン）。設定は options.html → chrome.storage。
 let clMarkerMode = 'subtle'; // 'off' | 'subtle' | 'strong'
 let clHardMarker = false;    // 難語マーカー（CL_COMMON_WORDS 非掲載語に印）
-let savedWordsSet = new Set(); // 保存済み語（小文字）。マーカーと再会表示に使う
+let savedWordsAll = [];      // 保存済み語 [{ word, titles:Set<正規化作品名> }]（encounters の作品も含む）
+let clMarkSet = new Set();   // いま観ている作品の印対象語（小文字）
+let clMarkTitle = null;      // clMarkSet を作った時の作品名（正規化済み・'' は未検出）
+let clMarkTitleAt = 0;       // 作品名を最後に確かめた時刻（getEpisodeContext は重いので間引く）
+const CL_MARK_TITLE_GAP_MS = 3000;
+
+const normMarkTitle = (t) => String(t || '').trim().toLowerCase();
 
 function refreshSavedWords() {
   if (!chrome.runtime?.id) return;
@@ -33,10 +41,60 @@ function refreshSavedWords() {
     const key = pid ? `${CL_WORDS_KEY_BASE}_${pid}` : CL_WORDS_KEY_BASE;
     chrome.storage.local.get([key], (r) => {
       const words = r[key] || [];
-      savedWordsSet = new Set(words.map((w) => String(w.word || '').toLowerCase()).filter(Boolean));
+      savedWordsAll = words
+        .map((w) => ({
+          word: String(w.word || '').toLowerCase(),
+          titles: new Set(
+            [w.dramaTitle, ...(Array.isArray(w.encounters) ? w.encounters.map((e) => e?.dramaTitle) : [])]
+              .map(normMarkTitle).filter(Boolean)
+          ),
+        }))
+        .filter((w) => w.word);
+      rebuildMarkSet();
       refreshMarkers(); // 表示中の字幕に反映
     });
   });
+}
+
+// いま観ている作品で保存した語だけを印対象にする（作品名が取れない間は印なし）
+function rebuildMarkSet() {
+  const t = clMarkTitle || '';
+  clMarkSet = new Set(t ? savedWordsAll.filter((w) => w.titles.has(t)).map((w) => w.word) : []);
+}
+
+// 作品が切り替わったら（Netflix の連続再生・メタの遅延到着）印対象を作り直す
+function syncMarkTitle() {
+  const now = Date.now();
+  if (now - clMarkTitleAt < CL_MARK_TITLE_GAP_MS) return;
+  clMarkTitleAt = now;
+  let t = '';
+  try { t = normMarkTitle(getEpisodeContext().dramaTitle); } catch { /* 取れなければ印なし */ }
+  if (t === clMarkTitle) return;
+  clMarkTitle = t;
+  rebuildMarkSet();
+  refreshMarkers();
+}
+
+// 字幕の語形（affording / deals / used）でも保存語（afford / deal / use）に当たるよう、
+// 素朴な語尾外しで原形候補を作る。3文字未満の候補は誤爆しやすいので捨てる。
+function markForms(w) {
+  const f = [w];
+  const add = (x) => { if (x.length >= 3) f.push(x); };
+  if (w.endsWith("'s")) add(w.slice(0, -2));
+  if (w.endsWith('ies')) add(w.slice(0, -3) + 'y');
+  if (w.endsWith('es')) add(w.slice(0, -2));
+  if (w.endsWith('s') && !w.endsWith('ss')) add(w.slice(0, -1));
+  if (w.endsWith('ied')) add(w.slice(0, -3) + 'y');
+  if (w.endsWith('ed')) {
+    add(w.slice(0, -2)); add(w.slice(0, -1));
+    if (/(.)\1ed$/.test(w)) add(w.slice(0, -3));
+  }
+  if (w.endsWith('ing')) {
+    const b = w.slice(0, -3);
+    add(b); add(b + 'e');
+    if (/(.)\1$/.test(b)) add(b.slice(0, -1));
+  }
+  return f;
 }
 
 function loadMarkerSettings() {
@@ -51,11 +109,12 @@ function loadMarkerSettings() {
 
 // 単語spanにマーカークラスを付与（wrap時と設定変更時の両方から呼ばれる）
 function decorateWordSpan(span, word) {
-  span.classList.remove('cl-saved', 'cl-hard');
+  syncMarkTitle();
+  span.classList.remove('cl-mark', 'cl-hard');
   if (clMarkerMode === 'off') return;
   const wl = String(word || '').toLowerCase();
-  if (savedWordsSet.has(wl)) {
-    span.classList.add('cl-saved');
+  if (markForms(wl).some((x) => clMarkSet.has(x))) {
+    span.classList.add('cl-mark');
   } else if (
     clHardMarker &&
     typeof CL_COMMON_WORDS !== 'undefined' &&
@@ -66,7 +125,7 @@ function decorateWordSpan(span, word) {
   }
 }
 
-// 表示中の全 cl-word にマーカーを付け直す（保存直後・設定変更時）
+// 表示中の全 cl-word にマーカーを付け直す（保存直後・設定変更時・作品切替時）
 function refreshMarkers() {
   document.querySelectorAll('.cl-word').forEach((s) => decorateWordSpan(s, s.dataset.word));
   if (clOverlay) clOverlay.querySelectorAll?.('.cl-word').forEach((s) => decorateWordSpan(s, s.dataset.word));
