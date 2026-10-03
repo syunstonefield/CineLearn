@@ -21,7 +21,7 @@ chrome.runtime.onInstalled.addListener(() => {
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === 'SAVE_WORD_TO_CLOUD') {
     syncWordToSupabase(msg.word)
-      .then(() => sendResponse({ ok: true }))
+      .then((ok) => sendResponse({ ok, queued: !ok }))
       .catch(() => sendResponse({ ok: false }));
     return true; // 非同期レスポンスを使うため必須
   }
@@ -151,9 +151,94 @@ async function getFreshSession() {
 // 一度弾かれたらこのサービスワーカーが生きている間は送らない（下の再送を参照）。
 let tsSecUnsupported = false;
 
-async function syncWordToSupabase(word) {
+// ── 未送信キュー（2026-10-02 ワンダヴィジョン S1E4 で実害）─────────────────────────
+//   旧実装はセッションが無い（未ログイン・refresh 失効）と黙って return し、通信失敗も握り潰していた。
+//   拡張のローカル台帳には残るがクラウドに届かず、アプリ（my_words が唯一の橋）からは「保存されていない」
+//   ように見えた。送れなかった語は「マージ後の姿」を語単位で保持し、セッションが来た時／ワーカー起動時／
+//   次の送信成功時にまとめて再送する。同じ語は最新の姿で置き換える（古い姿で新しい値を潰さない）。
+const SYNC_PENDING_KEY = 'cl_sync_pending';
+const SYNC_PENDING_MAX = 2000;
+
+async function queuePendingSync(word) {
+  if (!word?.word) return;
+  const { [SYNC_PENDING_KEY]: cur = [] } = await chrome.storage.local.get(SYNC_PENDING_KEY);
+  const lower = String(word.word).toLowerCase();
+  const next = cur.filter((w) => String(w.word).toLowerCase() !== lower);
+  next.push(word);
+  await chrome.storage.local.set({ [SYNC_PENDING_KEY]: next.slice(-SYNC_PENDING_MAX) });
+}
+
+async function dropPendingSync(wordText) {
+  const { [SYNC_PENDING_KEY]: cur = [] } = await chrome.storage.local.get(SYNC_PENDING_KEY);
+  if (!cur.length) return;
+  const lower = String(wordText).toLowerCase();
+  const next = cur.filter((w) => String(w.word).toLowerCase() !== lower);
+  if (next.length !== cur.length) await chrome.storage.local.set({ [SYNC_PENDING_KEY]: next });
+}
+
+let _flushing = false;
+async function flushPendingSync() {
+  if (_flushing) return;
+  _flushing = true;
+  try {
+    const session = await getFreshSession();
+    if (!session?.access_token || !session?.user?.id) return;
+    await recoverUnsyncedOnce(session);
+    const { [SYNC_PENDING_KEY]: cur = [] } = await chrome.storage.local.get(SYNC_PENDING_KEY);
+    for (const w of cur) {
+      // 失敗した語は syncWordToSupabase 内でキューに残る（次の契機で再送）。1語の失敗で他を止めない。
+      await syncWordToSupabase(w, { fromFlush: true });
+    }
+  } catch {
+    /* 次の契機で再試行 */
+  } finally {
+    _flushing = false;
+  }
+}
+
+// 一回きりの救済: キュー導入前（〜v1.2.9）に未ログインで保存され、クラウドに無い語を拾い直す。
+//   対象は 2026-10-03 以降の保存分だけ＝それより前のローカル語には「アプリで削除済み」の語が
+//   混ざり得る（ローカル台帳は削除を知らない）ので、全量を押し戻して復活させる事故を避ける。
+const RECOVER_FLAG_KEY = 'cl_sync_recover_v1';
+const RECOVER_SINCE = '2026-10-03';
+async function recoverUnsyncedOnce(session) {
+  const all = await chrome.storage.local.get(null);
+  if (all[RECOVER_FLAG_KEY]) return;
+  const local = new Map();
+  for (const [k, v] of Object.entries(all)) {
+    if (!k.startsWith('cl_my_words') || !Array.isArray(v)) continue;
+    for (const w of v) {
+      if (!w?.word || String(w.savedAt || '') < RECOVER_SINCE) continue;
+      const lower = String(w.word).toLowerCase();
+      if (!local.has(lower)) local.set(lower, w);
+    }
+  }
+  if (local.size) {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/my_words?user_id=eq.${session.user.id}&select=word&limit=10000`,
+      { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${session.access_token}` } }
+    );
+    if (!res.ok) return; // 照合できない時は何もしない（次の契機でやり直す）
+    const cloud = new Set((await res.json()).map((r) => String(r.word).toLowerCase()));
+    for (const [lower, w] of local) if (!cloud.has(lower)) await queuePendingSync(w);
+  }
+  await chrome.storage.local.set({ [RECOVER_FLAG_KEY]: Date.now() });
+}
+
+// 契機: Webアプリでログイン（bridge.js がセッションを置く）／ブラウザ起動／ワーカーの起床。
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes[SB_SESSION_KEY]?.newValue) flushPendingSync();
+});
+chrome.runtime.onStartup.addListener(() => flushPendingSync());
+flushPendingSync();
+
+// 戻り値: クラウドに届いたら true。届かなかった語は未送信キューに残す（false）。
+async function syncWordToSupabase(word, { fromFlush = false } = {}) {
   const session = await getFreshSession();
-  if (!session?.access_token || !session?.user?.id) return;
+  if (!session?.access_token || !session?.user?.id) {
+    await queuePendingSync(word);
+    return false;
+  }
 
   // my_words の一意キーは (user_id, word) で merge-duplicates は「送った列だけ」更新する。
   // 値が取れなかった列（S/E検出失敗の season/episode・未取得の ja/encounters・空の drama_title）
@@ -203,7 +288,13 @@ async function syncWordToSupabase(word) {
       body: JSON.stringify([row]),
     });
 
-  const res = await post();
+  let res;
+  try {
+    res = await post();
+  } catch {
+    await queuePendingSync(word); // 通信断
+    return false;
+  }
   // ts_sec 列がまだ無いDB（supabase_my_words_tssec.sql 未実行）では PostgREST が 400 を返し、
   // 行ごと保存されない。列を外して1回だけ再送し、以後このワーカーでは送らない
   // （＝SQL 実行前に拡張を更新しても、単語の同期そのものは壊れない）。
@@ -218,7 +309,18 @@ async function syncWordToSupabase(word) {
     if (missing) {
       tsSecUnsupported = true;
       delete row.ts_sec;
-      await post();
+      try {
+        res = await post();
+      } catch {
+        res = null;
+      }
     }
   }
+  if (!res?.ok) {
+    await queuePendingSync(word);
+    return false;
+  }
+  await dropPendingSync(word.word);
+  if (!fromFlush) flushPendingSync(); // 送れた＝今は繋がっている。溜まっていた分も流す
+  return true;
 }
