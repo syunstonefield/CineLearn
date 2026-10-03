@@ -116,6 +116,18 @@ function knownMeaningFor(word, sentence) {
   return null;
 }
 
+// 正規化済みの句（小文字・空白区切り）を、字幕行に出ている元の表記（大文字小文字・アポストロフィ）で返す
+function phraseAsInSentence(phrase, sentence) {
+  try {
+    const esc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp(phrase.split(' ').map(esc).join("[^A-Za-z']+"), 'i');
+    const m = String(sentence || '').replace(/[’‘`´]/g, "'").match(re);
+    return m ? m[0] : phrase;
+  } catch {
+    return phrase;
+  }
+}
+
 // 作品が切り替わったら（Netflix の連続再生・メタの遅延到着）印対象を作り直す
 function syncMarkTitle() {
   const now = Date.now();
@@ -977,6 +989,16 @@ async function showHoverTip(wordEl) {
   const word = wordEl.dataset.word;
   if (!word) return;
 
+  // 手元の意味（この作品で保存した語／この話の単語リスト・句はその行に出ている時）があれば即時にそれを出す
+  // （作品の文脈に合った意味・通信なし）。無い語だけ従来の辞書→翻訳API。
+  const known = knownMeaningFor(word, wordEl.dataset.sentence);
+  if (known?.ja) {
+    const isPhrase = known.phrase && known.phrase !== word.toLowerCase();
+    clHoverTip.textContent = (isPhrase ? known.phrase + ': ' : '') + known.ja;
+    positionHoverTip(wordEl);
+    return;
+  }
+
   // キャッシュ済みなら即時、未取得ならローディング表示してから取得
   const cached = jaCache.get(word.toLowerCase());
   if (cached !== undefined) {
@@ -1579,6 +1601,13 @@ async function showWordPopup(word, sentence, rect) {
   const stillMine = () => popupToken === myToken && popup && popup.style.display !== 'none';
 
   const known = knownMeaningFor(word, sentence); // { ja, pos, label, phrase? } | null
+  // 句の一部をクリックした時（"mind your ps and qs" の on）は、見出し・意味・保存対象を句そのものにする。
+  // 単語 "on" に句の意味を付けて保存してしまうのを防ぐ（2026-10-02 レビューで発見）。字幕行から
+  // 元の大文字小文字を取り戻す（取れなければ正規化済みの句をそのまま使う）。
+  if (known?.phrase && known.phrase !== word.toLowerCase()) {
+    word = phraseAsInSentence(known.phrase, sentence);
+    vidLog?.(`popup headword → phrase "${word}"`);
+  }
   let dict = null;                               // 英英（後着）
   let jaCtx = null;                              // 文脈訳（確定・後着）
   let jaQuick = known?.ja || null;               // 即時訳（手元の意味 or ローカル辞書）
