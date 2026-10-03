@@ -159,40 +159,72 @@ let tsSecUnsupported = false;
 const SYNC_PENDING_KEY = 'cl_sync_pending';
 const SYNC_PENDING_MAX = 2000;
 
-async function queuePendingSync(word) {
+// ── 持ち主（1台の Chrome を複数アカウントで共有する場合の取り違え防止・2026-10-04）──
+//   キューの語には「誰の語か」(_clOwner=user_id) を付ける。ログイン中に送れなかった語はその人、
+//   未ログインで保存した語は「この Chrome で直前にログインしていた人」(cl_last_user_id) の語とみなす。
+//   再送は今のログインと持ち主が一致する語だけ＝Aさんの未送信語がBさんの単語帳へ流れない
+//   （一致しない語はキューに保留し、Aさんが再ログインした時に送る）。
+//   持ち主不明（この Chrome で一度もログインしていない）の語は、最初にログインした人の語として送る。
+const LAST_USER_KEY = 'cl_last_user_id';
+const pendingKeyOf = (w) => `${w._clOwner || ''}|${String(w.word).toLowerCase()}`;
+
+async function getLastUserId() {
+  const { [LAST_USER_KEY]: id = null } = await chrome.storage.local.get(LAST_USER_KEY);
+  return id;
+}
+async function rememberUser(uid) {
+  if (uid && uid !== (await getLastUserId())) await chrome.storage.local.set({ [LAST_USER_KEY]: uid });
+}
+
+async function queuePendingSync(word, owner) {
   if (!word?.word) return;
+  const rec = { ...word, _clOwner: word._clOwner || owner || null };
   const { [SYNC_PENDING_KEY]: cur = [] } = await chrome.storage.local.get(SYNC_PENDING_KEY);
-  const lower = String(word.word).toLowerCase();
-  const next = cur.filter((w) => String(w.word).toLowerCase() !== lower);
-  next.push(word);
+  const key = pendingKeyOf(rec);
+  const next = cur.filter((w) => pendingKeyOf(w) !== key);
+  next.push(rec);
   await chrome.storage.local.set({ [SYNC_PENDING_KEY]: next.slice(-SYNC_PENDING_MAX) });
 }
 
-async function dropPendingSync(wordText) {
+// 送れた語をキューから外す。持ち主不明で積まれていた同じ語も、送った人の語になったので一緒に外す。
+async function dropPendingSync(wordText, owner) {
   const { [SYNC_PENDING_KEY]: cur = [] } = await chrome.storage.local.get(SYNC_PENDING_KEY);
   if (!cur.length) return;
   const lower = String(wordText).toLowerCase();
-  const next = cur.filter((w) => String(w.word).toLowerCase() !== lower);
+  const next = cur.filter(
+    (w) => !(String(w.word).toLowerCase() === lower && (!w._clOwner || w._clOwner === owner))
+  );
   if (next.length !== cur.length) await chrome.storage.local.set({ [SYNC_PENDING_KEY]: next });
 }
 
 let _flushing = false;
+let _flushAgain = false; // 実行中に来た要求（例: 実行中に別アカウントでログイン）を捨てずに、終わってからもう一周
 async function flushPendingSync() {
-  if (_flushing) return;
+  if (_flushing) {
+    _flushAgain = true;
+    return;
+  }
   _flushing = true;
+  _flushAgain = false;
   try {
     const session = await getFreshSession();
     if (!session?.access_token || !session?.user?.id) return;
-    await recoverUnsyncedOnce(session);
+    const uid = session.user.id;
+    // 救済は「直前の持ち主＝今のログイン」の時だけ（別の人のローカル語を今の人へ送らない）。
+    const last = await getLastUserId();
+    if (!last || last === uid) await recoverUnsyncedOnce(session);
     const { [SYNC_PENDING_KEY]: cur = [] } = await chrome.storage.local.get(SYNC_PENDING_KEY);
     for (const w of cur) {
+      if (w._clOwner && w._clOwner !== uid) continue; // 別の人の語は保留（その人の再ログインで送る）
       // 失敗した語は syncWordToSupabase 内でキューに残る（次の契機で再送）。1語の失敗で他を止めない。
       await syncWordToSupabase(w, { fromFlush: true });
     }
+    await rememberUser(uid);
   } catch {
     /* 次の契機で再試行 */
   } finally {
     _flushing = false;
+    if (_flushAgain) flushPendingSync();
   }
 }
 
@@ -220,7 +252,7 @@ async function recoverUnsyncedOnce(session) {
     );
     if (!res.ok) return; // 照合できない時は何もしない（次の契機でやり直す）
     const cloud = new Set((await res.json()).map((r) => String(r.word).toLowerCase()));
-    for (const [lower, w] of local) if (!cloud.has(lower)) await queuePendingSync(w);
+    for (const [lower, w] of local) if (!cloud.has(lower)) await queuePendingSync(w, session.user.id);
   }
   await chrome.storage.local.set({ [RECOVER_FLAG_KEY]: Date.now() });
 }
@@ -236,7 +268,12 @@ flushPendingSync();
 async function syncWordToSupabase(word, { fromFlush = false } = {}) {
   const session = await getFreshSession();
   if (!session?.access_token || !session?.user?.id) {
-    await queuePendingSync(word);
+    await queuePendingSync(word, await getLastUserId()); // 未ログイン＝直前にログインしていた人の語
+    return false;
+  }
+  const uid = session.user.id;
+  if (word._clOwner && word._clOwner !== uid) {
+    await queuePendingSync(word); // 別の人の未送信語は今のアカウントへ送らない
     return false;
   }
 
@@ -292,7 +329,7 @@ async function syncWordToSupabase(word, { fromFlush = false } = {}) {
   try {
     res = await post();
   } catch {
-    await queuePendingSync(word); // 通信断
+    await queuePendingSync(word, uid); // 通信断
     return false;
   }
   // ts_sec 列がまだ無いDB（supabase_my_words_tssec.sql 未実行）では PostgREST が 400 を返し、
@@ -317,10 +354,11 @@ async function syncWordToSupabase(word, { fromFlush = false } = {}) {
     }
   }
   if (!res?.ok) {
-    await queuePendingSync(word);
+    await queuePendingSync(word, uid);
     return false;
   }
-  await dropPendingSync(word.word);
+  await dropPendingSync(word.word, uid);
+  await rememberUser(uid);
   if (!fromFlush) flushPendingSync(); // 送れた＝今は繋がっている。溜まっていた分も流す
   return true;
 }
