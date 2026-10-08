@@ -14,13 +14,14 @@ import { isMobileDevice } from '@/lib/device';
 import { tmdb } from '@/lib/api';
 import { computeRecap, computeWatchGroup } from '@/lib/reunion';
 import { settleRingValues } from '@/lib/rings';
+import { usePlan, featureAccess } from '@/lib/plan';
+import { dailyReviewCap } from '@/lib/reviewCount';
 import { confirmWatch, isWatchConfirmed, isWatchSnoozed, snoozeWatchPrompt, watchEpKey } from '@/lib/watchlog';
 import { speak } from '@/lib/speak';
 import { fetchCtxJa } from '@/lib/ctxtranslate';
 import { fetchJa } from '@/lib/jatranslate';
 import { getActiveWords, normTitleForMatch, prewarmTitleAliases, sameWorkTitle } from '@/lib/words';
 import {
-  DAILY_REVIEW_CAP,
   archiveDrama,
   buildLibraryEntries,
   getAllVocabWords,
@@ -72,7 +73,11 @@ export default function Dashboard() {
     tickets,
     openSceneCards,
     wordbookVersion,
+    loggedIn,
   } = useApp();
+  // 今日の復習の語数＝復習タブ・ボトムナビのバッジと同じ（プラスの人は設定の語数・無料は20語）
+  const plan = usePlan(loggedIn);
+  const todayCap = dailyReviewCap(settings, featureAccess('reviewCount', plan).usable);
   const [tick, setTick] = useState(0); // 再読込トリガ
   // 拡張機能の導入バナー（最初の関門対策で常設）。拡張未検出の判定はできないため、
   // インストール済みの人向けに×で消せる（消去は端末ローカルに記憶）。
@@ -556,14 +561,14 @@ export default function Dashboard() {
       <TodayPanel
         streak={data.streak}
         hasAnyWord={data.hasAnyWord}
-        todayCount={Math.min(data.dueCount, DAILY_REVIEW_CAP)}
+        todayCount={Math.min(data.dueCount, todayCap)}
         weekStats={data.weekStats}
         onStartReview={() => {
           // 横断復習（特定エピソードに紐づかない）→ historyId は null
           setCurrentHistoryId(null);
           const h = loadHistory();
           openReview(
-            getDueReviewWords(h, loadSrs(), myWords, activeWordKeys(h, myWords, sameWorkTitle)).slice(0, DAILY_REVIEW_CAP)
+            getDueReviewWords(h, loadSrs(), myWords, activeWordKeys(h, myWords, sameWorkTitle)).slice(0, todayCap)
           );
         }}
       />

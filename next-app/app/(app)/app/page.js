@@ -25,7 +25,9 @@ import BottomNav from '@/components/BottomNav';
 import WelcomeTutorial from '@/components/WelcomeTutorial';
 import ExtensionGuide from '@/components/ExtensionGuide';
 import SplashScreen from '@/components/SplashScreen';
-import { getActiveWordCount, getDueReviewWords, DAILY_REVIEW_CAP, ARCHIVE_EVENT } from '@/lib/storage';
+import { getActiveWordCount, getDueReviewWords, ARCHIVE_EVENT } from '@/lib/storage';
+import { usePlan, featureAccess } from '@/lib/plan';
+import { dailyReviewCap } from '@/lib/reviewCount';
 
 // まだ移植していない画面の仮ハンドラ
 function notYet(name) {
@@ -36,6 +38,7 @@ function notYet(name) {
 function AppShell() {
   const {
     profile,
+    settings,
     screen,
     goHome,
     mounted,
@@ -76,10 +79,13 @@ function AppShell() {
   }, []);
   // ボトムナビ「復習」バッジ用の未消化件数（今日の上限まで）。
   // 復習完了（reviewVersion）・クラウド取込・単語帳更新・棚の変更で再計算する。
+  // 上限は復習タブと同じ（プラスの人は設定の語数・無料は20語＝lib/reviewCount.js）。
+  const plan = usePlan(loggedIn);
+  const todayCap = dailyReviewCap(settings, featureAccess('reviewCount', plan).usable);
   const dueCount = useMemo(
-    () => (mounted ? Math.min(getDueReviewWords().length, DAILY_REVIEW_CAP) : 0),
+    () => (mounted ? Math.min(getDueReviewWords().length, todayCap) : 0),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [mounted, profile, reviewVersion, cloudVersion, wordbookVersion, archiveTick]
+    [mounted, profile, reviewVersion, cloudVersion, wordbookVersion, archiveTick, todayCap]
   );
   // ボトムナビはアプリ内（プロフィール選択済み）でのみ表示。
   // プロフィール選択・オンボーディング中は出さない。
