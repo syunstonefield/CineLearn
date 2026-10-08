@@ -3,7 +3,7 @@
 // UI を持たない小関数群に閉じる（PrepQuiz / PrepLaunch / VocabScreen から使う）。
 
 import { wordMatchRegex, normApostrophes, exampleContainsWord } from './subtitles';
-import { loadSrs, isMastered, isDue, isStruggling } from './storage';
+import { loadSrs, isMastered, isDue } from './storage';
 import { queueStatePush } from './supabase';
 
 const CEFR_ORDER = ['A2', 'B1', 'B2', 'C1', 'C2'];
@@ -137,19 +137,20 @@ export function buildChoices(answerWord, pool, count = 3) {
 
 // 出題語の選定。予習クイズ(selectQuizWords)がレベル高め優先なのに対し、
 // こちらは「思い出せるか微妙な語」を狙う＝テスト効果（retrieval practice）が最大になる帯。
-//   ⭐苦手（一度失敗＝isStruggling） > 期日到来 > 新出 の順に枠を配り、各枠内はランダム。
+//   期日到来 > 既習（期日前） > 新出 の順に枠を配り、各枠内はランダム。
 //   マスター済み・スキップは出題しない(#7b)。
 //   枠が埋まらない分は上位カテゴリから繰り上げる（無理に問題数を落とさない）。
-const POST_WATCH_QUOTA = { struggling: 2, due: 2, fresh: 1 };
+//   ⭐苦手枠（isStruggling＝EF<2.0）は 2026-10-08 に廃止。reviewWord は失敗で EF を変えないため
+//   完全に忘れた語が苦手にならず、判定として成り立っていなかった（オーナー決定＝直さず撤去）。
+const POST_WATCH_QUOTA = { due: 3, rest: 1, fresh: 1 };
 
 // 候補を優先度順に max 語まで取り出す。seen は呼び出し側と共有して重複出題を防ぐ。
 // quota を渡すとカテゴリ上限つき（＝混ざった構成になる）。省略時は優先度順にそのまま。
 function pickByPriority(cands, srs, max, seen, quota) {
-  const buckets = { struggling: [], due: [], fresh: [], rest: [] };
+  const buckets = { due: [], fresh: [], rest: [] };
   for (const w of cands) {
     const e = srs[(w.word || '').toLowerCase()];
-    if (isStruggling(e)) buckets.struggling.push(w);
-    else if (!e) buckets.fresh.push(w);
+    if (!e) buckets.fresh.push(w);
     else if (isDue(e)) buckets.due.push(w);
     else buckets.rest.push(w);
   }
@@ -167,12 +168,12 @@ function pickByPriority(cands, srs, max, seen, quota) {
     }
   };
   if (quota) {
-    take(buckets.struggling, quota.struggling);
     take(buckets.due, quota.due);
+    take(buckets.rest, quota.rest);
     take(buckets.fresh, quota.fresh);
   }
-  // 枠が余ったら「苦手→期日到来→未分類→新出」の順で繰り上げて埋める
-  [buckets.struggling, buckets.due, buckets.rest, buckets.fresh].forEach((b) => take(b, max));
+  // 枠が余ったら「期日到来→既習→新出」の順で繰り上げて埋める
+  [buckets.due, buckets.rest, buckets.fresh].forEach((b) => take(b, max));
   return picked;
 }
 
@@ -290,11 +291,11 @@ export function buildLocalQuiz(words, srs = {}, { count = 5, choiceCount = 4 } =
     questions.push(...rest.map((w) => buildMeaningQuestion(w, pool, choiceCount)).filter(Boolean));
   }
 
-  // 1問目だけは易しめ（一度は正解できている＝苦手でない既習語）を置く。
+  // 1問目だけは易しめ（一度は正解できている＝連続正解1回以上の既習語）を置く。
   // 初手で間違えると離脱しやすいため（意欲対策）。該当が無ければ並びは変えない。
   const easyIdx = questions.findIndex((q) => {
     const e = srs[String(q.word).toLowerCase()];
-    return e && !isStruggling(e);
+    return e && e.repetitions >= 1;
   });
   if (easyIdx > 0) questions.unshift(questions.splice(easyIdx, 1)[0]);
   return questions;

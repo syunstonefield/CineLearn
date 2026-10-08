@@ -11,7 +11,7 @@ import {
   saveWordTranslation,
   repairLongExamples,
 } from '@/lib/words';
-import { loadSrs, skipWord, unskipWord, isLearned, isMastered, isStruggling, todayStr } from '@/lib/storage';
+import { loadSrs, skipWord, unskipWord, isLearned, isMastered, todayStr } from '@/lib/storage';
 import { fillTranslations } from '@/lib/translateQueue';
 import { speak } from '@/lib/speak';
 import { secToTimeLabel } from '@/lib/subtitles';
@@ -336,7 +336,6 @@ export default function WordbookScreen() {
                       // ここだけ時刻を捨てていた（2026-08-08）。作品横断の一覧なので、出所ラベルと
                       // 並んで「どの作品の何分ごろか」が分かる。
                       ts={w.tsSec != null ? { sec: w.tsSec, label: secToTimeLabel(w.tsSec) } : null}
-                      priority={isStruggling(srs[w.word.toLowerCase()])}
                       exampleSource={wordSource(w, unassigned)}
                       starred
                       onSpeak={speak}
