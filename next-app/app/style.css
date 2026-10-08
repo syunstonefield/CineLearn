@@ -6761,8 +6761,6 @@ html[data-theme="dark"] .vj-screen {
   --vj-grid: rgba(255,255,255,.08); --vj-axis: #a39a8c; --vj-axis2: #8a7d68; --vj-endlabel: #f0c878; --vj-dot-stroke: var(--surface);
   --vj-prog: rgba(255,255,255,.1); --vj-prog-on: #d39a3e;
 }
-.vj-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
-.vj-head h2 { margin: 0; font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 700; color: var(--vj-ink); }
 .vj-body { display: grid; gap: 16px; }
 .vj-body > .vr-wrap { margin: 0; padding: 0; }
 .vj-cell:focus-visible { outline: 2px solid var(--vj-learned); outline-offset: 2px; }
@@ -6822,4 +6820,42 @@ button.vj-cell { cursor: pointer; }
 @media (max-width: 640px) {
   .vj-screen { padding: 12px 16px 24px; }
   .vj-card { padding: 16px 14px; }
+}
+
+/* 凡例の数字は円の中心の数字と同じ書体（オーナー 2026-10-08） */
+.vr-lrow b { font-family: 'Playfair Display', serif; font-weight: 700; }
+
+/* 円の下の内容（最近覚えた単語・学習した日・週ごとの推移）＝画面に入ったら下からふわっと出す。
+   円をタップするとここへ動きつきで移る（VocabJourneyScreen の openRest）。 */
+.vj-reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity .6s ease, transform .7s cubic-bezier(.2,.8,.2,1);
+  scroll-margin-top: 80px;
+}
+.vj-reveal.is-in { opacity: 1; transform: none; }
+.vj-screen button.vr-stage .vr-cue { animation: vjCueBob 2.4s ease-in-out infinite; }
+@keyframes vjCueBob { 0%, 100% { transform: translate(-50%, 0); } 50% { transform: translate(-50%, 4px); } }
+
+/* スマホ: 円のカードを1画面（ヘッダーと下のタブを除いた高さ＝--vj-avail・JS で計測）に収める */
+@media (max-width: 640px) {
+  .vj-screen .vr-wrap { padding: 0; }
+  .vj-screen { padding-top: 8px; }
+  .vj-screen .vr-card {
+    min-height: calc(var(--vj-avail, 640px) - 20px);
+    display: flex; flex-direction: column; justify-content: space-evenly; align-items: center;
+    gap: 6px; padding: 12px 14px 14px;
+  }
+  .vj-screen .vr-eyebrow { margin-bottom: 2px; font-size: 12px; }
+  .vj-screen .vr-copy h2 { font-size: 22px; margin-bottom: 4px; }
+  .vj-screen .vr-copy p { font-size: 12.5px; line-height: 1.6; }
+  .vj-screen .vr-stage { width: min(260px, calc(var(--vj-avail, 640px) * 0.34)); margin-bottom: 18px; }
+  .vj-screen .vr-legend { margin: 0 auto; }
+  .vj-screen .vr-lrow { padding: 5px 0; gap: 2px 10px; }
+  .vj-screen .vr-lrow b { font-size: 18px; }
+  .vj-screen .vr-today { margin-top: 8px; padding: 9px 14px; font-size: 13px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .vj-reveal { opacity: 1; transform: none; transition: none; }
+  .vj-screen button.vr-stage .vr-cue { animation: none; }
 }

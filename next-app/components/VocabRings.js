@@ -51,9 +51,11 @@ function staticFrame(v) {
   return { nums: v, fr: ringFractions(v), prevFr: null, glow: 0 };
 }
 
-function useRingAnimation(values, from) {
+// glowFrom＝光らせる区間の始まり（前回見た値）。from から伸ばしつつ、glowFrom→今の値の差分だけ光る。
+function useRingAnimation(values, from, glowFrom) {
   const [frame, setFrame] = useState(() => staticFrame(from || values));
   const lastRef = useRef(from || values);
+  const glowRef = useRef(glowFrom);
   useEffect(() => {
     const to = values;
     const fromV = lastRef.current;
@@ -67,6 +69,9 @@ function useRingAnimation(values, from) {
     }
     const frFrom = ringFractions(fromV);
     const frTo = ringFractions(to);
+    // 光る区間は「前回見た値→今の値」（最初の1回だけ）。それ以降の更新は伸びた分だけ光る
+    const frGlow = glowRef.current ? ringFractions(glowRef.current) : frFrom;
+    glowRef.current = null;
     let raf = 0;
     let t0 = null;
     const end = DUR + Math.max(...Object.values(DELAYS));
@@ -82,7 +87,7 @@ function useRingAnimation(values, from) {
       });
       const glow = t < end ? 0.9 * Math.min(1, t / end) : Math.max(0, 0.9 * (1 - (t - end) / GLOW));
       if (t < end + GLOW) {
-        setFrame({ nums, fr, prevFr: frFrom, glow });
+        setFrame({ nums, fr, prevFr: frGlow, glow });
         raf = requestAnimationFrame(tick);
       } else {
         setFrame(staticFrame(to));
@@ -139,8 +144,9 @@ function WordCard({ w, poster }) {
 // values / from: { met, learned, mastered }（from＝前回見た値・無ければ動きなし）
 // gain: 前回から増えた「覚えた」の語数。recent: 最近覚えた語（collectRingWords の要素）。
 // posterFor(title) → posterPath。onOpen: 円・カードのタップ先（無ければタップの手がかりを出さない）。
-export default function VocabRings({ values, from = null, gain = 0, recent = [], posterFor, onOpen, onSeeAll }) {
-  const { nums, fr, prevFr, glow } = useRingAnimation(values, from);
+// glowFrom: 光らせる区間の始まり（前回見た値）。cue: タップの手がかりの文言。restRef: 円の下の内容（タップで移る先）の目印。
+export default function VocabRings({ values, from = null, glowFrom = null, gain = 0, recent = [], posterFor, onOpen, onSeeAll, cue = 'タップで詳しく ›', restClassName = '' }) {
+  const { nums, fr, prevFr, glow } = useRingAnimation(values, from, glowFrom);
   if (!values || values.met <= 0) return null;
   const mastered0 = values.mastered <= 0;
   const Stage = onOpen ? 'button' : 'div';
@@ -187,7 +193,7 @@ export default function VocabRings({ values, from = null, gain = 0, recent = [],
             <span>覚えた</span>
             {!mastered0 && <em>うち マスター {fmt(nums.mastered)}</em>}
           </div>
-          {onOpen && <span className="vr-cue">タップで詳しく ›</span>}
+          {onOpen && <span className="vr-cue">{cue}</span>}
         </Stage>
 
         <div className="vr-legend">
@@ -231,7 +237,7 @@ export default function VocabRings({ values, from = null, gain = 0, recent = [],
       </section>
 
       {recent.length > 0 && (
-        <section className="vr-recent">
+        <section className={`vr-recent ${restClassName}`.trim()}>
           <div className="vr-rh">
             <h3>🎬 最近覚えた単語・シーン</h3>
             {onSeeAll && (

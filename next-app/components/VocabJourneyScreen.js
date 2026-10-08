@@ -288,17 +288,24 @@ function useRings({ mounted, profile, settings, version }) {
     () => (myWords ? collectRingWords(loadHistory(), myWords, loadSrs(), sameWorkTitle) : null),
     [myWords, version] // eslint-disable-line react-hooks/exhaustive-deps
   );
-  const [ring, setRing] = useState(null); // { values, from, gain }
+  const [ring, setRing] = useState(null); // { values, from, glowFrom, gain }
   const base = useRef(undefined); // このタブを開いた時点の「前回見た値」（null＝初めて）
   useEffect(() => {
     if (!words) return;
     const values = settleRingValues(ringCounts(words)); // 今日の行にも最高値を残す
     if (base.current === undefined) base.current = loadRingSeen();
     const b = base.current;
-    const from = b
+    // 円弧と数字は毎回 0 から伸ばす（オーナー 2026-10-08）。光るのは「前回見た値→今の値」の差分だけ。
+    const glowFrom = b
       ? { met: Math.min(b.met, values.met), learned: Math.min(b.learned, values.learned), mastered: Math.min(b.mastered, values.mastered) }
       : null;
-    setRing((prev) => ({ values, from: prev ? prev.from : from, gain: b ? Math.max(0, values.learned - b.learned) : 0 }));
+    const ZERO = { met: 0, learned: 0, mastered: 0 };
+    setRing((prev) => ({
+      values,
+      from: prev ? prev.from : ZERO,
+      glowFrom: prev ? prev.glowFrom : glowFrom,
+      gain: b ? Math.max(0, values.learned - b.learned) : 0,
+    }));
     saveRingSeen(values);
   }, [words]);
 
@@ -360,26 +367,74 @@ export default function VocabJourneyScreen() {
   }, [mounted, reviewVersion, cloudVersion, ring]); // ring＝今日の行に円の値を残した後に推移を読み直す
 
   const grassOk = featureAccess('grass', plan).usable;
+  const screenRef = useRef(null);
+
+  // スマホでは円のカードを1画面に収める（ヘッダーと下のタブを除いた高さ＝--vj-avail）。
+  useEffect(() => {
+    const el = screenRef.current;
+    if (!el) return undefined;
+    const fit = () => {
+      const hdr = document.querySelector('header')?.getBoundingClientRect().height || 0;
+      const nav = document.querySelector('nav.bottom-nav')?.getBoundingClientRect().height || 0;
+      el.style.setProperty('--vj-avail', `${Math.max(420, window.innerHeight - hdr - nav)}px`);
+    };
+    fit();
+    window.addEventListener('resize', fit);
+    return () => window.removeEventListener('resize', fit);
+  }, [data]);
+
+  // 円の下の内容（最近覚えた単語・学習した日・週ごとの推移）は、画面に入ったときに下からふわっと出す。
+  useEffect(() => {
+    const root = screenRef.current;
+    if (!root) return undefined;
+    const items = root.querySelectorAll('.vj-reveal');
+    if (typeof IntersectionObserver === 'undefined') {
+      items.forEach((x) => x.classList.add('is-in')); // 監視できない環境では最初から見せる（隠れたままにしない）
+      return undefined;
+    }
+    const io = new IntersectionObserver(
+      (es) => es.forEach((e) => e.isIntersecting && (e.target.classList.add('is-in'), io.unobserve(e.target))),
+      { threshold: 0.12 }
+    );
+    items.forEach((x) => io.observe(x));
+    return () => io.disconnect();
+  }, [data, ring, recent.length]);
+
+  // 円をタップ → 円の下の内容へ動きつきで移る（動きを減らす設定では即座に）。
+  const openRest = () => {
+    const root = screenRef.current;
+    const target = root?.querySelector('.vj-reveal');
+    if (!target) return;
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    target.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+  };
 
   return (
-    <div className="vj-screen">
-      <div className="vj-head">
-        <h2>語彙のあゆみ</h2>
-      </div>
+    <div className="vj-screen" ref={screenRef}>
       {data && (
         <div className="vj-body">
           {ring && canShowRings() && (
             <VocabRings
               values={ring.values}
               from={ring.from}
+              glowFrom={ring.glowFrom}
               gain={ring.gain}
               recent={recent}
               posterFor={posterFor}
               onSeeAll={openWordbook}
+              onOpen={openRest}
+              cue="タップで記録を見る ↓"
+              restClassName="vj-reveal"
             />
           )}
-          {grassOk && <Grass grass={data.grass} days={data.days} dailyStart={data.dailyStart} />}
-          <Trend trend={data.trend} plan={plan} />
+          {grassOk && (
+            <div className="vj-reveal">
+              <Grass grass={data.grass} days={data.days} dailyStart={data.dailyStart} />
+            </div>
+          )}
+          <div className="vj-reveal">
+            <Trend trend={data.trend} plan={plan} />
+          </div>
         </div>
       )}
     </div>
