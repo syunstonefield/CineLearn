@@ -6,6 +6,16 @@ import { getToeicLevel, getVocabCount } from '@/lib/vocab';
 import { getThemePref, setThemePref } from '@/lib/theme';
 import { enablePushSubscription } from '@/lib/push';
 import { NON_AFFILIATION } from '@/lib/legal';
+import { loadHistory, loadSrs } from '@/lib/storage';
+import { getActiveWords } from '@/lib/words';
+import {
+  collectExportRows,
+  toCsv,
+  toAnkiTsv,
+  exportFileName,
+  downloadText,
+  EXPORT_EXAMPLES_PER_EPISODE,
+} from '@/lib/export';
 
 // 設定（英語レベル / 利用サービス / テーマ / 単語階層 / 復習リマインダー）。
 // 旧 SettingsModal をモーダル→screen='settings' のページに置き換え。
@@ -29,7 +39,7 @@ const TIERS = [
 ];
 
 export default function SettingsScreen() {
-  const { settings, updateSettings, closeSettings } = useApp();
+  const { settings, updateSettings, closeSettings, profile } = useApp();
 
   const toeicScore = settings.toeicScore || 0;
   const targetScore = settings.targetToeicScore || 0;
@@ -119,6 +129,34 @@ export default function SettingsScreen() {
     else if (r.reason === 'not_logged_in') setNotifyMsg('通知を使うにはログインしてください');
     else if (r.reason === 'denied') setNotifyMsg('ブラウザの設定から通知を許可してください');
     else setNotifyMsg('通知の設定に失敗しました');
+  };
+
+  // 単語の書き出し（無料・端末内のデータだけで作る＝送信なし）。lib/export.js
+  const [withExamples, setWithExamples] = useState(true);
+  const [exportMsg, setExportMsg] = useState('');
+  const runExport = async (kind) => {
+    try {
+      const myWords = await getActiveWords(profile?.id).catch(() => []);
+      const movieTitles = new Set(
+        (settings.myDramas || []).filter((d) => d.type === 'movie' || d.mediaType === 'movie').map((d) => d.title)
+      );
+      const rows = collectExportRows({
+        history: loadHistory(),
+        srs: loadSrs(),
+        myWords: myWords || [],
+        movieTitles,
+        includeExamples: withExamples,
+      });
+      if (!rows.length) {
+        setExportMsg('書き出せる単語がまだありません');
+        return;
+      }
+      if (kind === 'anki') downloadText(toAnkiTsv(rows), exportFileName('txt'), 'text/plain');
+      else downloadText(toCsv(rows), exportFileName('csv'), 'text/csv');
+      setExportMsg(`${rows.length}語を書き出しました`);
+    } catch {
+      setExportMsg('書き出しに失敗しました');
+    }
   };
 
   const showLevel = toeicScore >= 10;
@@ -314,6 +352,35 @@ export default function SettingsScreen() {
                 {notifyMsg}
               </div>
             )}
+          </div>
+
+          {/* 単語の書き出し（無料・永久＝docs/decision-pricing-2026-10-08.md）。例文の有無で条件を変えない。 */}
+          <div className="settings-section">
+            <div className="settings-section-title">💾 単語の書き出し</div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8, lineHeight: 1.6 }}>
+              単語・意味・品詞・作品と話・復習の記録を、表計算（CSV）や Anki に取り込める形で保存します。
+              この端末にあるデータから作ります。
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 10 }}>
+              <input type="checkbox" checked={withExamples} onChange={(e) => setWithExamples(e.target.checked)} />
+              例文を含める（出典つき・1話あたり{EXPORT_EXAMPLES_PER_EPISODE}文まで）
+            </label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn-secondary" style={{ flex: 1 }} onClick={() => runExport('csv')}>
+                CSV で保存
+              </button>
+              <button className="btn-secondary" style={{ flex: 1 }} onClick={() => runExport('anki')}>
+                Anki 用で保存
+              </button>
+            </div>
+            {exportMsg && (
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6, textAlign: 'center' }}>
+                {exportMsg}
+              </div>
+            )}
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.6 }}>
+              Anki 用は「ファイル → 読み込む」で取り込めます（表＝単語・裏＝意味と例文）。
+            </div>
           </div>
 
           <button className="btn-primary" style={{ marginTop: 8, width: '100%' }} onClick={save}>
