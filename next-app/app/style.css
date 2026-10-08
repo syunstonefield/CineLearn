@@ -5158,7 +5158,7 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
 .pf-ticket-card {
   width: 100%;
   max-width: 440px;
-  aspect-ratio: 1312 / 816; /* テンプレ画像の実寸 */
+  aspect-ratio: 1250 / 640; /* テンプレ画像の実寸（2026-10-08 券の形に切り抜き・余白と暗背景を除去） */
   margin: 4px auto 0;
   perspective: 1400px;
   container-type: inline-size;

@@ -75,21 +75,21 @@ export default function PrepLaunch() {
               <div className="pf-ticket-inner">
                 {/* 表＝プレミアパス。位置%(top/left)はテンプレ画像に合わせて要微調整(TUNE)。 */}
                 <div className="pf-face pf-front">
-                  <div className="pf-ov pf-ov-title" style={{ top: '45%', left: '42%' }}>
+                  <div className="pf-ov pf-ov-title" style={{ top: '44.1%', left: '41.8%' }}>
                     {enTitle}
                   </div>
                   {seLabel && (
-                    <div className="pf-ov pf-ov-se" style={{ top: '57%', left: '42%' }}>
+                    <div className="pf-ov pf-ov-se" style={{ top: '59.4%', left: '41.8%' }}>
                       {seLabel}
                     </div>
                   )}
-                  <div className="pf-ov pf-ov-result" style={{ top: '63%', left: '42%' }}>
+                  <div className="pf-ov pf-ov-result" style={{ top: '67%', left: '41.8%' }}>
                     TEST CLEARED
                   </div>
-                  <div className="pf-ov pf-ov-seat" style={{ top: '49%', left: '84.5%' }}>
+                  <div className="pf-ov pf-ov-seat" style={{ top: '49.2%', left: '86.4%' }}>
                     {seat}
                   </div>
-                  <div className="pf-ov pf-ov-date" style={{ top: '63%', left: '84.5%' }}>
+                  <div className="pf-ov pf-ov-date" style={{ top: '67%', left: '86.4%' }}>
                     {dateLabel}
                   </div>
                 </div>
