@@ -16,7 +16,8 @@ import {
   exportFileName,
   downloadText,
 } from '@/lib/export';
-import { usePlan } from '@/lib/plan';
+import { usePlan, featureAccess } from '@/lib/plan';
+import { REVIEW_COUNT_OPTIONS, reviewCountLabel, normalizeReviewCount, DAILY_REVIEW_CAP } from '@/lib/reviewCount';
 import PlusNote from './PlusNote';
 
 // 設定（英語レベル / 利用サービス / テーマ / 単語階層 / 復習リマインダー）。
@@ -54,6 +55,9 @@ export default function SettingsScreen() {
   // 単語リストで「追加した単語」を本編の語と混ぜて📍時刻順に並べるか（既定=混ぜる）。
   // オフなら従来どおり「✏️ 追加した単語」セクションとして末尾にまとめる。
   const mergeAdded = settings.mergeAddedWords !== false;
+  // 毎日の復習の語数（今日の復習にだけ効く・正式版ではプラス）。未設定は20。
+  const reviewCount = normalizeReviewCount(settings.dailyReviewCount);
+  const reviewCountAccess = featureAccess('reviewCount', plan);
 
   const [notifyMsg, setNotifyMsg] = useState('');
   const [notifyBtn, setNotifyBtn] = useState(null); // null=通常, それ以外はラベル上書き
@@ -323,6 +327,41 @@ export default function SettingsScreen() {
                 />
               </label>
             </div>
+          </div>
+
+          {/* 毎日の復習の語数（lib/reviewCount.js）。正式版の無料の人には選択肢の代わりに説明文（ぼかし禁止） */}
+          <div className="settings-section">
+            <div className="settings-section-title">🔁 今日の復習の語数</div>
+            {reviewCountAccess.locked ? (
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.7 }}>
+                今日の復習は1日{DAILY_REVIEW_CAP}語です。語数の変更（10／20／30／50／全部）はプラスの機能です。
+              </div>
+            ) : (
+              <>
+                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8, lineHeight: 1.7 }}>
+                  「今日の復習」で1日に出す語数です。期日の来た語が少ない日は、その数だけ出します。
+                </div>
+                <div className="rc-options" role="radiogroup" aria-label="今日の復習の語数">
+                  {REVIEW_COUNT_OPTIONS.map((v) => (
+                    <button
+                      key={String(v)}
+                      type="button"
+                      role="radio"
+                      aria-checked={reviewCount === v}
+                      className={'rc-option' + (reviewCount === v ? ' is-on' : '')}
+                      onClick={() => updateSettings({ dailyReviewCount: v })}
+                    >
+                      {reviewCountLabel(v)}
+                    </button>
+                  ))}
+                </div>
+                {reviewCountAccess.betaNote && (
+                  <div style={{ marginTop: 8 }}>
+                    <PlusNote feature="reviewCount" plan={plan} />
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
           {/* 復習リマインダー */}

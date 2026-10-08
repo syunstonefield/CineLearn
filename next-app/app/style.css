@@ -6182,35 +6182,113 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
 .rh-hero-btn:active { transform: translateY(0) scale(0.98); }
 
 /* マスター手前（今日の復習の真下・2026-10-08）。今日の復習より一段控えめな明カードに金の縁取り＝
-   「あと少し」を励ます側の色（警告色は使わない）。ボタンも金で、今日の復習のアクセント色と役割を分ける。 */
+   「あと少し」を励ます側の色（警告色は使わない）。ボタンも金で、今日の復習のアクセント色と役割を分ける。
+   キラキラ演出（オーナー要望 2026-10-08）: 3重の円（.vr-*）の「増えた分だけ光る」金と揃える＝
+   ゆっくり光る縁・ときどき横切るきらめき・舞う金の粒・⭐のまわりで瞬く光。派手にしない（速さ・濃さは控えめ）。
+   prefers-reduced-motion では全部止めた絵（縁の光は静止したまま残す）。 */
 .rh-near {
+  --rh-near-glow: color-mix(in srgb, var(--gold) 22%, transparent);
+  position: relative; isolation: isolate; overflow: hidden;
   display: flex; align-items: center; gap: 12px;
   border-radius: 16px; padding: 12px 16px; margin-bottom: 12px;
   background:
-    radial-gradient(120% 140% at 92% 0%, color-mix(in srgb, var(--gold) 16%, transparent), transparent 60%),
+    radial-gradient(120% 140% at 92% 0%, color-mix(in srgb, var(--gold) 18%, transparent), transparent 60%),
+    radial-gradient(60% 120% at 4% 100%, color-mix(in srgb, var(--gold) 10%, transparent), transparent 70%),
     color-mix(in srgb, var(--gold) 6%, var(--surface));
-  border: 1px solid color-mix(in srgb, var(--gold) 34%, var(--review-border));
+  border: 1px solid color-mix(in srgb, var(--gold) 42%, var(--review-border));
   color: var(--text);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--gold) 10%, transparent), 0 4px 16px var(--rh-near-glow);
+  animation: rhNearGlow 4.8s ease-in-out infinite alternate;
+}
+/* 舞う金の粒（.vr-card::before と同じ手口・2層で奥行き） */
+.rh-near::before {
+  content: ""; position: absolute; inset: -60px 0 0; z-index: -1; pointer-events: none;
+  background-image:
+    radial-gradient(circle, color-mix(in srgb, var(--gold) 70%, transparent) 0 1px, transparent 1.7px),
+    radial-gradient(circle, color-mix(in srgb, var(--gold) 45%, white) 0 1.2px, transparent 2px);
+  background-size: 46px 46px, 71px 71px;
+  background-position: 0 0, 23px 31px;
+  opacity: .65;
+  animation: rhNearDust 11s linear infinite;
+}
+/* ときどき横切るきらめき（光の帯） */
+.rh-near::after {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: linear-gradient(105deg, transparent 38%, color-mix(in srgb, #ffe6a8 55%, transparent) 50%, transparent 62%);
+  background-size: 260% 100%;
+  background-position: 130% 0;
+  opacity: .7;
+  animation: rhNearSheen 6.5s ease-in-out infinite;
+}
+@keyframes rhNearGlow {
+  from { box-shadow: 0 0 0 1px color-mix(in srgb, var(--gold) 10%, transparent), 0 4px 14px var(--rh-near-glow); }
+  to { box-shadow: 0 0 0 1px color-mix(in srgb, var(--gold) 34%, transparent), 0 6px 24px color-mix(in srgb, var(--gold) 34%, transparent); }
+}
+@keyframes rhNearDust { to { transform: translateY(-46px); } }
+@keyframes rhNearSheen {
+  0%, 55% { background-position: 130% 0; }
+  100% { background-position: -30% 0; }
 }
 .rh-near-icon {
-  flex-shrink: 0; width: 34px; height: 34px; border-radius: 50%;
+  position: relative; flex-shrink: 0; width: 34px; height: 34px; border-radius: 50%;
   display: inline-flex; align-items: center; justify-content: center; font-size: 17px;
-  background: color-mix(in srgb, var(--gold) 18%, transparent);
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--gold) 30%, white), color-mix(in srgb, var(--gold) 42%, transparent) 75%);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--gold) 45%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--gold) 35%, transparent);
+}
+/* ⭐のまわりで瞬く小さな光（3つを時間差で） */
+.rh-near-twinkle {
+  position: absolute; width: 7px; height: 7px; pointer-events: none;
+  background: radial-gradient(circle, #fff6dc 0 18%, transparent 20%),
+    conic-gradient(from 45deg, transparent 0 20%, #ffd77a 22% 28%, transparent 30% 45%, #ffd77a 47% 53%, transparent 55% 70%, #ffd77a 72% 78%, transparent 80% 95%, #ffd77a 97%);
+  clip-path: polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%);
+  opacity: 0; transform: scale(.4);
+  animation: rhNearTwinkle 3.2s ease-in-out infinite;
+}
+.rh-near-twinkle:nth-child(1) { top: -3px; right: -2px; }
+.rh-near-twinkle:nth-child(2) { bottom: 0; left: -4px; width: 5px; height: 5px; animation-delay: 1.1s; }
+.rh-near-twinkle:nth-child(3) { top: 40%; right: -7px; width: 5px; height: 5px; animation-delay: 2.2s; }
+@keyframes rhNearTwinkle {
+  0%, 100% { opacity: 0; transform: scale(.4) rotate(0deg); }
+  40% { opacity: 1; transform: scale(1.15) rotate(25deg); }
+  70% { opacity: .2; transform: scale(.7) rotate(40deg); }
 }
 .rh-near-main { flex: 1; min-width: 0; }
 .rh-near-title { font-size: 14px; font-weight: 800; }
-.rh-near-count { margin-left: 8px; color: var(--gold); }
+.rh-near-count {
+  margin-left: 8px; color: var(--gold);
+  background: linear-gradient(100deg, color-mix(in srgb, var(--gold) 80%, black), var(--gold) 45%, color-mix(in srgb, var(--gold) 55%, white));
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+}
 .rh-near-sub { font-size: 12px; margin-top: 2px; color: var(--text-muted); }
 .rh-near-btn {
+  position: relative; overflow: hidden;
   flex-shrink: 0; border: none; cursor: pointer; font-family: inherit;
   background: linear-gradient(135deg, color-mix(in srgb, var(--gold) 82%, white), var(--gold));
   color: #fff; border-radius: 11px; padding: 9px 16px; font-size: 13px; font-weight: 700;
-  white-space: nowrap;
-  box-shadow: 0 3px 10px color-mix(in srgb, var(--gold) 32%, transparent);
+  white-space: nowrap; text-shadow: 0 1px 1px color-mix(in srgb, var(--gold) 60%, black);
+  box-shadow: 0 3px 12px color-mix(in srgb, var(--gold) 38%, transparent), inset 0 1px 0 rgba(255,255,255,.35);
   transition: transform 0.12s ease, filter 0.12s ease;
 }
-.rh-near-btn:hover { transform: translateY(-1px); filter: brightness(1.04); }
+.rh-near-btn:hover { transform: translateY(-1px); filter: brightness(1.05); }
 .rh-near-btn:active { transform: translateY(0) scale(0.98); }
+/* ダーク: 同じ金をくすんだ地に（.vr-wrap のダークと同じ考え方）。光の帯と粒は少し弱める */
+html[data-theme="dark"] .rh-near {
+  background:
+    radial-gradient(120% 140% at 92% 0%, color-mix(in srgb, var(--gold) 16%, transparent), transparent 60%),
+    radial-gradient(60% 120% at 4% 100%, color-mix(in srgb, var(--gold) 8%, transparent), transparent 70%),
+    linear-gradient(120deg, #241e16, #1b1712);
+  border-color: color-mix(in srgb, var(--gold) 34%, transparent);
+}
+html[data-theme="dark"] .rh-near::after { opacity: .28; }
+html[data-theme="dark"] .rh-near::before { opacity: .35; }
+html[data-theme="dark"] .rh-near-icon { background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--gold) 38%, transparent), color-mix(in srgb, var(--gold) 12%, transparent) 70%); }
+html[data-theme="dark"] .rh-near-count { background: linear-gradient(100deg, var(--gold), color-mix(in srgb, var(--gold) 55%, white)); -webkit-background-clip: text; background-clip: text; }
+@media (prefers-reduced-motion: reduce) {
+  .rh-near, .rh-near::before, .rh-near::after, .rh-near-twinkle { animation: none; }
+  .rh-near::after, html[data-theme="dark"] .rh-near::after { opacity: 0; }
+  .rh-near-twinkle:nth-child(1) { opacity: .9; transform: scale(1); }
+  .rh-near-twinkle:nth-child(2), .rh-near-twinkle:nth-child(3) { opacity: .5; transform: scale(.8); }
+}
 
 .rh-section-label {
   font-size: 12px; font-weight: 700; color: var(--text-muted);
@@ -6275,6 +6353,23 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
   display: inline-block; padding: 2px 8px; border-radius: 999px;
   font-size: 11px; font-weight: 700; color: #fff; background: var(--accent);
 }
+/* 作品まとめ復習の入口（作品見出しの「復習 N ›」）。見た目は従来のバッジのまま、押せることだけ › で示す */
+button.rh-due-badge-btn { border: none; cursor: pointer; font-family: inherit; line-height: inherit; transition: filter 0.12s ease, transform 0.12s ease; }
+button.rh-due-badge-btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
+button.rh-due-badge-btn:active { transform: none; }
+/* 正式版の無料の人: 行は進み具合の表示だけ（押せない）。ぼかしはしない */
+.rh-ep-main:disabled { cursor: default; }
+.rh-ep-main:disabled:hover { background: none; }
+/* 「作品・話ごとの復習とクイズ ｜正式版ではプラス」の1行（控えめ・警告色なし） */
+.rh-plus-line { font-size: 12px; color: var(--text-muted); line-height: 1.7; margin: -2px 2px 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+/* 設定: 毎日の復習の語数 */
+.rc-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.rc-option {
+  flex: 1 1 0; min-width: 56px; padding: 9px 0; border-radius: 10px; cursor: pointer; font-family: inherit;
+  font-size: 13px; font-weight: 700; color: var(--text); background: var(--surface);
+  border: 1px solid var(--border);
+}
+.rc-option.is-on { color: #fff; background: var(--accent); border-color: var(--accent); }
 .rh-ep-quiz {
   flex-shrink: 0; margin: 8px 10px 8px 0; align-self: center;
   background: none; border: 1px solid var(--review-border); border-radius: 10px;
