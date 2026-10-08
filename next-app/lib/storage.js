@@ -3,6 +3,7 @@
 
 import { pushHistoryEntry, deleteHistoryRow, deleteHistoryRowsByTitle, pushSrsWords, deleteSrsWord, pushProfiles, queueStatePush } from './supabase';
 import { PROFILES_AT_KEY } from './profileMerge';
+import { getDeviceKey } from './device';
 
 export const HISTORY_KEY = 'cl_history';
 export const SRS_KEY = 'cl_srs';
@@ -623,6 +624,7 @@ export function recordReviewSession(historyId, easy, hard, fail) {
 export function reviewWord(word, quality, src = null) {
   const all = loadSrs();
   const k = word.toLowerCase();
+  addStatsDaily(quality >= 3 ? { ok: 1 } : { fail: 1 }); // 日ごとの記録（同日2回目の練習も数える）
   let e = all[k] || { interval: 1, repetitions: 0, easeFactor: 2.5, skipped: false };
   if (src?.title && !e.origin?.title) {
     e.origin = { title: src.title, season: src.season ?? null, episode: src.episode ?? null };
@@ -870,4 +872,150 @@ export function cleanupLegacySubtitleCache() {
   } catch {
     return 0; // 掃除の失敗でアプリを止めない（次回のマウントで再挑戦）
   }
+}
+
+// ── 日ごとの学習記録 cl_stats_daily（2026-10-08・3重の円と同梱）─────────────
+// docs/design-paid-features-2026-10-08.md「実装メモ 1-a」。EXP台帳（lib/exp.js）と同じ流儀の
+// 「日付|端末キー」台帳: { "YYYY-MM-DD|d_xxx": { met, learned, mastered, ok, fail, sec } }。
+//   met/learned/mastered = その端末がその日に見た円の値の最高値（ホームで円を描く時に更新）
+//   ok/fail = その日の採点数（reviewWord で quality≥3 / <3・同日2回目の練習も数える）
+//   sec     = その日の学習秒（addStudySeconds で同時に加算）
+// 1行を書くのはその端末だけ＝各フィールドは単調増加なので、同期は行ごと・フィールドごとの max
+// （supabase.js mergeStateValue）。合算だと同期のたびに二重計上する。過去分は作らない（記録は導入日から）。
+// 集計（statsByDay）は met/learned/mastered が端末間 max、ok/fail/sec が端末間の合計。
+export const STATS_DAILY_KEY = 'cl_stats_daily';
+
+export function loadStatsDaily() {
+  const v = readJson(STATS_DAILY_KEY, {});
+  return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
+}
+
+// 今日のこの端末の行を書き換える。fn(row) が false を返したら保存しない。
+function updateTodayStatsRow(fn, pushDelayMs) {
+  if (typeof window === 'undefined') return;
+  const ledger = loadStatsDaily();
+  const k = `${todayStr()}|${getDeviceKey()}`;
+  const row = { ...(ledger[k] || {}) };
+  if (fn(row) === false) return;
+  ledger[k] = row;
+  if (safeSet(STATS_DAILY_KEY, JSON.stringify(ledger))) queueStatePush(STATS_DAILY_KEY, pushDelayMs);
+}
+
+// 採点数・学習秒の加算（{ ok, fail, sec } の一部）。負値・0は無視。
+export function addStatsDaily(add, pushDelayMs = 5000) {
+  updateTodayStatsRow((row) => {
+    let changed = false;
+    Object.entries(add || {}).forEach(([f, n]) => {
+      const v = Math.round(Number(n) || 0);
+      if (v <= 0) return;
+      row[f] = (Number(row[f]) || 0) + v;
+      changed = true;
+    });
+    return changed;
+  }, pushDelayMs);
+}
+
+// 円の値（{ met, learned, mastered }）をその日の最高値として残す。
+export function recordStatsDailyRings(vals) {
+  updateTodayStatsRow((row) => {
+    let changed = false;
+    ['met', 'learned', 'mastered'].forEach((f) => {
+      const v = Math.round(Number(vals?.[f]) || 0);
+      if (v > (Number(row[f]) || 0)) {
+        row[f] = v;
+        changed = true;
+      }
+    });
+    return changed;
+  }, 3000);
+}
+
+// 日付ごとの集計: { "YYYY-MM-DD": { met, learned, mastered, ok, fail, sec } }。
+export function statsByDay(ledger = loadStatsDaily()) {
+  const out = {};
+  Object.entries(ledger).forEach(([k, row]) => {
+    const date = k.split('|')[0];
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !row || typeof row !== 'object') return;
+    const d = (out[date] ||= { met: 0, learned: 0, mastered: 0, ok: 0, fail: 0, sec: 0 });
+    ['met', 'learned', 'mastered'].forEach((f) => (d[f] = Math.max(d[f], Number(row[f]) || 0)));
+    ['ok', 'fail', 'sec'].forEach((f) => (d[f] += Number(row[f]) || 0));
+  });
+  return out;
+}
+
+// 円の最高値（high-water mark）＝台帳の全行の max。円は「これと今の計算値の大きい方」で描く。
+export function statsHighWater(ledger = loadStatsDaily()) {
+  const hw = { met: 0, learned: 0, mastered: 0 };
+  Object.values(ledger).forEach((row) => {
+    ['met', 'learned', 'mastered'].forEach((f) => (hw[f] = Math.max(hw[f], Number(row?.[f]) || 0)));
+  });
+  return hw;
+}
+
+// ── 語ごとの状態の共通関数（2026-10-08・実装メモ 1-b）────────────────────
+// 円・語彙のあゆみ・作品別の集計が同じ数え方をするための土台。
+// 母数＝予習で生成した語（履歴）＋マイ単語帳の語（拡張保存・手動追加）の和集合を語で名寄せ
+// （履歴側を優先＝例文の出所メタ _src を持つため）。「知ってる」スキップ（skipped）は数えない。
+// 棚から外した作品の語も含める（出会った事実は消えない＝円は縮まない）。
+// 苦手判定は廃止（2026-10-08）なので struggling は持たない。
+// state: 'new'（まだ採点なし）| 'learning' | 'learned'（isLearned）| 'mastered'（isMastered）。
+// title は SRS の origin（最初に採点した作品）→ 履歴の _src → 保存語の dramaTitle。
+// sameTitle（日英の表記ゆれ・Dashboard は words.js の sameWorkTitle を渡す）で履歴の作品名へ寄せる。
+export function collectRingWords(
+  history = loadHistory(),
+  myWords = [],
+  srs = loadSrs(),
+  sameTitle = (a, b) => a === b
+) {
+  const histTitles = [...new Set((history || []).map((h) => h.drama?.title).filter(Boolean))];
+  const canon = (t) => (t ? histTitles.find((h) => sameTitle(h, t)) || t : null);
+  const fromHistory = getAllVocabWords(history);
+  const seen = new Set(fromHistory.map((w) => String(w.word || '').toLowerCase()));
+  const extras = (myWords || [])
+    .filter((w) => w?.word && !seen.has(String(w.word).toLowerCase()))
+    .map((w) => ({
+      ...w,
+      example: w.example || w.sentence || '',
+      definition: w.ja || w.definition || '',
+      _src: { title: w.dramaTitle, season: w.season, episode: w.episode },
+    }));
+  const out = [];
+  const keys = new Set();
+  [...fromHistory, ...extras].forEach((w) => {
+    const key = String(w.word || '').toLowerCase();
+    if (!key || keys.has(key)) return;
+    const e = srs[key];
+    if (e?.skipped) return;
+    keys.add(key);
+    const src = e?.origin?.title ? e.origin : w._src?.title ? w._src : { title: w.dramaTitle, season: w.season, episode: w.episode };
+    const state = isMastered(e) ? 'mastered' : isLearned(e) ? 'learned' : e ? 'learning' : 'new';
+    out.push({
+      key,
+      word: w.word,
+      title: canon(src?.title) || null,
+      season: src?.season ?? null,
+      episode: src?.episode ?? null,
+      level: w.level || null,
+      pos: w.pos || null,
+      isPhrase: /\s/.test(String(w.word).trim()),
+      state,
+      lastReview: e?.lastReview || null,
+      definition: w.definition || w.ja || '',
+      example: w.example || w.sentence || '',
+      source: w.source || null,
+      _src: w._src, // subtitleCredit 用（例文の出所＝例文が載っていた作品/話）
+    });
+  });
+  return out;
+}
+
+// 円の3つの値（今の計算値）。learned は mastered を含む。
+export function ringCounts(words) {
+  let learned = 0;
+  let mastered = 0;
+  (words || []).forEach((w) => {
+    if (w.state === 'learned' || w.state === 'mastered') learned++;
+    if (w.state === 'mastered') mastered++;
+  });
+  return { met: (words || []).length, learned, mastered };
 }

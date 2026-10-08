@@ -357,7 +357,7 @@ export async function pullFromCloud(profileId = null) {
 
 // 同期対象の localStorage キー（user_state 1行=1キー）。
 const STATE_KEY_RE =
-  /^(cl_tickets|cl_fav_dramas|cl_study_sec|cl_study_drama)(_|$)|^cl_prepped$|^cl_seat_counter$|^cl_exp_ledger$|^cl_archived$/;
+  /^(cl_tickets|cl_fav_dramas|cl_study_sec|cl_study_drama)(_|$)|^cl_prepped$|^cl_seat_counter$|^cl_exp_ledger$|^cl_archived$|^cl_stats_daily$/;
 
 function localStateKeys() {
   try {
@@ -414,6 +414,20 @@ function mergeStateValue(key, localV, cloudV) {
     const out = { ...(cloudV || {}) };
     Object.entries(localV || {}).forEach(([t, s]) => {
       out[t] = Math.max(Number(out[t]) || 0, Number(s) || 0);
+    });
+    return out;
+  }
+  if (key === 'cl_stats_daily') {
+    // 日ごとの学習記録（storage.js STATS_DAILY_KEY）: 「日付|端末キー」の行ごと・フィールドごとの max。
+    // 行はその端末だけが書き、各フィールドは単調増加＝max で正しい（cl_exp_ledger の数値 max は入れ子に効かない）。
+    const out = { ...(cloudV && typeof cloudV === 'object' ? cloudV : {}) };
+    Object.entries(localV && typeof localV === 'object' ? localV : {}).forEach(([k, row]) => {
+      const base = out[k] && typeof out[k] === 'object' ? out[k] : {};
+      const m = { ...base };
+      Object.entries(row && typeof row === 'object' ? row : {}).forEach(([f, n]) => {
+        m[f] = Math.max(Number(base[f]) || 0, Number(n) || 0);
+      });
+      out[k] = m;
     });
     return out;
   }

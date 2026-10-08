@@ -3972,46 +3972,6 @@ html[data-theme="light"] .today-hero .today-hero-check { background: rgba(46, 16
 html[data-theme="light"] .today-hero .today-week-chip { color: var(--text-muted); }
 html[data-theme="light"] .rh-hero:not(.is-done) .rh-hero-sub { color: var(--text-muted); }
 
-/* ── 累計の語彙進捗（別枠カード）──────────────────────────────
-   今日の復習(ダーク)の下に明カードで対比。覚えた＝エメラルド／マスター＝ゴールドで色分け。 */
-.vocab-progress {
-  margin: 0 0 14px;
-  padding: 0 max(40px, calc((100% - var(--content-max)) / 2));
-}
-.vocab-progress-card {
-  max-width: 640px;
-  display: flex;
-  align-items: stretch;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  overflow: hidden;
-}
-.vp-tile {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  padding: 13px 10px;
-}
-.vp-label { font-size: 12px; font-weight: 700; }
-.vp-num { font-family: 'Playfair Display', serif; font-size: 26px; font-weight: 800; line-height: 1; }
-.vp-sub { font-size: 13px; font-weight: 600; color: var(--text-muted); }
-.vp-learned .vp-label, .vp-learned .vp-num { color: var(--green); }
-.vp-mastered .vp-label, .vp-mastered .vp-num { color: var(--gold, #d99a00); }
-.vp-divider { width: 1px; flex-shrink: 0; background: var(--border); }
-/* 進捗ゲージ（覚えた／マスターの割合を可視化） */
-.vp-gauge {
-  width: 100%; height: 6px; margin-top: 7px; border-radius: 999px;
-  background: color-mix(in srgb, var(--border) 55%, transparent); overflow: hidden;
-}
-.vp-gauge-fill { display: block; height: 100%; border-radius: 999px; transition: width 0.4s ease; }
-.vp-learned .vp-gauge-fill { background: var(--green); }
-.vp-mastered .vp-gauge-fill { background: var(--gold, #d99a00); }
-.vp-pct { font-size: 11px; font-weight: 700; color: var(--text-muted); }
-
 /* 円形カウント：ベタ塗り→ゴールドのリング枠＋中央に「今日やる数」（達成率は示さない素直な数字） */
 .today-hero-count {
   position: relative;
@@ -6440,3 +6400,185 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
 .choice-ja { font-size: 13px; color: var(--text-muted); text-align: right; min-width: 0; }
 .choice-btn.correct .choice-ja { color: var(--green); opacity: 0.85; }
 .choice-btn.wrong .choice-ja { color: var(--red); opacity: 0.85; }
+
+/* ── 3重の円（ホーム上段・components/VocabRings.js）────────────────────
+   確定モック https://claude.ai/artifact/9eUzWAJ3sK9EpY4fB4S6x6 （オーナー UI 案 CineLearnRingUI）の見た目。
+   暖色の金（シネマの配色）。赤・警告色は使わない。ダークテーマは同じ金をくすんだ地に乗せる。 */
+.vr-wrap {
+  --vr-ink: #292622; --vr-muted: #8d877e; --vr-soft: #706a62; --vr-eyebrow: #9b7545;
+  --vr-card-bg: radial-gradient(circle at 50% 50%, rgba(255,211,126,.2), transparent 36%), linear-gradient(120deg, #fffaf0, #f9f1e2);
+  --vr-card-border: #ead9bf; --vr-row-line: rgba(150,120,80,.12);
+  --vr-met: #f0d6a4; --vr-learned: #e3ad50; --vr-mastered: #bd7418; --vr-track: rgba(205,164,96,.14);
+  --vr-today-bg: rgba(255,250,239,.85); --vr-today-border: #e6d5b9; --vr-today-ink: #6f5a3c; --vr-gold-deep: #a96513;
+  --vr-wc-bg: #fff; --vr-wc-border: #e8e0d5;
+  margin: 0 0 18px;
+  padding: 0 max(40px, calc((100% - var(--content-max)) / 2));
+  color: var(--vr-ink);
+}
+html[data-theme="dark"] .vr-wrap {
+  --vr-ink: #f3ece0; --vr-muted: #a39a8c; --vr-soft: #c4baa9; --vr-eyebrow: #d5a965;
+  --vr-card-bg: radial-gradient(circle at 50% 50%, rgba(255,190,90,.12), transparent 40%), linear-gradient(120deg, #221d16, #1a1611);
+  --vr-card-border: rgba(214,170,100,.22); --vr-row-line: rgba(214,170,100,.14);
+  --vr-met: #6e5a36; --vr-learned: #d39a3e; --vr-mastered: #f0b64e; --vr-track: rgba(214,170,100,.12);
+  --vr-today-bg: rgba(255,220,160,.06); --vr-today-border: rgba(214,170,100,.28); --vr-today-ink: #e7d3b0; --vr-gold-deep: #f0b64e;
+  --vr-wc-bg: var(--surface); --vr-wc-border: var(--border);
+}
+.vr-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0,1fr) 300px minmax(0,1fr);
+  gap: 24px;
+  align-items: center;
+  padding: 36px 40px;
+  overflow: hidden;
+  border: 1px solid var(--vr-card-border);
+  border-radius: 20px;
+  background: var(--vr-card-bg);
+}
+/* 舞う光（ほこりのような金の粒） */
+.vr-card::before {
+  content: "";
+  position: absolute;
+  inset: -80px 0 0;
+  pointer-events: none;
+  background-image: radial-gradient(circle, rgba(200,136,45,.4) 0 1px, transparent 1.6px);
+  background-size: 78px 78px;
+  opacity: .2;
+  animation: vrDust 9s linear infinite;
+}
+@keyframes vrDust { to { transform: translateY(-78px); } }
+.vr-card > * { position: relative; z-index: 1; min-width: 0; }
+.vr-eyebrow { color: var(--vr-eyebrow); font-size: 13px; margin-bottom: 8px; }
+.vr-copy h2 { margin: 0 0 14px; font-family: 'Playfair Display', serif; font-size: 34px; font-weight: 700; letter-spacing: .02em; }
+.vr-copy p { color: var(--vr-soft); line-height: 1.9; font-size: 14px; }
+
+.vr-stage {
+  position: relative;
+  width: 300px;
+  max-width: 100%;
+  aspect-ratio: 1;
+  margin: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  border-radius: 50%;
+  font: inherit;
+  color: inherit;
+}
+button.vr-stage { cursor: pointer; }
+button.vr-stage:focus-visible, .vr-today:focus-visible, .vr-rh button:focus-visible { outline: 2px solid var(--vr-learned); outline-offset: 3px; }
+.vr-stage svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.vr-track { stroke: var(--vr-track); }
+.vr-arc-met { stroke: var(--vr-met); }
+.vr-arc-learned { stroke: var(--vr-learned); }
+.vr-arc-mastered { stroke: var(--vr-mastered); }
+.vr-arc-glow { stroke: #ffd77a; }
+.vr-arc-glow2 { stroke: #ffe6a8; }
+.vr-center {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 108px; height: 108px;
+  margin: -54px 0 0 -54px;
+  border-radius: 50%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  color: #fff;
+  background: radial-gradient(circle at 35% 25%, #d99428, #a8600e);
+  box-shadow: 0 0 0 8px rgba(196,130,36,.12), 0 12px 30px rgba(156,94,16,.28);
+}
+.vr-center strong { font-family: 'Playfair Display', serif; font-size: 30px; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.vr-center span { font-size: 12px; opacity: .92; }
+.vr-center em { font-style: normal; font-size: 10.5px; margin-top: 3px; padding: 1px 8px; border-radius: 99px; background: rgba(255,255,255,.18); white-space: nowrap; }
+.vr-center.is-zero { background: radial-gradient(circle at 35% 25%, #f1d29a, #d9a957); color: #6f4a12; }
+.vr-cue { position: absolute; left: 50%; bottom: -24px; transform: translateX(-50%); font-size: 12px; color: var(--vr-eyebrow); white-space: nowrap; }
+
+.vr-lrow {
+  display: grid;
+  grid-template-columns: 14px 64px auto minmax(0,1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--vr-row-line);
+}
+.vr-lrow b { font-size: 20px; font-variant-numeric: tabular-nums; }
+.vr-lrow span { font-weight: 600; white-space: nowrap; }
+.vr-lrow small { color: var(--vr-muted); font-size: 12px; }
+.vr-dot { width: 13px; height: 13px; border-radius: 50%; }
+.vr-dot-met { background: var(--vr-met); }
+.vr-dot-learned { background: var(--vr-learned); }
+.vr-dot-mastered { background: var(--vr-mastered); }
+.vr-today {
+  width: 100%;
+  margin-top: 18px;
+  padding: 13px 15px;
+  display: flex; align-items: center; gap: 10px;
+  border: 1px solid var(--vr-today-border);
+  border-radius: 15px;
+  background: var(--vr-today-bg);
+  color: var(--vr-today-ink);
+  font: inherit; font-size: 14px; text-align: left;
+  transition: transform .2s, box-shadow .2s;
+}
+button.vr-today { cursor: pointer; }
+button.vr-today:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(150,110,50,.12); }
+.vr-today .vr-t { flex: 1; }
+.vr-today b { color: var(--vr-gold-deep); }
+.vr-spark { color: var(--vr-learned); }
+
+.vr-recent { margin-top: 20px; }
+.vr-rh { display: flex; justify-content: space-between; align-items: center; margin: 0 4px 12px; }
+.vr-rh h3 { font-size: 16px; color: var(--text); }
+.vr-rh button { border: 0; background: none; color: var(--text-muted); font: inherit; font-size: 13px; cursor: pointer; }
+.vr-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; }
+.vr-wc {
+  display: grid;
+  grid-template-columns: 60px minmax(0,1fr);
+  gap: 12px;
+  align-items: start;
+  padding: 12px;
+  border: 1px solid var(--vr-wc-border);
+  border-radius: 14px;
+  background: var(--vr-wc-bg);
+  box-shadow: 0 3px 12px rgba(50,40,30,.04);
+}
+.vr-poster {
+  position: relative;
+  width: 60px;
+  aspect-ratio: 2 / 3;
+  border-radius: 7px;
+  overflow: hidden;
+  display: grid; place-items: center;
+  background: linear-gradient(160deg, #4a3f35, #9a8468);
+  box-shadow: 0 4px 10px rgba(40,30,20,.18);
+}
+.vr-poster img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.vr-poster-initial { color: rgba(255,255,255,.85); font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 700; }
+.vr-poster-ep { position: absolute; left: 3px; bottom: 3px; padding: 1px 4px; color: #fff; background: rgba(20,18,15,.65); border-radius: 4px; font-size: 9px; white-space: nowrap; }
+.vr-wb { min-width: 0; }
+.vr-wl { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.vr-wl strong { font-size: 15px; color: var(--text); overflow-wrap: anywhere; }
+.vr-st { padding: 3px 8px; border-radius: 99px; font-size: 10px; font-weight: 700; font-style: normal; white-space: nowrap; }
+.vr-st.is-m { color: #fff; background: #bb751c; }
+.vr-st.is-l { color: #76501f; background: #f6d58e; }
+.vr-wb p { margin: 4px 0 6px; color: var(--text-soft); font-size: 12px; }
+.vr-wb .vr-ex { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; color: var(--text-soft); font-size: 11.5px; }
+.vr-src { display: block; margin-top: 4px; color: var(--text-muted); font-size: 10.5px; }
+
+@media (max-width: 1180px) {
+  .vr-lrow { grid-template-columns: 14px 54px auto; }
+  .vr-lrow small { grid-column: 3; margin-top: -8px; }
+}
+@media (max-width: 1000px) {
+  .vr-card { grid-template-columns: minmax(0,1fr); text-align: center; padding: 28px 20px 34px; }
+  .vr-legend { text-align: left; max-width: 460px; width: 100%; margin: 14px auto 0; }
+  .vr-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+}
+@media (max-width: 640px) {
+  .vr-wrap { padding: 0 16px; }
+  .vr-copy h2 { font-size: 28px; }
+  .vr-stage { width: 260px; }
+  .vr-grid { grid-template-columns: minmax(0,1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .vr-card::before { animation: none; }
+  .vr-today { transition: none; }
+}
