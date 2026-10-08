@@ -16,6 +16,8 @@ import {
   downloadText,
   EXPORT_EXAMPLES_PER_EPISODE,
 } from '@/lib/export';
+import { usePlan } from '@/lib/plan';
+import PlusNote from './PlusNote';
 
 // 設定（英語レベル / 利用サービス / テーマ / 単語階層 / 復習リマインダー）。
 // 旧 SettingsModal をモーダル→screen='settings' のページに置き換え。
@@ -39,7 +41,8 @@ const TIERS = [
 ];
 
 export default function SettingsScreen() {
-  const { settings, updateSettings, closeSettings, profile } = useApp();
+  const { settings, updateSettings, closeSettings, profile, loggedIn } = useApp();
+  const plan = usePlan(loggedIn);
 
   const toeicScore = settings.toeicScore || 0;
   const targetScore = settings.targetToeicScore || 0;
@@ -380,6 +383,24 @@ export default function SettingsScreen() {
             )}
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.6 }}>
               Anki 用は「ファイル → 読み込む」で取り込めます（表＝単語・裏＝意味と例文）。
+            </div>
+          </div>
+
+          {/* プラン（isPro の土台・lib/plan.js）。ベータ中は全員使える＋プラスの印の意味だけ伝える */}
+          <div className="settings-section">
+            <div className="settings-section-title">🎟️ プラン</div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.7 }}>
+              {plan.beta ? (
+                <>
+                  ベータ版のあいだは、すべての機能をどなたでもお使いいただけます。
+                  <br />
+                  正式版でプラスになる機能には <PlusNote feature="workReview" plan={plan} /> の印が付きます。
+                </>
+              ) : plan.isPro ? (
+                'プラスをご利用中です。'
+              ) : (
+                '無料プランをご利用中です。'
+              )}
             </div>
           </div>
 

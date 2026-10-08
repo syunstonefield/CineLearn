@@ -6612,3 +6612,7 @@ button.vr-today:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba
   .vr-card::before { animation: none; }
   .vr-today { transition: none; }
 }
+
+/* 有料予定の機能に添える控えめな表示（components/PlusNote.js・2026-10-08）。警告色・強調色は使わない */
+.plus-note { display: inline-block; font-size: 11px; line-height: 1.5; color: var(--text-muted); border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; }
+.plus-note-sub { opacity: 0.85; }
