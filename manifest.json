@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "CineLearn",
   "version": "1.2.9",
-  "description": "ドラマで英語を学ぶ — Netflixなどの字幕単語をクリックして単語帳に保存",
+  "description": "Netflix・Prime Video・Disney+の字幕の単語をワンクリックで単語帳に保存。実際のセリフを例文に、間隔反復で忘れる前に復習。ドラマの没入感を保ったまま、観る時間がそのまま学習になります。",
 
   "icons": {
     "128": "icons/icon-128.png",
