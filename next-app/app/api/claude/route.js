@@ -31,30 +31,14 @@ function senseHash(sentence, ver = '') {
 // 文脈つき語義プロンプトの版。v2（2026-08-07）＝「基本の語義」を主にし、場面特有の意味は
 // 括弧で添える形式へ変更した（旧 v1 は場面での意味だけを返すため merchandise が
 // 「違法な商品」になり、単語帳の語義として一般性を失っていた＝オーナー報告）。
-const WORDSENSE_PROMPT_VER = 'v3';
+// v4（2026-10-08）＝出力を JSON {"base","shift"} に分け、場面注記の有無を null で明示させる。Haiku 5.5 へ移すにあたり、
+// v3 の1行自由記述では不要な「（この場面では…）」・場面の混入・「質問を尋問する → 尋問する」の崩れが出た（本番実測）。
+// 24語の比較（v3/v4 × 4.5/5.5 × 思考有無）で v4 は普通の語の過剰注記をゼロにし、思考ありの 5.5 は俗語で 4.5 以上。
+// 既存の v3 行は読み続ける（作り直し費用を払わない）＝読みは v4→v3 の順、書きは v4 のみ。
+const WORDSENSE_PROMPT_VER = 'v4';
+const WORDSENSE_PROMPT_VER_LEGACY = 'v3';
 
-// 語義プロンプト v3（本番）。評価モード（wordsense_eval）と同じ文面を使うため関数に切り出した。
-function wordsensePromptV3(word, sentence) {
-  return (
-    `字幕のセリフ: "${sentence}"\n\n` +
-    `このセリフに出てくる "${word}" を、英単語帳の語義欄に載せる短い日本語にしてください。\n\n` +
-    `規則:\n` +
-    `- 基本の語義（辞書の中心的な意味）を12字以内で書く。類義語の列挙・説明文・句点(。)は書かない。\n` +
-    `- このセリフの事情（誰が何をしているか）を基本の語義そのものに混ぜない。\n` +
-    `- セリフでの使われ方が基本の意味からずれる時（隠語・比喩・皮肉・専門用法）だけ、続けて「（この場面では◯◯）」を10字以内で足す。ずれていなければ足さない。\n\n` +
-    `出力の見本:\n` +
-    `  merchandise / "You said, move the merchandise." → 商品（この場面では密輸品）\n` +
-    `  personnel / "Qualified personnel." → 職員・要員\n` +
-    `  jurisdiction / "...now under our jurisdiction." → 管轄権\n` +
-    `  cold / "He gave me the cold shoulder." → 冷たい（この場面では冷淡な態度）\n\n` +
-    `語義だけを1行で出力してください。`
-  );
-}
-
-// 【一時・wordsense_eval 用】語義プロンプト v4 候補＝JSON で「基本義」と「場面でのずれ」を別欄に分け、
-//   付ける/付けないを null で明示させる（v3 を Haiku 5.5 に掛けると不要な場面注記・崩れが出た＝2026-10-08 本番実測）。
-const WS_EVAL_TOKEN_SHA256 = '94131e5abe334dc04ddd342c187057e09929f6f97aa00546053bd044adb2ac43';
-function wordsensePromptV4(word, sentence) {
+function wordsensePrompt(word, sentence) {
   return (
     `字幕のセリフ: "${sentence}"\n\n` +
     `このセリフに出てくる "${word}" について、英単語帳の語義欄に載せる日本語を JSON で返してください。\n` +
@@ -72,8 +56,9 @@ function wordsensePromptV4(word, sentence) {
     `JSON だけを1行で出力してください。`
   );
 }
-// v4 の応答 → 語義欄の文字列（形式崩れは null＝配らない）。
-function parseWordsenseV4(raw) {
+
+// 応答 → { ja: 語義欄の文字列, shifted: 場面注記の有無 }。形式崩れは null（＝配らない・保存しない）。
+function parseWordsense(raw) {
   let o;
   try {
     o = JSON.parse(String(raw).match(/\{[\s\S]*\}/)?.[0] || 'null');
@@ -85,17 +70,7 @@ function parseWordsenseV4(raw) {
   const shift = o?.shift == null ? '' : clean(o.shift);
   const bad = (x) => /→|->|\n/.test(x);
   if (!base || base.length > 14 || bad(base) || shift.length > 12 || bad(shift) || (shift && shift === base)) return null;
-  return shift ? `${base}（この場面では${shift}）` : base;
-}
-// v3 の応答 → 本番と同じ後処理。
-function parseWordsenseV3(raw) {
-  const ja = String(raw)
-    .split('\n')[0]
-    .trim()
-    .replace(/^["「『]|["」』]$/g, '')
-    .replace(/[。．]+$/, '')
-    .trim();
-  return !ja || ja.length > 36 ? null : ja;
+  return { ja: shift ? `${base}（この場面では${shift}）` : base, shifted: !!shift };
 }
 
 async function readCtxCache(word, hash) {
@@ -347,60 +322,6 @@ export async function POST(req) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return json({ error: 'server_misconfigured' }, 500); // 鍵は設定済みの前提（旧経路フォールバックは撤去）
 
-  // ── 【一時】mode:'wordsense_eval'＝語義プロンプト v3/v4 × Haiku 4.5/5.5 の比較（2026-10-08・比較後に削除）──
-  //   共有キャッシュには一切書かない（読まない）。合言葉ヘッダ x-cl-eval の sha256 が一致した時だけ動く
-  //   （公開リポジトリにはハッシュのみ）。IP 日次40回の天井つき。
-  if (body.mode === 'wordsense_eval') {
-    const tok = String(req.headers.get('x-cl-eval') || '');
-    if (createHash('sha256').update(tok).digest('hex') !== WS_EVAL_TOKEN_SHA256) return json({ error: 'forbidden' }, 403);
-    if (!(await checkRateLimit(req, 'wseval', { perMin: 5, perHour: 20, perDay: 40 })).ok) {
-      return json({ error: 'rate_limited' }, 429);
-    }
-    const items = (Array.isArray(body.items) ? body.items : [])
-      .slice(0, 30)
-      .map((it) => ({ word: String(it?.word || '').trim().slice(0, 80), sentence: String(it?.sentence || '').trim().slice(0, 300) }))
-      .filter((it) => it.word && it.sentence);
-    const VARIANTS = {
-      A_45_v3: { model: HAIKU_MODEL, v: 3, max_tokens: 96 },
-      B_45_v4: { model: HAIKU_MODEL, v: 4, max_tokens: 96 },
-      C_55_v4: { model: TRANSLATE_MODEL, v: 4, max_tokens: 96, thinking: TRANSLATE_THINKING },
-      D_55_v4_think: { model: TRANSLATE_MODEL, v: 4, max_tokens: 1024, output_config: { effort: 'low' } },
-    };
-    const run = async ({ word, sentence }, cfg) => {
-      const t0 = Date.now();
-      try {
-        const { v, ...params } = cfg;
-        const r = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-          body: JSON.stringify({
-            ...params,
-            messages: [{ role: 'user', content: v === 4 ? wordsensePromptV4(word, sentence) : wordsensePromptV3(word, sentence) }],
-          }),
-        });
-        const data = await r.json().catch(() => null);
-        if (!r.ok) return { error: `${r.status} ${String(data?.error?.message || '').slice(0, 160)}`, ms: Date.now() - t0 };
-        const raw = responseText(data);
-        return { raw, ja: v === 4 ? parseWordsenseV4(raw) : parseWordsenseV3(raw), out: data?.usage?.output_tokens, ms: Date.now() - t0 };
-      } catch (e) {
-        return { error: String(e?.message || e).slice(0, 160), ms: Date.now() - t0 };
-      }
-    };
-    const results = [];
-    for (let i = 0; i < items.length; i += 6) {
-      const chunk = items.slice(i, i + 6);
-      results.push(
-        ...(await Promise.all(
-          chunk.map(async (it) => {
-            const entries = await Promise.all(Object.entries(VARIANTS).map(async ([k, cfg]) => [k, await run(it, cfg)]));
-            return { ...it, results: Object.fromEntries(entries) };
-          })
-        ))
-      );
-    }
-    return json({ results });
-  }
-
   // ── mode:'wordsense'＝文脈つき語義（docs/design-context-translation.md）──
   //   プロンプトはサーバ側で組む（クライアント文字列を実行しない）・max_tokens 64 固定。
   //   キャッシュ命中は無条件・無償配布＝レート制限より先に返す。
@@ -412,7 +333,9 @@ export async function POST(req) {
     if (!word || word.length > 80 || !sentence) return json({ ja: null, error: 'bad request' }, 400);
 
     const hash = senseHash(sentence, WORDSENSE_PROMPT_VER);
-    const cached = await readCtxCache(word.toLowerCase(), hash);
+    const cached =
+      (await readCtxCache(word.toLowerCase(), hash)) ||
+      (await readCtxCache(word.toLowerCase(), senseHash(sentence, WORDSENSE_PROMPT_VER_LEGACY)));
     if (cached) return json({ ja: cached, via: 'cache' });
 
     // 日次は 50→300（2026-08-06 オーナー判断）。50 は「安い1語訳(/api/translate)が受け皿にある」
@@ -427,14 +350,16 @@ export async function POST(req) {
     }
 
     // 語義は「辞書の基本義」を主・「この場面での意味」を従にする（単語帳＝語を覚える道具なので、
-    // 場面限定の意味だけを覚えさせない）。ずれが無い語では括弧を付けさせない＝短さを保つ。
+    // 場面限定の意味だけを覚えさせない）。ずれが無い語では括弧を付けない＝短さを保つ。
     //   例 merchandise: ×「違法な商品、密輸品」→ ○「商品（この場面では密輸品）」
     //   例 personnel  : ×「資格を持った職員や人員」→ ○「職員・要員」
-    // ★v3: 規則の言葉だけでは効かなかった（v2 を本番実測: merchandise が36字の辞書調・
-    //   personnel は「必要な資格や技能を持つ職員や要員。」と場面が混ざったまま・句点つき）。
-    //   出力の見本（few-shot）を付け、字数と禁止事項を具体化して形を固定する。
-    const prompt = wordsensePromptV3(word, sentence);
-    try {
+    // 2段呼び（2026-10-08）: まず Haiku 5.5 思考オフ（安い・速い）。注記なし＝普通の語ならそれで確定。
+    //   注記あり（俗語・比喩と判断）か形式崩れの時だけ、思考あり（effort low）で取り直す。
+    //   思考オフは俗語で基本義を落とす・字数超過で崩れる（24語比較で俗語12語中5語が崩れ）が、
+    //   普通の語は12/12正しかった＝大半を占める普通の語を安く速く捌き、難しい語だけ考えさせる。
+    //   取りこぼし: 思考オフが俗語を普通の語として返すと（例 grill→「問い詰める・尋問する」）基本義が抜ける。
+    const prompt = wordsensePrompt(word, sentence);
+    const ask = async (extra) => {
       const r = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
@@ -442,27 +367,19 @@ export async function POST(req) {
           'x-api-key': apiKey,
           'anthropic-version': '2023-06-01',
         },
-        body: JSON.stringify({
-          // 語義欄は Haiku 4.5 に据え置き（2026-10-08 本番実測: 5.5 は同じプロンプトで不要な「（この場面では…）」を
-          // 付け、場面の事情を混ぜ、「質問を尋問する → 尋問する」のような崩れも出た）。5.5 移行はプロンプト再調整の後。
-          model: HAIKU_MODEL,
-          max_tokens: 96, // v2 は「基本義（この場面では〜）」の2部構成ぶん少し長い
-          messages: [{ role: 'user', content: prompt }],
-        }),
+        body: JSON.stringify({ model: TRANSLATE_MODEL, ...extra, messages: [{ role: 'user', content: prompt }] }),
       });
-      if (!r.ok) return json({ ja: null }); // Haiku不調 → クライアントは速報訳へフォールバック
-      const data = await r.json();
-      const ja = responseText(data)
-        .split('\n')[0] // 1行目だけ採る（稀に補足行が付く）
-        .trim()
-        .replace(/^["「『]|["」』]$/g, '')
-        .replace(/[。．]+$/, '') // 語義欄に句点は要らない（指示しても付いてくることがある）
-        .trim();
-      // 上限は v2 の2部構成に合わせて 36 字（旧30字だと「基本義（この場面では〜）」が
-      // 形式崩れ扱いで捨てられ、訳なしに落ちる）。
-      if (!ja || ja.length > 36) return json({ ja: null }); // 形式崩れは配らない（誤配布防止）
-      after(() => writeCtxCache(word.toLowerCase(), hash, ja, null)); // 配信画面の字幕行は保存しない（A10）
-      return json({ ja, via: 'haiku' });
+      if (!r.ok) return null;
+      return parseWordsense(responseText(await r.json()));
+    };
+    try {
+      let res = await ask({ thinking: TRANSLATE_THINKING, max_tokens: 96 });
+      // 思考ぶんも出力に数えるため max_tokens は広めに取る（実測の出力は 60〜400）。
+      // 取り直しが失敗したら、注記つきでも形式の通った1回目を使う（訳なしより良い）。
+      if (!res || res.shifted) res = (await ask({ max_tokens: 1024, output_config: { effort: 'low' } })) || res;
+      if (!res) return json({ ja: null }); // 不調・形式崩れ → クライアントは速報訳へフォールバック（誤配布防止）
+      after(() => writeCtxCache(word.toLowerCase(), hash, res.ja, null)); // 配信画面の字幕行は保存しない（A10）
+      return json({ ja: res.ja, via: 'haiku' });
     } catch {
       return json({ ja: null });
     }
