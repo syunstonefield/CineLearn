@@ -15,6 +15,7 @@ import {
   getDueReviewWords,
   activeWordKeys,
   backfillSrsOrigins,
+  loadArchived,
   DAILY_REVIEW_CAP,
 } from '@/lib/storage';
 import { usePlan, featureAccess } from '@/lib/plan';
@@ -124,12 +125,17 @@ export default function ReviewHubScreen() {
   );
 
   // 作品ごとにエピソードをまとめる。history は新しい順なので、作品の並びも「最近見た順」になる。
+  //   ホームの「学習中」から外した作品（棚から外す＝cl_archived）はこの一覧にも出さない（オーナー 2026-10-08）。
+  //   復習を始めた語の記録は消さないので、期日が来れば「今日の復習」には出る（記録の保護・従来どおり）。
   const groups = useMemo(() => {
     const m = new Map();
+    const archived = loadArchived();
+    const isArchived = (t) => archived.some((a) => sameWorkTitle(a, t));
     history.forEach((h) => {
       const title = h.drama?.title;
       const words = h.words || [];
       if (!title || !words.length) return;
+      if (isArchived(title)) return;
       let g = m.get(title);
       if (!g) {
         g = { title, isMovie: movieTitles.has(title), episodes: [], total: 0, due: 0, dueKeys: new Set() };
