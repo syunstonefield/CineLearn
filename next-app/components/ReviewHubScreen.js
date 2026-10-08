@@ -9,6 +9,9 @@ import {
   isDue,
   isLearned,
   isMastered,
+  isNearMastery,
+  formatDateJa,
+  getAllVocabWords,
   getDueReviewWords,
   activeWordKeys,
   backfillSrsOrigins,
@@ -155,6 +158,35 @@ export default function ReviewHubScreen() {
     [mounted, history, srs, myWords, activeKeys]
   );
 
+  // マスター手前（無料・2026-10-08）＝次に「完璧」と答えればマスターになる語。
+  //   total＝期日に関係なく該当する語数／due＝今日解ける（期日の来た）カード／nextDate＝期日前しか無い日の次の期日。
+  //   期日前の語は解いてもマスターにならないので出さない（落胆を作らない）。母集団は今日の復習と同じ（履歴＋マイ単語帳）。
+  const nearMastery = useMemo(() => {
+    if (!mounted) return { total: 0, due: [], nextDate: null };
+    const keys = new Set();
+    [...getAllVocabWords(history), ...(myWords || [])].forEach((w) => {
+      const k = String(w.word || '').toLowerCase();
+      if (k && isNearMastery(srs[k])) keys.add(k);
+    });
+    const due = getDueReviewWords(history, srs, myWords, activeKeys).filter((w) =>
+      keys.has(String(w.word || '').toLowerCase())
+    );
+    let nextDate = null;
+    if (!due.length) {
+      keys.forEach((k) => {
+        const d = srs[k]?.dueDate;
+        if (d && (!nextDate || d < nextDate)) nextDate = d;
+      });
+    }
+    return { total: keys.size, due, nextDate };
+  }, [mounted, history, srs, myWords, activeKeys]);
+
+  const startNearMastery = () => {
+    if (!nearMastery.due.length) return;
+    setCurrentHistoryId(null);
+    openReview(nearMastery.due.map(toCard));
+  };
+
   const myDue = useMemo(() => (myWords || []).filter((w) => isWordDue(w, srs)).length, [myWords, srs]);
 
   const startToday = () => {
@@ -242,6 +274,30 @@ export default function ReviewHubScreen() {
             </button>
           )}
         </div>
+
+        {/* ①' マスター手前（今日の復習の真下・無料）。0語ならカードごと出さない。 */}
+        {nearMastery.total > 0 && (
+          <div className="rh-near">
+            <span className="rh-near-icon" aria-hidden="true">⭐</span>
+            <div className="rh-near-main">
+              <div className="rh-near-title">
+                あと1回でマスター<span className="rh-near-count">{nearMastery.total}語</span>
+              </div>
+              <div className="rh-near-sub">
+                {nearMastery.due.length > 0
+                  ? `今日できるのは ${nearMastery.due.length}語`
+                  : nearMastery.nextDate
+                    ? `次は ${formatDateJa(nearMastery.nextDate).replace(/^\d{4}\//, '')} から`
+                    : ''}
+              </div>
+            </div>
+            {nearMastery.due.length > 0 && (
+              <button className="rh-near-btn" onClick={startNearMastery}>
+                はじめる
+              </button>
+            )}
+          </div>
+        )}
 
         {/* ② エピソードを選ぶ */}
         <div className="rh-section-label">エピソードを選ぶ</div>

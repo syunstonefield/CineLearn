@@ -127,6 +127,17 @@ export function isDue(e) {
   return !e.dueDate || e.dueDate <= todayStr();
 }
 
+// マスター手前（復習タブのカード・2026-10-08）＝次に「完璧」(quality 5) と答えればマスターになる語。
+// reviewWord の成功時と同じ計算で1回分進めて isMastered の条件を満たすかを見る。苦手判定とは無関係。
+// 期日前に解いても同日ガード/前倒しでスケジュールは進まない＝期日判定は呼び出し側で isDue と組み合わせる。
+export function isNearMastery(e) {
+  if (!e || e.skipped || isMastered(e)) return false;
+  const reps = e.repetitions || 0;
+  const ef = typeof e.easeFactor === 'number' ? e.easeFactor : 2.5;
+  const interval = reps === 0 ? 1 : reps === 1 ? 6 : Math.round((e.interval || 1) * ef);
+  return isMastered({ repetitions: reps + 1, interval, easeFactor: Math.max(1.3, ef + 0.1) });
+}
+
 // ── ダッシュボード集計 ──────────────────────────────────────
 
 // 連続学習日数（今日 or 昨日を起点に遡る。今日未実施でも昨日まで連続なら維持）
