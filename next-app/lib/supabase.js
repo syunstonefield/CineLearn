@@ -279,7 +279,12 @@ export async function pullFromCloud(profileId = null) {
         //   クラウド側を空文字で潰す実行犯（拡張の無条件送信）も同時に塞ぐが、送信が着地する前の
         //   pull でも消えるため、受け取り側にも救済が要る。
         const cloudSentence = w.sentence || '';
-        const sentence = cloudSentence || before || '';
+        // ★切り替え前（2026-07-03 より前）に保存した語は救済しない＝クラウドが正（2026-10-09）。
+        //   端末に残る当時の画面字幕の行が、取り直しで消した後に「空なら残す」でよみがえり、次の保存の
+        //   ついでにクラウドへ送り返されていた（lib/preDomExamples.js の消去が効かなかった実害）。
+        const savedIso = toIsoDateLite(w.saved_at);
+        const preDom = !!savedIso && savedIso < '2026-07-03';
+        const sentence = cloudSentence || (preDom ? '' : before) || '';
         // 「例文が差し替わった」＝クラウドに新しい文があり、それがローカルと違う時だけ。
         // クラウドが空（＝未着地）を差し替え扱いにすると、📍と例文訳まで道連れで消えていた。
         const sentenceChanged = !!cloudSentence && before !== undefined && before !== cloudSentence;
@@ -351,6 +356,13 @@ export async function pullFromCloud(profileId = null) {
       });
     }
   }
+}
+
+// 保存日の表記ゆれ（2026/6/12・ISO 日時）を YYYY-MM-DD に揃える（storage.js の toIsoDate と同じ規則・循環 import を避けて複製）
+function toIsoDateLite(v) {
+  const s = String(v || '').trim();
+  const m = s.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
+  return m ? `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}` : '';
 }
 
 // ── 学習データ同期のヘルパ ──────────────────────────────────────
