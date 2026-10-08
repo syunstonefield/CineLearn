@@ -9,7 +9,7 @@ export const HISTORY_KEY = 'cl_history';
 export const SRS_KEY = 'cl_srs';
 export const PROFILES_KEY = 'cl_profiles';
 export const ACTIVITY_KEY = 'cl_activity_dates';
-export const DAILY_REVIEW_CAP = 20; // 1日の復習はこの数までに抑える（負担を減らす）
+export const DAILY_REVIEW_CAP = 20; // 「今日の復習」1回に出す語数の既定（1日の上限ではない＝終わったら次の回を続けられる・2026-10-08 オーナー確認）
 
 function readJson(key, fallback) {
   if (typeof window === 'undefined') return fallback;

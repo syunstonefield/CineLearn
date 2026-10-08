@@ -1,6 +1,7 @@
-// 毎日の復習の語数（design-paid-features-2026-10-08「5.」・decision-pricing「復習とクイズの無料/有料」）。
-//   無料＝「今日の復習」1日 DAILY_REVIEW_CAP（20）語で固定。
-//   プラス＝設定 settings.dailyReviewCount で 10／20／30／50／全部 から選べる。
+// 「今日の復習」1回の語数（design-paid-features-2026-10-08「5.」）。
+//   2026-10-08 オーナー決定で無料（PLAN_FEATURES.reviewCount='free'）＝誰でも settings.dailyReviewCount で
+//   10／20／30／50／全部 から選べる。既定は DAILY_REVIEW_CAP（20）。
+//   1日の上限ではなく1回の量＝終わったら次の回を続けられる（期日の来た語→未学習の語の順に出る）。
 //   ★効くのは「今日の復習」の語数だけ（話ごと・マイ単語帳・マスター手前の復習には効かない）。
 //   依存なしの純関数（node のテストから読む）。プラスかどうかは呼び出し側が featureAccess('reviewCount').usable で渡す。
 

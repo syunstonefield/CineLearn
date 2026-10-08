@@ -329,19 +329,19 @@ export default function SettingsScreen() {
             </div>
           </div>
 
-          {/* 毎日の復習の語数（lib/reviewCount.js）。正式版の無料の人には選択肢の代わりに説明文（ぼかし禁止） */}
+          {/* 1回の復習の語数（lib/reviewCount.js・2026-10-08 無料に。1日の上限ではなく1回の量＝何回でも続けられる）。正式版の無料の人には選択肢の代わりに説明文（ぼかし禁止） */}
           <div className="settings-section">
-            <div className="settings-section-title">🔁 今日の復習の語数</div>
+            <div className="settings-section-title">🔁 1回の復習の語数</div>
             {reviewCountAccess.locked ? (
               <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.7 }}>
-                今日の復習は1日{DAILY_REVIEW_CAP}語です。語数の変更（10／20／30／50／全部）はプラスの機能です。
+                今日の復習は1回{DAILY_REVIEW_CAP}語です。語数の変更（10／20／30／50／全部）はプラスの機能です。
               </div>
             ) : (
               <>
                 <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8, lineHeight: 1.7 }}>
-                  「今日の復習」で1日に出す語数です。期日の来た語が少ない日は、その数だけ出します。
+                  「今日の復習」を1回はじめたときに出す語数です。終わったあとも、続けて次の回をはじめられます。出せる語が少ないときは、その数だけ出します。
                 </div>
-                <div className="rc-options" role="radiogroup" aria-label="今日の復習の語数">
+                <div className="rc-options" role="radiogroup" aria-label="1回の復習の語数">
                   {REVIEW_COUNT_OPTIONS.map((v) => (
                     <button
                       key={String(v)}

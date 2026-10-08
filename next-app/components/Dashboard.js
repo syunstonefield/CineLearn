@@ -75,7 +75,7 @@ export default function Dashboard() {
     wordbookVersion,
     loggedIn,
   } = useApp();
-  // 今日の復習の語数＝復習タブ・ボトムナビのバッジと同じ（プラスの人は設定の語数・無料は20語）
+  // 今日の復習1回の語数＝復習タブ・ボトムナビのバッジと同じ（設定の語数・既定20語・無料）
   const plan = usePlan(loggedIn);
   const todayCap = dailyReviewCap(settings, featureAccess('reviewCount', plan).usable);
   const [tick, setTick] = useState(0); // 再読込トリガ
