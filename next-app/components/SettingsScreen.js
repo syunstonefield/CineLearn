@@ -15,7 +15,6 @@ import {
   ankiRows,
   exportFileName,
   downloadText,
-  EXPORT_EXAMPLES_PER_EPISODE,
 } from '@/lib/export';
 import { usePlan } from '@/lib/plan';
 import PlusNote from './PlusNote';
@@ -136,20 +135,14 @@ export default function SettingsScreen() {
   };
 
   // 単語の書き出し（無料・端末内のデータだけで作る＝送信なし）。lib/export.js
-  const [withExamples, setWithExamples] = useState(true);
   const [exportMsg, setExportMsg] = useState('');
   const runExport = async (kind) => {
     try {
       const myWords = await getActiveWords(profile?.id).catch(() => []);
-      const movieTitles = new Set(
-        (settings.myDramas || []).filter((d) => d.type === 'movie' || d.mediaType === 'movie').map((d) => d.title)
-      );
       const rows = collectExportRows({
         history: loadHistory(),
         srs: loadSrs(),
         myWords: myWords || [],
-        movieTitles,
-        includeExamples: withExamples,
       });
       if (!rows.length) {
         setExportMsg('書き出せる単語がまだありません');
@@ -368,17 +361,13 @@ export default function SettingsScreen() {
             )}
           </div>
 
-          {/* 単語の書き出し（無料・永久＝docs/decision-pricing-2026-10-08.md）。例文の有無で条件を変えない。 */}
+          {/* 単語の書き出し（無料・永久＝docs/decision-pricing-2026-10-08.md）。例文は含めない（オーナー決定 2026-10-08・無料/有料とも同じ）。 */}
           <div className="settings-section">
             <div className="settings-section-title">💾 単語の書き出し</div>
             <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8, lineHeight: 1.6 }}>
-              単語・意味・品詞・作品と話・復習の記録を、表計算（CSV）や Anki に取り込める形で保存します。
-              この端末にあるデータから作ります。
+              単語・意味・品詞・出会った場面（作品と話）・復習の記録を、表計算（CSV）や Anki に取り込める形で保存します。
+              この端末にあるデータから作ります。例文（字幕のセリフ）は含めません。例文はアプリの中でいつでも見られます。
             </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 10 }}>
-              <input type="checkbox" checked={withExamples} onChange={(e) => setWithExamples(e.target.checked)} />
-              例文を含める（出典つき・1話あたり{EXPORT_EXAMPLES_PER_EPISODE}文まで）
-            </label>
             <div style={{ display: 'flex', gap: 8 }}>
               <button className="btn-secondary" style={{ flex: 1 }} onClick={() => runExport('csv')}>
                 CSV で保存
@@ -393,7 +382,8 @@ export default function SettingsScreen() {
               </div>
             )}
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.6 }}>
-              Anki 用は「ファイル → 読み込む」で取り込めます（表＝単語・裏＝意味と例文）。
+              Anki 用は「ファイル → 読み込む」で取り込めます（表＝単語・裏＝意味と出会った場面）。
+              書き出したファイルはご自身の学習用です。ほかの人への配布はしないでください。
             </div>
           </div>
 

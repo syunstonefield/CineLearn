@@ -152,9 +152,53 @@ export function getStreak(activityDates = loadActivityDates()) {
   return n;
 }
 
+// ── 映画かどうか（出典の S/E 表示用・2026-10-08）──────────────────────
+// 予習の記録（cl_history の drama）は長く type を持たず、映画にも season=1/episode=1 が入っていた
+// ＝出典が「Avengers: Endgame S1E1（字幕：OpenSubtitles）」になる実害（オーナー実データで確認）。
+// 判定材料: 記録の type（2026-10-08 以降の保存分）＞ 全プロフィールの作品一覧（settings.myDramas）で
+// 1件でも映画として登録されている題名 ＞ 名寄せキャッシュ（cl_title_media2）の movie。
+// 同じ題名が tv と movie の両方で一覧に混ざる実データがある（Harry Potter）＝映画を優先する。
+function normWorkTitle(t) {
+  return String(t || '')
+    .toLowerCase()
+    .replace(/[\s　]+/g, '')
+    .replace(/[：:／/・･｜|〜~‐‑–—\-!！?？.。,、'’"”“…]+/g, '');
+}
+let _movieSetCache = { key: null, set: new Set() };
+export function movieWorkSet() {
+  // 語ごとに呼ばれるので、元データ（文字列）が変わらない間は前回の集合を使い回す
+  let key = '';
+  try {
+    key = (localStorage.getItem(PROFILES_KEY) || '') + '\u0000' + (localStorage.getItem('cl_title_media2') || '');
+  } catch {
+    return new Set();
+  }
+  if (_movieSetCache.key === key) return _movieSetCache.set;
+  const set = new Set();
+  readJson(PROFILES_KEY, []).forEach((p) =>
+    (p?.settings?.myDramas || []).forEach((d) => {
+      if (d && (d.type === 'movie' || d.mediaType === 'movie')) {
+        [d.title, d.englishTitle].forEach((t) => t && set.add(normWorkTitle(t)));
+      }
+    })
+  );
+  const media = readJson('cl_title_media2', {});
+  Object.entries(media || {}).forEach(([t, m]) => m === 'movie' && set.add(normWorkTitle(t)));
+  _movieSetCache = { key, set };
+  return set;
+}
+// type＝記録に残っている種類（あれば最優先）。set は呼び出し側で1回作って使い回せる。
+export function isMovieWork(title, type, set) {
+  if (type === 'movie') return true;
+  if (type === 'tv') return false;
+  if (!title) return false;
+  return (set || movieWorkSet()).has(normWorkTitle(title));
+}
+
 // 全履歴の単語を重複排除して集約
 export function getAllVocabWords(history = loadHistory()) {
   const map = new Map();
+  const movies = movieWorkSet();
   history.forEach((h) =>
     (h.words || []).forEach((w) => {
       const k = w.word?.toLowerCase();
@@ -163,7 +207,12 @@ export function getAllVocabWords(history = loadHistory()) {
       if (k && !map.has(k))
         map.set(k, {
           ...w,
-          _src: { title: h.drama?.title, season: h.season, episode: h.episode, type: h.drama?.type },
+          _src: {
+            title: h.drama?.title,
+            season: h.season,
+            episode: h.episode,
+            type: isMovieWork(h.drama?.title, h.drama?.type, movies) ? 'movie' : h.drama?.type,
+          },
         });
     })
   );
@@ -176,7 +225,8 @@ export function subtitleCredit(w) {
   if (!w || w.source === 'plus') return '';
   const s = w._src || {};
   if (!s.title) return '';
-  const ep = s.type === 'movie' ? '' : ` S${s.season}E${s.episode}`;
+  const movie = s.type === 'movie' || (s.type !== 'tv' && isMovieWork(s.title));
+  const ep = movie || s.season == null || s.episode == null ? '' : ` S${s.season}E${s.episode}`;
   return `📺 ${s.title}${ep}（字幕：OpenSubtitles）`;
 }
 
@@ -199,7 +249,7 @@ export function getDueReviewWords(
       ...w,
       example: w.example || w.sentence || '',
       definition: w.ja || w.definition || '',
-      _src: { title: w.dramaTitle, season: w.season, episode: w.episode },
+      _src: { title: w.dramaTitle, season: w.season, episode: w.episode, type: isMovieWork(w.dramaTitle) ? 'movie' : undefined },
     }));
   const eligible = [...fromHistory, ...extras].filter((w) => {
     const k = w.word.toLowerCase();
@@ -734,7 +784,13 @@ export function saveHistoryEntry(ctx) {
   const entry = {
     id: newId,
     date: todayStr(),
-    drama: { title: drama.title, genre: drama.genre, platform: drama.platform },
+    // 映画なら type を残す（出典に偽の S1E1 を付けないため・2026-10-08）。TV は従来どおり持たない
+    drama: {
+      title: drama.title,
+      genre: drama.genre,
+      platform: drama.platform,
+      ...(drama.type === 'movie' || drama.mediaType === 'movie' ? { type: 'movie' } : {}),
+    },
     season,
     episode,
     level: userLevel,
@@ -982,7 +1038,7 @@ export function collectRingWords(
       ...w,
       example: w.example || w.sentence || '',
       definition: w.ja || w.definition || '',
-      _src: { title: w.dramaTitle, season: w.season, episode: w.episode },
+      _src: { title: w.dramaTitle, season: w.season, episode: w.episode, type: isMovieWork(w.dramaTitle) ? 'movie' : undefined },
     }));
   const out = [];
   const keys = new Set();

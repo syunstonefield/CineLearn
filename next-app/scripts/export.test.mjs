@@ -2,7 +2,8 @@
 //   node --import ../seed/register-hooks.mjs --test 'scripts/*.test.mjs'
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { collectExportRows, toCsv, toAnkiTsv, ankiRows, EXPORT_EXAMPLES_PER_EPISODE } from '../lib/export.js';
+import { collectExportRows, toCsv, toAnkiTsv, ankiRows } from '../lib/export.js';
+import { isMovieWork, subtitleCredit } from '../lib/storage.js';
 
 const ep = (title, season, episode, n, date = '2026-08-01') => ({
   date,
@@ -12,17 +13,16 @@ const ep = (title, season, episode, n, date = '2026-08-01') => ({
   words: Array.from({ length: n }, (_, i) => ({ word: `w${title}${i}`, definition: `意味${i}`, pos: 'noun', example: `Line ${i} with w${title}${i}.` })),
 });
 
-test('1話あたりの例文は上限まで・超えた語も単語とSRSは出る・出典は例文と同じ欄', () => {
-  const rows = collectExportRows({ history: [ep('Suits', 1, 2, 25)] });
-  assert.equal(rows.length, 25);
-  const withEx = rows.filter((r) => r.example);
-  assert.equal(withEx.length, EXPORT_EXAMPLES_PER_EPISODE);
-  withEx.forEach((r) => assert.match(r.example, /出典: Suits S1E2（字幕：OpenSubtitles）$/));
-});
-
-test('例文なしの指定では例文欄が空', () => {
-  const rows = collectExportRows({ history: [ep('Suits', 1, 2, 3)], includeExamples: false });
-  assert.ok(rows.every((r) => r.example === ''));
+test('例文は書き出さない（CSV の列にも Anki の裏にも出ない）・裏に出会った場面', () => {
+  const rows = collectExportRows({ history: [ep('Suits', 1, 2, 3)], movies: new Set() });
+  assert.equal(rows.length, 3);
+  assert.ok(rows.every((r) => !('example' in r)));
+  const csv = toCsv(rows);
+  assert.ok(!csv.includes('例文'));
+  assert.ok(!csv.includes('Line 0'));
+  const anki = toAnkiTsv(rows);
+  assert.ok(!anki.includes('Line 0'));
+  assert.match(anki, /出会った場面: Suits S1E2/);
 });
 
 test('SRS 履歴・状態・SRS だけの語（origin）・映画は話数を書かない', () => {
@@ -31,9 +31,9 @@ test('SRS 履歴・状態・SRS だけの語（origin）・映画は話数を書
     orphan: { easeFactor: 2.5, interval: 6, repetitions: 2, lastReview: '2026-09-01', dueDate: '2026-09-07', origin: { title: 'Gone', season: 2, episode: 3 } },
   };
   const rows = collectExportRows({
-    history: [ep('Suits', 1, 2, 1), ep('Heat', null, null, 1)],
+    history: [ep('Suits', 1, 2, 1), ep('Heat', 1, 1, 1)],
     srs,
-    movieTitles: new Set(['Heat']),
+    movies: new Set(['heat']),
   });
   const s = rows.find((r) => r.key === 'wsuits0');
   assert.equal(s.status, 'マスター');
@@ -42,31 +42,35 @@ test('SRS 履歴・状態・SRS だけの語（origin）・映画は話数を書
   assert.equal(o.title, 'Gone');
   assert.equal(o.status, '覚えた');
   const h = rows.find((r) => r.key === 'wheat0');
-  assert.equal(h.season, null);
-  assert.match(h.example, /出典: Heat（字幕：OpenSubtitles）$/);
+  assert.equal(h.season, null); // 予習の記録に S1E1 が入っていても映画なら話数を書かない
+  assert.match(toAnkiTsv(rows), /出会った場面: Heat</);
 });
 
-test('単語帳の語（拡張保存）は sentence/ja を使い、重複は予習側を優先', () => {
+test('単語帳の語（拡張保存）は ja を使い、重複は予習側を優先', () => {
   const rows = collectExportRows({
     history: [ep('Suits', 1, 2, 1)],
     myWords: [
       { word: 'wSuits0', ja: '別', sentence: 'dup' },
       { word: 'bargain', ja: '取引', sentence: 'It is a bargain.', dramaTitle: 'Suits', season: 1, episode: 5 },
     ],
+    movies: new Set(),
   });
   assert.equal(rows.length, 2);
   const b = rows.find((r) => r.key === 'bargain');
   assert.equal(b.meaning, '取引');
   assert.equal(b.via, '単語帳');
-  assert.match(b.example, /^It is a bargain\. — 出典: Suits S1E5/);
+  assert.equal(b.episode, 5);
+  assert.ok(!toCsv(rows).includes('It is a bargain'));
 });
 
-test('plus 語（作例）は出典なし・上限に数えない', () => {
-  const h = ep('Suits', 1, 2, EXPORT_EXAMPLES_PER_EPISODE);
-  h.words.push({ word: 'extra', definition: 'x', example: 'Made up.', source: 'plus' });
-  const rows = collectExportRows({ history: [h] });
-  assert.equal(rows.find((r) => r.key === 'extra').example, 'Made up.');
-  assert.equal(rows.filter((r) => /出典/.test(r.example)).length, EXPORT_EXAMPLES_PER_EPISODE);
+test('映画判定: 記録の type が最優先・作品一覧で映画なら映画・出典に偽の S1E1 や Snull を付けない', () => {
+  const set = new Set(['harrypotterandthephilosophersstone']);
+  assert.equal(isMovieWork("Harry Potter and the Philosopher's Stone", undefined, set), true);
+  assert.equal(isMovieWork('Loki', undefined, set), false);
+  assert.equal(isMovieWork('Loki', 'movie', set), true);
+  assert.equal(subtitleCredit({ _src: { title: 'Endgame', season: 1, episode: 1, type: 'movie' } }), '📺 Endgame（字幕：OpenSubtitles）');
+  assert.equal(subtitleCredit({ _src: { title: 'Suits', season: null, episode: null } }), '📺 Suits（字幕：OpenSubtitles）');
+  assert.equal(subtitleCredit({ _src: { title: 'Suits', season: 1, episode: 3, type: 'tv' } }), '📺 Suits S1E3（字幕：OpenSubtitles）');
 });
 
 test('CSV: BOM・CRLF・引用符と数式インジェクション対策', () => {
