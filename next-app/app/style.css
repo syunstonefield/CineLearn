@@ -6842,10 +6842,11 @@ button.vj-cell { cursor: pointer; }
 .vj-card-compact .vj-ch h3 { font-size: 15px; }
 .vj-card-compact .vj-sum b { font-size: 17px; }
 .vj-card-compact .vj-grass { grid-template-columns: 18px auto; gap: 3px; }
-.vj-card-compact .vj-months { grid-auto-columns: 12px; height: 13px; line-height: 13px; font-size: 10px; }
-.vj-card-compact .vj-wdays { grid-template-rows: repeat(7, 12px); line-height: 12px; font-size: 9px; }
-.vj-card-compact .vj-cells { grid-template-rows: repeat(7, 12px); grid-auto-columns: 12px; }
-.vj-card-compact .vj-cell { width: 12px; height: 12px; border-radius: 3px; }
+.vj-card-compact { --vj-cell: 12px; }
+.vj-card-compact .vj-months { grid-auto-columns: var(--vj-cell); height: 13px; line-height: 13px; font-size: 10px; }
+.vj-card-compact .vj-wdays { grid-template-rows: repeat(7, var(--vj-cell)); line-height: var(--vj-cell); font-size: 9px; }
+.vj-card-compact .vj-cells { grid-template-rows: repeat(7, var(--vj-cell)); grid-auto-columns: var(--vj-cell); }
+.vj-card-compact .vj-cell { width: var(--vj-cell); height: var(--vj-cell); border-radius: 3px; }
 .vj-card-compact .vj-grasswrap { overflow-x: hidden; }
 /* ホームの「覚えた・マスター」（左）と「学習した日」の簡易版（右）を横並びに（オーナー 2026-10-08） */
 .home-stats-row {
@@ -6864,6 +6865,16 @@ button.vj-cell { cursor: pointer; }
 .vj-card-mini:focus-visible { outline: 2px solid var(--vj-learned); outline-offset: 2px; }
 .vj-card-mini .vj-grasswrap { width: 100%; display: flex; justify-content: center; }
 .vj-mini-title { font-size: 13px; font-weight: 700; color: var(--vj-ink); text-align: center; }
+/* PC など広い幅: 学習した日のマスを大きく（12px だと広いカードの中で小さすぎて見にくい・オーナー 2026-10-09） */
+@media (min-width: 769px) {
+  .vj-card-mini { --vj-cell: 19px; gap: 8px; }
+  .vj-card-mini .vj-grass { gap: 4px; grid-template-columns: 22px auto; }
+  .vj-card-mini .vj-cells { gap: 4px; }
+  .vj-card-mini .vj-months { gap: 4px; font-size: 11px; }
+  .vj-card-mini .vj-wdays { gap: 4px; font-size: 11px; }
+  .vj-card-mini .vj-cell { border-radius: 4px; }
+  .vj-mini-title { font-size: 15px; }
+}
 /* PC など広い幅: 覚えた・マスターの文字を大きく（%は残す・オーナー 2026-10-09） */
 @media (min-width: 769px) {
   .home-stats-row .vp-label { font-size: 15px; }

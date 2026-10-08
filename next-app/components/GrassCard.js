@@ -20,7 +20,10 @@ export default function GrassCard({ grass, days, dailyStart, compact = false, mi
     if (!el) return undefined;
     const fit = () => {
       const w = el.getBoundingClientRect().width;
-      setMaxWeeks(Math.max(4, Math.floor((w - 26) / 15)));
+      // マスの大きさは CSS の --vj-cell（幅によって 12px／19px）。隙間 3〜4px を足した1列ぶんで割る
+      const cell = parseFloat(getComputedStyle(el).getPropertyValue('--vj-cell')) || 12;
+      const wide = cell >= 16; // 広い幅は隙間 4px・曜日欄 22px、狭い幅は 3px・18px（style.css と同じ）
+      setMaxWeeks(Math.max(4, Math.floor((w - (wide ? 30 : 26)) / (cell + (wide ? 4 : 3)))));
     };
     fit();
     const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(fit) : null;
