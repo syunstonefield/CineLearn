@@ -10,7 +10,7 @@ import { createHash } from 'crypto';
 import { after } from 'next/server';
 import { checkRateLimit } from '@/lib/ratelimit';
 import { allowedOrigin } from '@/lib/server/origin';
-import { HAIKU_MODEL } from '@/lib/server/constants';
+import { HAIKU_MODEL, TRANSLATE_MODEL, TRANSLATE_THINKING, responseText } from '@/lib/server/constants';
 import { vocabCacheKey } from '@/lib/server/vocabCache';
 
 // ── 文脈つき語義（mode:'wordsense'）用の共有キャッシュ ──
@@ -253,7 +253,7 @@ async function cachedJsonMode(req, apiKey, { word, key, prompt, maxTokens, parse
     });
     if (!r.ok) return json({ items: null });
     const data = await r.json();
-    const text = data?.content?.[0]?.text || '';
+    const text = responseText(data);
     let arr = null;
     try {
       arr = JSON.parse(text.match(/\[[\s\S]*\]/)?.[0] || 'null');
@@ -336,14 +336,15 @@ export async function POST(req) {
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
-          model: HAIKU_MODEL,
+          model: TRANSLATE_MODEL,
+          thinking: TRANSLATE_THINKING,
           max_tokens: 96, // v2 は「基本義（この場面では〜）」の2部構成ぶん少し長い
           messages: [{ role: 'user', content: prompt }],
         }),
       });
       if (!r.ok) return json({ ja: null }); // Haiku不調 → クライアントは速報訳へフォールバック
       const data = await r.json();
-      const ja = (data?.content?.[0]?.text || '')
+      const ja = responseText(data)
         .split('\n')[0] // 1行目だけ採る（稀に補足行が付く）
         .trim()
         .replace(/^["「『]|["」』]$/g, '')
@@ -389,14 +390,15 @@ export async function POST(req) {
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
-          model: HAIKU_MODEL,
+          model: TRANSLATE_MODEL,
+          thinking: TRANSLATE_THINKING,
           max_tokens: 200,
           messages: [{ role: 'user', content: prompt }],
         }),
       });
       if (!r.ok) return json({ ja: null });
       const data = await r.json();
-      const ja = (data?.content?.[0]?.text || '').trim().replace(/^["「『]|["」』]$/g, '');
+      const ja = responseText(data).trim().replace(/^["「『]|["」』]$/g, '');
       if (!ja || ja.length > 200) return json({ ja: null }); // 形式崩れは配らない
       after(() => writeCtxCache(SENT_KEY, hash, ja, sentence));
       return json({ ja, via: 'haiku' });
@@ -538,14 +540,15 @@ export async function POST(req) {
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
-          model: HAIKU_MODEL,
+          model: TRANSLATE_MODEL,
+          thinking: TRANSLATE_THINKING,
           max_tokens: Math.min(1200, 100 * missing.length + 50),
           messages: [{ role: 'user', content: prompt }],
         }),
       });
       if (r.ok) {
         const data = await r.json();
-        const text = data?.content?.[0]?.text || '';
+        const text = responseText(data);
         let arr = [];
         try {
           arr = JSON.parse(text.match(/\[[\s\S]*\]/)?.[0] || '[]');
