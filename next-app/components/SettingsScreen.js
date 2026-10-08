@@ -358,7 +358,16 @@ export default function SettingsScreen() {
               >
                 OpenSubtitles
               </a>{' '}
-              を利用しています。
+              を利用しています。視聴サービスの配信状況は{' '}
+              <a
+                href="https://www.justwatch.com/jp"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: 'var(--accent)' }}
+              >
+                JustWatch
+              </a>{' '}
+              のデータ（TMDB 経由）です。
             </p>
             <p style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.7, margin: '8px 0 0' }}>
               🧪 CineLearn は現在ベータ版として無料で提供しています。正式版では一部機能が有料になる場合がありますが、

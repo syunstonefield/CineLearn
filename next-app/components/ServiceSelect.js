@@ -119,6 +119,23 @@ export default function ServiceSelect() {
             <div style={innerGridStyle}>{ALL_SERVICES.map((s) => card(s, false))}</div>
           )}
         </div>
+
+        {/* 配信状況の出典（TMDB watch providers の利用条件＝データ元 JustWatch の帰属表示が必須・
+            守らないと API アクセス取り消し。2026-10-08 法務指摘で追加） */}
+        {available !== null && (
+          <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 20, lineHeight: 1.6 }}>
+            配信状況のデータ提供:{' '}
+            <a
+              href="https://www.justwatch.com/jp"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: 'var(--accent)' }}
+            >
+              JustWatch
+            </a>
+            （TMDB 経由）。最新の配信状況は各サービスでご確認ください。
+          </p>
+        )}
       </div>
     </div>
   );
