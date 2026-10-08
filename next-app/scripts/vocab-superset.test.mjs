@@ -142,3 +142,28 @@ test('callLlm の例外はそのまま伝播する（UpstreamError を包まな�
     (err) => err instanceof Boom
   );
 });
+
+test('語義の衛生と目安語の丸写し排除: 英語の括弧は落とす・本文に英語/簡体字が残る語は捨てる・plus の目安語は捨てる（drama は残す）', async () => {
+  const subtitleText = 'You have to bide your time. She is meticulous about it. The meeting starts at nine.';
+  const callLlm = async () =>
+    reply(
+      [
+        W('bide', 'You have to bide your time.', { d: "待つ（bide one's timeの形で）" }),
+        W('meticulous', 'She is meticulous about it.', { d: '几帳面な' }),
+        W('time', 'You have to bide your time.', { d: '时间' }),
+      ],
+      [
+        W('jimmies', 'Jimmies are sweet.', { d: 'チョコスプリンkles（アイスのトッピング）' }),
+        W('scrutiny', 'Scrutiny is intense.', { d: '精査' }),
+        W('abbreviation', 'DNA is an abbreviation.', { d: '略語（DNA など）' }),
+      ]
+    );
+  const out = await generateSuperset({ drama, season: 0, episode: 0, subtitleText, vocabCount: 40 }, null, { callLlm, log: silentLog });
+  const byWord = Object.fromEntries(out.map((w) => [w.word, w]));
+  assert.equal(byWord.bide.definition, '待つ'); // 英語の括弧だけ落とす
+  assert.equal(byWord.meticulous.source, 'drama'); // 目安語でも字幕に実在すれば drama として残る
+  assert.equal(byWord.time, undefined); // 簡体字（时）
+  assert.equal(byWord.jimmies, undefined); // 本文に英語が残る
+  assert.equal(byWord.scrutiny, undefined); // plus の目安語
+  assert.equal(byWord.abbreviation.definition, '略語（DNA など）'); // 3文字以内の略語は正当
+});

@@ -141,6 +141,38 @@ function extractWords(raw) {
 //   （旧 generateVocab＝クライアントの都度生成は 2026-09-12 に削除。生成は /api/vocab-generate 経由のみ）
 //   buildVocabPrompt の 'targeted' モードは personalizeWords と同じ帯計算を共有するため残している。
 
+// プロンプトに載せる難易度の目安語。モデルはこれを plus へ丸写しする癖がある（4.5 は3作品とも
+// meticulous/scrutiny/paramount を写し、5.5 思考オフは8語写した＝2026-10-08 比較）。文面で禁止した上で、
+// parseAndRefineWords でも決定的に落とす（字幕に実在すれば drama として残る＝plus だけを対象）。
+const CEFR_ANCHORS = {
+  A2: ['buy', 'start', 'happy', 'problem', 'important'],
+  B1: ['decision', 'available', 'manage', 'schedule', 'suggest'],
+  B2: ['negotiate', 'inevitable', 'comprehensive', 'deliberately', 'acknowledge'],
+  C1: ['tenacity', 'scrutiny', 'paramount', 'ambivalent', 'meticulous'],
+  C2: ['ineffable', 'perfunctory', 'recalcitrant'],
+};
+const PROMPT_ANCHOR_WORDS = new Set(Object.values(CEFR_ANCHORS).flat());
+
+// 語義（d）の衛生。5.5 で稀に出る2種を決定的に処理する（2026-10-08・本番実測）:
+//   ・英語の混入: 「待つ（bide one's timeの形で）」→ 括弧ごと落として「待つ」。本文側に英語が残る
+//     （「チョコスプリンkles」「短期間の出来事、short gap」）なら語義として不正＝語ごと捨てる。
+//   ・中国語の簡体字（「执着する」）: 日本語に無い簡体字が1字でもあれば語ごと捨てる。
+//   4文字以上の英字列だけを見る（DNA / CEO / IT のような略語は語義として正当）。
+const SIMPLIFIED_CJK_RE =
+  /[执这们说为么对过发经进关绝认习务产还见车东长门问题间话语时实个应气让从无两种现动电书买卖钱开乐听读议论变离难该处备极杀伤药疗术护]/;
+//   見出し語そのもの（「sack（sackの過去形）」「subpoena の意味」）は混入と見なさない。
+function sanitizeDefinition(d, word = '') {
+  const stripped = String(d ?? '')
+    .replace(/[（(][^（）()]*[A-Za-z]{4,}[^（）()]*[）)]/g, '')
+    .trim()
+    .replace(/[、,・\s]+$/, '');
+  const headword = String(word).trim();
+  const probeCI = headword ? stripped.replace(new RegExp(headword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), '') : stripped;
+  if (/[A-Za-z]{4,}/.test(probeCI)) return null;
+  if (SIMPLIFIED_CJK_RE.test(stripped)) return null;
+  return stripped;
+}
+
 // targeted/superset 共通のプロンプト生成。mode で「学習者レベル狙い撃ち」と「A2〜C2を広く」を切替。
 function buildVocabPrompt({ drama, season, episode, subtitleText, mode, cur, upper, genVocabCount, minTotal }) {
   // superset の文面は v2（2026-10-08・Haiku 5.5 向け）。旧文面を 5.5 に掛けると「最大N個／足りなければ少なくてよい／
@@ -151,11 +183,7 @@ function buildVocabPrompt({ drama, season, episode, subtitleText, mode, cur, upp
   const targetBand = cefrTargetBand(cur, upper);
 
   const cefrAnchors = `語彙難易度の目安（CEFR）:
-- A2: buy, start, happy, problem, important
-- B1: decision, available, manage, schedule, suggest
-- B2: negotiate, inevitable, comprehensive, deliberately, acknowledge
-- C1: tenacity, scrutiny, paramount, ambivalent, meticulous
-- C2: ineffable, perfunctory, recalcitrant`;
+${Object.entries(CEFR_ANCHORS).map(([lv, ws]) => `- ${lv}: ${ws.join(', ')}`).join('\n')}`;
 
   const excludeList = `除外（ほぼ全ての学習者が既知のため絶対に選ばない）:
 get, go, make, take, come, give, thing, good, bad, very, people, time, day, year,
@@ -328,7 +356,10 @@ function parseAndRefineWords(text, subtitleText, log = console) {
     .map(expandShortKeys)
     .filter(Boolean)
     .map((w) => ({ ...w, source: 'plus', example_ja_ok: !!w.example_ja }));
-  let json = [...dramaWords, ...plusWords];
+  let json = [...dramaWords, ...plusWords]
+    .map((w) => ({ ...w, definition: sanitizeDefinition(w.definition, w.word) }))
+    .filter((w) => w.definition !== null) // 英語混入・簡体字の語義は配らない
+    .filter((w) => w.source !== 'plus' || !PROMPT_ANCHOR_WORDS.has(String(w.word).toLowerCase())); // 目安語の丸写し
 
   // 0語＝LLM応答の拒否/形式崩れの可能性。沈黙させず一次切り分け材料をconsoleに残す
   // （debug-with-real-data）。★本文は出さない（A20）＝文字数と「JSON の { で始まるか」だけ。
