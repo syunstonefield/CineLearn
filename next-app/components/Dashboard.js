@@ -761,7 +761,7 @@ export default function Dashboard() {
         <VocabProgress learned={data.totalLearned} mastered={data.totalMastered} total={data.totalWords} />
         {homeGrass && (
           <div className="vj-screen vj-embed">
-            <GrassCard grass={homeGrass.grass} days={homeGrass.days} dailyStart={homeGrass.dailyStart} mini onOpen={openJourney} />
+            <GrassCard grass={homeGrass.grass} days={homeGrass.days} dailyStart={homeGrass.dailyStart} mini onOpen={() => openJourney('grass')} />
           </div>
         )}
       </div>

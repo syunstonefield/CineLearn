@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useApp } from './AppProvider';
 import { getActiveWords, sameWorkTitle } from '@/lib/words';
+import VocabProgress from './VocabProgress';
 import {
   loadHistory,
   loadSrs,
@@ -15,6 +16,7 @@ import {
   getDueReviewWords,
   activeWordKeys,
   backfillSrsOrigins,
+  overallVocabStats,
   loadArchived,
   DAILY_REVIEW_CAP,
 } from '@/lib/storage';
@@ -296,6 +298,11 @@ export default function ReviewHubScreen() {
   // オーナー指摘 2026-09-22）。行の左は語数/復習数を置き、見出し側の重複表示は消す。
   const epLabel = (g, entry) => (g.isMovie ? '' : `S${entry.season}E${entry.episode}`);
   const hasAnything = groups.length > 0 || (myWords || []).length > 0;
+  // 一番上の「覚えた・マスター」（ホームの2タイルと同じ数え方＝同じ数字）＝オーナー 2026-10-08
+  const overall = useMemo(
+    () => (mounted ? overallVocabStats(history, myWords, srs, activeKeys) : null),
+    [mounted, history, myWords, srs, activeKeys]
+  );
 
   return (
     <div className="screen active" id="screen-review-hub">
@@ -304,6 +311,12 @@ export default function ReviewHubScreen() {
           <h1 className="rh-h1">🔁 復習</h1>
           <p className="rh-sub">今日の分・エピソード別から選べます</p>
         </div>
+
+        {overall && overall.total > 0 && (
+          <div className="rh-progress">
+            <VocabProgress learned={overall.learned} mastered={overall.mastered} total={overall.total} />
+          </div>
+        )}
 
         {/* ① 今日の復習（従来のタブ動作＝全作品横断の期日到来分） */}
         <div className={'rh-hero' + (todayCount > 0 ? '' : ' is-done')}>

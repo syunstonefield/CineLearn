@@ -238,7 +238,7 @@ function useRings({ mounted, profile, settings, version }) {
 }
 
 export default function VocabJourneyScreen() {
-  const { mounted, loggedIn, reviewVersion, cloudVersion, wordbookVersion, profile, settings } = useApp();
+  const { mounted, loggedIn, reviewVersion, cloudVersion, wordbookVersion, profile, settings, journeyFocus, setJourneyFocus } = useApp();
   const plan = usePlan(loggedIn);
   const { ring, recent, posterFor } = useRings({
     mounted,
@@ -295,6 +295,21 @@ export default function VocabJourneyScreen() {
     return () => io.disconnect();
   }, [data, ring, recent.length]);
 
+  // ホームの「学習した日」から来た時は、学習した日の欄へ移る（オーナー 2026-10-08）。
+  useEffect(() => {
+    if (journeyFocus !== 'grass' || !data) return undefined;
+    const t = setTimeout(() => {
+      const el = screenRef.current?.querySelector('#vj-grass-sec');
+      if (el) {
+        el.classList.add('is-in');
+        const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+        el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+      }
+      setJourneyFocus(null);
+    }, 120);
+    return () => clearTimeout(t);
+  }, [journeyFocus, data, setJourneyFocus]);
+
   // 円をタップ → 円の下の内容へ動きつきで移る（動きを減らす設定では即座に）。
   const openRest = () => {
     const root = screenRef.current;
@@ -322,7 +337,7 @@ export default function VocabJourneyScreen() {
             />
           )}
           {grassOk && (
-            <div className="vj-reveal">
+            <div className="vj-reveal" id="vj-grass-sec">
               <GrassCard grass={data.grass} days={data.days} dailyStart={data.dailyStart} />
             </div>
           )}

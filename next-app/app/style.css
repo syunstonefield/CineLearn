@@ -6874,6 +6874,11 @@ button.vj-cell { cursor: pointer; }
   .home-stats-row .vj-card-mini { padding: 8px 6px; }
 }
 
+/* 復習タブの一番上の「覚えた・マスター」（横並び・ホームと同じ部品） */
+.rh-progress { margin: 0 0 12px; }
+.rh-progress .vocab-progress { margin: 0; padding: 0; }
+.rh-progress .vocab-progress-card { max-width: none; }
+
 /* 続きから学習とその下の欄の間（ライブラリの容器を2つに分けた） */
 .library-sections.library-sections-top { min-height: 0; padding-bottom: 6px; }
 .library-sections.library-sections-rest { min-height: 0; padding-top: 6px; }
