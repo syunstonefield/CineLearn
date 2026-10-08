@@ -37,6 +37,12 @@ const MARKUP = `
     <span class="s-badge">🏰 Disney+</span>
   </div>
 
+  <!-- ベータ表示（オーナー決定 2026-10-08）。「体験版」でなく「ベータ版」＝期限付き試用や近い課金を暗示しない語を選ぶ -->
+  <div class="hero-beta">
+    <span class="beta-pill">🧪 ベータ版</span>
+    <span>いまは無料で公開中。正式版では一部機能が有料になる場合がありますが、保存した単語帳と学習記録はそのまま残ります。</span>
+  </div>
+
   <!-- 副CTA（拡張）はPC幅ではストアへ、スマホ幅では拡張を入れられないので導入手順へ（CSS で出し分け） -->
   <div class="hero-btns">
     <a href="/app" class="btn-primary">🎬 無料で始める</a>

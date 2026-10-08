@@ -107,6 +107,23 @@ header {
   display: inline-block;
 }
 
+/* ベータ表示（2026-10-08 オーナー決定）: ロゴ横の小さなタグ。正式版で外す */
+.logo .beta-tag {
+  display: inline-block;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 0 7px;
+  line-height: 16px;
+  margin-left: 8px;
+  vertical-align: middle;
+  opacity: 0.85;
+}
+
 .header-right {
   display: flex;
   align-items: center;

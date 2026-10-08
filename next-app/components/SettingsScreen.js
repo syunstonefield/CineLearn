@@ -5,6 +5,7 @@ import { useApp } from './AppProvider';
 import { getToeicLevel, getVocabCount } from '@/lib/vocab';
 import { getThemePref, setThemePref } from '@/lib/theme';
 import { enablePushSubscription } from '@/lib/push';
+import { NON_AFFILIATION } from '@/lib/legal';
 
 // 設定（英語レベル / 利用サービス / テーマ / 単語階層 / 復習リマインダー）。
 // 旧 SettingsModal をモーダル→screen='settings' のページに置き換え。
@@ -360,7 +361,12 @@ export default function SettingsScreen() {
               を利用しています。
             </p>
             <p style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.7, margin: '8px 0 0' }}>
-              CineLearn は Netflix・Amazon と提携・公認関係にありません。
+              🧪 CineLearn は現在ベータ版として無料で提供しています。正式版では一部機能が有料になる場合がありますが、
+              保存した単語帳と学習記録はそのまま残ります。
+            </p>
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.7, margin: '8px 0 0' }}>
+              {/* 非提携文は lib/legal.js の単一ソース（PP・Terms・LP と同文） */}
+              {NON_AFFILIATION}
               <br />
               <a
                 href="/terms"

@@ -86,6 +86,8 @@ export default function Header({
       <div className="logo" style={{ cursor: 'pointer' }} onClick={onLogoClick}>
         <img className="logo-mark" src="/icon-192.png" alt="" />
         Cine<span>Learn</span>
+        {/* ベータ表示（2026-10-08 オーナー決定）。正式版で外す */}
+        <span className="beta-tag" title="ベータ版・いまは無料で公開中">ベータ</span>
       </div>
       <div className="header-right">
         {/* .btn-profile-switch のCSS既定は display:none。既存JSと同様に表示時だけ flex を当てる。
