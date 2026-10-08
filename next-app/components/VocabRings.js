@@ -195,7 +195,7 @@ export default function VocabRings({ values, from = null, gain = 0, recent = [],
             <i className="vr-dot vr-dot-met" />
             <b>{fmt(nums.met)}</b>
             <span>出会った</span>
-            <small>予習や視聴中の保存で出会った語</small>
+            <small>これまでに出会った語（棚から外した作品も含む）</small>
           </div>
           <div className="vr-lrow">
             <i className="vr-dot vr-dot-learned" />
