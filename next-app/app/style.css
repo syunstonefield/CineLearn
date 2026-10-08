@@ -589,6 +589,7 @@ header {
   font-size: 14px;
   cursor: pointer;
   text-align: left;
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
   transition: all 0.15s;
   font-family: 'DM Sans', sans-serif;
 }
@@ -6403,3 +6404,8 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
 /* 視聴後クイズ: 例文の和訳（回答前から表示・2026-10-08）と出所明示（48条） */
 .quiz-ex-ja { margin: -12px 0 12px; font-size: 13px; color: var(--text-soft); line-height: 1.6; }
 .quiz-ex-src { margin: -4px 0 16px; text-align: left; }
+
+/* 視聴後クイズ: 回答後に選択肢の横へ出す語義（2026-10-08） */
+.choice-ja { font-size: 13px; color: var(--text-muted); text-align: right; min-width: 0; }
+.choice-btn.correct .choice-ja { color: var(--green); opacity: 0.85; }
+.choice-btn.wrong .choice-ja { color: var(--red); opacity: 0.85; }

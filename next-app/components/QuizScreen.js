@@ -185,7 +185,9 @@ export default function QuizScreen() {
                 }
                 return (
                   <button key={`${c}-${i}`} className={cls} disabled={answered} onClick={() => onAnswer(c)}>
-                    {c}
+                    <span>{c}</span>
+                    {/* 回答後に全選択肢の語義を横に出す（正解以外も「何だったか」が分かる） */}
+                    {answered && q.meanings?.[c] && <span className="choice-ja">{q.meanings[c]}</span>}
                   </button>
                 );
               })}
@@ -200,7 +202,7 @@ export default function QuizScreen() {
                 </button>
               )}
             </div>
-            {answered && (
+            {answered && q.explanation && (
               <div className="explanation-box" style={{ display: 'block', whiteSpace: 'pre-line' }}>
                 {q.explanation}
               </div>

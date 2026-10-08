@@ -216,7 +216,14 @@ function buildClozeQuestion(w, pool, choiceCount) {
     source: w.source,
     answer: w.word,
     choices: buildChoices(w, pool, choiceCount),
-    explanation: `${w.word}${formNote}${w.pos ? `（${w.pos}）` : ''}：${w.ja || w.definition || ''}`,
+    // 回答後は選択肢ごとに語義を横に出す（「chaos　カオス」・オーナー要望 2026-10-08）。
+    // 語義は同じ作品の単語リストから引く＝通信なし。解説欄は活用形の注記がある時だけ使う。
+    meanings: Object.fromEntries(
+      pool
+        .filter((x) => x?.word && (x.ja || x.definition))
+        .map((x) => [x.word, x.ja || x.definition])
+    ),
+    explanation: formNote ? `${w.word}${formNote}` : '',
   };
 }
 
