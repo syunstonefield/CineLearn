@@ -17,6 +17,9 @@ import {
   backfillSrsOrigins,
   DAILY_REVIEW_CAP,
 } from '@/lib/storage';
+import { usePlan, featureAccess } from '@/lib/plan';
+import { dailyReviewCap } from '@/lib/reviewCount';
+import PlusNote from './PlusNote';
 
 // 復習ハブ（ボトムナビ「復習」の着地点）。
 // それまでは復習/クイズに入るのに単語リストの最下部までスクロールする必要があった
@@ -66,7 +69,14 @@ export default function ReviewHubScreen() {
     setCurrentHistoryId,
     startEpisodeQuiz,
     setScreen,
+    loggedIn,
   } = useApp();
+
+  // 作品・話ごとの復習とクイズ／作品まとめ復習／語数の変更＝正式版ではプラス（ベータ中は全員使える）。
+  //   正式版の無料の人（locked）は押せる入口を出さず説明文だけ（ぼかし禁止）。今日の復習・マスター手前・マイ単語帳は無料。
+  const plan = usePlan(loggedIn);
+  const work = featureAccess('workReview', plan);
+  const todayCap = dailyReviewCap(settings, featureAccess('reviewCount', plan).usable);
 
   const [myWords, setMyWords] = useState([]);
 
@@ -122,7 +132,7 @@ export default function ReviewHubScreen() {
       if (!title || !words.length) return;
       let g = m.get(title);
       if (!g) {
-        g = { title, isMovie: movieTitles.has(title), episodes: [], total: 0, due: 0 };
+        g = { title, isMovie: movieTitles.has(title), episodes: [], total: 0, due: 0, dueKeys: new Set() };
         m.set(title, g);
       }
       const due = words.filter((w) => isWordDue(w, srs)).length;
@@ -136,7 +146,12 @@ export default function ReviewHubScreen() {
       });
       g.episodes.push({ entry: h, total: words.length, due, learned, mastered });
       g.total += words.length;
-      g.due += due;
+      // 作品見出しの「復習 N」＝作品まとめ復習で実際に出す枚数（複数の話に出る同じ語は1つ）。
+      words.forEach((w) => {
+        const k = String(w.word || '').toLowerCase();
+        if (k && isWordDue(w, srs)) g.dueKeys.add(k);
+      });
+      g.due = g.dueKeys.size;
     });
     m.forEach((g) =>
       g.episodes.sort(
@@ -154,8 +169,8 @@ export default function ReviewHubScreen() {
     [mounted, history, myWords]
   );
   const todayCount = useMemo(
-    () => (mounted ? Math.min(getDueReviewWords(history, srs, myWords, activeKeys).length, DAILY_REVIEW_CAP) : 0),
-    [mounted, history, srs, myWords, activeKeys]
+    () => (mounted ? Math.min(getDueReviewWords(history, srs, myWords, activeKeys).length, todayCap) : 0),
+    [mounted, history, srs, myWords, activeKeys, todayCap]
   );
 
   // マスター手前（無料・2026-10-08）＝次に「完璧」と答えればマスターになる語。
@@ -191,10 +206,33 @@ export default function ReviewHubScreen() {
 
   const startToday = () => {
     setCurrentHistoryId(null); // 横断復習（特定エピソードに紐づかない）
-    openReview(getDueReviewWords(history, srs, myWords, activeKeys).slice(0, DAILY_REVIEW_CAP));
+    openReview(getDueReviewWords(history, srs, myWords, activeKeys).slice(0, todayCap));
+  };
+
+  // 作品まとめ復習（作品見出しの「復習 N」）＝その作品の全話から期日の来た語（話ごとの復習と同じ抽出）。
+  //   同じ語が複数の話に出る場合は1枚に（SRS は語単位＝2回出すと同日2回目になる）。最初に出た話の出所を付ける。
+  const startWorkReview = (g) => {
+    if (!work.usable || !g.due) return;
+    const seen = new Set();
+    const words = [];
+    g.episodes.forEach(({ entry }) => {
+      (entry.words || []).forEach((w) => {
+        const k = String(w.word || '').toLowerCase();
+        if (!k || seen.has(k) || !isWordDue(w, srs)) return;
+        seen.add(k);
+        words.push({
+          ...toCard(w),
+          _src: { title: g.title, season: entry.season, episode: entry.episode, type: g.isMovie ? 'movie' : 'tv' },
+        });
+      });
+    });
+    if (!words.length) return;
+    setCurrentHistoryId(null); // 複数の話にまたがる＝特定エピソードに紐づかない
+    openReview(words);
   };
 
   const startEpisodeReview = (g, ep) => {
+    if (!work.usable) return;
     const { entry } = ep;
     const words = (entry.words || []).map((w) => ({
       ...toCard(w),
@@ -265,7 +303,11 @@ export default function ReviewHubScreen() {
           <div className="rh-hero-main">
             <div className="rh-hero-title">{todayCount > 0 ? '今日の復習' : '今日の復習は完了！'}</div>
             <div className="rh-hero-sub">
-              {todayCount > 0 ? `全作品から ${todayCount}語` : 'エピソード別で追加の復習もできます'}
+              {todayCount > 0
+                ? `全作品から ${todayCount}語`
+                : work.usable
+                  ? 'エピソード別で追加の復習もできます'
+                  : 'また明日、期日の来た語から出します'}
             </div>
           </div>
           {todayCount > 0 && (
@@ -278,7 +320,12 @@ export default function ReviewHubScreen() {
         {/* ①' マスター手前（今日の復習の真下・無料）。0語ならカードごと出さない。 */}
         {nearMastery.total > 0 && (
           <div className="rh-near">
-            <span className="rh-near-icon" aria-hidden="true">⭐</span>
+            <span className="rh-near-icon" aria-hidden="true">
+              ⭐
+              <span className="rh-near-twinkle" />
+              <span className="rh-near-twinkle" />
+              <span className="rh-near-twinkle" />
+            </span>
             <div className="rh-near-main">
               <div className="rh-near-title">
                 あと1回でマスター<span className="rh-near-count">{nearMastery.total}語</span>
@@ -301,6 +348,19 @@ export default function ReviewHubScreen() {
 
         {/* ② エピソードを選ぶ */}
         <div className="rh-section-label">エピソードを選ぶ</div>
+        {groups.length > 0 && (work.betaNote || work.locked) && (
+          <div className="rh-plus-line">
+            {work.locked ? (
+              <>
+                {`作品・話を選んでの復習とクイズは、プラスの機能です。今日の復習（1日${DAILY_REVIEW_CAP}語）とマイ単語帳の復習は、どなたでもお使いいただけます。`}
+              </>
+            ) : (
+              <>
+                作品・話ごとの復習とクイズ <PlusNote feature="workReview" plan={plan} />
+              </>
+            )}
+          </div>
+        )}
 
         {!hasAnything ? (
           <div className="empty-state" style={{ padding: '24px 8px' }}>
@@ -341,13 +401,31 @@ export default function ReviewHubScreen() {
                   <span className="rh-group-title">{g.title}</span>
                   {!g.isMovie && (
                     <span className="rh-group-meta">
-                      {g.total}語{g.due > 0 && <span className="rh-due-badge">復習 {g.due}</span>}
+                      {g.total}語
+                      {g.due > 0 &&
+                        (work.usable ? (
+                          <button
+                            type="button"
+                            className="rh-due-badge rh-due-badge-btn"
+                            onClick={() => startWorkReview(g)}
+                            aria-label={`${g.title} の全話から復習 ${g.due}語`}
+                          >
+                            復習 {g.due} ›
+                          </button>
+                        ) : (
+                          <span className="rh-due-badge">復習 {g.due}</span>
+                        ))}
                     </span>
                   )}
                 </div>
                 {g.episodes.map((ep) => (
                   <div className="rh-ep-row" key={ep.entry.id}>
-                    <button type="button" className="rh-ep-main" onClick={() => startEpisodeReview(g, ep)}>
+                    <button
+                      type="button"
+                      className="rh-ep-main"
+                      onClick={() => startEpisodeReview(g, ep)}
+                      disabled={!work.usable}
+                    >
                       {epLabel(g, ep.entry) && <span className="rh-ep-label">{epLabel(g, ep.entry)}</span>}
                       <Gauge learned={ep.learned} mastered={ep.mastered} total={ep.total} />
                       <span className="rh-ep-meta">
@@ -359,14 +437,16 @@ export default function ReviewHubScreen() {
                         )}
                       </span>
                     </button>
-                    <button
-                      type="button"
-                      className="rh-ep-quiz"
-                      onClick={() => startEpisodeQuiz(ep.entry)}
-                      aria-label={`${g.title}${epLabel(g, ep.entry) ? ` ${epLabel(g, ep.entry)}` : ''} のクイズ`}
-                    >
-                      クイズ
-                    </button>
+                    {work.usable && (
+                      <button
+                        type="button"
+                        className="rh-ep-quiz"
+                        onClick={() => startEpisodeQuiz(ep.entry)}
+                        aria-label={`${g.title}${epLabel(g, ep.entry) ? ` ${epLabel(g, ep.entry)}` : ''} のクイズ`}
+                      >
+                        クイズ
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
