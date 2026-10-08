@@ -233,6 +233,16 @@ html.cl-disabled #cl-controls { display: none !important; }
   border-radius: 3px !important;
 }
 
+/* 他の作品で出会った語（再会）＝同じクリームに細い点線（色は1つのまま・点線が「よそで会った」の合図） */
+:where(html:not(.cl-disabled)) .cl-word.cl-mark.cl-reunion {
+  border-bottom: 2px dotted rgba(247, 230, 192, 0.85) !important; /* 1px/0.55 は目立たなすぎた（オーナー 2026-10-08） */
+  padding-bottom: 1px !important;
+}
+:where(html.cl-video-paused:not(.cl-disabled)) .cl-word.cl-mark.cl-reunion,
+:where(html.cl-marker-strong:not(.cl-disabled)) .cl-word.cl-mark.cl-reunion {
+  border-bottom: 2px solid rgba(242, 208, 142, 0.95) !important; /* 停止中・しっかり＝実線で一段はっきり */
+}
+
 /* 難語（オプトイン）＝青系の下点線・この作品の単語より控えめ */
 :where(html:not(.cl-disabled)) .cl-word.cl-hard {
   border-bottom-color: rgba(150, 168, 255, 0.38) !important;

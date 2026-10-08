@@ -46,6 +46,19 @@ const CL_VOCAB_MARKS_TTL_HIT_MS = 7 * 24 * 3600 * 1000;
 const CL_VOCAB_MARKS_TTL_MISS_MS = 24 * 3600 * 1000;
 const CL_VOCAB_MARKS_MAX = 60; // 保持する話数の上限（古い順に落とす）
 
+// ── 他の作品で出会った語（視聴中の再会・2026-10-08 オーナー決定）────────────────────────
+//   対象＝クラウドの単語帳（★）＋復習で「覚えた」以上の語（出所つき）＋この端末で他作品で保存した語。
+//   見え方＝同じクリーム色に細い点線（色は1つのまま・点線が「よそで会った」の合図）。
+//   記録＝ホバー訳/ポップアップが出た時に1話1回だけ（画面に出ただけでは記録しない）。
+const CL_KNOWN_KEY = 'cl_known_words';            // { at, uid, words:[{w,ja,pos,title,season,episode,kind}] }
+const CL_KNOWN_TTL_MS = 30 * 60 * 1000;           // クラウド取り込みの鮮度（30分）
+const CL_REUNIONS_KEY = 'cl_reunions';            // 再会ログ（直近500件・user_state 'cl_reunions' に丸ごと同期）
+const CL_REUNIONS_MAX = 500;
+let clCloudWords = [];          // クラウド由来（単語帳＋覚えた以上）
+let clOtherWords = new Map();   // いま観ている作品**以外**で出会った語 → { ja, pos, title, season, episode, kind }
+let clMarkCtx = null;           // いま観ている作品の { dramaTitle, season, episode }（再会ログの「どこで再会したか」）
+const clReunionSeen = new Set(); // このセッションで記録済みの word|title|S|E
+
 const normMarkTitle = (t) => String(t || '').trim().toLowerCase();
 
 function refreshSavedWords() {
@@ -60,6 +73,7 @@ function refreshSavedWords() {
           word: String(w.word || '').toLowerCase(),
           ja: String(w.ja || '').trim(),
           pos: String(w.pos || '').trim(),
+          titleRaw: String(w.dramaTitle || '').trim(), // 再会表示用（正規化前の表記）
           titles: new Set(
             [w.dramaTitle, ...(Array.isArray(w.encounters) ? w.encounters.map((e) => e?.dramaTitle) : [])]
               .map(normMarkTitle).filter(Boolean)
@@ -80,6 +94,94 @@ function rebuildMarkSet() {
   clMarkSet = new Set(single.map((w) => w.word));
   clSavedMeaning = new Map(mine.filter((w) => w.ja).map((w) => [normPhraseText(w.word).trim(), { ja: w.ja, pos: w.pos }]));
   clSavedPhrases = mine.filter((w) => /\s/.test(w.word)).map((w) => normPhraseText(w.word).trim()).filter((p) => p.includes(' '));
+  // アプリ側で保存した「この作品」の語（拡張のローカルには無い）も同じクリーム色に
+  for (const c of clCloudWords) {
+    if (!t || c.kind !== 'wordbook' || normMarkTitle(c.title) !== t || /\s/.test(c.w)) continue;
+    clMarkSet.add(c.w);
+    if (c.ja && !clSavedMeaning.has(c.w)) clSavedMeaning.set(c.w, { ja: c.ja, pos: c.pos });
+  }
+  rebuildOtherSet();
+}
+
+// クラウドの単語帳＋覚えた語を取り込む（30分の鮮度・ログイン時に更新）。失敗は黙って前回値のまま
+function loadKnownWords(force = false) {
+  if (!chrome.runtime?.id) return;
+  chrome.storage.local.get([CL_KNOWN_KEY], (r) => {
+    const cached = r[CL_KNOWN_KEY];
+    if (cached?.words) { clCloudWords = cached.words; rebuildMarkSet(); refreshMarkers(); }
+    if (!force && cached?.at && Date.now() - cached.at < CL_KNOWN_TTL_MS) return;
+    try {
+      chrome.runtime.sendMessage({ type: 'CL_FETCH_KNOWN_WORDS' }, (res) => {
+        if (chrome.runtime.lastError) return;
+        if (!res?.found) { console.debug('[CL:known] not loaded', res?.reason); return; }
+        clCloudWords = res.words || [];
+        chrome.storage.local.set({ [CL_KNOWN_KEY]: { at: Date.now(), uid: res.uid, words: clCloudWords } });
+        console.debug('[CL:known] loaded', clCloudWords.length, 'words');
+        rebuildMarkSet();
+        refreshMarkers();
+      });
+    } catch { /* 接続切れ時は無視 */ }
+  });
+}
+
+// いま観ている作品以外で出会った語。この作品の印（保存語・単語リスト）と重なる語は除く。
+// 単語帳（意味・出所あり）＞マスター＞覚えた の順で1件だけ持つ。複数語の項目は対象外。
+function rebuildOtherSet() {
+  const t = clMarkTitle || '';
+  const rank = { wordbook: 3, mastered: 2, learned: 1 };
+  const next = new Map();
+  const consider = (w, info) => {
+    if (!w || /\s/.test(w) || clMarkSet.has(w) || clAutoMarkSet.has(w)) return;
+    const prev = next.get(w);
+    if (!prev || (rank[info.kind] || 0) > (rank[prev.kind] || 0)) next.set(w, info);
+  };
+  for (const c of clCloudWords) {
+    if (t && normMarkTitle(c.title) === t) continue; // この作品の語（上で同色の印になる）
+    consider(c.w, { ja: c.ja || '', pos: c.pos || '', title: c.title || '', season: c.season ?? null, episode: c.episode ?? null, kind: c.kind });
+  }
+  for (const w of savedWordsAll) {
+    if (t && w.titles.has(t)) continue;
+    consider(w.word, { ja: w.ja, pos: w.pos, title: w.titleRaw || [...w.titles][0] || '', season: null, episode: null, kind: 'wordbook' });
+  }
+  clOtherWords = next;
+}
+
+// 再会表示のラベル（「再会 · SUITS S1E3」／「再会 · 復習で覚えた語」）
+function reunionLabel(info) {
+  if (info.title) {
+    const ep = info.season != null && info.episode != null ? ` S${info.season}E${info.episode}` : '';
+    return `再会 · ${info.title}${ep}`;
+  }
+  return info.kind === 'mastered' ? '再会 · マスター済みの語' : '再会 · 復習で覚えた語';
+}
+
+// 再会の記録（1話1回・ホバー訳/ポップアップが出た時だけ）。端末に溜め、5秒まとめてクラウドへ。
+let reunionFlushTimer = null;
+function recordReunion(word, info) {
+  if (!clMarkCtx?.dramaTitle || !chrome.runtime?.id) return;
+  const w = String(word || '').toLowerCase();
+  const key = `${w}|${normMarkTitle(clMarkCtx.dramaTitle)}|${clMarkCtx.season ?? ''}|${clMarkCtx.episode ?? ''}`;
+  if (clReunionSeen.has(key)) return;
+  clReunionSeen.add(key);
+  const t = getActiveVideo?.()?.currentTime;
+  const entry = {
+    w,
+    at: new Date().toISOString(),
+    from: { title: info.title || '', season: info.season ?? null, episode: info.episode ?? null, kind: info.kind },
+    in: { title: clMarkCtx.dramaTitle, season: clMarkCtx.season ?? null, episode: clMarkCtx.episode ?? null, tsSec: isFinite(t) ? Math.round(t) : null },
+  };
+  chrome.storage.local.get([CL_REUNIONS_KEY], (r) => {
+    const list = Array.isArray(r[CL_REUNIONS_KEY]) ? r[CL_REUNIONS_KEY] : [];
+    if (list.some((e) => e.w === w && e.in?.title === entry.in.title && e.in?.season === entry.in.season && e.in?.episode === entry.in.episode)) return;
+    list.push(entry);
+    while (list.length > CL_REUNIONS_MAX) list.shift();
+    chrome.storage.local.set({ [CL_REUNIONS_KEY]: list });
+    console.debug('[CL:reunion]', w, '←', entry.from.title || entry.from.kind, '@', entry.in.title);
+    clearTimeout(reunionFlushTimer);
+    reunionFlushTimer = setTimeout(() => {
+      try { chrome.runtime.sendMessage({ type: 'CL_PUSH_REUNIONS', payload: list }, () => void chrome.runtime.lastError); } catch { /* 接続切れ */ }
+    }, 5000);
+  });
 }
 
 // この字幕行に丸ごと出ている句のうち、この語を含むもの（無ければ null）
@@ -113,6 +215,11 @@ function knownMeaningFor(word, sentence) {
     const au = clAutoMeaning.get(f);
     if (au) return { ja: au.ja, pos: au.pos, label: '単語リスト' };
   }
+  // ③他の作品で出会った語（再会）。意味が無い語（覚えた語）は label/reunion だけ返す＝訳は従来経路
+  for (const f of markForms(wl)) {
+    const ot = clOtherWords.get(f);
+    if (ot) return { ja: ot.ja || '', pos: ot.pos || '', label: reunionLabel(ot), reunion: ot, word: f };
+  }
   return null;
 }
 
@@ -136,6 +243,7 @@ function syncMarkTitle() {
   let ctx = null;
   try { ctx = getEpisodeContext(); } catch { /* 取れなければ印なし */ }
   const t = normMarkTitle(ctx?.dramaTitle);
+  clMarkCtx = ctx?.dramaTitle ? { dramaTitle: ctx.dramaTitle, season: ctx.season ?? null, episode: ctx.episode ?? null } : null;
   if (t !== clMarkTitle) {
     clMarkTitle = t;
     rebuildMarkSet();
@@ -205,6 +313,7 @@ function applyAutoMarks(epKey, words) {
     }
     if (m && !clAutoMeaning.has(w)) clAutoMeaning.set(w, m);
   }
+  rebuildOtherSet();
   refreshMarkers();
   console.debug('[CL:marks] applied', clAutoMarkSet.size, 'words; marked now:', document.querySelectorAll('.cl-word.cl-mark').length);
 }
@@ -244,11 +353,13 @@ function loadMarkerSettings() {
 // 単語spanにマーカークラスを付与（wrap時と設定変更時の両方から呼ばれる）
 function decorateWordSpan(span, word) {
   syncMarkTitle();
-  span.classList.remove('cl-mark', 'cl-hard');
+  span.classList.remove('cl-mark', 'cl-reunion', 'cl-hard');
   if (clMarkerMode === 'off') return;
   const wl = String(word || '').toLowerCase();
   if (markForms(wl).some((x) => clMarkSet.has(x) || clAutoMarkSet.has(x)) || phraseHitFor(wl, span.dataset?.sentence)) {
     span.classList.add('cl-mark');
+  } else if (markForms(wl).some((x) => clOtherWords.has(x))) {
+    span.classList.add('cl-mark', 'cl-reunion'); // 他の作品で出会った語＝同色＋細い点線
   } else if (
     clHardMarker &&
     typeof CL_COMMON_WORDS !== 'undefined' &&
@@ -638,6 +749,8 @@ function init() {
   // v1.2.2 字幕マーカー: 設定と保存済み語をロードし、変更に追従する
   loadMarkerSettings();
   refreshSavedWords();
+  loadKnownWords(); // 他の作品で出会った語（単語帳＋覚えた以上）をクラウドから取り込む
+  setInterval(() => loadKnownWords(), CL_KNOWN_TTL_MS);
   loadEjdict(); // 同梱英和辞書を先読み（クリック時にローカル訳を同期で出せる＝ポップアップ即時描画）
   try {
     chrome.storage.onChanged.addListener((changes, area) => {
@@ -647,6 +760,7 @@ function init() {
       if (changes.cl_active_profile || Object.keys(changes).some((k) => k.startsWith(CL_WORDS_KEY_BASE))) {
         refreshSavedWords();
       }
+      if (changes.cl_sb_session) loadKnownWords(true); // ログイン/ログアウト直後は取り直す
     });
   } catch { /* 接続切れ時は無視 */ }
   // 一時停止中はマーカーを少し強調（再生中=没入・停止中=学習の顔）
@@ -742,10 +856,38 @@ function beginSeekTrace(v, target) {
   }
   setTimeout(() => { if (seekTrace === mine) { vidLog('CL seek trace timeout (no playing within 10s)'); seekTrace = null; } }, 10100);
 }
+// 字幕プローブ（Disney+）: シーク後に字幕が消える報告（2026-10-03）の切り分け用。seeking のたびに 8 秒間・
+// 500ms おきに「Disney+ の字幕要素の有無と文字／自前オーバーレイの表示／textTracks の状態」を記録する。
+// 拡張のシーク（CL）とプレイヤー自身のシーク（player）を区別し、両者で字幕の戻り方が違うかを見る。
+let capProbeTimer = null;
+function startCaptionProbe(v, origin) {
+  if (!IS_DISNEY) return;
+  clearInterval(capProbeTimer);
+  const t0 = performance.now();
+  let n = 0;
+  const tick = () => {
+    n++;
+    let capInfo = 'cap=none';
+    try {
+      const cap = findDisneyCaption();
+      if (cap) capInfo = `cap="${(cap.innerText || '').trim().replace(/\s+/g, ' ').slice(0, 24)}"`;
+      else if (disneyCapHost) capInfo += disneyCapHost.isConnected ? ' (host alive, empty)' : ' (host detached)';
+    } catch { capInfo = 'cap=err'; }
+    let tracks = '';
+    try {
+      const tt = v.textTracks;
+      tracks = ` tracks=${tt.length}[${Array.from(tt).map((t) => `${t.kind}/${t.mode}/${t.activeCues ? t.activeCues.length : '-'}`).join(' ')}]`;
+    } catch { /* 取れない */ }
+    vidLog(`probe(${origin}) +${Math.round(performance.now() - t0)}ms ${capInfo} overlay=${clOverlay?.style.display || '-'}${tracks}`, v);
+    if (n >= 16) { clearInterval(capProbeTimer); capProbeTimer = null; }
+  };
+  capProbeTimer = setInterval(tick, 500);
+}
 for (const ev of ['play', 'playing', 'pause', 'waiting', 'stalled', 'seeking', 'seeked', 'error', 'emptied', 'ratechange']) {
   document.addEventListener(ev, (e) => {
     const v = e.target;
     if (v?.tagName !== 'VIDEO' || !v.videoWidth) return; // 本編（映像サイズのある video）だけ
+    if (ev === 'seeking') startCaptionProbe(v, seekTrace ? 'CL' : 'player');
     let since = '';
     if (seekTrace && ['seeking', 'seeked', 'playing', 'waiting', 'stalled'].includes(ev)) {
       since = ` (+${Math.round(performance.now() - seekTrace.t0)}ms since seek)`;
@@ -992,9 +1134,11 @@ async function showHoverTip(wordEl) {
   // 手元の意味（この作品で保存した語／この話の単語リスト・句はその行に出ている時）があれば即時にそれを出す
   // （作品の文脈に合った意味・通信なし）。無い語だけ従来の辞書→翻訳API。
   const known = knownMeaningFor(word, wordEl.dataset.sentence);
+  if (known?.reunion) recordReunion(known.word || word, known.reunion); // 再会の記録（1話1回）
+  const reunionPrefix = known?.reunion ? known.label + ' · ' : '';
   if (known?.ja) {
     const isPhrase = known.phrase && known.phrase !== word.toLowerCase();
-    clHoverTip.textContent = (isPhrase ? known.phrase + ': ' : '') + known.ja;
+    clHoverTip.textContent = reunionPrefix + (isPhrase ? known.phrase + ': ' : '') + known.ja;
     positionHoverTip(wordEl);
     return;
   }
@@ -1002,10 +1146,10 @@ async function showHoverTip(wordEl) {
   // キャッシュ済みなら即時、未取得ならローディング表示してから取得
   const cached = jaCache.get(word.toLowerCase());
   if (cached !== undefined) {
-    if (!cached) return hideHoverTip();        // 訳が取れない語は出さない
-    clHoverTip.textContent = cached;
+    if (!cached && !reunionPrefix) return hideHoverTip(); // 訳が取れない語は出さない（再会なら出所だけ出す）
+    clHoverTip.textContent = reunionPrefix + (cached || '');
   } else {
-    clHoverTip.textContent = '…';
+    clHoverTip.textContent = reunionPrefix + '…';
   }
   positionHoverTip(wordEl);
 
@@ -1013,8 +1157,8 @@ async function showHoverTip(wordEl) {
 
   const ja = await getJaCached(word);
   if (hoveredWord !== wordEl) return;          // 取得中に別の語へ移った
-  if (!ja) return hideHoverTip();
-  clHoverTip.textContent = ja;
+  if (!ja && !reunionPrefix) return hideHoverTip();
+  clHoverTip.textContent = reunionPrefix + (ja || '');
   positionHoverTip(wordEl);
 }
 
@@ -1600,7 +1744,9 @@ async function showWordPopup(word, sentence, rect) {
   const myToken = popupToken;
   const stillMine = () => popupToken === myToken && popup && popup.style.display !== 'none';
 
-  const known = knownMeaningFor(word, sentence); // { ja, pos, label, phrase? } | null
+  const known = knownMeaningFor(word, sentence); // { ja, pos, label, phrase?, reunion? } | null
+  if (known?.reunion) recordReunion(known.word || word, known.reunion); // 再会の記録（1話1回）
+  const hasKnownJa = !!known?.ja;                // 手元に意味があるか（覚えた語は出所だけで意味は従来経路）
   // 句の一部をクリックした時（"mind your ps and qs" の on）は、見出し・意味・保存対象を句そのものにする。
   // 単語 "on" に句の意味を付けて保存してしまうのを防ぐ（2026-10-02 レビューで発見）。字幕行から
   // 元の大文字小文字を取り戻す（取れなければ正規化済みの句をそのまま使う）。
@@ -1611,7 +1757,7 @@ async function showWordPopup(word, sentence, rect) {
   let dict = null;                               // 英英（後着）
   let jaCtx = null;                              // 文脈訳（確定・後着）
   let jaQuick = known?.ja || null;               // 即時訳（手元の意味 or ローカル辞書）
-  let jaLabel = known?.label || '';              // 即時訳のラベル（保存済み／単語リスト。辞書は無印）
+  let jaLabel = known?.reunion ? '' : (known?.label || ''); // 即時訳のラベル（保存済み／単語リスト。再会は見出し下の出所行で示す）
   if (!jaQuick && ejdict) jaQuick = ejLookup(word) || null; // ロード済みなら同期で引ける
   let currentJa = jaQuick;                       // 保存時に entry.ja に入る値（文脈訳が来たら置換）
 
@@ -1623,7 +1769,7 @@ async function showWordPopup(word, sentence, rect) {
     }
     if (jaQuick) {
       // 手元の意味（保存済み／単語リスト）は確定色・ローカル辞書の一語訳は暫定の薄色
-      const color = jaLabel ? '#222' : '#999';
+      const color = hasKnownJa ? '#222' : '#999';
       const phraseNote = known?.phrase && known.phrase !== word.toLowerCase() ? `<span style="font-size:11px;color:#888;font-weight:400;margin-right:6px">${esc(known.phrase)}:</span>` : '';
       return `<div id="cl-ja-line" style="margin-top:8px;font-size:15px;color:${color};font-weight:600;line-height:1.5">${jaLabel ? labelTag(jaLabel) : ''}${phraseNote}${esc(jaQuick)}</div>`;
     }
@@ -1643,6 +1789,7 @@ async function showWordPopup(word, sentence, rect) {
       ${posOf() ? `<span style="font-size:10px;color:#5b4fd4;
         border:1px solid rgba(91,79,212,0.3);border-radius:3px;padding:1px 6px">
         ${esc(posOf())}</span>` : ''}
+      ${known?.reunion ? `<div style="margin-top:6px;font-size:11px;color:#8a7a5a">🔁 ${esc(known.label)}</div>` : ''}
       ${jaLineHtml()}
       ${dict?.definition ? `<div style="margin-top:${currentJa ? '6px' : '8px'};font-size:13px;
         color:${currentJa ? '#777' : '#333'};line-height:1.6">${esc(dict.definition)}</div>` : ''}
@@ -1675,7 +1822,7 @@ async function showWordPopup(word, sentence, rect) {
   });
 
   // 訳: 手元の意味が無い語だけ、ローカル辞書→翻訳API（速報）と文脈訳（AI）を引く
-  if (known) {
+  if (hasKnownJa) {
     pending--;
     if (stillMine()) renderBody();
   } else {

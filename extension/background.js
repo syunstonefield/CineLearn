@@ -45,6 +45,70 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       .catch(() => sendResponse({ found: false, reason: 'network' }));
     return true; // 非同期レスポンス
   }
+  // 他の作品で出会った語（v1.2.9・視聴中の再会）: ログイン済みならクラウドの
+  //   ①単語帳（my_words・in_wordbook=true）②復習で「覚えた」以上（srs_data・repetitions>=2・skipped=false）
+  //   を取り、content.js が字幕の中で印＋ホバー/ポップアップに出所を出す。語・意味・品詞・出所だけ
+  //   （例文は取らない）。RLS で本人の行だけ。列が無いDB（in_wordbook/origin_* 未適用）は列を外して再試行。
+  if (msg.type === 'CL_FETCH_KNOWN_WORDS') {
+    (async () => {
+      const session = await getFreshSession().catch(() => null);
+      if (!session?.access_token || !session?.user?.id) return { found: false, reason: 'no_session' };
+      const uid = session.user.id;
+      const headers = { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${session.access_token}` };
+      const get = async (path) => {
+        const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers });
+        if (!r.ok) return { ok: false, status: r.status, body: await r.text().catch(() => '') };
+        return { ok: true, rows: await r.json() };
+      };
+      // ① 単語帳
+      let mw = await get(`my_words?user_id=eq.${uid}&in_wordbook=is.true&select=word,ja,pos,drama_title,season,episode&limit=5000`);
+      if (!mw.ok && /in_wordbook/.test(mw.body)) {
+        mw = await get(`my_words?user_id=eq.${uid}&select=word,ja,pos,drama_title,season,episode&limit=5000`);
+      }
+      // ② 覚えた以上（出所つき）
+      let srs = await get(`srs_data?user_id=eq.${uid}&repetitions=gte.2&skipped=is.false&select=word,repetitions,interval,ease_factor,origin_title,origin_season,origin_episode&limit=5000`);
+      if (!srs.ok && /origin_/.test(srs.body)) {
+        srs = await get(`srs_data?user_id=eq.${uid}&repetitions=gte.2&skipped=is.false&select=word,repetitions,interval,ease_factor&limit=5000`);
+      }
+      if (!mw.ok && !srs.ok) return { found: false, reason: 'http_' + (mw.status || srs.status) };
+      const words = [];
+      for (const r of (mw.ok ? mw.rows : [])) {
+        if (!r?.word) continue;
+        words.push({ w: String(r.word).toLowerCase(), ja: r.ja || '', pos: r.pos || '', title: r.drama_title || '', season: r.season ?? null, episode: r.episode ?? null, kind: 'wordbook' });
+      }
+      for (const r of (srs.ok ? srs.rows : [])) {
+        if (!r?.word) continue;
+        const mastered = r.repetitions >= 3 && r.interval >= 21 && parseFloat(r.ease_factor) >= 2.0;
+        words.push({ w: String(r.word).toLowerCase(), ja: '', pos: '', title: r.origin_title || '', season: r.origin_season ?? null, episode: r.origin_episode ?? null, kind: mastered ? 'mastered' : 'learned' });
+      }
+      return { found: true, uid, words };
+    })()
+      .then((data) => sendResponse(data))
+      .catch(() => sendResponse({ found: false, reason: 'network' }));
+    return true; // 非同期レスポンス
+  }
+  // 再会の記録（v1.2.9）: content.js が溜めた再会ログ（直近500件）を user_state 'cl_reunions' に丸ごと上書き。
+  //   書き手は拡張だけ（アプリは読むだけ）＝last-write-wins でも壊れない。my_words には触れない。
+  if (msg.type === 'CL_PUSH_REUNIONS') {
+    (async () => {
+      const session = await getFreshSession().catch(() => null);
+      if (!session?.access_token || !session?.user?.id) return { ok: false, reason: 'no_session' };
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/user_state`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${session.access_token}`,
+          Prefer: 'resolution=merge-duplicates,return=minimal',
+        },
+        body: JSON.stringify([{ user_id: session.user.id, key: 'cl_reunions', value: msg.payload || [], updated_at: new Date().toISOString() }]),
+      });
+      return { ok: r.ok, status: r.status };
+    })()
+      .then((data) => sendResponse(data))
+      .catch(() => sendResponse({ ok: false, reason: 'network' }));
+    return true; // 非同期レスポンス
+  }
   // 字幕マーカー用の語リスト（v1.2.9）: 作品名＋S/E → その話の自動生成リストの語（文字列だけ）。
   // 読み取り専用・未生成なら found:false（生成は起動しない＝視聴のたびの AI 費用を避ける）。
   // ログイン済みなら Bearer を添える（カタログ外の作品はログイン済みだけ配信＝/api/vocab-generate と同じ規則）。
