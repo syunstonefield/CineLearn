@@ -22,6 +22,7 @@ import { fetchCtxJa } from '@/lib/ctxtranslate';
 import { fetchJa } from '@/lib/jatranslate';
 import { getActiveWords, normTitleForMatch, prewarmTitleAliases, sameWorkTitle } from '@/lib/words';
 import {
+  toIsoDate,
   archiveDrama,
   buildLibraryEntries,
   getAllVocabWords,
@@ -216,6 +217,20 @@ export default function Dashboard() {
       )
       .map(toCard);
   }, [watchMeta, recap, wordFills]);
+
+  // まだ復習していない語（保存した日以降に一度も採点していない語）。さっと復習の対象と数はこちらで出し、
+  // 全部復習し終わったら復習ボタン（祝いの軽量版はカードごと）を出さない（オーナー 2026-10-08：
+  // 「復習してもずっと表示される」＝全語モードで開くので、いつまでも出す語が尽きなかった）。
+  const pendingQuick = useMemo(() => {
+    const srs = loadSrs();
+    return quickReviewWords.filter((w) => {
+      const e = srs[String(w.word || '').toLowerCase()];
+      if (!e?.lastReview) return true;
+      const saved = toIsoDate(String(w.savedAt || '').slice(0, 10)) || '';
+      return saved ? e.lastReview < saved : false;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quickReviewWords, reviewVersion]);
 
   // v2リッチ祝い（タップ直後のみ）用: 全語の単語カード（再会語先頭・再会は出どころつき）と統計。
   // NEWはバッジを付けない（大半が新規＝バッジは情報量ゼロ・光らせるのは再会だけ）。
@@ -435,6 +450,9 @@ export default function Dashboard() {
   const showWatchAsk =
     !!watchMeta && !watchConfirmed && askDismissed !== watchMeta.epKey && !isWatchSnoozed(watchMeta.epKey);
   const showWatchCelebrate = !!watchMeta && watchConfirmed;
+  // 再訪時の軽量版は、さっと復習する語が残っている間だけ出す（全部復習したら閉じる＝半券の入口に戻る）
+  const showWatchCelebrateLight =
+    showWatchCelebrate && justConfirmed !== watchMeta?.epKey && pendingQuick.length > 0;
   const watchSeLabel =
     watchMeta && watchMeta.season != null && watchMeta.episode != null
       ? ` S${watchMeta.season}E${watchMeta.episode}`
@@ -518,11 +536,11 @@ export default function Dashboard() {
 
   const startQuickReview = () => {
     setCurrentHistoryId(null); // 横断復習（特定エピソードに紐づかない）
-    openReview(quickReviewWords.slice(0, 5), { all: true });
+    openReview(pendingQuick.slice(0, 5), { all: true });
   };
   const startFullReview = () => {
     setCurrentHistoryId(null);
-    openReview(quickReviewWords, { all: true });
+    openReview(pendingQuick, { all: true });
   };
 
   return (
@@ -605,9 +623,9 @@ export default function Dashboard() {
               「観た範囲の語」になる（computeWatchGroup が同一話の保存語を集めている）。
               日をまたぐと前回分も含むので、文言は「今日」ではなく「ここまで」にする
               （savedAt は日付のみ・UTC基準で、深夜は前日に落ちるため「今日」は嘘になり得る）。*/}
-          {quickReviewWords.length > 0 && (
+          {pendingQuick.length > 0 && (
             <button className="recap-more-link" onClick={startFullReview}>
-              ここまでの{quickReviewWords.length}語を復習する →
+              ここまでの{pendingQuick.length}語を復習する →
             </button>
           )}
         </div>
@@ -656,12 +674,14 @@ export default function Dashboard() {
               )}
             </div>
           )}
-          <button className="reunion-review-btn" onClick={startQuickReview}>
-            この{Math.min(5, quickReviewWords.length)}語をさっと復習する
-          </button>
-          {quickReviewWords.length > 5 && (
+          {pendingQuick.length > 0 && (
+            <button className="reunion-review-btn" onClick={startQuickReview}>
+              この{Math.min(5, pendingQuick.length)}語をさっと復習する
+            </button>
+          )}
+          {pendingQuick.length > 5 && (
             <button className="recap-more-link" onClick={startFullReview}>
-              すべての{quickReviewWords.length}語を復習する →
+              すべての{pendingQuick.length}語を復習する →
             </button>
           )}
           {epTicket && (
@@ -671,7 +691,7 @@ export default function Dashboard() {
           )}
         </div>
       )}
-      {showWatchCelebrate && justConfirmed !== watchMeta.epKey && (
+      {showWatchCelebrateLight && (
         <div className="reunion-card">
           <div className="reunion-head">
             <span aria-hidden="true">🎟</span> 観たあとに
@@ -696,12 +716,14 @@ export default function Dashboard() {
               ))}
             </div>
           )}
-          <button className="reunion-review-btn" onClick={startQuickReview}>
-            この{Math.min(5, quickReviewWords.length)}語をさっと復習する
-          </button>
-          {quickReviewWords.length > 5 && (
+          {pendingQuick.length > 0 && (
+            <button className="reunion-review-btn" onClick={startQuickReview}>
+              この{Math.min(5, pendingQuick.length)}語をさっと復習する
+            </button>
+          )}
+          {pendingQuick.length > 5 && (
             <button className="recap-more-link" onClick={startFullReview}>
-              すべての{quickReviewWords.length}語を復習する →
+              すべての{pendingQuick.length}語を復習する →
             </button>
           )}
           {epTicket && (
@@ -719,7 +741,7 @@ export default function Dashboard() {
       {/* 半券（観た証）＝観た後に戻る入口。シーン記憶カードへ。最新1枚だけ出して混雑を避ける。
           「観たあとに」カードが出ている間は重複表示になるため隠す（カード統合・混雑回避）。 */}
       {(() => {
-        if (showWatchAsk || showWatchCelebrate) return null;
+        if (showWatchAsk || (showWatchCelebrate && justConfirmed === watchMeta?.epKey) || showWatchCelebrateLight) return null;
         const withWords = (tickets || []).filter((t) => (t.words || []).length > 0);
         if (!withWords.length) return null;
         const latest = withWords[withWords.length - 1];
