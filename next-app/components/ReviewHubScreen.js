@@ -10,6 +10,7 @@ import {
   isLearned,
   isMastered,
   getDueReviewWords,
+  backfillSrsOrigins,
   DAILY_REVIEW_CAP,
 } from '@/lib/storage';
 
@@ -76,6 +77,12 @@ export default function ReviewHubScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [mounted, profile, reviewVersion, cloudVersion, wordbookVersion]
   );
+
+  // SRS の出所（最初に出会った作品/話）を予習履歴から一度だけ埋め戻す（拡張の再会表示用・2026-10-08）。
+  useEffect(() => {
+    if (!mounted) return;
+    try { backfillSrsOrigins(history); } catch { /* 失敗しても復習には影響しない */ }
+  }, [mounted, history]);
 
   useEffect(() => {
     if (!mounted) return;

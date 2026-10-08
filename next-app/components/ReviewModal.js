@@ -256,7 +256,7 @@ export default function ReviewModal({ asPage = false }) {
     const wasMastered = isMastered(before);
     // 取り消し用に採点前の状態を保存（SRSエントリは複製・新規語は undefined のまま）
     setUndoStack((st) => [...st, { word: w.word, before: before ? { ...before } : undefined, promo, ratings }]);
-    reviewWord(w.word, q);
+    reviewWord(w.word, q, w._src); // 出所（最初に出会った作品/話）を SRS に固定（拡張の再会表示用）
     const after = loadSrs()[w.word.toLowerCase()];
     const newPromo = { learned: [...promo.learned], mastered: [...promo.mastered] };
     if (!wasLearned && isLearned(after)) newPromo.learned.push(w.word);

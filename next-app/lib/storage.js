@@ -550,10 +550,15 @@ export function recordReviewSession(historyId, easy, hard, fail) {
 }
 
 // SM-2アルゴリズム（同日復習ガードつき）。quality 0=失敗 / 3=うろ覚え / 5=完璧
-export function reviewWord(word, quality) {
+// src＝カードの出所（_src: {title, season, episode}）。**最初の採点時だけ** e.origin に固定する
+// （同じ語が複数作品のリストに出ても「最初に出会った作品」を残す＝拡張の再会表示が使う・2026-10-08）。
+export function reviewWord(word, quality, src = null) {
   const all = loadSrs();
   const k = word.toLowerCase();
   let e = all[k] || { interval: 1, repetitions: 0, easeFactor: 2.5, skipped: false };
+  if (src?.title && !e.origin?.title) {
+    e.origin = { title: src.title, season: src.season ?? null, episode: src.episode ?? null };
+  }
 
   // 同日2回目以降の成功は「練習」扱い（スケジュールを進めない）。失敗は常に反映。
   if (e.lastReview === todayStr() && quality >= 3) {
@@ -584,6 +589,45 @@ export function reviewWord(word, quality) {
   all[k] = e;
   saveSrs(all);
   pushSrsWords({ [k]: e }); // クラウドへ（未ログイン時は no-op・fire-and-forget）
+}
+
+// 出所の埋め戻し（2026-10-08）: origin を持たない SRS エントリに、予習履歴（作品ごとの語リスト）から
+// 「最初にその語が出た作品/話」を付ける。端末ごとに1回だけ（旗 SRS_ORIGIN_BACKFILL_KEY）。
+// 変更分だけクラウドへ push。履歴に無い語（拡張保存語だけ等）はそのまま。戻り値＝付けた語数。
+const SRS_ORIGIN_BACKFILL_KEY = 'cl_srs_origin_backfill_v1';
+export function backfillSrsOrigins(history = loadHistory()) {
+  try {
+    if (localStorage.getItem(SRS_ORIGIN_BACKFILL_KEY) === '1') return 0;
+  } catch {
+    return 0;
+  }
+  const all = loadSrs();
+  const firstSeen = new Map(); // word → { title, season, episode }（日付の古い履歴を優先）
+  [...history]
+    .sort((a, b) => String(a.date || '') < String(b.date || '') ? -1 : 1)
+    .forEach((h) => {
+      const title = h.drama?.title;
+      if (!title) return;
+      (h.words || []).forEach((w) => {
+        const k = String(w.word || '').toLowerCase();
+        if (k && !firstSeen.has(k)) firstSeen.set(k, { title, season: h.season ?? null, episode: h.episode ?? null });
+      });
+    });
+  const changed = {};
+  for (const [k, e] of Object.entries(all)) {
+    if (!e || e.origin?.title) continue;
+    const o = firstSeen.get(k);
+    if (!o) continue;
+    e.origin = o;
+    changed[k] = e;
+  }
+  const n = Object.keys(changed).length;
+  if (n) {
+    saveSrs(all);
+    pushSrsWords(changed); // クラウドへ（未ログイン時は no-op）
+  }
+  try { localStorage.setItem(SRS_ORIGIN_BACKFILL_KEY, '1'); } catch { /* 保存不可は次回また試す */ }
+  return n;
 }
 
 // 採点の取り消し（押し間違い救済・2026-09-21）。before は採点前のエントリ（新規語なら undefined）。

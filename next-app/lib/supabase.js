@@ -208,9 +208,17 @@ export async function pullFromCloud(profileId = null) {
         lastReview: e.last_review,
         skipped: e.skipped,
       };
+      // 出所（最初に出会った作品/話）。列が無いDBでは undefined＝付けない
+      if (e.origin_title) cloudEntry.origin = { title: e.origin_title, season: e.origin_season ?? null, episode: e.origin_episode ?? null };
       const l = local[e.word];
       // クラウドの方が新しい復習日を持つ場合のみ採用（YYYY-MM-DD の文字列比較）。
-      if (!l || (e.last_review || '') > (l.lastReview || '')) merged[e.word] = cloudEntry;
+      if (!l || (e.last_review || '') > (l.lastReview || '')) {
+        // ローカルだけが出所を持っていれば引き継ぐ（クラウド行が古い＝出所列が空のことがある）
+        if (!cloudEntry.origin && l?.origin?.title) cloudEntry.origin = l.origin;
+        merged[e.word] = cloudEntry;
+      } else if (!l.origin?.title && cloudEntry.origin) {
+        merged[e.word] = { ...l, origin: cloudEntry.origin }; // ローカル優先でも出所だけは補う
+      }
     });
     const pushBack = {};
     Object.entries(merged).forEach(([w, e]) => {
@@ -442,29 +450,55 @@ export function queueStatePush(key, delayMs = 3000) {
 
 // SRS を語単位でクラウドへ upsert（entries = { word: srsEntry }）。
 // スキーマ列のみ送る（lastQuality/reviewCount 等の拡張フィールドはローカル専用）。
+// origin_*（最初に出会った作品/話・supabase_srs_origin.sql）。列が無いDBでは PGRST204 で行ごと弾かれる
+// ので、一度弾かれたらセッション中は送らない（ts_sec / in_wordbook と同じ作法）。
+let _srsOriginUnsupported = false;
+function isMissingSrsOrigin(res) {
+  const msg = `${res?.code || ''} ${res?.message || ''}`;
+  return /PGRST204/.test(msg) && /origin_/.test(msg);
+}
+
 export async function pushSrsWords(entries) {
   if (!isLoggedIn()) return;
   const uid = getCurrentUser()?.id;
   if (!uid || !entries) return;
-  const rows = Object.entries(entries)
-    .filter(([, e]) => e)
-    .map(([word, e]) => ({
-      user_id: uid,
-      word,
-      interval: e.interval ?? 1,
-      repetitions: e.repetitions ?? 0,
-      ease_factor: e.easeFactor ?? 2.5,
-      due_date: e.dueDate ?? null,
-      last_review: e.lastReview ?? null,
-      skipped: !!e.skipped,
-      updated_at: new Date().toISOString(),
-    }));
+  const build = (withOrigin) =>
+    Object.entries(entries)
+      .filter(([, e]) => e)
+      .map(([word, e]) => {
+        const row = {
+          user_id: uid,
+          word,
+          interval: e.interval ?? 1,
+          repetitions: e.repetitions ?? 0,
+          ease_factor: e.easeFactor ?? 2.5,
+          due_date: e.dueDate ?? null,
+          last_review: e.lastReview ?? null,
+          skipped: !!e.skipped,
+          updated_at: new Date().toISOString(),
+        };
+        // 出所は持っている時だけ送る（省略＝据え置き・merge-duplicates）。最初に出会った作品を上書きしない
+        if (withOrigin && e.origin?.title) {
+          row.origin_title = e.origin.title;
+          row.origin_season = e.origin.season ?? null;
+          row.origin_episode = e.origin.episode ?? null;
+        }
+        return row;
+      });
+  let rows = build(!_srsOriginUnsupported);
   if (!rows.length) return;
-  await sbFetch('/rest/v1/srs_data', {
-    method: 'POST',
-    headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-    body: JSON.stringify(rows),
-  });
+  const post = () =>
+    sbFetch('/rest/v1/srs_data', {
+      method: 'POST',
+      headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify(rows),
+    });
+  const res = await post();
+  if (isMissingSrsOrigin(res) && rows.some((r) => 'origin_title' in r)) {
+    _srsOriginUnsupported = true;
+    rows = build(false);
+    await post();
+  }
 }
 
 // 手動追加した単語を my_words へ upsert（#20 スマホからの単語追加）。
