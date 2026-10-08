@@ -15,6 +15,7 @@ import SettingsScreen from '@/components/SettingsScreen';
 import ProfileSelect from '@/components/ProfileSelect';
 import WordbookScreen from '@/components/WordbookScreen';
 import ReviewHubScreen from '@/components/ReviewHubScreen';
+import VocabJourneyScreen from '@/components/VocabJourneyScreen';
 import TicketCollectionScreen from '@/components/TicketCollectionScreen';
 import AuthModal from '@/components/AuthModal';
 import Onboarding from '@/components/Onboarding';
@@ -127,6 +128,7 @@ function AppShell() {
             {screen === 'review-hub' && <ReviewHubScreen />}
             {screen === 'collection' && <TicketCollectionScreen />}
             {screen === 'wordbook' && <WordbookScreen />}
+            {screen === 'journey' && <VocabJourneyScreen />}
             {screen === 'settings' && <SettingsScreen />}
           </>
         )}
