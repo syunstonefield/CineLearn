@@ -32,6 +32,7 @@ import {
   loadHistory,
   loadSrs,
   overallVocabStats,
+  activeWordKeys,
 } from '@/lib/storage';
 
 // まだ Next.js 版に移植していない画面・機能の仮ハンドラ
@@ -246,7 +247,10 @@ export default function Dashboard() {
     const learnStats = learningStatsByTitle(history, loadSrs(), myWords, sameWorkTitle);
     // 累計の「覚えた／マスター」（ホームの達成感＝復習モチベ用）。履歴の語＋追加した語を
     // 語で名寄せして数える＝単語帳の件数と一致する（追加した語が母数から抜けない）。
-    const overall = overallVocabStats(history, myWords);
+    // 棚から外した作品の「まだ復習していない語」は分母と今日の復習から外す（activeWordKeys）。
+    // 保存語の作品名は日英で揺れるので名寄せ込みの sameWorkTitle で判定する。
+    const activeKeys = activeWordKeys(history, myWords, sameWorkTitle);
+    const overall = overallVocabStats(history, myWords, loadSrs(), activeKeys);
     return {
       history,
       entries: buildLibraryEntries(history, myDramas).filter((e) => !archived.has(e.drama.title)),
@@ -256,7 +260,7 @@ export default function Dashboard() {
       totalWords: overall.total,
       streak: getStreak(),
       hasAnyWord: overall.total > 0,
-      dueCount: getDueReviewWords(history, loadSrs(), myWords).length,
+      dueCount: getDueReviewWords(history, loadSrs(), myWords, activeKeys).length,
       weekStats: getWeekStats(),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -388,10 +392,18 @@ export default function Dashboard() {
     [settings.userLevel, settings.selectedServices]
   );
 
-  // 棚から外す（アーカイブ）。学習記録（単語・スコア・履歴）は残し、一覧から隠すだけ。
+  // 棚から外す（＝学習中から一旦外す）。学習記録（単語リスト・覚えた/マスター）は一切消さない。
+  // まだ復習していない語がホームの分母と今日の復習から外れる（lib/storage.js activeWordKeys）。
   // 同じ作品を開き直せば自動で棚に戻る（openDrama の unarchiveDrama）。
   const handleArchive = (title) => {
-    if (!confirm(`「${title}」を棚から外しますか？\n学習記録（単語・スコア）は残ります。`)) return;
+    if (
+      !confirm(
+        `「${title}」を学習中から外しますか？\n` +
+          `まだ復習していない語が「今日の復習」と覚えた数の母数から外れます。\n` +
+          `覚えた・マスターの記録と単語リストは残り、作品を開き直すと元に戻ります。`
+      )
+    )
+      return;
     archiveDrama(title);
     setTick((t) => t + 1);
   };
@@ -535,7 +547,10 @@ export default function Dashboard() {
         onStartReview={() => {
           // 横断復習（特定エピソードに紐づかない）→ historyId は null
           setCurrentHistoryId(null);
-          openReview(getDueReviewWords(loadHistory(), loadSrs(), myWords).slice(0, DAILY_REVIEW_CAP));
+          const h = loadHistory();
+          openReview(
+            getDueReviewWords(h, loadSrs(), myWords, activeWordKeys(h, myWords, sameWorkTitle)).slice(0, DAILY_REVIEW_CAP)
+          );
         }}
       />
 

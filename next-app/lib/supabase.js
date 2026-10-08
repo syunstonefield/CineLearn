@@ -357,7 +357,7 @@ export async function pullFromCloud(profileId = null) {
 
 // 同期対象の localStorage キー（user_state 1行=1キー）。
 const STATE_KEY_RE =
-  /^(cl_tickets|cl_fav_dramas|cl_study_sec|cl_study_drama)(_|$)|^cl_prepped$|^cl_seat_counter$|^cl_exp_ledger$/;
+  /^(cl_tickets|cl_fav_dramas|cl_study_sec|cl_study_drama)(_|$)|^cl_prepped$|^cl_seat_counter$|^cl_exp_ledger$|^cl_archived$/;
 
 function localStateKeys() {
   try {
@@ -414,6 +414,21 @@ function mergeStateValue(key, localV, cloudV) {
     const out = { ...(cloudV || {}) };
     Object.entries(localV || {}).forEach(([t, s]) => {
       out[t] = Math.max(Number(out[t]) || 0, Number(s) || 0);
+    });
+    return out;
+  }
+  if (key === 'cl_archived') {
+    // 棚から外す/戻す: 作品ごとに at が新しい方。旧形式（配列）は at:0 として読む
+    // （storage.js normalizeArchived と同じ解釈＝循環 import を避けてここに複製）。
+    const norm = (v) =>
+      Array.isArray(v)
+        ? Object.fromEntries(v.filter(Boolean).map((t) => [t, { on: true, at: 0 }]))
+        : v && typeof v === 'object'
+          ? v
+          : {};
+    const out = { ...norm(cloudV) };
+    Object.entries(norm(localV)).forEach(([t, v]) => {
+      if (!out[t] || (v?.at || 0) >= (out[t]?.at || 0)) out[t] = v;
     });
     return out;
   }

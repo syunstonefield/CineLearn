@@ -1,7 +1,7 @@
 // 既存アプリ（js/app.js）からの移植。
 // localStorage のキー・データ構造は既存実装と完全に同一に保つこと。
 
-import { pushHistoryEntry, deleteHistoryRow, pushSrsWords, deleteSrsWord, pushProfiles } from './supabase';
+import { pushHistoryEntry, deleteHistoryRow, pushSrsWords, deleteSrsWord, pushProfiles, queueStatePush } from './supabase';
 import { PROFILES_AT_KEY } from './profileMerge';
 
 export const HISTORY_KEY = 'cl_history';
@@ -179,7 +179,12 @@ export function subtitleCredit(w) {
 // 期日判定する。ホームは「覚えた/マスター」の母数に追加語を含めているので、復習の対象からだけ
 // 外れていると「単語はあるのに今日の復習は完了」と嘘をつくことになる（2026-08-08）。
 // 語が重複する時は履歴側を優先する（例文の出所メタ _src が付いているため）。
-export function getDueReviewWords(history = loadHistory(), srs = loadSrs(), extraWords = []) {
+export function getDueReviewWords(
+  history = loadHistory(),
+  srs = loadSrs(),
+  extraWords = [],
+  activeKeys = activeWordKeys(history, extraWords)
+) {
   const fromHistory = getAllVocabWords(history);
   const seen = new Set(fromHistory.map((w) => String(w.word || '').toLowerCase()));
   const extras = (extraWords || [])
@@ -191,8 +196,10 @@ export function getDueReviewWords(history = loadHistory(), srs = loadSrs(), extr
       _src: { title: w.dramaTitle, season: w.season, episode: w.episode },
     }));
   const eligible = [...fromHistory, ...extras].filter((w) => {
-    const e = srs[w.word.toLowerCase()];
-    return !e || isDue(e);
+    const k = w.word.toLowerCase();
+    const e = srs[k];
+    if (e) return isDue(e); // 復習を始めた語は棚から外した作品の語でも出す（記録の保護）
+    return !activeKeys || activeKeys.has(k); // 未学習は「学習中」の作品の語だけ
   });
   // 期日到来（SRS登録済み）を先に、その後に未学習。段の中はシャッフル＝上限20語で切っても
   // 毎日同じ先頭20語にならない（未学習が数百ある実運用で「毎回同じ」になっていた・2026-09-22）。
@@ -303,28 +310,82 @@ export function deleteDramaLocal(title) {
   safeSet(HISTORY_KEY, JSON.stringify(newHistory));
 }
 
-// ── アーカイブ（棚から外す） ────────────────────────────────
-// 「棚から外す」は学習履歴・単語・スコアを一切消さず、マイリストの表示からだけ隠す。
-// タイトル名の配列を端末ローカルに保持する（単一ユーザー運用＝グローバルキー）。
+// ── アーカイブ（棚から外す＝学習中から一旦外す） ─────────────────────
+// 学習履歴・単語リスト・覚えた/マスターの記録は一切消さない。作品を開き直すと
+// openDrama→unarchiveDrama で自動的に戻る。
+// 2026-10-08 オーナー決定で「表示から隠すだけ」から「学習中から外す」に拡張した:
+//   棚から外した作品の『まだ一度も復習していない語』を、ホームの分母（覚えた X / 総語数）と
+//   今日の復習の未学習枠から外す（activeWordKeys）。復習を始めた語（SRS に載っている語）は
+//   外さない＝覚えた数は減らず、期日が来れば出題も続く（夕方通知は srs_data の期日で数える
+//   ので、出題と通知の数もずれない）。
+// 保存形式は { [title]: { on: bool, at: ms } }。外す/戻すの両方に時刻を持たせ、端末間は
+// 作品ごとに新しい方を採る（配列の union だと「戻した」が別端末の古い記録で生き返る）。
+// 旧形式（タイトル名の配列）は読むときに at:0 として解釈する。
 export const ARCHIVED_KEY = 'cl_archived';
 
+export function normalizeArchived(v) {
+  if (Array.isArray(v)) return Object.fromEntries(v.filter(Boolean).map((t) => [t, { on: true, at: 0 }]));
+  return v && typeof v === 'object' ? v : {};
+}
+
+function loadArchivedMap() {
+  return normalizeArchived(readJson(ARCHIVED_KEY, {}));
+}
+
+export const ARCHIVE_EVENT = 'cl-archive-change';
+
+function saveArchivedMap(m) {
+  safeSet(ARCHIVED_KEY, JSON.stringify(m));
+  queueStatePush(ARCHIVED_KEY, 500); // クラウドへ（未ログイン時は no-op）
+  // 画面をまたぐ集計（ボトムナビの復習バッジ等）に再計算を知らせる
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(ARCHIVE_EVENT));
+}
+
+// 棚から外している作品名の配列（呼び出し側の互換 API）。
 export function loadArchived() {
-  return readJson(ARCHIVED_KEY, []);
+  return Object.entries(loadArchivedMap())
+    .filter(([, v]) => v?.on)
+    .map(([t]) => t);
 }
 
 export function archiveDrama(title) {
-  const arr = loadArchived();
-  if (!arr.includes(title)) {
-    arr.push(title);
-    safeSet(ARCHIVED_KEY, JSON.stringify(arr));
-  }
+  if (!title) return;
+  const m = loadArchivedMap();
+  if (m[title]?.on) return;
+  m[title] = { on: true, at: Date.now() };
+  saveArchivedMap(m);
 }
 
 export function unarchiveDrama(title) {
-  const arr = loadArchived();
-  if (arr.includes(title)) {
-    safeSet(ARCHIVED_KEY, JSON.stringify(arr.filter((t) => t !== title)));
-  }
+  if (!title) return;
+  const m = loadArchivedMap();
+  if (!m[title]?.on) return;
+  m[title] = { on: false, at: Date.now() };
+  saveArchivedMap(m);
+}
+
+// 「学習中」の語（小文字キー）の集合。棚から外した作品“だけ”に出てくる語を除く。
+// 外している作品が無ければ null（＝全語が学習中・呼び出し側は無条件に通す）。
+// sameTitle は作品名の同一判定（保存語の dramaTitle は邦題/英題で揺れるので Dashboard 等は
+// sameWorkTitle を渡す。既定は完全一致＝履歴と棚は同じ drama.title 由来なのでこれで足りる）。
+export function activeWordKeys(history = loadHistory(), myWords = [], sameTitle = (a, b) => a === b) {
+  const archived = loadArchived();
+  if (!archived.length) return null;
+  const isArchived = (t) => !!t && archived.some((a) => sameTitle(a, t));
+  const keys = new Set();
+  (history || []).forEach((h) => {
+    if (isArchived(h.drama?.title)) return;
+    (h.words || []).forEach((w) => {
+      const k = String(w.word || '').toLowerCase();
+      if (k) keys.add(k);
+    });
+  });
+  (myWords || []).forEach((w) => {
+    if (isArchived(w.dramaTitle)) return;
+    const k = String(w.word || '').toLowerCase();
+    if (k) keys.add(k);
+  });
+  return keys;
 }
 
 // 作品（タイトル）ごとの保存単語数。履歴の各エピソードの words を合算する。
@@ -402,7 +463,12 @@ export function learningStatsByTitle(
 //     ② 同じ語を2作品で保存すると2語として二重計上される
 //   の2点で単語帳の件数と食い違っていた。単語帳の stats と同じ「語で1つ」に揃える。
 // learned は mastered を含む（VocabProgress の従来表示と同じ意味・2つのゲージは独立）。
-export function overallVocabStats(history = loadHistory(), myWords = [], srs = loadSrs()) {
+export function overallVocabStats(
+  history = loadHistory(),
+  myWords = [],
+  srs = loadSrs(),
+  activeKeys = activeWordKeys(history, myWords)
+) {
   const seen = new Set();
   let total = 0;
   let learned = 0;
@@ -410,6 +476,8 @@ export function overallVocabStats(history = loadHistory(), myWords = [], srs = l
   const count = (word) => {
     const k = String(word || '').toLowerCase();
     if (!k || seen.has(k)) return;
+    // 棚から外した作品“だけ”の語で、まだ復習していないものは数えない（覚えた語は数え続ける）
+    if (activeKeys && !activeKeys.has(k) && !srs[k]) return;
     seen.add(k);
     total++;
     const e = srs[k];

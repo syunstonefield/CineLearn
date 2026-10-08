@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import AppProvider, { useApp, PROFILE_SELECT_ENABLED } from '@/components/AppProvider';
 import Header from '@/components/Header';
 import Dashboard from '@/components/Dashboard';
@@ -24,7 +24,7 @@ import BottomNav from '@/components/BottomNav';
 import WelcomeTutorial from '@/components/WelcomeTutorial';
 import ExtensionGuide from '@/components/ExtensionGuide';
 import SplashScreen from '@/components/SplashScreen';
-import { getActiveWordCount, getDueReviewWords, DAILY_REVIEW_CAP } from '@/lib/storage';
+import { getActiveWordCount, getDueReviewWords, DAILY_REVIEW_CAP, ARCHIVE_EVENT } from '@/lib/storage';
 
 // まだ移植していない画面の仮ハンドラ
 function notYet(name) {
@@ -66,11 +66,19 @@ function AppShell() {
     () => (mounted ? getActiveWordCount(profile?.id) : 0),
     [mounted, profile, wordbookVersion, cloudVersion]
   );
+  // 棚から外す/戻すで未学習の出題範囲が変わる＝バッジも再計算する（lib/storage.js ARCHIVE_EVENT）。
+  const [archiveTick, setArchiveTick] = useState(0);
+  useEffect(() => {
+    const bump = () => setArchiveTick((t) => t + 1);
+    window.addEventListener(ARCHIVE_EVENT, bump);
+    return () => window.removeEventListener(ARCHIVE_EVENT, bump);
+  }, []);
   // ボトムナビ「復習」バッジ用の未消化件数（今日の上限まで）。
-  // 復習完了（reviewVersion）・クラウド取込・単語帳更新で再計算する。
+  // 復習完了（reviewVersion）・クラウド取込・単語帳更新・棚の変更で再計算する。
   const dueCount = useMemo(
     () => (mounted ? Math.min(getDueReviewWords().length, DAILY_REVIEW_CAP) : 0),
-    [mounted, profile, reviewVersion, cloudVersion, wordbookVersion]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [mounted, profile, reviewVersion, cloudVersion, wordbookVersion, archiveTick]
   );
   // ボトムナビはアプリ内（プロフィール選択済み）でのみ表示。
   // プロフィール選択・オンボーディング中は出さない。

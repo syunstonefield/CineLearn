@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useApp } from './AppProvider';
-import { getActiveWords } from '@/lib/words';
+import { getActiveWords, sameWorkTitle } from '@/lib/words';
 import {
   loadHistory,
   loadSrs,
@@ -10,6 +10,7 @@ import {
   isLearned,
   isMastered,
   getDueReviewWords,
+  activeWordKeys,
   backfillSrsOrigins,
   DAILY_REVIEW_CAP,
 } from '@/lib/storage';
@@ -144,16 +145,21 @@ export default function ReviewHubScreen() {
 
   // ホームの「今日の復習」と同じ母集団にする（myWords を渡す）。渡さないと同じ名前の入口が
   // 画面ごとに別の数字を出す（ホーム=本編+保存語／ここ=本編のみ）＝どちらかが嘘になる。
+  // 棚から外した作品の未着手語を除く（ホームと同じ判定＝同じ数字を出す）。
+  const activeKeys = useMemo(
+    () => (mounted ? activeWordKeys(history, myWords, sameWorkTitle) : null),
+    [mounted, history, myWords]
+  );
   const todayCount = useMemo(
-    () => (mounted ? Math.min(getDueReviewWords(history, srs, myWords).length, DAILY_REVIEW_CAP) : 0),
-    [mounted, history, srs, myWords]
+    () => (mounted ? Math.min(getDueReviewWords(history, srs, myWords, activeKeys).length, DAILY_REVIEW_CAP) : 0),
+    [mounted, history, srs, myWords, activeKeys]
   );
 
   const myDue = useMemo(() => (myWords || []).filter((w) => isWordDue(w, srs)).length, [myWords, srs]);
 
   const startToday = () => {
     setCurrentHistoryId(null); // 横断復習（特定エピソードに紐づかない）
-    openReview(getDueReviewWords(history, srs, myWords).slice(0, DAILY_REVIEW_CAP));
+    openReview(getDueReviewWords(history, srs, myWords, activeKeys).slice(0, DAILY_REVIEW_CAP));
   };
 
   const startEpisodeReview = (g, ep) => {
