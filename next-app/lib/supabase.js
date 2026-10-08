@@ -575,6 +575,8 @@ export async function pushMyWord(w) {
   // いた（merge-duplicates は送った列を必ず更新する）。例文が消えると出所表示も道連れになる。
   const row = { user_id: uid, word: w.word, saved_at: w.savedAt || '' };
   if (w.sentence) row.sentence = w.sentence;
+  // 例文を意図して消す時だけ null を送る（切り替え前の画面字幕の例文の取り直し・lib/preDomExamples.js）
+  else if (w._clearSentence) row.sentence = null;
   if (w.source) row.source = w.source;
   if (w.ja) row.ja = w.ja;
   if (w.example_ja) row.example_ja = w.example_ja; // 例文の和訳（同じ行の sentence とペア）

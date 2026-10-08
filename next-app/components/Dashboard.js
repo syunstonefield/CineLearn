@@ -16,6 +16,7 @@ import { isMobileDevice } from '@/lib/device';
 import { tmdb } from '@/lib/api';
 import { computeRecap, computeWatchGroup } from '@/lib/reunion';
 import { settleRingValues } from '@/lib/rings';
+import { refetchPreDomExamples } from '@/lib/preDomExamples';
 import { usePlan, featureAccess } from '@/lib/plan';
 import { dailyReviewCap } from '@/lib/reviewCount';
 import { confirmWatch, isWatchConfirmed, isWatchSnoozed, snoozeWatchPrompt, watchEpKey } from '@/lib/watchlog';
@@ -78,6 +79,7 @@ export default function Dashboard() {
     tickets,
     openSceneCards,
     openJourney,
+    bumpWordbook,
     wordbookVersion,
     loggedIn,
   } = useApp();
@@ -155,6 +157,17 @@ export default function Dashboard() {
   // （getActiveWords は非同期＝クラウド取り込みを含むので data の useMemo からは呼べない）。
   const [myWords, setMyWords] = useState([]);
   const [myWordsLoaded, setMyWordsLoaded] = useState(false); // 円の記録は単語帳の語が揃ってから（途中の小さい値を残さない）
+  // 切り替え前（2026-07-03 より前）に拡張で保存した語の例文＝画面字幕の行を、OpenSubtitles の1文に
+  // 取り直す（ログイン時のみ・1回 8 語まで・済んだ語は端末に記録＝lib/preDomExamples.js）。
+  const preDomRan = useRef(false);
+  useEffect(() => {
+    if (!mounted || !loggedIn || !myWordsLoaded || preDomRan.current) return;
+    preDomRan.current = true;
+    refetchPreDomExamples(myWords, { profileId: profile?.id, myDramas })
+      .then((changed) => changed && bumpWordbook())
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted, loggedIn, myWordsLoaded]);
   useEffect(() => {
     if (!mounted) return;
     let cancelled = false;
