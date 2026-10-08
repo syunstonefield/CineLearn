@@ -4,6 +4,7 @@ import { useEffect, useMemo } from 'react';
 import { loadHistory } from '@/lib/storage';
 import { getDramaStudySeconds, formatStudyTime } from '@/lib/studytime';
 import { useApp } from './AppProvider';
+import { sameWorkTitle } from '@/lib/words';
 import TicketPoster from './TicketPoster';
 
 // 半券の詳細ページ（Phase 2）。コレクション一覧のカードをタップで開くサブ画面。
@@ -16,7 +17,20 @@ export default function TicketDetailView({ entry, seasons, onBack, onFav, onStud
   }, []);
 
   // エピソードごとの「単語リスト」へ飛ぶ（既存の VocabScreen＝screen='vocab' を再利用）。
-  const { setDrama, setSeason, setEpisode, setScreen } = useApp();
+  const { setDrama, setSeason, setEpisode, setScreen, tickets, openSceneCards } = useApp();
+  // この作品の半券（予習クイズで発行・出題語つき）＝シーン記憶カードの入口。ホームの「おすすめの復習」から
+  // ここへ移した（オーナー 2026-10-08）。同じ話は最新の1枚だけ。
+  const sceneTickets = useMemo(() => {
+    const byEp = new Map();
+    (tickets || [])
+      .filter((t) => (t.words || []).length > 0 && sameWorkTitle(t.title, entry.title))
+      .forEach((t) => {
+        const k = `${t.season ?? ''}-${t.episode ?? ''}`;
+        const prev = byEp.get(k);
+        if (!prev || (t.createdAt || 0) >= (prev.createdAt || 0)) byEp.set(k, t);
+      });
+    return [...byEp.values()].sort((a, b) => (a.season ?? 0) - (b.season ?? 0) || (a.episode ?? 0) - (b.episode ?? 0));
+  }, [tickets, entry.title]);
   const openWordList = (s, e) => {
     setDrama(entry.drama);
     setSeason(s);
@@ -197,6 +211,24 @@ export default function TicketDetailView({ entry, seasons, onBack, onFav, onStud
                   </span>
                   <span className="td-ep-date">学習日：{fmtDate(e.date)}</span>
                   {e.score != null && <span className="td-ep-score">{e.score}点</span>}
+                  <span className="td-ep-go" aria-hidden="true">
+                    ›
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* シーン記憶カード（半券から場面の聞きどころを思い出す）。無料。 */}
+        {sceneTickets.length > 0 && (
+          <section className="td-sec">
+            <h2 className="td-sec-title">🃏 聞きどころを思い出す</h2>
+            <div className="td-eps">
+              {sceneTickets.map((t) => (
+                <button type="button" className="td-ep td-ep-link" key={t.id} onClick={() => openSceneCards(t)}>
+                  <span className="td-ep-se">{t.season != null && t.episode != null && !t.isMovie ? `S${t.season}E${t.episode}` : '本編'}</span>
+                  <span className="td-ep-date">あの場面の {t.words.length}語</span>
                   <span className="td-ep-go" aria-hidden="true">
                     ›
                   </span>

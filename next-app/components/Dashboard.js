@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
 import TodayPanel from './TodayPanel';
 import VocabProgress from './VocabProgress';
-import HomeStubCard from './HomeStubCard';
 import LibraryCard from './LibraryCard';
 import ContinueCard from './ContinueCard';
 import AddDramaModal from './AddDramaModal';
@@ -738,27 +737,7 @@ export default function Dashboard() {
           3重の円は「あゆみ」タブ（VocabJourneyScreen）に移した（オーナー 2026-10-08）＝ホームは元のカード。 */}
       <VocabProgress learned={data.totalLearned} mastered={data.totalMastered} total={data.totalWords} />
 
-      {/* 半券（観た証）＝観た後に戻る入口。シーン記憶カードへ。最新1枚だけ出して混雑を避ける。
-          「観たあとに」カードが出ている間は重複表示になるため隠す（カード統合・混雑回避）。 */}
-      {(() => {
-        if (showWatchAsk || (showWatchCelebrate && justConfirmed === watchMeta?.epKey) || showWatchCelebrateLight) return null;
-        const withWords = (tickets || []).filter((t) => (t.words || []).length > 0);
-        if (!withWords.length) return null;
-        const latest = withWords[withWords.length - 1];
-        const poster =
-          posterOverrides[latest.title] ||
-          myDramas.find((d) => d.title === latest.title)?.posterPath ||
-          entries.find((e) => e.drama.title === latest.title)?.drama.posterPath ||
-          null;
-        return (
-          <>
-            <h2 className="home-section-title">おすすめの復習</h2>
-            <div className="stub-row">
-              <HomeStubCard ticket={latest} poster={poster} onOpen={openSceneCards} />
-            </div>
-          </>
-        );
-      })()}
+      {/* 「おすすめの復習」（最新の半券→シーン記憶カード）はホームから外し、半券タブの作品詳細へ移した（オーナー 2026-10-08） */}
 
       {/* 検索・ジャンル別検索・おすすめ・作品追加はすべてヘッダーの「＋」モーダルへ集約。
           ホームのツールバーは撤去して散らかりを減らす（おすすめは下のセクションにも残す）。 */}
