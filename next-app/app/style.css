@@ -6440,3 +6440,7 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
 .choice-ja { font-size: 13px; color: var(--text-muted); text-align: right; min-width: 0; }
 .choice-btn.correct .choice-ja { color: var(--green); opacity: 0.85; }
 .choice-btn.wrong .choice-ja { color: var(--red); opacity: 0.85; }
+
+/* 有料予定の機能に添える控えめな表示（components/PlusNote.js・2026-10-08）。警告色・強調色は使わない */
+.plus-note { display: inline-block; font-size: 11px; line-height: 1.5; color: var(--text-muted); border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; }
+.plus-note-sub { opacity: 0.85; }

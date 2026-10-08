@@ -6,6 +6,8 @@ import { getToeicLevel, getVocabCount } from '@/lib/vocab';
 import { getThemePref, setThemePref } from '@/lib/theme';
 import { enablePushSubscription } from '@/lib/push';
 import { NON_AFFILIATION } from '@/lib/legal';
+import { usePlan } from '@/lib/plan';
+import PlusNote from './PlusNote';
 
 // 設定（英語レベル / 利用サービス / テーマ / 単語階層 / 復習リマインダー）。
 // 旧 SettingsModal をモーダル→screen='settings' のページに置き換え。
@@ -29,7 +31,8 @@ const TIERS = [
 ];
 
 export default function SettingsScreen() {
-  const { settings, updateSettings, closeSettings } = useApp();
+  const { settings, updateSettings, closeSettings, loggedIn } = useApp();
+  const plan = usePlan(loggedIn);
 
   const toeicScore = settings.toeicScore || 0;
   const targetScore = settings.targetToeicScore || 0;
@@ -314,6 +317,24 @@ export default function SettingsScreen() {
                 {notifyMsg}
               </div>
             )}
+          </div>
+
+          {/* プラン（isPro の土台・lib/plan.js）。ベータ中は全員使える＋プラスの印の意味だけ伝える */}
+          <div className="settings-section">
+            <div className="settings-section-title">🎟️ プラン</div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.7 }}>
+              {plan.beta ? (
+                <>
+                  ベータ版のあいだは、すべての機能をどなたでもお使いいただけます。
+                  <br />
+                  正式版でプラスになる機能には <PlusNote feature="workReview" plan={plan} /> の印が付きます。
+                </>
+              ) : plan.isPro ? (
+                'プラスをご利用中です。'
+              ) : (
+                '無料プランをご利用中です。'
+              )}
+            </div>
           </div>
 
           <button className="btn-primary" style={{ marginTop: 8, width: '100%' }} onClick={save}>
