@@ -1,20 +1,27 @@
 // ベータ運用の週次レポート（2026-10-08）。OS 商用契約の判断材料を1枚で見る。
 //   node --env-file=seed/.env seed/weekly-stats.mjs [週数=8]
-//   本番 /api/stats（x-cinelearn-seed 必須）を読み、直近の週ごとに
+//   本番 /api/stats（x-cinelearn-stats＝seed/.env の CL_STATS_SECRET 必須）を読み、直近の週ごとに
 //   利用者（ユニーク）・単語リストの命中率・新規生成・OS DL 消費（日次枠に対するピーク）を表にする。
 //   数え始めは 2026-10-08 のデプロイ以降（それ以前の日は 0）。
 
-import { API_BASE, seedHeaders, seedSecretApplies, warnIfSeedHeaderMissing } from './lib/osdl.mjs';
+import { API_BASE, SEED_HOST } from './lib/osdl.mjs';
 
 const weeks = Math.min(17, Math.max(1, Number(process.argv[2]) || 8));
 if (!API_BASE) {
   console.error('CINELEARN_API_BASE 未設定（seed/.env を --env-file で渡す）');
   process.exit(1);
 }
-warnIfSeedHeaderMissing();
-if (!seedSecretApplies()) process.exit(1);
+const secret = process.env.CL_STATS_SECRET;
+if (!secret) {
+  console.error('CL_STATS_SECRET 未設定（seed/.env に置く）');
+  process.exit(1);
+}
+if (new URL(API_BASE).hostname !== SEED_HOST) {
+  console.error(`CINELEARN_API_BASE のホストが ${SEED_HOST} ではない → 秘密を別ホストへ送らない`);
+  process.exit(1);
+}
 
-const res = await fetch(`${API_BASE}/api/stats?days=${weeks * 7}`, { headers: seedHeaders() });
+const res = await fetch(`${API_BASE}/api/stats?days=${weeks * 7}`, { headers: { 'x-cinelearn-stats': secret } });
 if (!res.ok) {
   console.error(`/api/stats ${res.status}`, (await res.text()).slice(0, 200));
   process.exit(1);
