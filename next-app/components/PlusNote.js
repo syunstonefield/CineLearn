@@ -7,14 +7,15 @@ import { featureAccess, DEFAULT_PLAN } from '@/lib/plan';
 //   正式版・無料の人: 説明文（ぼかし・チラ見せはしない）
 //   それ以外（無料の機能・保留の機能・正式版のプラスの人）: 何も出さない
 //   ★急かす文言（「今だけ」等）・価格・申込導線はここに足さない。
-export default function PlusNote({ feature, plan = DEFAULT_PLAN, style }) {
+// short: 狭い場所用（ベータ中は「正式版ではプラス」だけ）
+export default function PlusNote({ feature, plan = DEFAULT_PLAN, style, short = false }) {
   const a = featureAccess(feature, plan);
   if (!a.betaNote && !a.locked) return null;
   return (
     <span className="plus-note" style={style}>
       {a.betaNote ? (
         <>
-          正式版ではプラス<span className="plus-note-sub">（ベータ中はどなたでも使えます）</span>
+          正式版ではプラス{!short && <span className="plus-note-sub">（ベータ中はどなたでも使えます）</span>}
         </>
       ) : (
         'プラスの機能です'

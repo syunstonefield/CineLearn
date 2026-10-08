@@ -319,8 +319,26 @@ export default function VocabJourneyScreen() {
     target.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
   };
 
+  const ringAccess = featureAccess('ring', plan);
+  // 正式版の無料の人（下のタブには出ない・念のため）: 説明だけ（ぼかし・チラ見せはしない）
+  if (ringAccess.locked) {
+    return (
+      <div className="vj-screen" ref={screenRef}>
+        <div className="vj-card">
+          <PlusNote feature="ring" plan={plan} />
+          <p className="vj-hint">あゆみ（3重の円・学習した日のカレンダー・週ごとの推移）はプラスの機能です。覚えた語・マスターの数はホームと復習タブでいつでも見られます。</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="vj-screen" ref={screenRef}>
+      {ringAccess.betaNote && (
+        <div className="vj-plus">
+          <PlusNote feature="ring" plan={plan} />
+        </div>
+      )}
       {data && (
         <div className="vj-body">
           {ring && canShowRings() && (

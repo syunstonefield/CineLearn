@@ -6865,6 +6865,11 @@ button.vj-cell { cursor: pointer; }
 .vj-card-mini:focus-visible { outline: 2px solid var(--vj-learned); outline-offset: 2px; }
 .vj-card-mini .vj-grasswrap { width: 100%; display: flex; justify-content: center; }
 .vj-mini-title { font-size: 13px; font-weight: 700; color: var(--vj-ink); text-align: center; }
+/* あゆみ・学習した日はプラス（オーナー 2026-10-09）。正式版の無料の人はホームの草を出さず、覚えた・マスターを全幅に */
+.home-stats-row.is-single { grid-template-columns: minmax(0, 1fr); }
+.vj-card-mini .plus-note { font-size: 10px; padding: 0 6px; }
+.vj-plus { display: flex; justify-content: center; margin: 0 0 10px; }
+
 /* PC など広い幅: 学習した日のマスを大きく（12px だと広いカードの中で小さすぎて見にくい・オーナー 2026-10-09） */
 @media (min-width: 769px) {
   .vj-card-mini { --vj-cell: 19px; gap: 8px; }

@@ -8,7 +8,7 @@ import { JOURNEY, WEEKDAYS, dayDetail, md, parseYmd } from '@/lib/journey';
 
 const T = JOURNEY.text;
 
-export default function GrassCard({ grass, days, dailyStart, compact = false, mini = false, onOpen }) {
+export default function GrassCard({ grass, days, dailyStart, compact = false, mini = false, onOpen, note = null }) {
   // mini＝ホーム用の簡易版（オーナー 2026-10-08）: カレンダーの部分だけ。押すとあゆみタブ（onOpen）。
   if (mini) compact = true; // eslint-disable-line no-param-reassign
   // compact＝ホーム用: 表示幅に収まる直近の週だけ・マスを少し小さく・凡例と説明は出さず、中身はマスを押した時だけ。
@@ -80,6 +80,7 @@ export default function GrassCard({ grass, days, dailyStart, compact = false, mi
         aria-label={`学習した日（${grass.studied}日・今月 ${grass.thisMonth}日）。押すとあゆみで詳しく`}
       >
         <span className="vj-mini-title">{T.grassTitle}</span>
+        {note}
         <div className="vj-grasswrap" ref={wrapRef}>
           <div className="vj-grass">
             <span />

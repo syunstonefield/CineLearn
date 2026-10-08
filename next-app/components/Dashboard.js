@@ -5,6 +5,7 @@ import { useApp } from './AppProvider';
 import TodayPanel from './TodayPanel';
 import VocabProgress from './VocabProgress';
 import GrassCard from './GrassCard';
+import PlusNote from './PlusNote';
 import { buildGrass, statsStart } from '@/lib/journey';
 import { loadExpLedger } from '@/lib/exp';
 import LibraryCard from './LibraryCard';
@@ -772,11 +773,11 @@ export default function Dashboard() {
       {/* 学習した日（草）。ホームでは表示幅に収まる直近の週だけ（オーナー 2026-10-08）。
           今日の復習・草・続きから学習（最低1枚）が、スマホでも PC でも最初の1画面に収まる並びにする。 */}
       {/* 左＝覚えた・マスター、右＝学習した日（カレンダーだけの簡易版・押すとあゆみ）＝オーナー 2026-10-08 */}
-      <div className="home-stats-row">
+      <div className={`home-stats-row${homeGrass ? '' : ' is-single'}`}>
         <VocabProgress learned={data.totalLearned} mastered={data.totalMastered} total={data.totalWords} />
         {homeGrass && (
           <div className="vj-screen vj-embed">
-            <GrassCard grass={homeGrass.grass} days={homeGrass.days} dailyStart={homeGrass.dailyStart} mini onOpen={() => openJourney('grass')} />
+            <GrassCard grass={homeGrass.grass} days={homeGrass.days} dailyStart={homeGrass.dailyStart} mini onOpen={() => openJourney('grass')} note={<PlusNote feature="grass" plan={plan} short />} />
           </div>
         )}
       </div>
