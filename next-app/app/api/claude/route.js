@@ -336,8 +336,9 @@ export async function POST(req) {
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
-          model: TRANSLATE_MODEL,
-          thinking: TRANSLATE_THINKING,
+          // 語義欄は Haiku 4.5 に据え置き（2026-10-08 本番実測: 5.5 は同じプロンプトで不要な「（この場面では…）」を
+          // 付け、場面の事情を混ぜ、「質問を尋問する → 尋問する」のような崩れも出た）。5.5 移行はプロンプト再調整の後。
+          model: HAIKU_MODEL,
           max_tokens: 96, // v2 は「基本義（この場面では〜）」の2部構成ぶん少し長い
           messages: [{ role: 'user', content: prompt }],
         }),

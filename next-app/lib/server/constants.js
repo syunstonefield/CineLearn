@@ -13,8 +13,8 @@ function envInt(name, def) {
 // ── モデル ──
 // 単語生成・文脈訳・例文和訳・推薦のすべてがこの1定数を参照する。変更はここだけ。
 export const HAIKU_MODEL = 'claude-haiku-4-5-20251001';
-// 和訳系（/api/claude の wordsense・sentence・sentences）だけ先行して Haiku 5.5 へ（2026-10-08・段階1）。
-//   単価 $0.10/$0.50（4.5 の 1/10）。単語生成・推薦は品質比較の後に段階2で移す＝それまで HAIKU_MODEL のまま。
+// 例文の和訳（/api/claude の sentence・sentences）だけ先行して Haiku 5.5 へ（2026-10-08・段階1）。
+//   単価 $0.10/$0.50（4.5 の 1/10）。語義（wordsense）・単語生成・推薦は品質比較の後に段階2で移す＝それまで HAIKU_MODEL のまま。
 export const TRANSLATE_MODEL = 'claude-haiku-5-5';
 // Haiku 5.5 は既定で思考（adaptive）が有効＝思考ぶんも出力課金され、max_tokens 64〜200 の短い枠を
 // 食い潰して訳文が切れる。和訳に思考は要らないので明示的に切る（disabled は effort 既定 medium で受理）。
