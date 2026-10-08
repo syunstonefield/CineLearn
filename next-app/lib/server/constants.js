@@ -57,6 +57,12 @@ export const GEN_MONTH_LIMITS = {
   plus: envInt('CL_GEN_MONTH_PLUS', 30),
 };
 
+// 月の新規生成数のキー（JST の年月）＝日本の利用者の「今月」と揃える。生成と残り回数の問い合わせで共用。
+export function genMonthKey(uid, now = Date.now()) {
+  const d = new Date(now + 9 * 3600 * 1000);
+  return `gen:month:${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}:${uid}`;
+}
+
 export const VOCAB_LIMITS = {
   anon: {
     perMin: envInt('CL_VOCAB_LIMIT_ANON_PER_MIN', 2),

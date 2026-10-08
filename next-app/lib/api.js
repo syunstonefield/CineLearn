@@ -168,6 +168,18 @@ function messageOf(data, fallback) {
   return fallback;
 }
 
+// 作る前の確認用（app/api/gen-quota）。{ ok, cached, loggedIn, beta, plus, used, limit, remaining }。失敗は { ok:false }。
+export async function fetchGenQuota({ tmdbId, type, season, episode }) {
+  try {
+    const q = new URLSearchParams({ tmdbId: String(tmdbId), type, season: String(season ?? 0), episode: String(episode ?? 0) });
+    const res = await fetch(`${API_BASE}/api/gen-quota?${q}`, { headers: authHeaders(), cache: 'no-store' });
+    const data = (await readJson(res)) || {};
+    return res.ok && data.ok ? data : { ok: false };
+  } catch {
+    return { ok: false };
+  }
+}
+
 export async function generateEpisodeVocab(body, { signal } = {}) {
   let res;
   try {

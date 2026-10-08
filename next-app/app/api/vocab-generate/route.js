@@ -40,7 +40,7 @@ import { generateEpisodeVocab, clampVocabCount } from '@/lib/server/vocabGen';
 import { bumpStats } from '@/lib/server/stats';
 import { resolvePlan } from '@/lib/server/plan';
 import {
-  VOCAB_LIMITS, GEN_MONTH_LIMITS,
+  VOCAB_LIMITS, GEN_MONTH_LIMITS, genMonthKey,
   GENERATE_DEADLINE_MS,
   VOCAB_LOCK_TTL_SEC,
   NOGEN_TTL_SEC,
@@ -85,12 +85,6 @@ async function recordFailure(cacheKey, reason, { log = console } = {}) {
   const ttl = reason === 'timeout' ? NOGEN_TIMEOUT_TTL_SEC : NOGEN_TTL_SEC;
   await tryRedis(() => redisSet(nogenKey(cacheKey), reason, { ex: ttl }), null, { log });
   await tryRedis(() => redisIncrWithTtl(failKey(cacheKey), FAIL_COUNT_TTL_SEC), null, { log });
-}
-
-// 月のキー（JST の年月）＝日本の利用者の「今月」と揃える
-function jstMonthKey(now = Date.now()) {
-  const d = new Date(now + 9 * 3600 * 1000);
-  return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
 export async function POST(req) {
@@ -154,7 +148,7 @@ export async function POST(req) {
   if (failCount > FAIL_COUNT_MAX) return json({ hit: false, generated: false, reason: 'repeated_failure' });
 
   // ── 5.5) 月の新規生成数（ログイン利用者のみ・seed/admin は免除）。正式版だけ止める（ベータは数えるだけ）──
-  const monthKey = uid && !privileged ? `gen:month:${jstMonthKey()}:${uid}` : null;
+  const monthKey = uid && !privileged ? genMonthKey(uid) : null;
   if (monthKey) {
     const plan = await resolvePlan(req);
     if (!plan.beta) {

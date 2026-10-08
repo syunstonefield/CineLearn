@@ -29,7 +29,7 @@ import { secToTimeLabel } from '@/lib/subtitles';
 import { personalizeWords, fillMissingExampleJa } from '@/lib/vocab';
 // ★2026-09-12: 字幕本文（生SRT/整形済み）はクライアントに置かない。生成は /api/vocab-generate に
 //   1回投げて words だけを受け取り（generateEpisodeVocab）、字幕の有無は probeSubtitle で聞く。
-import { generateEpisodeVocab, probeSubtitle, authHeaders } from '@/lib/api';
+import { generateEpisodeVocab, probeSubtitle, authHeaders, fetchGenQuota } from '@/lib/api';
 import {
   getMyWordsForEpisode,
   countUnassignedForDrama,
@@ -130,6 +130,10 @@ export default function VocabScreen() {
   // 「ログインしてこの作品を予習する」（カタログ外パネル）／「ログインする」（生成枠 429）から AuthModal を開いた
   // 印。ログイン完了後にそのまま生成へ進む（2026-09-29 オーナー報告: ログインは成功しているのに画面が
   // 変わらず、失敗したように見えた）。ヘッダ等の別経路からのログインでは自動生成しない。
+  // 新しい単語リストを作る前の確認（2026-10-09 オーナー要望）: 共有の単語リストに無い話は、作る前に
+  // 「今月の生成枠を1回使います・残り○回」を見せてから作る＝後から「知らなかった」とならないように。
+  const [genConfirm, setGenConfirm] = useState(null); // { used, limit, remaining, beta, plus } | null
+  const genConfirmedRef = useRef(false);
   const genAfterLoginRef = useRef(false);
   const loginThenGenerate = () => {
     genAfterLoginRef.current = true;
@@ -719,6 +723,23 @@ export default function VocabScreen() {
       setGenBtn({ text: '予習をはじめる →', disabled: true, hidden: true });
       return;
     }
+    // 共有の単語リストに無い話＝今月の生成枠を使う → 先に確認を出す（ある話は確認なしでそのまま開く）
+    if (loggedIn && !genConfirmedRef.current) {
+      await ensureFreshSession();
+      if (myReq !== reqId.current) return;
+      const q = await fetchGenQuota({
+        tmdbId: drama.tmdbId,
+        type: movie ? 'movie' : 'tv',
+        season: movie ? 0 : season,
+        episode: movie ? 0 : episode,
+      });
+      if (myReq !== reqId.current) return;
+      if (q.ok && !q.cached) {
+        setGenConfirm(q);
+        return;
+      }
+    }
+    genConfirmedRef.current = false;
     const lobbyT0 = Date.now(); // ロビー最低滞在の起点（キャッシュ命中の即抜け防止）
     setRevealReady(false);
     setGenBtn({ text: '生成中...', disabled: true, hidden: false });
@@ -1420,8 +1441,55 @@ export default function VocabScreen() {
     );
   }
 
+  const confirmGenerate = () => {
+    genConfirmedRef.current = true;
+    setGenConfirm(null);
+    onGenerate();
+  };
+  const genConfirmModal = genConfirm && (
+    <div className="gen-confirm-scrim" role="dialog" aria-modal="true" aria-labelledby="gen-confirm-title">
+      <div className="gen-confirm">
+        <div className="gen-confirm-title" id="gen-confirm-title">
+          この話の単語リストはまだありません
+        </div>
+        {genConfirm.beta ? (
+          <p className="gen-confirm-body">
+            新しく作ります（今月 <b>{genConfirm.used + 1}回目</b>）。ベータ中は回数の制限はありません。
+            <br />
+            正式版の無料プランでは、新しく作れるのは<b>月{genConfirm.limit}回</b>までです（すでに単語リストがある作品・話は回数に数えず、いつでも使えます）。
+          </p>
+        ) : genConfirm.remaining > 0 ? (
+          <p className="gen-confirm-body">
+            新しく作ると、今月の生成枠を<b>1回</b>使います。
+            <br />
+            今月の残り：<b>{genConfirm.remaining}回</b>（月{genConfirm.limit}回まで・来月1日に戻ります）
+            <br />
+            すでに単語リストがある作品・話は回数に数えず、いつでも使えます。
+          </p>
+        ) : (
+          <p className="gen-confirm-body">
+            今月の新しい話の生成枠（月{genConfirm.limit}回）を使い終わりました。枠は来月1日に戻ります。
+            <br />
+            すでに単語リストがある作品・話はいつでも使えます。
+          </p>
+        )}
+        <div className="gen-confirm-actions">
+          {(genConfirm.beta || genConfirm.remaining > 0) && (
+            <button type="button" className="btn-primary" onClick={confirmGenerate}>
+              {genConfirm.beta ? '作る' : '作る（1回使う）'}
+            </button>
+          )}
+          <button type="button" className="btn-secondary" onClick={() => setGenConfirm(null)}>
+            {genConfirm.beta || genConfirm.remaining > 0 ? 'やめる' : '閉じる'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="screen active" id="screen-4">
+      {genConfirmModal}
       <div className="screen-inner">
         <div className="screen-header">
           <button className="btn-back" onClick={() => setScreen(vocabReturn)}>
