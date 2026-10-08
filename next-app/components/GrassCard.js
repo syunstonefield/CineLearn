@@ -76,6 +76,7 @@ export default function GrassCard({ grass, days, dailyStart, compact = false, mi
         onClick={onOpen}
         aria-label={`学習した日（${grass.studied}日・今月 ${grass.thisMonth}日）。押すとあゆみで詳しく`}
       >
+        <span className="vj-mini-title">{T.grassTitle}</span>
         <div className="vj-grasswrap" ref={wrapRef}>
           <div className="vj-grass">
             <span />

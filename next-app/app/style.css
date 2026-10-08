@@ -6857,19 +6857,23 @@ button.vj-cell { cursor: pointer; }
 .home-stats-row .vocab-progress-card { max-width: none; height: 100%; }
 .home-stats-row .vj-embed { display: flex; }
 .vj-card-mini {
-  width: 100%; display: flex; align-items: center; justify-content: center;
+  width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
   font: inherit; color: inherit; text-align: left; cursor: pointer;
 }
 .vj-card-mini:hover { border-color: var(--vj-learned); }
 .vj-card-mini:focus-visible { outline: 2px solid var(--vj-learned); outline-offset: 2px; }
 .vj-card-mini .vj-grasswrap { width: 100%; display: flex; justify-content: center; }
+.vj-mini-title { font-size: 13px; font-weight: 700; color: var(--vj-ink); text-align: center; }
 /* スマホ: 左の2タイルは縦に積む（半分の幅に数字が収まるように） */
 @media (max-width: 768px) {
   .home-stats-row { padding: 0 16px; gap: 10px; }
   .home-stats-row .vocab-progress-card { flex-direction: column; }
   .home-stats-row .vp-divider { width: auto; height: 1px; }
   .home-stats-row .vp-tile { padding: 8px 10px; gap: 2px; }
-  .home-stats-row .vp-num { font-size: 22px; }
+  .home-stats-row .vp-num { font-size: 30px; }
+  .home-stats-row .vp-sub { font-size: 14px; }
+  .home-stats-row .vp-label { font-size: 13px; }
+  .home-stats-row .vp-pct { display: none; } /* スマホのホームは % を出さない（オーナー 2026-10-08・復習タブはそのまま） */
   .home-stats-row .vp-gauge { margin-top: 4px; }
   .home-stats-row .vj-card-mini { padding: 8px 6px; }
 }
