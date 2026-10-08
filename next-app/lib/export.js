@@ -204,6 +204,12 @@ const tsvCell = (s) => String(s ?? '').replace(/[\t\r\n]+/g, ' ');
 // Anki のタグは空白区切り＝作品名の空白は _ に
 const tag = (s) => String(s || '').trim().replace(/\s+/g, '_');
 
+// Anki 用に載せる行＝意味のある語だけ。意味が空の語（復習の記録だけ残り元の単語リストが無い語など）は
+// 裏面が空のカードになるので外す（CSV には全部残す＝「失わない」約束は CSV で守る・オーナー 2026-10-08）。
+export function ankiRows(rows) {
+  return (rows || []).filter((r) => String(r.meaning || '').trim());
+}
+
 // Anki の「ファイルから読み込む」用テキスト（Anki 2.1.54+ のファイルヘッダ）。
 // 列: 1=表（単語）2=裏（意味・品詞・例文＋出典・訳）3=タグ 4以降=SRS 履歴（「基本」ノートでは
 // 取り込まれず無視される＝必要なら自分のノートタイプの欄に割り当てられる）。
@@ -216,7 +222,7 @@ export function toAnkiTsv(rows) {
     '#tags column:3',
     '#columns:表\t裏\tタグ\t作品と話\t状態\teaseFactor\tinterval\trepetitions\tlastReview\tdueDate',
   ];
-  const body = rows.map((r) => {
+  const body = ankiRows(rows).map((r) => {
     const back = [
       r.meaning && escHtml(r.meaning),
       r.pos && `<small>${escHtml(r.pos)}</small>`,

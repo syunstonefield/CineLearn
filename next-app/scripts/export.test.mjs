@@ -2,7 +2,7 @@
 //   node --import ../seed/register-hooks.mjs --test 'scripts/*.test.mjs'
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { collectExportRows, toCsv, toAnkiTsv, EXPORT_EXAMPLES_PER_EPISODE } from '../lib/export.js';
+import { collectExportRows, toCsv, toAnkiTsv, ankiRows, EXPORT_EXAMPLES_PER_EPISODE } from '../lib/export.js';
 
 const ep = (title, season, episode, n, date = '2026-08-01') => ({
   date,
@@ -85,4 +85,14 @@ test('Anki: ヘッダ・タブ区切り・HTML エスケープ・欄内のタブ
   assert.equal(line.length, 10);
   assert.match(line[1], /a b &lt;c&gt;/);
   assert.match(line[2], /CineLearn::My_Show_S1E1/);
+});
+
+test('Anki: 意味が空の語は外す（CSV には残す）', () => {
+  const base = { pos: '', title: 'T', season: 1, episode: 1, via: '予習', status: '未学習', easeFactor: '', interval: '', repetitions: '', lastReview: '', dueDate: '', reviewCount: '', example: '', exampleJa: '' };
+  const rows = [{ ...base, word: 'kept', meaning: '残る' }, { ...base, word: 'blank', meaning: '  ' }];
+  assert.equal(ankiRows(rows).length, 1);
+  const txt = toAnkiTsv(rows);
+  assert.ok(txt.includes('kept'));
+  assert.ok(!txt.includes('blank'));
+  assert.ok(toCsv(rows).includes('blank'));
 });

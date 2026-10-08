@@ -12,6 +12,7 @@ import {
   collectExportRows,
   toCsv,
   toAnkiTsv,
+  ankiRows,
   exportFileName,
   downloadText,
   EXPORT_EXAMPLES_PER_EPISODE,
@@ -154,9 +155,19 @@ export default function SettingsScreen() {
         setExportMsg('書き出せる単語がまだありません');
         return;
       }
-      if (kind === 'anki') downloadText(toAnkiTsv(rows), exportFileName('txt'), 'text/plain');
-      else downloadText(toCsv(rows), exportFileName('csv'), 'text/csv');
-      setExportMsg(`${rows.length}語を書き出しました`);
+      if (kind === 'anki') {
+        const n = ankiRows(rows).length;
+        if (!n) {
+          setExportMsg('意味のある単語がまだありません（CSV では書き出せます）');
+          return;
+        }
+        downloadText(toAnkiTsv(rows), exportFileName('txt'), 'text/plain');
+        const skipped = rows.length - n;
+        setExportMsg(skipped ? `${n}語を書き出しました（意味が未取得の${skipped}語は Anki 用から外しました・CSV には含まれます）` : `${n}語を書き出しました`);
+      } else {
+        downloadText(toCsv(rows), exportFileName('csv'), 'text/csv');
+        setExportMsg(`${rows.length}語を書き出しました`);
+      }
     } catch {
       setExportMsg('書き出しに失敗しました');
     }
