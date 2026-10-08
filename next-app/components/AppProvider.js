@@ -523,6 +523,11 @@ export default function AppProvider({ children }) {
     setScreen('wordbook');
   }, []);
   const closeWordbook = useCallback(() => setScreen('main'), []);
+  // あゆみタブ（3重の円＋草＋週ごとの推移・VocabJourneyScreen）。全画面の screen として扱う。
+  const openJourney = useCallback(() => {
+    exitReviewPage();
+    setScreen('journey');
+  }, []);
   // 半券コレクションは全画面（ヘッダー・ボトムナビが見える）の screen として扱う。
   const openCollection = useCallback(() => {
     exitReviewPage();
@@ -716,6 +721,7 @@ export default function AppProvider({ children }) {
     openSettings,
     closeSettings,
     openWordbook,
+    openJourney,
     closeWordbook,
     openCollection,
     closeCollection,

@@ -1,6 +1,7 @@
 'use client';
 
-// 常設ボトムタブ（ホーム / 復習 / 単語帳 / 半券 / 設定）。
+// 常設ボトムタブ（ホーム / 単語帳 / 復習 / あゆみ / 半券 / 設定）。
+// あゆみ＝3重の円＋学習した日（草）＋週ごとの推移（VocabJourneyScreen・オーナー 2026-10-08）。
 // 親指動線を最優先し、復習タブには未消化件数のバッジを出す。
 // PC幅でも常時表示（バー全幅・タブ群は中央寄せ）。ヘッダーの単語帳/設定は集約のため隠す。
 
@@ -42,6 +43,18 @@ function IconBook() {
   );
 }
 
+// あゆみ（右上がりの足あと＝積み上げ）
+function IconJourney() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" {...ICON} aria-hidden="true">
+      <path d="M3 20h18" />
+      <rect x="5" y="13" width="3" height="5" rx="0.8" />
+      <rect x="10.5" y="9" width="3" height="9" rx="0.8" />
+      <rect x="16" y="5" width="3" height="13" rx="0.8" />
+    </svg>
+  );
+}
+
 function IconTicket() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" {...ICON} aria-hidden="true">
@@ -69,6 +82,7 @@ export default function BottomNav({ dueCount = 0, wordCount = 0 }) {
     openReviewHub,
     settingsOpen,
     openCollection,
+    openJourney,
     reviewWords,
   } = useApp();
 
@@ -80,8 +94,9 @@ export default function BottomNav({ dueCount = 0, wordCount = 0 }) {
   const reviewActive = !!reviewWords || screen === 'review-hub';
   const wordbookActive = !reviewActive && screen === 'wordbook';
   const collectionActive = !reviewActive && screen === 'collection';
+  const journeyActive = !reviewActive && screen === 'journey';
   const settingsActive = !reviewActive && settingsOpen;
-  const homeActive = !reviewActive && !wordbookActive && !collectionActive && !settingsActive && screen === 'main';
+  const homeActive = !reviewActive && !wordbookActive && !collectionActive && !journeyActive && !settingsActive && screen === 'main';
 
   // badgeKind: 'urgent'（赤・要対応＝復習）/ 'count'（中立・在庫＝単語帳）
   const tab = (active, onClick, icon, label, badge, badgeKind) => (
@@ -105,10 +120,11 @@ export default function BottomNav({ dueCount = 0, wordCount = 0 }) {
 
   return (
     <nav className="bottom-nav" aria-label="メインナビゲーション">
-      {/* 復習=最頻機能を親指が最も届く中央に配置（2026-07-03 実使用フィードバック#15） */}
+      {/* 復習=最頻機能を親指が届く中ほどに配置（2026-07-03 実使用フィードバック#15）。あゆみは復習の後ろ（2026-10-08） */}
       {tab(homeActive, goHome, <IconHome />, 'ホーム', 0)}
       {tab(wordbookActive, openWordbook, <IconBook />, '単語帳', wordCount, 'count')}
       {tab(reviewActive, onReview, <IconReview />, '復習', dueCount, 'urgent')}
+      {tab(journeyActive, openJourney, <IconJourney />, 'あゆみ', 0)}
       {tab(collectionActive, openCollection, <IconTicket />, '半券', 0)}
       {tab(settingsActive, openSettings, <IconSettings />, '設定', 0)}
     </nav>

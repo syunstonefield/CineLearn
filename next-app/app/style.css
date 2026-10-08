@@ -6431,7 +6431,47 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
 .choice-btn.correct .choice-ja { color: var(--green); opacity: 0.85; }
 .choice-btn.wrong .choice-ja { color: var(--red); opacity: 0.85; }
 
-/* ── 3重の円（ホーム上段・components/VocabRings.js）────────────────────
+/* ── 累計の語彙進捗（別枠カード）──────────────────────────────
+   今日の復習(ダーク)の下に明カードで対比。覚えた＝エメラルド／マスター＝ゴールドで色分け。 */
+.vocab-progress {
+  margin: 0 0 14px;
+  padding: 0 max(40px, calc((100% - var(--content-max)) / 2));
+}
+.vocab-progress-card {
+  max-width: 640px;
+  display: flex;
+  align-items: stretch;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.vp-tile {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 13px 10px;
+}
+.vp-label { font-size: 12px; font-weight: 700; }
+.vp-num { font-family: 'Playfair Display', serif; font-size: 26px; font-weight: 800; line-height: 1; }
+.vp-sub { font-size: 13px; font-weight: 600; color: var(--text-muted); }
+.vp-learned .vp-label, .vp-learned .vp-num { color: var(--green); }
+.vp-mastered .vp-label, .vp-mastered .vp-num { color: var(--gold, #d99a00); }
+.vp-divider { width: 1px; flex-shrink: 0; background: var(--border); }
+/* 進捗ゲージ（覚えた／マスターの割合を可視化） */
+.vp-gauge {
+  width: 100%; height: 6px; margin-top: 7px; border-radius: 999px;
+  background: color-mix(in srgb, var(--border) 55%, transparent); overflow: hidden;
+}
+.vp-gauge-fill { display: block; height: 100%; border-radius: 999px; transition: width 0.4s ease; }
+.vp-learned .vp-gauge-fill { background: var(--green); }
+.vp-mastered .vp-gauge-fill { background: var(--gold, #d99a00); }
+.vp-pct { font-size: 11px; font-weight: 700; color: var(--text-muted); }
+
+/* ── 3重の円（あゆみタブ上段・components/VocabRings.js）────────────────────
    確定モック https://claude.ai/artifact/9eUzWAJ3sK9EpY4fB4S6x6 （オーナー UI 案 CineLearnRingUI）の見た目。
    暖色の金（シネマの配色）。赤・警告色は使わない。ダークテーマは同じ金をくすんだ地に乗せる。 */
 .vr-wrap {
@@ -6616,3 +6656,87 @@ button.vr-today:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba
 /* 有料予定の機能に添える控えめな表示（components/PlusNote.js・2026-10-08）。警告色・強調色は使わない */
 .plus-note { display: inline-block; font-size: 11px; line-height: 1.5; color: var(--text-muted); border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; }
 .plus-note-sub { opacity: 0.85; }
+
+/* ── あゆみタブ（3重の円＋草＋週ごとの推移・components/VocabJourneyScreen.js・2026-10-08）──────────
+   モック https://claude.ai/artifact/NYPowDEgA8ceU7vM7YCfem 。円と同じ暖色の金。
+   空いた日は薄い地の色（赤・警告色にしない）。ダークテーマは同じ金をくすんだ地に乗せる。 */
+.vj-screen {
+  --vj-ink: #292622; --vj-muted: #8d877e; --vj-soft: #6f6a62; --vj-gold-deep: #a96513;
+  --vj-card-bg: #fff; --vj-card-border: #e8e0d5; --vj-warm: #fffaf0; --vj-warm-border: #efdcbc; --vj-warm-ink: #6f5a3c;
+  --vj-g0: #f1ece3; --vj-g1: #f3dcaa; --vj-g2: #e7b65c; --vj-g3: #cf8a2d; --vj-g4: #9e5f12;
+  --vj-learned: #e3ad50; --vj-mastered: #bd7418; --vj-bar: #f3e3bf; --vj-area: rgba(227,173,80,.14);
+  --vj-grid: #efe7da; --vj-axis: #a09a91; --vj-axis2: #c4b49a; --vj-endlabel: #8a5a12; --vj-dot-stroke: #fff;
+  --vj-prog: #eadfcb; --vj-prog-on: #c8882d;
+  padding: 16px max(40px, calc((100% - var(--content-max)) / 2)) 28px;
+  color: var(--vj-ink);
+}
+html[data-theme="dark"] .vj-screen {
+  --vj-ink: #f3ece0; --vj-muted: #a39a8c; --vj-soft: #c4baa9; --vj-gold-deep: #f0b64e;
+  --vj-card-bg: var(--surface); --vj-card-border: var(--border); --vj-warm: rgba(255,220,160,.06); --vj-warm-border: rgba(214,170,100,.28); --vj-warm-ink: #e7d3b0;
+  --vj-g0: rgba(255,255,255,.07); --vj-g1: #5c4a2c; --vj-g2: #8a6830; --vj-g3: #c08a36; --vj-g4: #f0b64e;
+  --vj-learned: #c98a2e; --vj-mastered: #f7d27a; --vj-bar: rgba(214,170,100,.22); --vj-area: rgba(211,154,62,.12);
+  --vj-grid: rgba(255,255,255,.08); --vj-axis: #a39a8c; --vj-axis2: #8a7d68; --vj-endlabel: #f0c878; --vj-dot-stroke: var(--surface);
+  --vj-prog: rgba(255,255,255,.1); --vj-prog-on: #d39a3e;
+}
+.vj-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.vj-head h2 { margin: 0; font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 700; color: var(--vj-ink); }
+.vj-body { display: grid; gap: 16px; }
+.vj-body > .vr-wrap { margin: 0; padding: 0; }
+.vj-cell:focus-visible { outline: 2px solid var(--vj-learned); outline-offset: 2px; }
+
+.vj-card { border: 1px solid var(--vj-card-border); border-radius: 18px; background: var(--vj-card-bg); padding: 18px 20px; box-shadow: 0 3px 12px rgba(50,40,30,.04); display: grid; gap: 12px; min-width: 0; }
+.vj-ch { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; justify-content: space-between; }
+.vj-ch h3 { margin: 0; font-size: 17px; color: var(--vj-ink); }
+.vj-sum { display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: 13px; color: var(--vj-soft); }
+.vj-sum b { font-family: 'Playfair Display', serif; font-size: 20px; color: var(--vj-ink); margin-right: 2px; font-variant-numeric: tabular-nums; }
+.vj-hint { margin: 0; font-size: 12px; color: var(--vj-muted); }
+
+/* 草 */
+.vj-grasswrap { overflow-x: auto; padding-bottom: 4px; }
+.vj-grass { display: grid; grid-template-columns: 22px auto; gap: 4px; width: max-content; }
+.vj-months { display: grid; grid-auto-flow: column; grid-auto-columns: 15px; gap: 3px; font-size: 10.5px; color: var(--vj-muted); height: 15px; line-height: 15px; }
+.vj-months span { white-space: nowrap; overflow: visible; }
+.vj-wdays { display: grid; grid-template-rows: repeat(7, 15px); gap: 3px; font-size: 10px; color: var(--vj-muted); line-height: 15px; }
+.vj-cells { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 15px); grid-auto-columns: 15px; gap: 3px; }
+.vj-cell { width: 15px; height: 15px; border-radius: 4px; border: 0; padding: 0; background: var(--vj-g0); display: block; }
+button.vj-cell { cursor: pointer; }
+.vj-cell.l1 { background: var(--vj-g1); } .vj-cell.l2 { background: var(--vj-g2); } .vj-cell.l3 { background: var(--vj-g3); } .vj-cell.l4 { background: var(--vj-g4); }
+.vj-cell.is-out { background: transparent; }
+.vj-cell.is-today { outline: 1.5px solid var(--vj-gold-deep); outline-offset: 1px; }
+.vj-cell[aria-pressed="true"] { outline: 2px solid var(--vj-ink); outline-offset: 1px; }
+.vj-scale { display: flex; gap: 4px; align-items: center; font-size: 11px; color: var(--vj-muted); }
+.vj-scale .vj-cell { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.vj-gfoot { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
+.vj-detail { font-size: 13px; background: var(--vj-warm); border: 1px solid var(--vj-warm-border); border-radius: 12px; padding: 8px 12px; color: var(--vj-warm-ink); }
+.vj-detail b { color: var(--vj-ink); }
+
+/* 週ごとの推移 */
+.vj-chartbox { display: grid; gap: 12px; min-width: 0; }
+.vj-chart { width: 100%; max-width: 760px; height: auto; display: block; }
+.vj-grid { stroke: var(--vj-grid); stroke-width: 1; }
+.vj-axis { fill: var(--vj-axis); font-size: 11px; }
+.vj-axis2 { fill: var(--vj-axis2); font-size: 11px; }
+.vj-bar { fill: var(--vj-bar); }
+.vj-area { fill: var(--vj-area); }
+.vj-line-learned { stroke: var(--vj-learned); }
+.vj-line-mastered { stroke: var(--vj-mastered); }
+.vj-dot-learned { fill: var(--vj-learned); stroke: var(--vj-dot-stroke); }
+.vj-dot-mastered { fill: var(--vj-mastered); stroke: var(--vj-dot-stroke); }
+.vj-endlabel { fill: var(--vj-endlabel); font-size: 12px; font-weight: 700; }
+.vj-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--vj-soft); }
+.vj-legend i { display: inline-block; width: 14px; height: 4px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+.vj-legend .vj-key-learned { background: var(--vj-learned); }
+.vj-legend .vj-key-mastered { background: var(--vj-mastered); }
+.vj-legend .vj-key-bar { width: 10px; height: 10px; background: var(--vj-bar); }
+.vj-wait { border: 1px dashed var(--vj-warm-border); background: var(--vj-warm); border-radius: 14px; padding: 18px; text-align: center; color: var(--vj-warm-ink); display: grid; gap: 8px; justify-items: center; font-size: 13px; }
+.vj-wait-big { font-family: 'Playfair Display', serif; font-size: 18px; color: var(--vj-ink); }
+.vj-prog { display: flex; gap: 6px; }
+.vj-prog span { width: 34px; height: 8px; border-radius: 99px; background: var(--vj-prog); }
+.vj-prog span.is-on { background: var(--vj-prog-on); }
+.vj-lock { border: 1px solid var(--vj-warm-border); background: var(--vj-warm); border-radius: 14px; padding: 14px 16px; color: var(--vj-warm-ink); font-size: 13px; display: grid; gap: 6px; }
+.vj-lock b { color: var(--vj-ink); }
+
+@media (max-width: 640px) {
+  .vj-screen { padding: 12px 16px 24px; }
+  .vj-card { padding: 16px 14px; }
+}
