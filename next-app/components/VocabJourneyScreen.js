@@ -41,7 +41,8 @@ function Grass({ grass, days, dailyStart }) {
       if (x) {
         parts.push(`思い出せた ${x.ok}語`);
         if (x.min) parts.push(`学習 ${x.min}分`);
-        if (x.gain) parts.push(`覚えた +${x.gain}`);
+        if (x.gain) parts.push(`新しく覚えた ${x.gain}語`);
+        if (x.masteredGain) parts.push(`マスターになった ${x.masteredGain}語`);
       }
       detail = (
         <>

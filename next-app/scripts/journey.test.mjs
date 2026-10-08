@@ -83,14 +83,16 @@ test('推移の覚えた・マスターは週末までの最高値で下がら�
   assert.equal(t2.series.length, 12);
 });
 
-test('マスの中身: 覚えたの増分は前日までの最高値との差・前の記録が無ければ出さない', () => {
+test('マスの中身: 覚えた・マスターの増分は前日までの最高値との差・前の記録が無ければ出さない', () => {
   const days = {
-    '2026-10-08': { learned: 10, ok: 5, sec: 30 },
-    '2026-10-09': { learned: 13, ok: 8, sec: 600 },
+    '2026-10-08': { learned: 10, mastered: 2, ok: 5, sec: 30 },
+    '2026-10-09': { learned: 13, mastered: 2, ok: 8, sec: 600 },
     '2026-10-10': { ok: 2, sec: 0 },
+    '2026-10-12': { learned: 13, mastered: 4, ok: 6, sec: 120 },
   };
-  assert.deepEqual(dayDetail(days, '2026-10-08'), { ok: 5, min: 1, gain: null });
-  assert.deepEqual(dayDetail(days, '2026-10-09'), { ok: 8, min: 10, gain: 3 });
-  assert.deepEqual(dayDetail(days, '2026-10-10'), { ok: 2, min: 0, gain: null });
+  assert.deepEqual(dayDetail(days, '2026-10-08'), { ok: 5, min: 1, gain: null, masteredGain: null });
+  assert.deepEqual(dayDetail(days, '2026-10-09'), { ok: 8, min: 10, gain: 3, masteredGain: 0 });
+  assert.deepEqual(dayDetail(days, '2026-10-10'), { ok: 2, min: 0, gain: null, masteredGain: null });
   assert.equal(dayDetail(days, '2026-10-11'), null);
+  assert.deepEqual(dayDetail(days, '2026-10-12'), { ok: 6, min: 2, gain: 0, masteredGain: 2 });
 });

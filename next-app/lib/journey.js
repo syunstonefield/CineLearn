@@ -132,21 +132,30 @@ export function statsStart(days = {}) {
 }
 
 // マスを押した日の中身（cl_stats_daily の開始日以降だけ）。
-//   ok＝思い出せた語数／min＝学習分（秒があれば最低1分）／gain＝覚えたの増分（前日までの最高値との差・
-//   前の記録が無い日や、その日に円を描いていない日は null＝出さない）。
+//   ok＝思い出せた語数／min＝学習分（秒があれば最低1分）／
+//   gain＝その日に新しく覚えた語数・masteredGain＝その日にマスターになった語数
+//   （どちらも前日までの最高値との差。前の記録が無い日や、その日に円を描いていない日は null＝出さない・
+//   0 も画面には出さない＝オーナー 2026-10-08「なければ表示しない」）。
+//   覚えた数はマスターを含むので、覚えた→マスターの昇格は gain に入らず masteredGain だけに入る。
 export function dayDetail(days = {}, key) {
   const row = days[key];
   if (!row) return null;
-  let prev = null;
+  const drawn = (r) => (Number(r.learned) || 0) > 0 || (Number(r.mastered) || 0) > 0 || (Number(r.met) || 0) > 0;
+  let prevL = null;
+  let prevM = null;
   Object.entries(days).forEach(([k, r]) => {
-    if (k < key && (Number(r.learned) || 0) > 0) prev = Math.max(prev ?? 0, Number(r.learned) || 0);
+    if (k < key && r && drawn(r)) {
+      prevL = Math.max(prevL ?? 0, Number(r.learned) || 0);
+      prevM = Math.max(prevM ?? 0, Number(r.mastered) || 0);
+    }
   });
-  const learned = Number(row.learned) || 0;
   const sec = Number(row.sec) || 0;
+  const today = drawn(row);
   return {
     ok: Number(row.ok) || 0,
     min: sec > 0 ? Math.max(1, Math.round(sec / 60)) : 0,
-    gain: prev != null && learned > 0 ? Math.max(0, learned - prev) : null,
+    gain: prevL != null && today ? Math.max(0, (Number(row.learned) || 0) - prevL) : null,
+    masteredGain: prevM != null && today ? Math.max(0, (Number(row.mastered) || 0) - prevM) : null,
   };
 }
 
