@@ -357,7 +357,7 @@ export async function pullFromCloud(profileId = null) {
 
 // 同期対象の localStorage キー（user_state 1行=1キー）。
 const STATE_KEY_RE =
-  /^(cl_tickets|cl_fav_dramas|cl_study_sec|cl_study_drama)(_|$)|^cl_prepped$|^cl_seat_counter$|^cl_exp_ledger$|^cl_archived$|^cl_stats_daily$/;
+  /^(cl_tickets|cl_fav_dramas|cl_study_sec|cl_study_drama|cl_watch_log)(_|$)|^cl_prepped$|^cl_seat_counter$|^cl_exp_ledger$|^cl_archived$|^cl_stats_daily$/;
 
 function localStateKeys() {
   try {
@@ -381,6 +381,20 @@ function readStateLocal(key) {
 function mergeStateValue(key, localV, cloudV) {
   if (localV == null) return cloudV;
   if (cloudV == null) return localV;
+  if (key.startsWith('cl_watch_log')) {
+    // 「観終わった」の申告（lib/watchlog.js）。端末ローカルだったため、スマホで申告した話が PC では
+    // 「観終わりましたか？」のまま出ていた（2026-10-08 オーナー報告）→ 同期する。
+    // 同じ話（作品名|S|E）は新しい申告を1件だけ残す（tmdbId は片側だけ持つことがあるので題名で照合）。
+    const m = new Map();
+    [...(Array.isArray(cloudV) ? cloudV : []), ...(Array.isArray(localV) ? localV : [])]
+      .filter((e) => e && (e.title || e.tmdbId != null))
+      .forEach((e) => {
+        const k = `${e.title || e.tmdbId}|${e.season ?? ''}|${e.episode ?? ''}`;
+        const prev = m.get(k);
+        if (!prev || (e.confirmedAt || 0) >= (prev.confirmedAt || 0)) m.set(k, { ...prev, ...e, tmdbId: e.tmdbId ?? prev?.tmdbId ?? null });
+      });
+    return [...m.values()].sort((a, b) => (a.confirmedAt || 0) - (b.confirmedAt || 0)).slice(-200);
+  }
   if (key.startsWith('cl_tickets')) {
     // 半券: 同一話は createdAt が新しい方を採る（保持規律は ticketRules に集約）。
     // ⚠同一話で words を持つ側と落とした側が出会った場合は、words がある方を優先する

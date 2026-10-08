@@ -1,7 +1,9 @@
 // 視聴記録＝視聴完了の自己申告（docs/design-recap-endroll.md §1・2026-07-19改訂）。
 // ホームの質問カード「観終わりましたか？」の「観終わった」タップで epKey＋日時を記録する。
 // 祝い（再会・さっと復習・発券）は必ずこの申告の後＝誤爆が構造的に起きない、が設計の根拠。
-// MVPは端末ローカル。クラウド同期は当日券(P2)でチケット同期に相乗りする予定。
+// 2026-10-08 から user_state で端末間同期（lib/supabase.js の STATE_KEY_RE・mergeStateValue）。
+
+import { queueStatePush } from './supabase';
 
 const MAX_ENTRIES = 200; // 追記ログの上限（古いものからFIFO）。判定は直近の視聴にしか使わない。
 
@@ -58,6 +60,7 @@ export function confirmWatch(profileId, meta) {
   while (arr.length > MAX_ENTRIES) arr.shift();
   try {
     localStorage.setItem(watchLogKey(profileId), JSON.stringify(arr));
+    queueStatePush(watchLogKey(profileId), 500); // 他の端末にも「観終わった」を伝える
   } catch {
     /* プライベートモード等は保存をあきらめる（そのセッション中は state で祝いが出る） */
   }
