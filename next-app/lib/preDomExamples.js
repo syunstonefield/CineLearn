@@ -8,6 +8,7 @@
 //   ・済んだ語は端末に記録（cl_predom_fix_<profile>）。1回の実行は MAX_PER_RUN 語まで。
 import { authHeaders } from './api';
 import { saveWordTranslation, sameWorkTitle } from './words';
+import { toIsoDate } from './storage';
 
 export const PREDOM_CUTOFF = '2026-07-03';
 const MAX_PER_RUN = 8;
@@ -37,7 +38,8 @@ function saveDone(profileId, set) {
 export function preDomTargets(words, done = new Set()) {
   return (words || []).filter((w) => {
     if (!w?.word || w.origin === 'manual') return false;
-    const saved = String(w.savedAt || '').slice(0, 10);
+    // 古い保存語は savedAt が「2026/6/12」形式＝そのまま文字列で比べると '/' > '-' で「7/3 より後」と誤判定する
+    const saved = toIsoDate(String(w.savedAt || '').trim().slice(0, 10)) || '';
     if (!saved || saved >= PREDOM_CUTOFF) return false;
     if (!String(w.sentence || '').trim()) return false;
     return !done.has(String(w.word).toLowerCase());

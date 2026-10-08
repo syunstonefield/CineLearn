@@ -6864,6 +6864,14 @@ button.vj-cell { cursor: pointer; }
 .vj-card-mini:focus-visible { outline: 2px solid var(--vj-learned); outline-offset: 2px; }
 .vj-card-mini .vj-grasswrap { width: 100%; display: flex; justify-content: center; }
 .vj-mini-title { font-size: 13px; font-weight: 700; color: var(--vj-ink); text-align: center; }
+/* PC など広い幅: 覚えた・マスターの文字を大きく（%は残す・オーナー 2026-10-09） */
+@media (min-width: 769px) {
+  .home-stats-row .vp-label { font-size: 15px; }
+  .home-stats-row .vp-num { font-size: 40px; }
+  .home-stats-row .vp-sub { font-size: 17px; }
+  .home-stats-row .vp-pct { font-size: 14px; }
+  .home-stats-row .vp-gauge { height: 8px; }
+}
 /* スマホ: 左の2タイルは縦に積む（半分の幅に数字が収まるように） */
 @media (max-width: 768px) {
   .home-stats-row { padding: 0 16px; gap: 10px; }

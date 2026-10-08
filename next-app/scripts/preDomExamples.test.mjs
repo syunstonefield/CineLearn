@@ -11,7 +11,9 @@ test('対象は切り替え前に保存・例文あり・手動追加でない�
     { word: 'manual', savedAt: '2026-06-20', sentence: 'x', origin: 'manual' },
     { word: 'iso', savedAt: '2026-06-18T10:00:00.000Z', sentence: 'iso date' },
     { word: 'done', savedAt: '2026-06-18', sentence: 'already' },
+    { word: 'slash', savedAt: '2026/6/12', sentence: 'LOUIS, I APOLOGIZE.' },
+    { word: 'slashLate', savedAt: '2026/7/20', sentence: 'later' },
   ];
   const out = preDomTargets(words, new Set(['done'])).map((w) => w.word);
-  assert.deepEqual(out, ['APOLOGIZE', 'iso']);
+  assert.deepEqual(out, ['APOLOGIZE', 'iso', 'slash']);
 });
