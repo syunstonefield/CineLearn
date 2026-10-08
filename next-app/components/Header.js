@@ -111,13 +111,14 @@ export default function Header({
             <IconPlus />
           </button>
         )}
-        {/* 単語帳・設定はモバイルではボトムナビと重複するため隠す（PCのみ表示） */}
+        {/* 設定はボトムナビから上へ移した（オーナー 2026-10-08）＝どの幅でも常に出す */}
+        <button className="btn-header-icon" title="設定" aria-label="設定" onClick={onSettings}>
+          <IconSettings />
+        </button>
+        {/* 単語帳はモバイルではボトムナビと重複するため隠す（PCのみ表示） */}
         <button className="btn-header-icon header-only-desktop" title="単語帳" onClick={onWordbook}>
           <IconBook />
           <span className="header-badge">{wordCount > 0 ? wordCount : ''}</span>
-        </button>
-        <button className="btn-header-icon header-only-desktop" title="設定" onClick={onSettings}>
-          <IconSettings />
         </button>
         {/* 使い方ガイド再表示。モバイルでもボトムナビに枠が無いのでヘッダーに常設する */}
         {profile && onHelp && (

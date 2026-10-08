@@ -1,9 +1,9 @@
 'use client';
 
-// 常設ボトムタブ（ホーム / 単語帳 / 復習 / あゆみ / 半券 / 設定）。
+// 常設ボトムタブ（ホーム / 単語帳 / 復習 / あゆみ / 半券）。設定はヘッダー右上へ移した（オーナー 2026-10-08）。
 // あゆみ＝3重の円＋学習した日（草）＋週ごとの推移（VocabJourneyScreen・オーナー 2026-10-08）。
 // 親指動線を最優先し、復習タブには未消化件数のバッジを出す。
-// PC幅でも常時表示（バー全幅・タブ群は中央寄せ）。ヘッダーの単語帳/設定は集約のため隠す。
+// PC幅でも常時表示（バー全幅・タブ群は中央寄せ）。ヘッダーの単語帳は集約のため隠す。
 
 import { useApp } from './AppProvider';
 
@@ -64,21 +64,11 @@ function IconTicket() {
   );
 }
 
-function IconSettings() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" {...ICON} aria-hidden="true">
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-    </svg>
-  );
-}
-
 export default function BottomNav({ dueCount = 0, wordCount = 0 }) {
   const {
     screen,
     goHome,
     openWordbook,
-    openSettings,
     openReviewHub,
     settingsOpen,
     openCollection,
@@ -126,7 +116,6 @@ export default function BottomNav({ dueCount = 0, wordCount = 0 }) {
       {tab(reviewActive, onReview, <IconReview />, '復習', dueCount, 'urgent')}
       {tab(journeyActive, openJourney, <IconJourney />, 'あゆみ', 0)}
       {tab(collectionActive, openCollection, <IconTicket />, '半券', 0)}
-      {tab(settingsActive, openSettings, <IconSettings />, '設定', 0)}
     </nav>
   );
 }
