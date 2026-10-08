@@ -31,6 +31,8 @@ export async function callHaiku(prompt, maxTokens, opts = {}) {
     fetchImpl = fetch,
     log = console,
     label = '',
+    extra = null, // 追加のリクエスト項目（thinking / output_config 等・任意）
+    onUsage = null, // (usage, stop_reason) 成功時の通知（任意）
   } = opts;
   if (!apiKey) throw new UpstreamError('misconfigured');
   const deadline = Number.isFinite(deadlineAt) ? deadlineAt : Date.now() + GENERATE_DEADLINE_MS;
@@ -54,6 +56,7 @@ export async function callHaiku(prompt, maxTokens, opts = {}) {
         body: JSON.stringify({
           model,
           max_tokens: maxTokens,
+          ...(extra || {}),
           messages: [{ role: 'user', content: prompt }],
         }),
         signal: AbortSignal.timeout(Math.max(1000, deadline - Date.now())),
@@ -81,6 +84,7 @@ export async function callHaiku(prompt, maxTokens, opts = {}) {
       log.info?.(
         `${tag} ok ${took}ms in=${data?.usage?.input_tokens ?? '?'} out=${data?.usage?.output_tokens ?? '?'} stop=${data?.stop_reason ?? '?'} len=${text.length}`
       );
+      onUsage?.(data?.usage, data?.stop_reason);
       return text;
     }
 
