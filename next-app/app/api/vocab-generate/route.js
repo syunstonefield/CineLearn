@@ -37,6 +37,7 @@ import {
   contributedByOf,
 } from '@/lib/server/vocabCache';
 import { generateEpisodeVocab, clampVocabCount } from '@/lib/server/vocabGen';
+import { bumpStats } from '@/lib/server/stats';
 import {
   VOCAB_LIMITS,
   GENERATE_DEADLINE_MS,
@@ -132,7 +133,12 @@ export async function POST(req) {
     console.warn('[CL:VOCABGEN] vocab_cache unavailable', cacheKey);
     return json({ error: 'unavailable' }, 503);
   }
-  if (cached.row) return json({ hit: true, words: cached.row.words, meta: vocabRowMeta(cached.row) });
+  // ベータの日次統計（seed は数えない）。ログイン利用者は uid のハッシュでユニーク数に入れる。
+  const stat = (name) => (seed ? null : bumpStats([name], { user: uid ? `u:${uid}` : null }));
+  if (cached.row) {
+    await stat('gen_hit');
+    return json({ hit: true, words: cached.row.words, meta: vocabRowMeta(cached.row) });
+  }
 
   // ── 5) 否定キャッシュ（直近の失敗・品質不通過・連続失敗）──
   const nogen = await tryRedis(() => redisGet(nogenKey(cacheKey)), null);
@@ -163,6 +169,7 @@ export async function POST(req) {
       : await checkRateLimit(req, 'vocab-anon', VOCAB_LIMITS.anon, { failClosed: true });
     if (!rl.ok) {
       if (rl.unavailable) return json({ error: 'unavailable' }, 503);
+      await stat('gen_rate_limited');
       // loginHint: 匿名なら「ログインすると枠が増える」。ただし Supabase Auth 不調で匿名に落ちた場合は誤案内になるので出さない。
       return json(
         {
@@ -205,6 +212,7 @@ export async function POST(req) {
     if (r.nosub) {
       // 字幕なし。枠は消費する（release しない）＝実在しない話で OS 検索を無制限に回させない。
       await recordFailure(cacheKey, 'nosub');
+      await stat('gen_nosub');
       return json({ nosub: true });
     }
 
@@ -238,6 +246,7 @@ export async function POST(req) {
       //（入れると DB の一時障害で全員が1時間再生成不能になる・レビュー指摘）。ログのみ。
       await recordFailure(cacheKey, reason);
     }
+    await stat(contributed ? 'gen_ok' : 'gen_uncontrib');
     console.info(
       `[CL:VOCABGEN] done ${epLabel} ${Date.now() - t0}ms words=${r.wordCount} drama=${r.dramaCount} chunks=${r.chunks} contributed=${contributed} reason=${reason}`
     );
@@ -263,6 +272,7 @@ export async function POST(req) {
       if (!clientCaused) await release();
       console.warn(`[CL:VOCABGEN] upstream ${epLabel} reason=${err.reason} status=${err.status ?? '-'} ${Date.now() - t0}ms`);
       await recordFailure(cacheKey, err.reason);
+      await stat(err.reason === 'os_quota' ? 'gen_os_quota' : 'gen_fail');
       return json({ error: 'upstream', reason: publicReason(err.reason) }, 502);
     }
     await release();

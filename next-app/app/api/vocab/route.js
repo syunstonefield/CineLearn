@@ -11,6 +11,9 @@ export const dynamic = 'force-dynamic';
 
 import { allowedOrigin } from '@/lib/server/origin';
 import { vocabCacheKey, readVocabRow, vocabRowMeta, isInCatalog } from '@/lib/server/vocabCache';
+import { isSeedRequest } from '@/lib/server/auth';
+import { clientIp } from '@/lib/ratelimit';
+import { bumpStats } from '@/lib/server/stats';
 
 function jsonResponse(obj, status = 200) {
   return new Response(JSON.stringify(obj), {
@@ -37,7 +40,12 @@ export async function POST(req) {
   if (!cacheKey) return jsonResponse({ miss: true });
 
   // 1) カタログ照合（enabled な行のみ anon に見える＝RLS）。照合自体が不調なら弾かない（fail-open）。
-  if (!(await isInCatalog(id))) return jsonResponse({ blocked: true });
+  // ベータの日次統計（seed は数えない・利用者は IP のハッシュでユニーク数だけ）。
+  const stat = (name) => (isSeedRequest(req) ? null : bumpStats([name], { user: `ip:${clientIp(req)}` }));
+  if (!(await isInCatalog(id))) {
+    await stat('vocab_blocked');
+    return jsonResponse({ blocked: true });
+  }
 
   // 2) キャッシュ参照
   const q = await readVocabRow(cacheKey);
@@ -45,6 +53,10 @@ export async function POST(req) {
     console.warn('[vocab] shared cache unavailable', cacheKey);
     return jsonResponse({ miss: true, unavailable: true }); // 本当の miss ではない＝クライアントは1回引き直す
   }
-  if (q.row) return jsonResponse({ hit: true, words: q.row.words, meta: vocabRowMeta(q.row) });
+  if (q.row) {
+    await stat('vocab_hit');
+    return jsonResponse({ hit: true, words: q.row.words, meta: vocabRowMeta(q.row) });
+  }
+  await stat('vocab_miss');
   return jsonResponse({ miss: true });
 }

@@ -192,6 +192,9 @@ export async function osDownload(fileId, { enforceDailyCap = true, env = process
             ['SET', OS_DL_LAST_KEY, JSON.stringify({ remaining, requests, resetUtc, status: r.status, at: new Date(now()).toISOString() })],
             ['INCR', dayKey],
             ['EXPIRE', dayKey, String(OS_DL_DAY_TTL_SEC), 'NX'],
+            // ベータ統計（lib/server/stats.js）。os:dl:d は 25h で消えるので長期用に別キーで数える。
+            ['INCR', `stat:os_dl:d:${utcDayKey(now())}`],
+            ['EXPIRE', `stat:os_dl:d:${utcDayKey(now())}`, String(120 * 86400), 'NX'],
           ],
           redisOpts
         ),
