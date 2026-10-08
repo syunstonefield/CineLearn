@@ -151,19 +151,20 @@ export async function fetchEpisodeSynopsis(drama, season, episode) {
 }
 
 // TMDb の provider_id → CineLearnサービス名（JP向け）
+// 見放題（定額）の ID だけを載せる。レンタル/購入ストア（10=Amazon Video, 2=Apple TV Store,
+// 3=Google Play Movies）は「サブスクで観られる」の誤判定になるので載せない（2026-10-08・実データで確認：
+// GoT は U-NEXT 独占なのに 10 のレンタルで Amazon Prime が「配信中」になっていた）。
+// 「… Amazon Channel」（有料チャンネル）も Prime 会員だけでは観られないので載せない。
 export const PROVIDER_MAP = {
   8: 'Netflix',
-  1796: 'Netflix',
-  10: 'Amazon Prime',
-  9: 'Amazon Prime',
+  1796: 'Netflix', // Netflix Standard with Ads
+  9: 'Amazon Prime', // Amazon Prime Video（JP では free 枠に入ることがある）
+  2100: 'Amazon Prime', // Amazon Prime Video with Ads
   337: 'Disney+',
   350: 'Apple TV+',
-  2: 'Apple TV+',
   15: 'Hulu',
-  269: 'Hulu',
-  97: 'U-NEXT',
+  84: 'U-NEXT',
   192: 'YouTube',
-  3: 'YouTube',
 };
 
 // OS依存の絵文字をやめ、ブランド色＋頭文字の中立レターマークで統一する。
@@ -183,7 +184,7 @@ export async function fetchAvailableServices(drama) {
   const availableNames = new Set();
   try {
     let tmdbId = drama.tmdbId;
-    let isMovie = drama.type === 'movie';
+    let isMovie = drama.type === 'movie' || drama.mediaType === 'movie';
     if (!tmdbId) {
       const searchData = await tmdb({ action: 'search', query: drama.title });
       let firstResult = searchData.results?.[0];
@@ -206,10 +207,11 @@ export async function fetchAvailableServices(drama) {
           : { action: 'watch_providers', tvId: tmdbId }
       );
       const jp = data.results?.JP;
+      // 見放題の枠だけを見る（rent/buy は単品課金なので「視聴可能なサブスク」に数えない）。
       const providers = [
         ...(jp?.flatrate || []),
-        ...(jp?.rent || []),
-        ...(jp?.buy || []),
+        ...(jp?.ads || []),
+        ...(jp?.free || []),
       ];
       providers.forEach((p) => {
         if (PROVIDER_MAP[p.provider_id]) availableNames.add(PROVIDER_MAP[p.provider_id]);
