@@ -35,7 +35,7 @@ export default function QuizScreen() {
   // テストを開いた時にクイズをローカルで組む（AI生成はしない・2026-08-07）。
   //   材料（語・実セリフ例文・品詞・レベル）は履歴の words に全部あるので、
   //   穴埋め＋4択はその場で作れる＝APIコスト¥0・待ち時間ゼロ・毎回違う出題。
-  //   出題語の優先順（苦手>期日到来>新出）とダミーの選び方は lib/prep.js を参照。
+  //   出題語の優先順（期日到来>既習>新出）とダミーの選び方は lib/prep.js を参照。
   useEffect(() => {
     if (quizData.length > 0) return;
     if (!currentHistoryId) return;

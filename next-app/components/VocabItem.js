@@ -9,7 +9,7 @@ import { exampleFailLabel } from '@/lib/exampleBackfill';
 // 詳細は常にDOMに描画し、開閉は is-expanded クラスで切り替える（PC常時表示を両立するため）。
 // starred/onStar: ★マイ単語帳メンバーシップ（2026-09-22）。onStar(word, starred) を渡した文脈でだけ
 // 発音・Skip の横に「★ 単語帳 / ☆ 単語帳に入れる」トグルを出す（単語リスト・単語帳の両方）。
-export default function VocabItem({ word, srs, testTiers, ts, priority, exampleSource, added, starred, onSpeak, onSkip, onCopyTime, onDelete, onStar }) {
+export default function VocabItem({ word, srs, testTiers, ts, exampleSource, added, starred, onSpeak, onSkip, onCopyTime, onDelete, onStar }) {
   const [expanded, setExpanded] = useState(false);
   const w = word;
   const e = srs[w.word.toLowerCase()];
@@ -80,11 +80,6 @@ export default function VocabItem({ word, srs, testTiers, ts, priority, exampleS
         >
           🔊
         </span>
-        {priority && (
-          <span className="vocab-star" title="よく忘れる単語（要復習）" aria-label="要復習">
-            ⭐
-          </span>
-        )}
         {/* 本編の語と混ぜて時刻順に並べる時、どれが自分で足した語かを示す（セクション見出しの代わり） */}
         {added && (
           <span className="vocab-added-chip" title="自分で追加した単語">
