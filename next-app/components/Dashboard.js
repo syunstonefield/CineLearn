@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
 import TodayPanel from './TodayPanel';
-import VocabProgress from './VocabProgress';
+import VocabRings from './VocabRings';
 import HomeStubCard from './HomeStubCard';
 import LibraryCard from './LibraryCard';
 import ContinueCard from './ContinueCard';
@@ -13,6 +13,7 @@ import { getRecommendations } from '@/lib/recommended';
 import { isMobileDevice } from '@/lib/device';
 import { tmdb } from '@/lib/api';
 import { computeRecap, computeWatchGroup } from '@/lib/reunion';
+import { canShowRings, loadRingSeen, saveRingSeen, settleRingValues } from '@/lib/rings';
 import { confirmWatch, isWatchConfirmed, isWatchSnoozed, snoozeWatchPrompt, watchEpKey } from '@/lib/watchlog';
 import { speak } from '@/lib/speak';
 import { fetchCtxJa } from '@/lib/ctxtranslate';
@@ -33,6 +34,8 @@ import {
   loadSrs,
   overallVocabStats,
   activeWordKeys,
+  collectRingWords,
+  ringCounts,
 } from '@/lib/storage';
 
 // まだ Next.js 版に移植していない画面・機能の仮ハンドラ
@@ -69,6 +72,7 @@ export default function Dashboard() {
     tickets,
     openSceneCards,
     wordbookVersion,
+    openWordbook,
   } = useApp();
   const [tick, setTick] = useState(0); // 再読込トリガ
   // 拡張機能の導入バナー（最初の関門対策で常設）。拡張未検出の判定はできないため、
@@ -131,6 +135,7 @@ export default function Dashboard() {
   // マイ単語帳の語（拡張クリック保存・手動追加）。累計ゲージの母数に足すため state で保持する
   // （getActiveWords は非同期＝クラウド取り込みを含むので data の useMemo からは呼べない）。
   const [myWords, setMyWords] = useState([]);
+  const [myWordsLoaded, setMyWordsLoaded] = useState(false); // 円は単語帳の語が揃ってから描く（途中の小さい値で動かさない）
   useEffect(() => {
     if (!mounted) return;
     let cancelled = false;
@@ -138,6 +143,7 @@ export default function Dashboard() {
       .then(async (words) => {
         if (cancelled) return;
         setMyWords(words);
+        setMyWordsLoaded(true);
         const history = loadHistory();
         // 再会判定の同一作品除外（sameWorkTitle）は同期でキャッシュしか見ないため、
         // 保存語・履歴の日本語タイトルの英語 alias を先に解決してから計算する
@@ -265,6 +271,49 @@ export default function Dashboard() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mounted, profile, myDramas, tick, reviewVersion, cloudVersion, myWords]);
+
+  // 3重の円（docs/design-paid-features-2026-10-08.md 実装メモ 1）。語ごとの状態は collectRingWords に集約。
+  // 値は最高値（cl_stats_daily の全行と今の計算値の大きい方）＝縮まない。開いた時は「前回見た値」から動かす。
+  const ringWords = useMemo(
+    () => (mounted && myWordsLoaded ? collectRingWords(data.history, myWords, loadSrs(), sameWorkTitle) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data, myWordsLoaded]
+  );
+  const [ring, setRing] = useState(null); // { values, from, gain }
+  const ringBase = useRef(undefined); // この画面を開いた時点の「前回見た値」（null＝初めて）
+  useEffect(() => {
+    if (!ringWords) return;
+    const values = settleRingValues(ringCounts(ringWords)); // 今日の行にも最高値を残す
+    if (ringBase.current === undefined) ringBase.current = loadRingSeen();
+    const base = ringBase.current;
+    const from = base
+      ? {
+          met: Math.min(base.met, values.met),
+          learned: Math.min(base.learned, values.learned),
+          mastered: Math.min(base.mastered, values.mastered),
+        }
+      : null;
+    setRing((prev) => ({ values, from: prev ? prev.from : from, gain: base ? Math.max(0, values.learned - base.learned) : 0 }));
+    saveRingSeen(values);
+  }, [ringWords]);
+  // 最近覚えた語（出会っただけの語は並べない）。新しい順に、まず作品がばらけるように4枚選ぶ。
+  const ringRecent = useMemo(() => {
+    const sorted = (ringWords || [])
+      .filter((w) => (w.state === 'learned' || w.state === 'mastered') && w.lastReview)
+      .sort((a, b) => String(b.lastReview).localeCompare(String(a.lastReview)));
+    const picked = [];
+    const titles = new Set();
+    sorted.forEach((w) => {
+      const t = w._src?.title || w.title;
+      if (picked.length >= 4 || titles.has(t)) return;
+      titles.add(t);
+      picked.push(w);
+    });
+    sorted.forEach((w) => {
+      if (picked.length < 4 && !picked.includes(w)) picked.push(w);
+    });
+    return picked;
+  }, [ringWords]);
 
   // posterPath が未設定 or 古い縦長画像（w500）のドラマを再取得。
   // クラウド pull で後からドラマが増えても（cloudVersion 経由で data が変わる）
@@ -693,8 +742,27 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* 累計の語彙進捗（別枠）。今日の復習とは分けて「これまでの積み上げ」を見せる。 */}
-      <VocabProgress learned={data.totalLearned} mastered={data.totalMastered} total={data.totalWords} />
+      {/* 3重の円（累計の語彙・別枠）。今日の復習とは分けて「これまでの積み上げ」を見せる。
+          円の有料/無料は保留＝canShowRings(isPro) で後から出し分けられる（【A】isPro 取り込み後に渡す）。
+          タップ先は語彙のあゆみ（実装メモ 4）ができるまで単語帳。 */}
+      {ring && canShowRings() && (
+        <VocabRings
+          values={ring.values}
+          from={ring.from}
+          gain={ring.gain}
+          recent={ringRecent}
+          posterFor={(t) =>
+            !t
+              ? null
+              : posterOverrides[t] ||
+                myDramas.find((d) => sameWorkTitle(d.title, t))?.posterPath ||
+                entries.find((e) => sameWorkTitle(e.drama.title, t))?.drama.posterPath ||
+                null
+          }
+          onOpen={openWordbook}
+          onSeeAll={openWordbook}
+        />
+      )}
 
       {/* 半券（観た証）＝観た後に戻る入口。シーン記憶カードへ。最新1枚だけ出して混雑を避ける。
           「観たあとに」カードが出ている間は重複表示になるため隠す（カード統合・混雑回避）。 */}

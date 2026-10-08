@@ -3,6 +3,7 @@
 // プロフィール別キー。2026-07-02 から user_state 経由でクラウド同期（マージは max＝二重計上防止）。
 
 import { queueStatePush } from './supabase';
+import { addStatsDaily } from './storage';
 
 export function studyTimeKey(profileId) {
   return profileId ? `cl_study_sec_${profileId}` : 'cl_study_sec';
@@ -22,6 +23,7 @@ export function addStudySeconds(profileId, sec) {
     const cur = getStudySeconds(profileId);
     localStorage.setItem(studyTimeKey(profileId), String(cur + Math.round(sec)));
     queueStatePush(studyTimeKey(profileId), 60 * 1000); // 定期ティックは1分に1回へ畳む
+    addStatsDaily({ sec }, 60 * 1000); // 日ごとの記録 cl_stats_daily にも同じ秒を足す
   } catch {
     /* SSR / プライベートモード等は無視 */
   }
