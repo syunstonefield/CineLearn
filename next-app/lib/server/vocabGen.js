@@ -24,7 +24,9 @@ import {
   VOCAB_COUNT_MIN,
   VOCAB_COUNT_MAX,
   VOCAB_COUNT_DEFAULT,
-  HAIKU_MODEL,
+  VOCAB_MODEL,
+  VOCAB_EXTRA,
+  VOCAB_THINK_ROOM,
   GENERATE_DEADLINE_MS,
   UpstreamError,
 } from './constants.js';
@@ -63,7 +65,9 @@ export function qualityGate(words, rawSrt) {
 
 // 既定の LLM 注入（lib/server/anthropic.js）。deps.callLlm を差し替えればテスト/別モデルに切り替えられる。
 const defaultCallLlm = (prompt, maxTokens, o = {}) =>
-  callHaiku(prompt, maxTokens, {
+  callHaiku(prompt, maxTokens + VOCAB_THINK_ROOM, {
+    model: VOCAB_MODEL,
+    extra: VOCAB_EXTRA,
     deadlineAt: o.deadlineAt,
     onRetry: o.onRetry,
     label: o.nChunks > 1 ? `chunk ${o.chunk}/${o.nChunks}` : '',
@@ -125,7 +129,7 @@ export async function generateEpisodeVocab(input, deps = {}) {
   let superset;
   try {
     superset = await generateSuperset(
-      { drama, season: n.season, episode: n.episode, subtitleText, vocabCount, deadlineAt, onProgress, promptV: input?.promptV },
+      { drama, season: n.season, episode: n.episode, subtitleText, vocabCount, deadlineAt, onProgress },
       onRetry,
       { callLlm, log }
     );
@@ -159,7 +163,7 @@ export async function generateEpisodeVocab(input, deps = {}) {
     wordCount: words.length,
     dramaCount: gate.dramaCount,
     provider: SUBTITLE_PROVIDER,
-    model: HAIKU_MODEL,
+    model: VOCAB_MODEL,
     englishTitle,
     displayTitle,
     posterPath: titles?.posterPath ?? null,

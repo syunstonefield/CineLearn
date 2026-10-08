@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 
 const { qualityGate, generateEpisodeVocab, clampVocabCount, SUBTITLE_PROVIDER } = await import('../lib/server/vocabGen.js');
 const { writeVocabRow, contributedByOf, vocabCacheKey, normalizeEpisode, _resetProvenanceFlagForTests } = await import('../lib/server/vocabCache.js');
-const { UpstreamError, HAIKU_MODEL } = await import('../lib/server/constants.js');
+const { UpstreamError, VOCAB_MODEL } = await import('../lib/server/constants.js');
 
 const silentLog = { info() {}, warn() {}, log() {}, error() {} };
 
@@ -110,7 +110,7 @@ test('generateEpisodeVocab: TMDB 解決値で生成し、drama に📍・plus �
   assert.equal(result.englishTitle, 'Suits');
   assert.equal(result.displayTitle, 'スーツ');
   assert.equal(result.provider, SUBTITLE_PROVIDER);
-  assert.equal(result.model, HAIKU_MODEL);
+  assert.equal(result.model, VOCAB_MODEL);
   assert.equal(result.fileId, 777);
   assert.equal(result.subtitleVia, 'raw_cache');
   assert.equal(result.chunks, 1);
@@ -225,7 +225,7 @@ test('writeVocabRow: 既に enabled:true の catalog 行は false に戻らな�
   const row = db.vocab_cache.get('v2:tmdb99:s1e1');
   assert.equal(row.contributed_by, 'u:abcdef0123456789');
   assert.equal(row.subtitle_provider, 'opensubtitles(server)');
-  assert.equal(row.model, HAIKU_MODEL);
+  assert.equal(row.model, VOCAB_MODEL);
   assert.equal(row.cache_version, 2);
   assert.ok(row.words.every((w) => !('example_ja_ok' in w)));
   assert.deepEqual([row.coverage_min, row.coverage_max], ['B2', 'B2']);

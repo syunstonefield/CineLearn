@@ -11,11 +11,17 @@ function envInt(name, def) {
 }
 
 // ── モデル ──
-// 単語生成・文脈訳・例文和訳・推薦のすべてがこの1定数を参照する。変更はここだけ。
+// 旧世代（Haiku 4.5）。残る用途は /api/claude の推薦系（recommend / title_search / resolve_titles）だけ。
 export const HAIKU_MODEL = 'claude-haiku-4-5-20251001';
-// 和訳系（/api/claude の sentence・sentences・wordsense）を先行して Haiku 5.5 へ（2026-10-08・段階1）。
-//   単価 $0.10/$0.50（4.5 の 1/10）。wordsense は思考オフ→必要時のみ思考ありの2段呼び。単語生成・推薦は品質比較の後に段階2で移す＝それまで HAIKU_MODEL のまま。
+// 和訳系（/api/claude の sentence・sentences・wordsense）は Haiku 5.5（2026-10-08・段階1）。
+//   単価 $0.10/$0.50（4.5 の 1/10）。wordsense は思考オフ→必要時のみ思考ありの2段呼び。
 export const TRANSLATE_MODEL = 'claude-haiku-5-5';
+// 単語生成（vocabGen）も Haiku 5.5 ＋ 思考あり effort low（2026-10-08・段階2）。3作品比較で 4.5 と同数の語・
+//   語義はより正確・plus が作品に即す・所要時間短縮、費用 ≈1/6〜1/8。思考オフは BB で2回とも生成失敗＋見本語の丸写し＝不採用。
+//   思考ぶんも max_tokens に数えられる（実測の出力 9k〜14k/チャンク）ので、生成の max_tokens に VOCAB_THINK_ROOM を上乗せする。
+export const VOCAB_MODEL = 'claude-haiku-5-5';
+export const VOCAB_EXTRA = { output_config: { effort: 'low' } };
+export const VOCAB_THINK_ROOM = 8000;
 // Haiku 5.5 は既定で思考（adaptive）が有効＝思考ぶんも出力課金され、max_tokens 64〜200 の短い枠を
 // 食い潰して訳文が切れる。和訳に思考は要らないので明示的に切る（disabled は effort 既定 medium で受理）。
 export const TRANSLATE_THINKING = { type: 'disabled' };

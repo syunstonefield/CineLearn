@@ -17,7 +17,7 @@ import {
   VOCAB_CACHE_VERSION,
   CATALOG_GATE_ENABLED,
   MAX_WORDS,
-  HAIKU_MODEL,
+  VOCAB_MODEL,
 } from './constants.js';
 
 // 映画は常に s0e0・TV は正整数（不正/欠落は 1）。/api/vocab と同じ正規化。
@@ -176,7 +176,7 @@ export async function writeVocabRow(input, { fetchImpl = fetch, log = console, n
     coverage_min: cov.min,
     coverage_max: cov.max,
     subtitle_provider: input.subtitleProvider || 'opensubtitles(server)',
-    model: input.model || HAIKU_MODEL,
+    model: input.model || VOCAB_MODEL,
     updated_at: nowIso,
   };
   if (!_provenanceUnsupported && input.contributedBy) {
