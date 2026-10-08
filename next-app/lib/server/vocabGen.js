@@ -125,7 +125,7 @@ export async function generateEpisodeVocab(input, deps = {}) {
   let superset;
   try {
     superset = await generateSuperset(
-      { drama, season: n.season, episode: n.episode, subtitleText, vocabCount, deadlineAt, onProgress },
+      { drama, season: n.season, episode: n.episode, subtitleText, vocabCount, deadlineAt, onProgress, promptV: input?.promptV },
       onRetry,
       { callLlm, log }
     );

@@ -39,22 +39,27 @@ export async function POST(req) {
   if (!v) return json({ error: 'bad variant' }, 400);
 
   const calls = [];
-  const callLlm = (prompt, maxTokens, o = {}) =>
-    callHaiku(prompt, Math.min(64000, maxTokens + (v.thinkRoom || 0)), {
+  const raws = []; // 応答の冒頭（短い応答＝生成失敗の診断用）
+  const callLlm = async (prompt, maxTokens, o = {}) => {
+    const text = await callHaiku(prompt, Math.min(64000, maxTokens + (v.thinkRoom || 0)), {
       deadlineAt: o.deadlineAt,
       model: v.model,
       extra: v.extra,
       label: `eval ${body.variant} chunk ${o.chunk}/${o.nChunks}`,
       onUsage: (u, stop) => calls.push({ in: u?.input_tokens, out: u?.output_tokens, stop, maxTokens }),
     });
+    raws.push(text.slice(0, 600));
+    return text;
+  };
   try {
     const r = await generateEpisodeVocab(
-      { tmdbId: body.tmdbId, type: body.type, season: body.season, episode: body.episode },
+      { tmdbId: body.tmdbId, type: body.type, season: body.season, episode: body.episode, promptV: body.promptV === 2 ? 2 : 1 },
       { callLlm }
     );
     if (r.nosub) return json({ nosub: true });
     return json({
       variant: body.variant,
+      promptV: body.promptV === 2 ? 2 : 1,
       model: v.model,
       title: r.englishTitle,
       reason: r.reason,
@@ -67,6 +72,6 @@ export async function POST(req) {
       words: r.words.map((w) => ({ word: w.word, level: w.level, def: w.definition, ex: w.example, src: w.source })),
     });
   } catch (err) {
-    return json({ error: String(err?.message || err).slice(0, 200), calls }, 502);
+    return json({ error: String(err?.message || err).slice(0, 200), calls, raws }, 502);
   }
 }

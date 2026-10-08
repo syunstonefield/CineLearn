@@ -142,7 +142,12 @@ function extractWords(raw) {
 //   buildVocabPrompt の 'targeted' モードは personalizeWords と同じ帯計算を共有するため残している。
 
 // targeted/superset 共通のプロンプト生成。mode で「学習者レベル狙い撃ち」と「A2〜C2を広く」を切替。
-function buildVocabPrompt({ drama, season, episode, subtitleText, mode, cur, upper, genVocabCount, minTotal }) {
+function buildVocabPrompt({ drama, season, episode, subtitleText, mode, cur, upper, genVocabCount, minTotal, promptV = 1 }) {
+  // promptV=2【試験中・2026-10-08】Haiku 5.5 向けの調整版（/api/vocab-eval からだけ渡る＝本番の生成は v1 のまま）。
+  //   v1 を 5.5 に掛けると「最大N個／足りなければ少なくてよい／A2を多くしすぎない」を字義どおり守って語数が6割・
+  //   A2〜B1 がほぼ消え、見本語（ambivalent 等）や法務語の例示を plus へそのまま写した（24語→3作品比較で実測）。
+  const v2 = mode === 'superset' && promptV === 2;
+  const dramaMin = Math.round(genVocabCount * 0.8);
   const curCefr = toeicToCefr(cur);
   const targetBand = cefrTargetBand(cur, upper);
 
@@ -160,13 +165,17 @@ know, want, like, need, look, see, say, tell, big, small, new, old, man, woman �
   const levelSpec =
     mode === 'superset'
       ? `【語彙カバレッジ】学習者レベルに依存せず、CEFR A2〜C2 を幅広く網羅する（読み取り時に学習者レベルで絞り込むため、ここでは絞らない）。
-- どのレベルの学習者にも十分な語数が渡るよう各帯をまんべんなく拾う。特に上級者向けに B2・C1 を厚めに（C2 は少数でよい）。A2 を多くしすぎない。
+${v2
+  ? '- drama の帯の目安配分: A2 約10%・B1 約25%・B2 約30%・C1 約25%・C2 約10%。初級者にも語が渡るよう A2・B1 も必ず含める（偏らせて難語だけにしない）。'
+  : '- どのレベルの学習者にも十分な語数が渡るよう各帯をまんべんなく拾う。特に上級者向けに B2・C1 を厚めに（C2 は少数でよい）。A2 を多くしすぎない。'}
 - level は「一般的な使用頻度・学習者にとっての難しさ」で正直に判定する。法務・医療・ビジネス等の専門語や文脈特有の比喩的用法は一般頻度が低く難しいため、安易に B2 以下へ下げず C1（必要なら C2）として正しく評価すること。
 - 中学英語レベルの超基礎語は選ばない（下記除外）。
 - 句動詞・イディオム・口語の比喩的用法・ジャンル専門語は、表層的な難易度に関わらず学習者がつまずきやすいので積極的に拾う。
 
 ${cefrAnchors}
-（専門語の目安：litigation / deposition / injunction / liability / subpoena ＝法務、prognosis / malignant / diagnosis ＝医療、leverage / acquisition / liquidity ＝ビジネス などは C1 以上として扱う）
+${v2
+  ? '（上の目安の語は難易度判定の物差しにすぎない。字幕に出てきた場合を除き、drama にも plus にも選ばないこと。法務・医療・ビジネス等の専門語は C1 以上として扱う）'
+  : '（専門語の目安：litigation / deposition / injunction / liability / subpoena ＝法務、prognosis / malignant / diagnosis ＝医療、leverage / acquisition / liquidity ＝ビジネス などは C1 以上として扱う）'}
 
 ${excludeList}`
       : cur > 0
@@ -207,7 +216,9 @@ ${excludeList}`;
       ? 'CEFR A2〜C2 を幅広く選ぶ（特定の帯に偏らせず、各帯から拾う）。'
       : `難易度は CEFR ${targetBand} を中心に選ぶ。`;
   const plusInstruction =
-    mode === 'superset'
+    v2
+      ? 'plus（字幕外の推奨語）は必ず 18〜20 語出す。この作品・このエピソードのテーマや場面に関係が深く、字幕には出てこない B2〜C1（一部 C2）の語を選ぶ。難易度の目安に挙げた語や、作品と無関係な汎用の難語（どの作品にも入りそうな語）は選ばない。'
+      : mode === 'superset'
       ? 'plus（字幕外の推奨語）は、字幕に出にくい上位帯を補うため必ず 18〜20 語出す。B2〜C1（一部 C2）の専門語・抽象語・ビジネス/法務/医療語を中心に、上級者の底上げになる語を選ぶ（数合わせではなく上級者に十分な難語を渡すのが目的。各語に正しい level を付ける）。'
       : `この作品のテーマ・文脈に関連する字幕外の推奨単語。dramaの語数と合わせて【合計が最低${minTotal}語】になるように補うこと（dramaが少ない回ほど多めに。最低でも5個は出す・最大20個）。同じ CEFR ${targetBand} を中心に選ぶ。`;
 
@@ -250,8 +261,11 @@ ${tierGuide}
 
 {
   "drama": [
-    この字幕に実際に登場する単語を【最大${genVocabCount}個】。必ず字幕内に存在する単語のみ。
-    数が足りなければ少なくてよく、数合わせのために字幕に無い単語をここ(drama)へ絶対に入れないこと（字幕に出てこない語をdramaに入れるのは禁止）。
+    ${v2
+      ? `この字幕に実際に登場する単語を【${genVocabCount}個を目標・最低${dramaMin}個】。字幕に適した語が残っている限り目標数まで出し切ること（少なく切り上げない）。必ず字幕内に存在する単語のみ。
+    ただし数合わせのために字幕に無い単語をここ(drama)へ入れるのは禁止。`
+      : `この字幕に実際に登場する単語を【最大${genVocabCount}個】。必ず字幕内に存在する単語のみ。
+    数が足りなければ少なくてよく、数合わせのために字幕に無い単語をここ(drama)へ絶対に入れないこと（字幕に出てこない語をdramaに入れるのは禁止）。`}
     ${dramaBandLine}内容語（名詞・動詞・形容詞・句動詞・イディオム）を優先する。
     【固有名詞・作品固有の造語は絶対に選ばない（最重要ルール）】次は TOEIC・日常会話・ビジネスで
     使えず学習価値が無いため、たとえ字幕に頻出しても選ばないこと：
@@ -263,11 +277,11 @@ ${tierGuide}
     特に次を積極的に拾うこと（字面の難易度が低くても学習者が調べたくなる）：
     句動詞・イディオム（例 pull off, get away with）、口語・スラング・比喩的な特殊用法（例 'shark'＝敏腕弁護士 のように、単語自体は平易でも文脈での意味を知らないと誤解する語を最優先）、現実に存在する分野の専門用語（法律・医療・ビジネス等。※架空世界の専門用語・造語は含めない）。
     重要：字幕の冒頭だけに偏らず、最初から最後まで全体を通して均等に選ぶこと。特に映画など長い字幕では、中盤・終盤に登場する単語も必ず含めること。
-    { "w": "英単語（原形）", "l": "A2|B1|B2|C1|C2", "p": "品詞（名詞/動詞/形容詞/副詞）", "d": "日本語の意味（簡潔に）", "e": "字幕からそのままコピーした文（必ずwの活用形を含む。見つからなければ空文字。ダブルクォートは使わず、シングルクォートに置換すること）", "t": "core"|"advanced"|"context", "c": "wを含む2〜4語のチャンク（無ければ空文字）" }
+    { "w": "英単語（原形）", "l": "A2|B1|B2|C1|C2", "p": "品詞（名詞/動詞/形容詞/副詞）", "d": "日本語の意味（簡潔に${v2 ? '・日本語の漢字かなで書き、中国語の簡体字は使わない' : ''}）", "e": "字幕からそのままコピーした文（必ずwの活用形を含む。見つからなければ空文字。ダブルクォートは使わず、シングルクォートに置換すること）", "t": "core"|"advanced"|"context", "c": "wを含む2〜4語のチャンク（無ければ空文字）" }
   ],
   "plus": [
     ${plusInstruction}
-    { "w": "英単語（原形）", "l": "A2|B1|B2|C1|C2", "p": "品詞（名詞/動詞/形容詞/副詞）", "d": "日本語の意味（簡潔に）", "e": "必ずwを含む自然な英文を作文する（空にしないこと）", "t": "core"|"advanced"|"context", "c": "wを含む2〜4語のチャンク（無ければ空文字）" }
+    { "w": "英単語（原形）", "l": "A2|B1|B2|C1|C2", "p": "品詞（名詞/動詞/形容詞/副詞）", "d": "日本語の意味（簡潔に${v2 ? '・日本語の漢字かなで書き、中国語の簡体字は使わない' : ''}）", "e": "必ずwを含む自然な英文を作文する（空にしないこと）", "t": "core"|"advanced"|"context", "c": "wを含む2〜4語のチャンク（無ければ空文字）" }
   ]
 }`;
 
@@ -412,7 +426,7 @@ async function generateSupersetOnce(ctx, onRetry, deps) {
 
   // superset は levelSpec が A2〜C2 固定のため cur/upper（バンド絞り用）は使わない。
   const { prompt, maxTokens } = buildVocabPrompt({
-    drama, season, episode, subtitleText, mode: 'superset', cur: 0, upper: 0, genVocabCount, minTotal,
+    drama, season, episode, subtitleText, mode: 'superset', cur: 0, upper: 0, genVocabCount, minTotal, promptV: ctx.promptV,
   });
   const text = await deps.callLlm(prompt, maxTokens, {
     onRetry,
