@@ -557,7 +557,7 @@ export default function Dashboard() {
     openReview(pendingQuick, { all: true });
   };
 
-  // 続きから学習の下に回す欄（観たあとに・覚えた/マスター・拡張機能の案内）＝オーナー 2026-10-08
+  // 続きから学習の下に回す欄（観たあとに）＝オーナー 2026-10-08。拡張機能の案内は ✕ で閉じるまで一番上（同日オーナー）
   const midSections = (
     <>
       {/* 観たあとにカード＝視聴直後リキャップ（docs/design-recap-endroll.md）。
@@ -703,6 +703,13 @@ export default function Dashboard() {
         </div>
       )}
 
+
+    </>
+  );
+
+  return (
+    <div className="screen active" id="screen-main">
+      {/* 拡張機能の案内は ✕ で閉じるまで一番上に出す（オーナー 2026-10-08） */}
       {!extBannerDismissed &&
         (isMobile ? (
           // モバイルは拡張機能を入れられない → 「今すぐ入れる」ではなく、PC向け手順への
@@ -734,11 +741,6 @@ export default function Dashboard() {
           </div>
         ))}
 
-    </>
-  );
-
-  return (
-    <div className="screen active" id="screen-main">
       <TodayPanel
         streak={data.streak}
         hasAnyWord={data.hasAnyWord}
