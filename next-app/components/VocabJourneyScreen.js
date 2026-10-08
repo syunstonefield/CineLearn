@@ -9,122 +9,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
 import VocabRings from './VocabRings';
+import GrassCard from './GrassCard';
 import PlusNote from './PlusNote';
 import { featureAccess, usePlan } from '@/lib/plan';
 import { canShowRings, loadRingSeen, saveRingSeen, settleRingValues } from '@/lib/rings';
 import { loadExpLedger } from '@/lib/exp';
 import { buildLibraryEntries, collectRingWords, loadHistory, loadSrs, loadStatsDaily, ringCounts, statsByDay } from '@/lib/storage';
 import { getActiveWords, sameWorkTitle } from '@/lib/words';
-import { JOURNEY, WEEKDAYS, buildGrass, buildTrend, dayDetail, md, niceMax, parseYmd, statsStart } from '@/lib/journey';
+import { JOURNEY, buildGrass, buildTrend, md, niceMax, statsStart } from '@/lib/journey';
 
 const T = JOURNEY.text;
-
-function Grass({ grass, days, dailyStart }) {
-  const [sel, setSel] = useState(null);
-  const L = JOURNEY.grassLevels;
-  const label = (d) => `${md(d.date)}（${WEEKDAYS[d.date.getDay()]}）`;
-
-  let detail = T.grassPick;
-  if (sel) {
-    const d = parseYmd(sel);
-    const lv = grass.weeks.flatMap((w) => w.days).find((x) => x.ymd === sel)?.level || 0;
-    const head = <b>{`${md(d)}（${WEEKDAYS[d.getDay()]}）`}</b>;
-    if (!lv) {
-      detail = (
-        <>
-          {head}　{T.grassNone}
-        </>
-      );
-    } else if (dailyStart && d >= dailyStart) {
-      const x = dayDetail(days, sel);
-      const parts = [`学習量 ${L[lv - 1]}`];
-      if (x) {
-        parts.push(`思い出せた ${x.ok}語`);
-        if (x.min) parts.push(`学習 ${x.min}分`);
-        if (x.gain) parts.push(`新しく覚えた ${x.gain}語`);
-        if (x.masteredGain) parts.push(`マスターになった ${x.masteredGain}語`);
-      }
-      detail = (
-        <>
-          {head}　{parts.join('・')}
-        </>
-      );
-    } else {
-      detail = (
-        <>
-          {head}　学習量 {L[lv - 1]}
-          {T.grassBeforeDaily}
-        </>
-      );
-    }
-  }
-
-  return (
-    <section className="vj-card" aria-labelledby="vj-grass-h">
-      <div className="vj-ch">
-        <h3 id="vj-grass-h">{T.grassTitle}</h3>
-      </div>
-      <div className="vj-sum">
-        {JOURNEY.grassSummary.includes('studied') && (
-          <span>
-            <b>{grass.studied}</b>日 学習した（{md(grass.start)}から）
-          </span>
-        )}
-        {JOURNEY.grassSummary.includes('month') && (
-          <span>
-            <b>{grass.thisMonth}</b>日 今月
-          </span>
-        )}
-      </div>
-      <div className="vj-grasswrap">
-        <div className="vj-grass">
-          <span />
-          <div className="vj-months" aria-hidden="true">
-            {grass.weeks.map((w, i) => (
-              <span key={i}>{w.month}</span>
-            ))}
-          </div>
-          <div className="vj-wdays" aria-hidden="true">
-            {WEEKDAYS.map((w, i) => (
-              <span key={w}>{i % 2 ? w : ''}</span>
-            ))}
-          </div>
-          <div className="vj-cells">
-            {grass.weeks.flatMap((w) =>
-              w.days.map((d) =>
-                d.out ? (
-                  <span key={d.ymd} className="vj-cell is-out" aria-hidden="true" />
-                ) : (
-                  <button
-                    key={d.ymd}
-                    type="button"
-                    className={`vj-cell${d.level ? ` l${d.level}` : ''}${d.today ? ' is-today' : ''}`}
-                    aria-pressed={sel === d.ymd}
-                    aria-label={`${label(d)}${d.level ? `学習量 ${L[d.level - 1]}` : '学習なし'}${d.today ? '・今日' : ''}`}
-                    onClick={() => setSel((s) => (s === d.ymd ? null : d.ymd))}
-                  />
-                )
-              )
-            )}
-          </div>
-        </div>
-      </div>
-      <div className="vj-gfoot">
-        <div className="vj-scale" aria-hidden="true">
-          少ない <i className="vj-cell" />
-          {L.map((_, i) => (
-            <i key={i} className={`vj-cell l${i + 1}`} />
-          ))}{' '}
-          多い
-        </div>
-        <p className="vj-hint">{T.grassHint(L.length)}</p>
-      </div>
-      <div className="vj-detail" aria-live="polite">
-        {detail}
-      </div>
-    </section>
-  );
-}
 
 // SVG の幅は実際の表示幅に合わせる（固定 viewBox を縮めるとスマホで目盛りの文字が潰れる）。
 function useBoxWidth(fallback) {
@@ -429,7 +323,7 @@ export default function VocabJourneyScreen() {
           )}
           {grassOk && (
             <div className="vj-reveal">
-              <Grass grass={data.grass} days={data.days} dailyStart={data.dailyStart} />
+              <GrassCard grass={data.grass} days={data.days} dailyStart={data.dailyStart} />
             </div>
           )}
           <div className="vj-reveal">

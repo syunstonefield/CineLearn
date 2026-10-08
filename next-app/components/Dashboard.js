@@ -4,6 +4,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
 import TodayPanel from './TodayPanel';
 import VocabProgress from './VocabProgress';
+import GrassCard from './GrassCard';
+import { buildGrass, statsStart } from '@/lib/journey';
+import { loadExpLedger } from '@/lib/exp';
 import LibraryCard from './LibraryCard';
 import ContinueCard from './ContinueCard';
 import AddDramaModal from './AddDramaModal';
@@ -22,6 +25,8 @@ import { fetchJa } from '@/lib/jatranslate';
 import { getActiveWords, normTitleForMatch, prewarmTitleAliases, sameWorkTitle } from '@/lib/words';
 import {
   toIsoDate,
+  loadStatsDaily,
+  statsByDay,
   archiveDrama,
   buildLibraryEntries,
   getAllVocabWords,
@@ -78,6 +83,15 @@ export default function Dashboard() {
   // 今日の復習1回の語数＝復習タブ・ボトムナビのバッジと同じ（設定の語数・既定20語・無料）
   const plan = usePlan(loggedIn);
   const todayCap = dailyReviewCap(settings, featureAccess('reviewCount', plan).usable);
+  // ホームの「学習した日」（草）。EXP 台帳から描く（あゆみタブと同じ部品の compact 版）。記録が無い新規の人には出さない。
+  const homeGrass = useMemo(() => {
+    if (!mounted || !featureAccess('grass', plan).usable) return null;
+    const grass = buildGrass(loadExpLedger(), new Date());
+    if (!grass.studied) return null;
+    const days = statsByDay(loadStatsDaily());
+    return { grass, days, dailyStart: statsStart(days) };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted, plan, reviewVersion, cloudVersion]);
   const [tick, setTick] = useState(0); // 再読込トリガ
   // 拡張機能の導入バナー（最初の関門対策で常設）。拡張未検出の判定はできないため、
   // インストール済みの人向けに×で消せる（消去は端末ローカルに記憶）。
@@ -542,54 +556,9 @@ export default function Dashboard() {
     openReview(pendingQuick, { all: true });
   };
 
-  return (
-    <div className="screen active" id="screen-main">
-      {!extBannerDismissed &&
-        (isMobile ? (
-          // モバイルは拡張機能を入れられない → 「今すぐ入れる」ではなく、PC向け手順への
-          // リンクとして残す（あとでPCで導入できるよう案内）。
-          <div className="ext-banner ext-banner-info">
-            <span className="ext-banner-icon" aria-hidden="true">📱</span>
-            <span className="ext-banner-text">
-              ドラマ・映画を視聴中に字幕の単語をクリックして保存するにはPCでChrome拡張導入が必要です。スマホは予習・復習・テストに使えます。
-            </span>
-            <button className="ext-banner-btn" onClick={openGuide}>
-              PCへの導入手順はこちら →
-            </button>
-            <button className="ext-banner-close" onClick={dismissExtBanner} aria-label="バナーを閉じる">
-              ✕
-            </button>
-          </div>
-        ) : (
-          <div className="ext-banner">
-            <span className="ext-banner-icon" aria-hidden="true">🧩</span>
-            <span className="ext-banner-text">
-              Netflix / Prime Video で単語を集めるには、無料の Chrome 拡張機能（ストアから1クリック）とログインが必要です
-            </span>
-            <button className="ext-banner-btn" onClick={openGuide}>
-              入れ方を見る →
-            </button>
-            <button className="ext-banner-close" onClick={dismissExtBanner} aria-label="バナーを閉じる">
-              ✕
-            </button>
-          </div>
-        ))}
-
-      <TodayPanel
-        streak={data.streak}
-        hasAnyWord={data.hasAnyWord}
-        todayCount={Math.min(data.dueCount, todayCap)}
-        weekStats={data.weekStats}
-        onStartReview={() => {
-          // 横断復習（特定エピソードに紐づかない）→ historyId は null
-          setCurrentHistoryId(null);
-          const h = loadHistory();
-          openReview(
-            getDueReviewWords(h, loadSrs(), myWords, activeWordKeys(h, myWords, sameWorkTitle)).slice(0, todayCap)
-          );
-        }}
-      />
-
+  // 続きから学習の下に回す欄（観たあとに・覚えた/マスター・拡張機能の案内）＝オーナー 2026-10-08
+  const midSections = (
+    <>
       {/* 観たあとにカード＝視聴直後リキャップ（docs/design-recap-endroll.md）。
           質問状態: 視聴完了の自己申告を静かに聞く（誤爆ゼロの根拠）。無視・まだ途中に罰なし。
           祝い状態: 申告後に同じカードが変化＝再会チップ＋さっと復習。
@@ -736,12 +705,70 @@ export default function Dashboard() {
       {/* 累計の語彙進捗（別枠）。今日の復習とは分けて「これまでの積み上げ」を見せる。
           3重の円は「あゆみ」タブ（VocabJourneyScreen）に移した（オーナー 2026-10-08）＝ホームは元のカード。 */}
       <VocabProgress learned={data.totalLearned} mastered={data.totalMastered} total={data.totalWords} />
+      {!extBannerDismissed &&
+        (isMobile ? (
+          // モバイルは拡張機能を入れられない → 「今すぐ入れる」ではなく、PC向け手順への
+          // リンクとして残す（あとでPCで導入できるよう案内）。
+          <div className="ext-banner ext-banner-info">
+            <span className="ext-banner-icon" aria-hidden="true">📱</span>
+            <span className="ext-banner-text">
+              ドラマ・映画を視聴中に字幕の単語をクリックして保存するにはPCでChrome拡張導入が必要です。スマホは予習・復習・テストに使えます。
+            </span>
+            <button className="ext-banner-btn" onClick={openGuide}>
+              PCへの導入手順はこちら →
+            </button>
+            <button className="ext-banner-close" onClick={dismissExtBanner} aria-label="バナーを閉じる">
+              ✕
+            </button>
+          </div>
+        ) : (
+          <div className="ext-banner">
+            <span className="ext-banner-icon" aria-hidden="true">🧩</span>
+            <span className="ext-banner-text">
+              Netflix / Prime Video で単語を集めるには、無料の Chrome 拡張機能（ストアから1クリック）とログインが必要です
+            </span>
+            <button className="ext-banner-btn" onClick={openGuide}>
+              入れ方を見る →
+            </button>
+            <button className="ext-banner-close" onClick={dismissExtBanner} aria-label="バナーを閉じる">
+              ✕
+            </button>
+          </div>
+        ))}
 
-      {/* 「おすすめの復習」（最新の半券→シーン記憶カード）はホームから外し、半券タブの作品詳細へ移した（オーナー 2026-10-08） */}
+    </>
+  );
+
+  return (
+    <div className="screen active" id="screen-main">
+      <TodayPanel
+        streak={data.streak}
+        hasAnyWord={data.hasAnyWord}
+        todayCount={Math.min(data.dueCount, todayCap)}
+        weekStats={data.weekStats}
+        onStartReview={() => {
+          // 横断復習（特定エピソードに紐づかない）→ historyId は null
+          setCurrentHistoryId(null);
+          const h = loadHistory();
+          openReview(
+            getDueReviewWords(h, loadSrs(), myWords, activeWordKeys(h, myWords, sameWorkTitle)).slice(0, todayCap)
+          );
+        }}
+      />
+
+      {/* 学習した日（草）。ホームでは表示幅に収まる直近の週だけ（オーナー 2026-10-08）。
+          今日の復習・草・続きから学習（最低1枚）が、スマホでも PC でも最初の1画面に収まる並びにする。 */}
+      {homeGrass && (
+        <div className="vj-screen vj-embed">
+          <GrassCard grass={homeGrass.grass} days={homeGrass.days} dailyStart={homeGrass.dailyStart} compact />
+        </div>
+      )}
+
 
       {/* 検索・ジャンル別検索・おすすめ・作品追加はすべてヘッダーの「＋」モーダルへ集約。
           ホームのツールバーは撤去して散らかりを減らす（おすすめは下のセクションにも残す）。 */}
 
+      {entries.length === 0 && midSections}
       {entries.length === 0 ? (
         <div id="dramaLibrary" className="drama-library">
           {/* 履歴・ライブラリが空 → 中央におすすめ（横スクロール行で「サブスク風」に） */}
@@ -752,7 +779,8 @@ export default function Dashboard() {
           </div>
         </div>
       ) : (
-        <div id="dramaLibrary" className="library-sections">
+        <>
+        <div id="dramaLibrary" className="library-sections library-sections-top">
           {continueEntries.length > 0 && (
             <section className="library-section">
               <div className="library-section-head">
@@ -780,6 +808,9 @@ export default function Dashboard() {
               </div>
             </section>
           )}
+        </div>
+        {midSections}
+        <div className="library-sections library-sections-rest">
           {listEntries.length > 0 && (
             <section className="library-section">
               <h2 className="library-section-title">🎬 マイリスト</h2>
@@ -808,6 +839,7 @@ export default function Dashboard() {
             </section>
           )}
         </div>
+        </>
       )}
 
       {addModal && (

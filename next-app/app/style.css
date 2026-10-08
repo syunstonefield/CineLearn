@@ -6826,6 +6826,34 @@ button.vj-cell { cursor: pointer; }
 .vr-more { display: block; width: 100%; margin-top: 12px; padding: 10px; border: 1px dashed var(--vr-today-border); border-radius: 12px; background: var(--vr-today-bg); color: var(--vr-today-ink); font: inherit; font-size: 13px; cursor: pointer; }
 .vr-more:hover { border-style: solid; }
 
+/* ホームに埋め込む「学習した日」（components/GrassCard.js の compact）。左右の基準線は今日の復習と同じ。
+   あゆみタブの色（--vj-*）を使うため .vj-screen を付け、余白だけ打ち消す。 */
+.vj-screen.vj-embed { padding: 0 max(40px, calc((100% - var(--content-max)) / 2)); margin: 0 0 14px; }
+.vj-card-compact {
+  padding: 10px 14px; gap: 6px 12px;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas: "ch sum" "grid grid" "detail detail";
+  align-items: baseline;
+}
+.vj-card-compact .vj-ch { grid-area: ch; flex-wrap: nowrap; }
+.vj-card-compact .vj-sum { grid-area: sum; justify-content: flex-end; gap: 2px 12px; font-size: 12px; }
+.vj-card-compact .vj-grasswrap { grid-area: grid; }
+.vj-card-compact .vj-detail { grid-area: detail; font-size: 12px; }
+.vj-card-compact .vj-ch h3 { font-size: 15px; }
+.vj-card-compact .vj-sum b { font-size: 17px; }
+.vj-card-compact .vj-grass { grid-template-columns: 18px auto; gap: 3px; }
+.vj-card-compact .vj-months { grid-auto-columns: 12px; height: 13px; line-height: 13px; font-size: 10px; }
+.vj-card-compact .vj-wdays { grid-template-rows: repeat(7, 12px); line-height: 12px; font-size: 9px; }
+.vj-card-compact .vj-cells { grid-template-rows: repeat(7, 12px); grid-auto-columns: 12px; }
+.vj-card-compact .vj-cell { width: 12px; height: 12px; border-radius: 3px; }
+.vj-card-compact .vj-grasswrap { overflow-x: hidden; }
+/* 続きから学習とその下の欄の間（ライブラリの容器を2つに分けた） */
+.library-sections.library-sections-top { min-height: 0; padding-bottom: 6px; }
+.library-sections.library-sections-rest { min-height: 0; padding-top: 6px; }
+@media (max-width: 768px) {
+  .vj-screen.vj-embed { padding: 0 16px; }
+}
+
 /* 凡例の数字は円の中心の数字と同じ書体（オーナー 2026-10-08） */
 .vr-lrow b { font-family: 'Playfair Display', serif; font-weight: 700; }
 
