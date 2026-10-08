@@ -52,14 +52,20 @@ function staticFrame(v) {
 }
 
 // glowFrom＝光らせる区間の始まり（前回見た値）。from から伸ばしつつ、glowFrom→今の値の差分だけ光る。
+// ★動きの始点は「今画面に出ている値」（curRef）。途中で値が更新されても（PC で開いた直後にクラウド同期が
+//   終わる等）、最終値から始め直して動きが消えることがない（2026-10-08 オーナー報告「PC で動かない」）。
+//   開発時の StrictMode（effect が2回走る）でも、1回目で描かれていなければ 0 から動く。
 function useRingAnimation(values, from, glowFrom) {
-  const [frame, setFrame] = useState(() => staticFrame(from || values));
-  const lastRef = useRef(from || values);
+  const [frame, setFrameState] = useState(() => staticFrame(from || values));
+  const curRef = useRef(from || values);
+  const setFrame = (f) => {
+    curRef.current = f.nums;
+    setFrameState(f);
+  };
   const glowRef = useRef(glowFrom);
   useEffect(() => {
     const to = values;
-    const fromV = lastRef.current;
-    lastRef.current = to;
+    const fromV = { ...curRef.current };
     const reduce =
       typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     const same = KEYS.every((k) => fromV[k] === to[k]);
@@ -71,7 +77,6 @@ function useRingAnimation(values, from, glowFrom) {
     const frTo = ringFractions(to);
     // 光る区間は「前回見た値→今の値」（最初の1回だけ）。それ以降の更新は伸びた分だけ光る
     const frGlow = glowRef.current ? ringFractions(glowRef.current) : frFrom;
-    glowRef.current = null;
     let raf = 0;
     let t0 = null;
     const end = DUR + Math.max(...Object.values(DELAYS));
@@ -90,6 +95,7 @@ function useRingAnimation(values, from, glowFrom) {
         setFrame({ nums, fr, prevFr: frGlow, glow });
         raf = requestAnimationFrame(tick);
       } else {
+        glowRef.current = null; // 前回見た値からの光りは最初の動き切りで使い終わる
         setFrame(staticFrame(to));
       }
     };
