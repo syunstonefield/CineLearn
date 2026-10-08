@@ -359,7 +359,7 @@ export default function ReviewHubScreen() {
           <div className="rh-plus-line">
             {work.locked ? (
               <>
-                {`作品・話を選んでの復習とクイズは、プラスの機能です。今日の復習（1日${DAILY_REVIEW_CAP}語）とマイ単語帳の復習は、どなたでもお使いいただけます。`}
+                {`作品・話を選んでの復習とクイズは、プラスの機能です。今日の復習とマイ単語帳の復習は、どなたでもお使いいただけます。`}
               </>
             ) : (
               <>
