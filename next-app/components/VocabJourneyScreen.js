@@ -309,7 +309,7 @@ function useRings({ mounted, profile, settings, version }) {
     saveRingSeen(values);
   }, [words]);
 
-  // 最近覚えた語（出会っただけの語は並べない）。新しい順に、まず作品がばらけるように4枚選ぶ。
+  // 最近覚えた語（出会っただけの語は並べない）。新しい順に、まず作品がばらけるように4枚を先頭に置く。
   const recent = useMemo(() => {
     const sorted = (words || [])
       .filter((w) => (w.state === 'learned' || w.state === 'mastered') && w.lastReview)
@@ -325,7 +325,8 @@ function useRings({ mounted, profile, settings, version }) {
     sorted.forEach((w) => {
       if (picked.length < 4 && !picked.includes(w)) picked.push(w);
     });
-    return picked;
+    // 「すべて見る」で広げる続き＝最初の4枚のあとに、残りを新しい順で（オーナー 2026-10-08）
+    return [...picked, ...sorted.filter((w) => !picked.includes(w))];
   }, [words]);
 
   const posterFor = useMemo(() => {
@@ -343,7 +344,7 @@ function useRings({ mounted, profile, settings, version }) {
 }
 
 export default function VocabJourneyScreen() {
-  const { mounted, loggedIn, reviewVersion, cloudVersion, wordbookVersion, profile, settings, openWordbook } = useApp();
+  const { mounted, loggedIn, reviewVersion, cloudVersion, wordbookVersion, profile, settings } = useApp();
   const plan = usePlan(loggedIn);
   const { ring, recent, posterFor } = useRings({
     mounted,
@@ -421,7 +422,6 @@ export default function VocabJourneyScreen() {
               gain={ring.gain}
               recent={recent}
               posterFor={posterFor}
-              onSeeAll={openWordbook}
               onOpen={openRest}
               cue="タップで記録を見る ↓"
               restClassName="vj-reveal"

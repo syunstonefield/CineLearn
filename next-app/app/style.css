@@ -6822,6 +6822,10 @@ button.vj-cell { cursor: pointer; }
   .vj-card { padding: 16px 14px; }
 }
 
+/* 最近覚えた単語の「もっと見る」 */
+.vr-more { display: block; width: 100%; margin-top: 12px; padding: 10px; border: 1px dashed var(--vr-today-border); border-radius: 12px; background: var(--vr-today-bg); color: var(--vr-today-ink); font: inherit; font-size: 13px; cursor: pointer; }
+.vr-more:hover { border-style: solid; }
+
 /* 凡例の数字は円の中心の数字と同じ書体（オーナー 2026-10-08） */
 .vr-lrow b { font-family: 'Playfair Display', serif; font-weight: 700; }
 

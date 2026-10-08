@@ -99,6 +99,10 @@ function useRingAnimation(values, from, glowFrom) {
   return frame;
 }
 
+// 最近覚えた単語: 最初は4枚。「すべて見る」で20枚ずつ広げる（あゆみの中で・オーナー 2026-10-08）
+const RECENT_FIRST = 4;
+const RECENT_STEP = 20;
+
 function posterSrc(p) {
   if (!p) return null;
   return p.startsWith('/') ? `https://image.tmdb.org/t/p/w185${p}` : p;
@@ -147,6 +151,7 @@ function WordCard({ w, poster }) {
 // glowFrom: 光らせる区間の始まり（前回見た値）。cue: タップの手がかりの文言。restRef: 円の下の内容（タップで移る先）の目印。
 export default function VocabRings({ values, from = null, glowFrom = null, gain = 0, recent = [], posterFor, onOpen, onSeeAll, cue = 'タップで詳しく ›', restClassName = '' }) {
   const { nums, fr, prevFr, glow } = useRingAnimation(values, from, glowFrom);
+  const [shown, setShown] = useState(RECENT_FIRST); // 最近覚えた単語を何枚見せるか（その場で広げる）
   if (!values || values.met <= 0) return null;
   const mastered0 = values.mastered <= 0;
   const Stage = onOpen ? 'button' : 'div';
@@ -240,17 +245,28 @@ export default function VocabRings({ values, from = null, glowFrom = null, gain 
         <section className={`vr-recent ${restClassName}`.trim()}>
           <div className="vr-rh">
             <h3>🎬 最近覚えた単語・シーン</h3>
-            {onSeeAll && (
+            {onSeeAll ? (
               <button type="button" onClick={onSeeAll}>
                 すべて見る ›
               </button>
+            ) : (
+              recent.length > RECENT_FIRST && (
+                <button type="button" onClick={() => setShown(shown > RECENT_FIRST ? RECENT_FIRST : RECENT_FIRST + RECENT_STEP)}>
+                  {shown > RECENT_FIRST ? 'たたむ' : 'すべて見る ›'}
+                </button>
+              )
             )}
           </div>
           <div className="vr-grid">
-            {recent.map((w) => (
+            {recent.slice(0, shown).map((w) => (
               <WordCard key={w.key} w={w} poster={posterFor?.(w._src?.title || w.title)} />
             ))}
           </div>
+          {shown > RECENT_FIRST && shown < recent.length && (
+            <button type="button" className="vr-more" onClick={() => setShown((n) => n + RECENT_STEP)}>
+              もっと見る（あと {recent.length - shown}語）
+            </button>
+          )}
         </section>
       )}
     </div>
