@@ -14,6 +14,8 @@ import {
   saveHistoryEntry,
   updateHistoryWords,
   deleteHistoryEntry,
+  deleteAllHistoryForWork,
+  workDeletionImpact,
   todaySessionCount,
   todayStr,
 } from '@/lib/storage';
@@ -92,6 +94,9 @@ export default function VocabScreen() {
   const [genStatus, setGenStatus] = useState('単語を分析中...'); // 生成ローディングの状態文言
   // 準備完了→「リストを見る」待ち（自動遷移しないロビー・2026-08-02）
   const [revealReady, setRevealReady] = useState(false);
+  // 全エピソードのリスト一括削除（警告画面: null=閉 / {impact}=開）。bulkTick は削除後の再集計用。
+  const [bulkDel, setBulkDel] = useState(null);
+  const [bulkTick, setBulkTick] = useState(0);
   const [genBtn, setGenBtn] = useState({ text: '予習をはじめる →', disabled: true, hidden: false });
   const [vocab, setVocab] = useState([]);
   const [source, setSource] = useState('');
@@ -211,7 +216,7 @@ export default function VocabScreen() {
     });
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [drama, historyId, reviewVersion]);
+  }, [drama, historyId, reviewVersion, bulkTick]);
 
   const reloadSrs = useCallbackSafe(() => setSrs(loadSrs()), []);
 
@@ -1186,6 +1191,40 @@ export default function VocabScreen() {
     loadEpisode(season, ep);
     setPickerOpen(false); // 選択したら畳んで単語リストへ（スマホで長いグリッドを越えてスクロールしない）
   };
+  // ── 全エピソードのリストを一括削除（2026-10-08 オーナー要望）──
+  // 誤操作防止のため、タップ→警告画面（消えるもの・残るもの・外れる語数）→確定の2段。
+  const openBulkDelete = async () => {
+    if (!drama) return;
+    let myWords = [];
+    try {
+      myWords = await getActiveWords(pid);
+    } catch {
+      /* 保存語が読めなくても影響は多めに見積もるだけ＝警告としては安全側 */
+    }
+    setBulkDel({ impact: workDeletionImpact(drama.title, myWords) });
+  };
+  const confirmBulkDelete = () => {
+    if (!drama) return;
+    deleteAllHistoryForWork(drama.title);
+    setBulkDel(null);
+    setBulkTick((t) => t + 1);
+    setHistoryId(null);
+    setVocab([]);
+    setExtWords([]);
+    setPrepFresh(false);
+    setPhase('empty');
+    setMessage('エピソードを選んでください');
+    setStatusText('');
+    setGenBtn({ text: '予習をはじめる →', disabled: false, hidden: false });
+  };
+  useEffect(() => {
+    if (!bulkDel) return;
+    const onKey = (e) => e.key === 'Escape' && setBulkDel(null);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [bulkDel]);
+  const bulkListCount = Object.values(studiedByEp).reduce((n, set) => n + set.size, 0);
+
   const onDelete = () => {
     if (!confirm('この単語リストを削除しますか？')) return;
     deleteHistoryEntry(historyId);
@@ -1476,6 +1515,11 @@ export default function VocabScreen() {
             )}
           </div>
           <div className="episode-selected">{statusText}</div>
+          {bulkListCount >= 2 && (
+            <button type="button" className="bulkdel-link" onClick={openBulkDelete}>
+              この作品の単語リストをすべて削除（{bulkListCount}話）
+            </button>
+          )}
         </div>
         )}
 
@@ -1800,6 +1844,50 @@ export default function VocabScreen() {
           )
         )}
       </div>
+
+      {/* 全エピソードのリスト一括削除の警告画面（誤操作防止の2段目） */}
+      {bulkDel && (
+        <div className="modal-overlay" style={{ display: 'flex' }} onClick={() => setBulkDel(null)}>
+          <div
+            className="modal-panel bulkdel-panel"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="bulkdel-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bulkdel-body">
+              <div className="bulkdel-icon" aria-hidden="true">⚠️</div>
+              <h2 id="bulkdel-title" className="bulkdel-title">単語リストをすべて削除しますか？</h2>
+              <p className="bulkdel-lead">
+                「{drama.title}」の<strong>{bulkDel.impact.lists}話分</strong>の単語リスト（{bulkDel.impact.words}語）を削除します。
+              </p>
+              <ul className="bulkdel-list">
+                <li className="is-gone">消えるもの：各話の単語リストとクイズの記録</li>
+                <li className="is-kept">残るもの：覚えた・マスターの記録、単語帳に保存した単語</li>
+                {bulkDel.impact.startedOnly > 0 && (
+                  <li className="is-warn">
+                    この作品のリストにしか無い語のうち、復習を始めた{bulkDel.impact.startedOnly}語
+                    {bulkDel.impact.learnedOnly > 0 ? `（うち覚えた${bulkDel.impact.learnedOnly}語）` : ''}
+                    は、ホームの「覚えた」数と今日の復習から外れます。
+                  </li>
+                )}
+              </ul>
+              <p className="bulkdel-note">
+                この操作は取り消せません。話を開き直せば単語リストは作り直せます。
+                学習を一時的に止めたいだけなら、ホームの「✕（学習中から外す）」の方が記録を保ったまま外せます。
+              </p>
+            </div>
+            <div className="bulkdel-actions">
+              <button type="button" className="bulkdel-cancel" onClick={() => setBulkDel(null)} autoFocus>
+                キャンセル
+              </button>
+              <button type="button" className="bulkdel-confirm" onClick={confirmBulkDelete}>
+                {bulkDel.impact.lists}話分を削除する
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

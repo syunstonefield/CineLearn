@@ -1034,6 +1034,37 @@ header {
   border: 1px solid var(--border);
   font-weight: 400;
 }
+/* 全エピソードのリスト一括削除：控えめなテキストリンク（誤タップしにくい位置と見た目） */
+.bulkdel-link {
+  display: block;
+  margin: 12px auto 0;
+  padding: 6px 8px;
+  border: none;
+  background: none;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-decoration: underline;
+  cursor: pointer;
+  font-family: inherit;
+}
+.bulkdel-link:hover { color: var(--red); }
+.bulkdel-panel { max-width: 420px; }
+.bulkdel-body { padding: 22px 22px 8px; overflow-y: auto; }
+.bulkdel-icon { font-size: 30px; text-align: center; margin-bottom: 6px; }
+.bulkdel-title { font-size: 17px; font-weight: 700; text-align: center; margin: 0 0 12px; }
+.bulkdel-lead { font-size: 14px; line-height: 1.7; margin: 0 0 12px; }
+.bulkdel-list { list-style: none; padding: 0; margin: 0 0 12px; display: flex; flex-direction: column; gap: 6px; }
+.bulkdel-list li { font-size: 13px; line-height: 1.6; padding: 8px 10px; border-radius: 8px; background: var(--surface2); }
+.bulkdel-list li.is-gone { color: var(--red); background: rgba(217, 79, 106, 0.07); }
+.bulkdel-list li.is-warn { color: #a3620c; background: rgba(217, 131, 36, 0.10); }
+.bulkdel-note { font-size: 12px; line-height: 1.6; color: var(--text-muted); margin: 0; }
+.bulkdel-actions { display: flex; gap: 8px; padding: 14px 22px 20px; }
+.bulkdel-cancel, .bulkdel-confirm {
+  flex: 1; padding: 11px 12px; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit;
+}
+.bulkdel-cancel { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
+.bulkdel-confirm { background: var(--red); border: 1px solid var(--red); color: #fff; }
+.bulkdel-confirm:active, .bulkdel-cancel:active { transform: scale(0.99); }
 .btn-episode-danger:hover:not(:disabled) {
   opacity: 1;
   border-color: var(--red);

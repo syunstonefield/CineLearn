@@ -1,7 +1,7 @@
 // 既存アプリ（js/app.js）からの移植。
 // localStorage のキー・データ構造は既存実装と完全に同一に保つこと。
 
-import { pushHistoryEntry, deleteHistoryRow, pushSrsWords, deleteSrsWord, pushProfiles, queueStatePush } from './supabase';
+import { pushHistoryEntry, deleteHistoryRow, deleteHistoryRowsByTitle, pushSrsWords, deleteSrsWord, pushProfiles, queueStatePush } from './supabase';
 import { PROFILES_AT_KEY } from './profileMerge';
 
 export const HISTORY_KEY = 'cl_history';
@@ -805,6 +805,45 @@ export function deleteHistoryEntry(id) {
   const history = loadHistory().filter((h) => h.id !== id);
   safeSet(HISTORY_KEY, JSON.stringify(history));
   deleteHistoryRow(id); // クラウドからも削除（ログイン時・fire-and-forget）
+}
+
+// 作品の単語リストを全エピソードまとめて削除（2026-10-08 オーナー要望・1話ずつ消すのが面倒）。
+// 作品名は履歴の drama.title と完全一致で判定する（studiedByEp と同じ。部分一致だと
+// "Suits" で "Suits LA" まで消す事故になる）。覚えた/マスター（SRS）・単語帳の保存語・棚は触らない。
+export function deleteAllHistoryForWork(title) {
+  if (!title) return 0;
+  const history = loadHistory();
+  const targets = history.filter((h) => h.drama?.title === title);
+  if (!targets.length) return 0;
+  safeSet(HISTORY_KEY, JSON.stringify(history.filter((h) => h.drama?.title !== title)));
+  targets.forEach((h) => deleteHistoryRow(h.id)); // クラウド（ログイン時・fire-and-forget）
+  deleteHistoryRowsByTitle(title); // 端末に無いクラウド側の同作品行も掃除
+  return targets.length;
+}
+
+// 一括削除の影響（警告画面の数字）。ホームの「覚えた」と今日の復習は単語リスト＋単語帳の
+// 保存語から組み立てるので、この作品のリストにしか無い語は、記録（SRS）が残っても両方から外れる。
+// myWords = 単語帳の保存語（getActiveWords）。他の作品のリストや保存語にもある語は外れない。
+export function workDeletionImpact(title, myWords = [], history = loadHistory(), srs = loadSrs()) {
+  const key = (w) => String(w?.word || '').toLowerCase();
+  const mine = history.filter((h) => h.drama?.title === title);
+  const elsewhere = new Set();
+  history.forEach((h) => {
+    if (h.drama?.title !== title) (h.words || []).forEach((w) => key(w) && elsewhere.add(key(w)));
+  });
+  (myWords || []).forEach((w) => key(w) && elsewhere.add(key(w)));
+  const words = new Set();
+  mine.forEach((h) => (h.words || []).forEach((w) => key(w) && words.add(key(w))));
+  let learnedOnly = 0;
+  let startedOnly = 0;
+  words.forEach((k) => {
+    if (elsewhere.has(k)) return;
+    const e = srs[k];
+    if (!e || e.skipped) return;
+    startedOnly++;
+    if (isLearned(e)) learnedOnly++;
+  });
+  return { lists: mine.length, words: words.size, learnedOnly, startedOnly };
 }
 
 // ── 旧字幕キャッシュの一回限りの掃除（2026-09-12・A17）──────────────────

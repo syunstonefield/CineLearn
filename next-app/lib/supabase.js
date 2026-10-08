@@ -689,6 +689,18 @@ export async function deleteSrsWord(word) {
   });
 }
 
+// 作品の単語リスト（履歴）をクラウドから作品名でまとめて削除（全エピソード一括削除用）。
+// drama は JSONB なので drama->>title で絞る。端末に無いクラウド側の同作品行も消す＝次の pull で生き返らない。
+export async function deleteHistoryRowsByTitle(title) {
+  if (!isLoggedIn() || !title) return;
+  const uid = getCurrentUser()?.id;
+  if (!uid) return;
+  await sbFetch(`/rest/v1/history?user_id=eq.${uid}&drama->>title=eq.${encodeURIComponent(title)}`, {
+    method: 'DELETE',
+    headers: { Prefer: 'return=minimal' },
+  });
+}
+
 export async function deleteHistoryRow(id) {
   if (!isLoggedIn() || !id) return;
   const uid = getCurrentUser()?.id;
