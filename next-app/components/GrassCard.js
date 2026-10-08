@@ -8,7 +8,9 @@ import { JOURNEY, WEEKDAYS, dayDetail, md, parseYmd } from '@/lib/journey';
 
 const T = JOURNEY.text;
 
-export default function GrassCard({ grass, days, dailyStart, compact = false }) {
+export default function GrassCard({ grass, days, dailyStart, compact = false, mini = false, onOpen }) {
+  // mini＝ホーム用の簡易版（オーナー 2026-10-08）: カレンダーの部分だけ。押すとあゆみタブ（onOpen）。
+  if (mini) compact = true; // eslint-disable-line no-param-reassign
   // compact＝ホーム用: 表示幅に収まる直近の週だけ・マスを少し小さく・凡例と説明は出さず、中身はマスを押した時だけ。
   const wrapRef = useRef(null);
   const [maxWeeks, setMaxWeeks] = useState(null);
@@ -64,6 +66,43 @@ export default function GrassCard({ grass, days, dailyStart, compact = false }) 
         </>
       );
     }
+  }
+
+  if (mini) {
+    return (
+      <button
+        type="button"
+        className="vj-card vj-card-compact vj-card-mini"
+        onClick={onOpen}
+        aria-label={`学習した日（${grass.studied}日・今月 ${grass.thisMonth}日）。押すとあゆみで詳しく`}
+      >
+        <div className="vj-grasswrap" ref={wrapRef}>
+          <div className="vj-grass">
+            <span />
+            <div className="vj-months" aria-hidden="true">
+              {weeks.map((w, i) => (
+                <span key={i}>{monthOf(w, i)}</span>
+              ))}
+            </div>
+            <div className="vj-wdays" aria-hidden="true">
+              {WEEKDAYS.map((w, i) => (
+                <span key={w}>{i % 2 ? w : ''}</span>
+              ))}
+            </div>
+            <div className="vj-cells" aria-hidden="true">
+              {weeks.flatMap((w) =>
+                w.days.map((d) => (
+                  <span
+                    key={d.ymd}
+                    className={`vj-cell${d.out ? ' is-out' : d.level ? ` l${d.level}` : ''}${d.today ? ' is-today' : ''}`}
+                  />
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      </button>
+    );
   }
 
   return (

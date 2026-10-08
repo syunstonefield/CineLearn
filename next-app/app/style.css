@@ -6847,6 +6847,33 @@ button.vj-cell { cursor: pointer; }
 .vj-card-compact .vj-cells { grid-template-rows: repeat(7, 12px); grid-auto-columns: 12px; }
 .vj-card-compact .vj-cell { width: 12px; height: 12px; border-radius: 3px; }
 .vj-card-compact .vj-grasswrap { overflow-x: hidden; }
+/* ホームの「覚えた・マスター」（左）と「学習した日」の簡易版（右）を横並びに（オーナー 2026-10-08） */
+.home-stats-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: stretch;
+  margin: 0 0 14px;
+  padding: 0 max(40px, calc((100% - var(--content-max)) / 2));
+}
+.home-stats-row > .vocab-progress, .home-stats-row > .vj-screen.vj-embed { margin: 0; padding: 0; min-width: 0; }
+.home-stats-row .vocab-progress-card { max-width: none; height: 100%; }
+.home-stats-row .vj-embed { display: flex; }
+.vj-card-mini {
+  width: 100%; display: flex; align-items: center; justify-content: center;
+  font: inherit; color: inherit; text-align: left; cursor: pointer;
+}
+.vj-card-mini:hover { border-color: var(--vj-learned); }
+.vj-card-mini:focus-visible { outline: 2px solid var(--vj-learned); outline-offset: 2px; }
+.vj-card-mini .vj-grasswrap { width: 100%; display: flex; justify-content: center; }
+/* スマホ: 左の2タイルは縦に積む（半分の幅に数字が収まるように） */
+@media (max-width: 768px) {
+  .home-stats-row { padding: 0 16px; gap: 10px; }
+  .home-stats-row .vocab-progress-card { flex-direction: column; }
+  .home-stats-row .vp-divider { width: auto; height: 1px; }
+  .home-stats-row .vp-tile { padding: 8px 10px; gap: 2px; }
+  .home-stats-row .vp-num { font-size: 22px; }
+  .home-stats-row .vp-gauge { margin-top: 4px; }
+  .home-stats-row .vj-card-mini { padding: 8px 6px; }
+}
+
 /* 続きから学習とその下の欄の間（ライブラリの容器を2つに分けた） */
 .library-sections.library-sections-top { min-height: 0; padding-bottom: 6px; }
 .library-sections.library-sections-rest { min-height: 0; padding-top: 6px; }

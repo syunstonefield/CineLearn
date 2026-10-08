@@ -77,6 +77,7 @@ export default function Dashboard() {
     openGuide,
     tickets,
     openSceneCards,
+    openJourney,
     wordbookVersion,
     loggedIn,
   } = useApp();
@@ -702,9 +703,6 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* 累計の語彙進捗（別枠）。今日の復習とは分けて「これまでの積み上げ」を見せる。
-          3重の円は「あゆみ」タブ（VocabJourneyScreen）に移した（オーナー 2026-10-08）＝ホームは元のカード。 */}
-      <VocabProgress learned={data.totalLearned} mastered={data.totalMastered} total={data.totalWords} />
       {!extBannerDismissed &&
         (isMobile ? (
           // モバイルは拡張機能を入れられない → 「今すぐ入れる」ではなく、PC向け手順への
@@ -758,11 +756,15 @@ export default function Dashboard() {
 
       {/* 学習した日（草）。ホームでは表示幅に収まる直近の週だけ（オーナー 2026-10-08）。
           今日の復習・草・続きから学習（最低1枚）が、スマホでも PC でも最初の1画面に収まる並びにする。 */}
-      {homeGrass && (
-        <div className="vj-screen vj-embed">
-          <GrassCard grass={homeGrass.grass} days={homeGrass.days} dailyStart={homeGrass.dailyStart} compact />
-        </div>
-      )}
+      {/* 左＝覚えた・マスター、右＝学習した日（カレンダーだけの簡易版・押すとあゆみ）＝オーナー 2026-10-08 */}
+      <div className="home-stats-row">
+        <VocabProgress learned={data.totalLearned} mastered={data.totalMastered} total={data.totalWords} />
+        {homeGrass && (
+          <div className="vj-screen vj-embed">
+            <GrassCard grass={homeGrass.grass} days={homeGrass.days} dailyStart={homeGrass.dailyStart} mini onOpen={openJourney} />
+          </div>
+        )}
+      </div>
 
 
       {/* 検索・ジャンル別検索・おすすめ・作品追加はすべてヘッダーの「＋」モーダルへ集約。
