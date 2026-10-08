@@ -6200,17 +6200,7 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--gold) 10%, transparent), 0 4px 16px var(--rh-near-glow);
   animation: rhNearGlow 4.8s ease-in-out infinite alternate;
 }
-/* 舞う金の粒（.vr-card::before と同じ手口・2層で奥行き） */
-.rh-near::before {
-  content: ""; position: absolute; inset: -60px 0 0; z-index: -1; pointer-events: none;
-  background-image:
-    radial-gradient(circle, color-mix(in srgb, var(--gold) 70%, transparent) 0 1px, transparent 1.7px),
-    radial-gradient(circle, color-mix(in srgb, var(--gold) 45%, white) 0 1.2px, transparent 2px);
-  background-size: 46px 46px, 71px 71px;
-  background-position: 0 0, 23px 31px;
-  opacity: .65;
-  animation: rhNearDust 11s linear infinite;
-}
+/* 舞う金の粒は外した（点が並んで「・・・」に見える＝オーナー 2026-10-08）。光の帯と縁の光・アイコンのきらめきで見せる */
 /* ときどき横切るきらめき（光の帯） */
 .rh-near::after {
   content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
@@ -6224,7 +6214,6 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
   from { box-shadow: 0 0 0 1px color-mix(in srgb, var(--gold) 10%, transparent), 0 4px 14px var(--rh-near-glow); }
   to { box-shadow: 0 0 0 1px color-mix(in srgb, var(--gold) 34%, transparent), 0 6px 24px color-mix(in srgb, var(--gold) 34%, transparent); }
 }
-@keyframes rhNearDust { to { transform: translateY(-46px); } }
 @keyframes rhNearSheen {
   0%, 55% { background-position: 130% 0; }
   100% { background-position: -30% 0; }
@@ -6280,11 +6269,10 @@ html[data-theme="dark"] .rh-near {
   border-color: color-mix(in srgb, var(--gold) 34%, transparent);
 }
 html[data-theme="dark"] .rh-near::after { opacity: .28; }
-html[data-theme="dark"] .rh-near::before { opacity: .35; }
 html[data-theme="dark"] .rh-near-icon { background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--gold) 38%, transparent), color-mix(in srgb, var(--gold) 12%, transparent) 70%); }
 html[data-theme="dark"] .rh-near-count { background: linear-gradient(100deg, var(--gold), color-mix(in srgb, var(--gold) 55%, white)); -webkit-background-clip: text; background-clip: text; }
 @media (prefers-reduced-motion: reduce) {
-  .rh-near, .rh-near::before, .rh-near::after, .rh-near-twinkle { animation: none; }
+  .rh-near, .rh-near::after, .rh-near-twinkle { animation: none; }
   .rh-near::after, html[data-theme="dark"] .rh-near::after { opacity: 0; }
   .rh-near-twinkle:nth-child(1) { opacity: .9; transform: scale(1); }
   .rh-near-twinkle:nth-child(2), .rh-near-twinkle:nth-child(3) { opacity: .5; transform: scale(.8); }
