@@ -49,6 +49,14 @@ export const CATALOG_GATE_ENABLED = process.env.CATALOG_GATE_ENABLED === 'true';
 
 // ── 生成の上限値（1話=1カウント・チャンク数に依らない）──
 //   匿名: IP バケット / ログイン: user:<uid> の日次・時次 ＋ IP 日次（アカウント量産の天井）。
+// 月の新規生成数（ログイン利用者・共有キャッシュに無い話を新しく生成した回数）。オーナー 2026-10-09 仮決め:
+// 無料 月5話・プラス 月30話（「無制限」とは書かない）。生成済みの作品（キャッシュ命中）は数えない・無制限。
+// ベータ中（CL_PLAN_MODE≠release）は数えるだけで止めない＝利用データ（1人が月に何話生成するか）を見て最終判断。
+export const GEN_MONTH_LIMITS = {
+  free: envInt('CL_GEN_MONTH_FREE', 5),
+  plus: envInt('CL_GEN_MONTH_PLUS', 30),
+};
+
 export const VOCAB_LIMITS = {
   anon: {
     perMin: envInt('CL_VOCAB_LIMIT_ANON_PER_MIN', 2),

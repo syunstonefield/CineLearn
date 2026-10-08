@@ -38,8 +38,9 @@ import {
 } from '@/lib/server/vocabCache';
 import { generateEpisodeVocab, clampVocabCount } from '@/lib/server/vocabGen';
 import { bumpStats } from '@/lib/server/stats';
+import { resolvePlan } from '@/lib/server/plan';
 import {
-  VOCAB_LIMITS,
+  VOCAB_LIMITS, GEN_MONTH_LIMITS,
   GENERATE_DEADLINE_MS,
   VOCAB_LOCK_TTL_SEC,
   NOGEN_TTL_SEC,
@@ -84,6 +85,12 @@ async function recordFailure(cacheKey, reason, { log = console } = {}) {
   const ttl = reason === 'timeout' ? NOGEN_TIMEOUT_TTL_SEC : NOGEN_TTL_SEC;
   await tryRedis(() => redisSet(nogenKey(cacheKey), reason, { ex: ttl }), null, { log });
   await tryRedis(() => redisIncrWithTtl(failKey(cacheKey), FAIL_COUNT_TTL_SEC), null, { log });
+}
+
+// 月のキー（JST の年月）＝日本の利用者の「今月」と揃える
+function jstMonthKey(now = Date.now()) {
+  const d = new Date(now + 9 * 3600 * 1000);
+  return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
 export async function POST(req) {
@@ -145,6 +152,20 @@ export async function POST(req) {
   if (nogen) return json({ hit: false, generated: false, reason: publicReason(nogen) });
   const failCount = Number(await tryRedis(() => redisGet(failKey(cacheKey)), null)) || 0;
   if (failCount > FAIL_COUNT_MAX) return json({ hit: false, generated: false, reason: 'repeated_failure' });
+
+  // ── 5.5) 月の新規生成数（ログイン利用者のみ・seed/admin は免除）。正式版だけ止める（ベータは数えるだけ）──
+  const monthKey = uid && !privileged ? `gen:month:${jstMonthKey()}:${uid}` : null;
+  if (monthKey) {
+    const plan = await resolvePlan(req);
+    if (!plan.beta) {
+      const monthLimit = plan.isPro ? GEN_MONTH_LIMITS.plus : GEN_MONTH_LIMITS.free;
+      const used = Number(await tryRedis(() => redisGet(monthKey), null)) || 0;
+      if (monthLimit > 0 && used >= monthLimit) {
+        await stat('gen_month_limited');
+        return json({ error: 'rate_limited', scope: 'monthly', window: 'month', limit: monthLimit, used, plus: plan.isPro }, 429);
+      }
+    }
+  }
 
   // ── 6) ロック存在確認（レート制限を触らない＝busy ポーリングで INCR/DECR を回さない）──
   const lk = lockKey(cacheKey);
@@ -247,6 +268,8 @@ export async function POST(req) {
       await recordFailure(cacheKey, reason);
     }
     await stat(contributed ? 'gen_ok' : 'gen_uncontrib');
+    // 月の新規生成数を数える（生成できた時だけ・字幕なし/失敗は数えない）。月をまたいで少し残す（40日）。
+    if (monthKey) await tryRedis(() => redisIncrWithTtl(monthKey, 40 * 86400), null);
     console.info(
       `[CL:VOCABGEN] done ${epLabel} ${Date.now() - t0}ms words=${r.wordCount} drama=${r.dramaCount} chunks=${r.chunks} contributed=${contributed} reason=${reason}`
     );

@@ -873,7 +873,12 @@ export default function VocabScreen() {
         // 生成枠（A12(3)・A28）。scope/window/resetAtUtc から文言を組み、匿名/日にはログイン導線を付ける。
         const reset = jst(r.resetAtUtc);
         const resetNote = reset ? `${reset}（JST）にリセットされます。` : '';
-        if (r.scope === 'unavailable') {
+        if (r.scope === 'monthly') {
+          // 月の新規生成枠（正式版のみ）。生成済みの作品は使えることを先に伝える（罪悪感・急かしの文言にしない）
+          fail(
+            `今月の新しい話の生成枠（${r.limit ?? ''}話）を使い終わりました。すでに単語リストがある作品・話はいつでも使えます。枠は来月1日に戻ります。${r.plus ? '' : '（プラスでは月の枠が広がります）'}`
+          );
+        } else if (r.scope === 'unavailable') {
           fail('混雑しています。数分後にお試しください');
         } else if (loggedIn && r.scope === 'anon' && !r.loginHint) {
           // 認証サーバー不達で匿名扱いになった（A28）: 再ログインではなく再試行を促す

@@ -200,6 +200,7 @@ export async function generateEpisodeVocab(body, { signal } = {}) {
       // 文言用の上限値（サーバ定数・env で上書き可）。無ければクライアント既定（8/30）
       anonDayLimit: Number.isFinite(Number(data.anonDayLimit)) ? Number(data.anonDayLimit) : null,
       userDayLimit: Number.isFinite(Number(data.userDayLimit)) ? Number(data.userDayLimit) : null,
+      plus: !!data.plus, // 月の枠（scope:'monthly'）の時、プラスの人か
     };
   }
   if (res.status === 503 || data.error === 'unavailable') return { kind: 'unavailable' };
