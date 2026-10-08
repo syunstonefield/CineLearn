@@ -6399,3 +6399,7 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
   .review-key-hint { display: block; }
   .review-swipe-hint { display: none !important; }
 }
+
+/* 視聴後クイズ: 例文の和訳（回答前から表示・2026-10-08）と出所明示（48条） */
+.quiz-ex-ja { margin: -12px 0 12px; font-size: 13px; color: var(--text-soft); line-height: 1.6; }
+.quiz-ex-src { margin: -4px 0 16px; text-align: left; }

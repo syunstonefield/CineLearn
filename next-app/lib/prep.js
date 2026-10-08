@@ -207,13 +207,16 @@ function buildClozeQuestion(w, pool, choiceCount) {
   const formNote =
     cloze.form.toLowerCase() !== String(w.word).toLowerCase() ? `（本文では ${cloze.form}）` : '';
   return {
-    word: w.word, // 出題順の並べ替え用（QuizScreen は question/answer/choices/explanation だけ見る）
+    word: w.word, // 出題順の並べ替え用
+    type: 'cloze',
     question: cloze.question,
+    // 例文の和訳は最初から見せる（訳が無いと空欄の語を選べない・オーナー判断 2026-10-08）。
+    // 出題文は字幕の実セリフ＝引用(32条)なので、出所明示(48条)は QuizScreen が _src から描く。
+    example_ja: w.example_ja || '',
+    source: w.source,
     answer: w.word,
     choices: buildChoices(w, pool, choiceCount),
-    explanation:
-      `${w.word}${formNote}${w.pos ? `（${w.pos}）` : ''}：${w.ja || w.definition || ''}` +
-      (w.example_ja ? `\n${w.example_ja}` : ''),
+    explanation: `${w.word}${formNote}${w.pos ? `（${w.pos}）` : ''}：${w.ja || w.definition || ''}`,
   };
 }
 
@@ -242,6 +245,7 @@ function buildMeaningQuestion(w, pool, choiceCount) {
   if (!distractors.length) return null; // 選択肢が1つ＝問題にならない
   return {
     word: w.word,
+    type: 'meaning',
     question: `「${w.word}」の意味は？`,
     answer,
     choices: [answer, ...distractors].sort(() => Math.random() - 0.5),

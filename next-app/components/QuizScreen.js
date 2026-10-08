@@ -2,13 +2,23 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
-import { updateHistoryScore, loadHistory, loadSrs } from '@/lib/storage';
+import { updateHistoryScore, loadHistory, loadSrs, subtitleCredit } from '@/lib/storage';
 import { buildLocalQuiz } from '@/lib/prep';
 import { addExp, EXP_PER_QUIZ_WORD, EXP_QUIZ_PASS_BONUS, QUIZ_PASS_PCT } from '@/lib/exp';
 
 // 既存 screen-5（renderQuiz / answer / renderScore）の再現。
 export default function QuizScreen() {
-  const { quizData, setQuizData, quizReturn, currentHistoryId, setScreen, goHome } = useApp();
+  const { quizData, setQuizData, quizReturn, currentHistoryId, drama, setScreen, goHome } = useApp();
+  // 出所明示（48条）: 出題文は字幕の実セリフ（引用）なので、作品・話・字幕元を問題文と同時に出す。
+  // 履歴の drama は type を持たないため映画判定は app 側の drama（myDramas とマージ済み）を見る。
+  const credit = (() => {
+    const entry = loadHistory().find((h) => h.id === currentHistoryId);
+    if (!entry?.drama?.title) return '';
+    const isMovie = drama?.type === 'movie' || drama?.mediaType === 'movie';
+    return subtitleCredit({
+      _src: { title: entry.drama.title, season: entry.season, episode: entry.episode, type: isMovie ? 'movie' : 'tv' },
+    });
+  })();
   // 戻り先は入口によって変わる（単語リスト経由＝'vocab' / 復習ハブ経由＝'review-hub'）。
   const backToHub = quizReturn === 'review-hub';
   const onBack = () => setScreen(backToHub ? 'review-hub' : 'vocab');
@@ -154,15 +164,18 @@ export default function QuizScreen() {
           <div className="quiz-card">
             <div className="quiz-q">
               {isCloze ? (
+                // 引用部分は “ ” で囲って明瞭区分（32条要件②・予習クイズと同じ）
                 <>
-                  {parts[0]}
+                  “{parts[0]}
                   <span className="quiz-blank">____</span>
-                  {parts.slice(1).join('____')}
+                  {parts.slice(1).join('____')}”
                 </>
               ) : (
                 q.question
               )}
             </div>
+            {isCloze && q.example_ja && <div className="quiz-ex-ja">{q.example_ja}</div>}
+            {isCloze && q.source !== 'plus' && credit && <div className="prep-ex-src quiz-ex-src">{credit}</div>}
             <div className="quiz-choices">
               {q.choices.map((c, i) => {
                 let cls = 'choice-btn';
