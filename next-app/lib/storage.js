@@ -253,9 +253,12 @@ export function getDueReviewWords(
     }));
   const eligible = [...fromHistory, ...extras].filter((w) => {
     const k = w.word.toLowerCase();
+    // 棚から外した作品“だけ”に出てくる語は、復習を始めた語も含めて出さない（オーナー 2026-10-08）。
+    // SRS の記録は消さない＝作品を棚に戻せば、その時点の期日で再び出る。
+    if (activeKeys && !activeKeys.has(k)) return false;
     const e = srs[k];
-    if (e) return isDue(e); // 復習を始めた語は棚から外した作品の語でも出す（記録の保護）
-    return !activeKeys || activeKeys.has(k); // 未学習は「学習中」の作品の語だけ
+    if (e) return isDue(e);
+    return true;
   });
   // 期日到来（SRS登録済み）を先に、その後に未学習。段の中はシャッフル＝上限20語で切っても
   // 毎日同じ先頭20語にならない（未学習が数百ある実運用で「毎回同じ」になっていた・2026-09-22）。

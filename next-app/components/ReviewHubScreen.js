@@ -126,7 +126,7 @@ export default function ReviewHubScreen() {
 
   // 作品ごとにエピソードをまとめる。history は新しい順なので、作品の並びも「最近見た順」になる。
   //   ホームの「学習中」から外した作品（棚から外す＝cl_archived）はこの一覧にも出さない（オーナー 2026-10-08）。
-  //   復習を始めた語の記録は消さないので、期日が来れば「今日の復習」には出る（記録の保護・従来どおり）。
+  //   今日の復習・マスター手前からも外す（lib/storage.js getDueReviewWords）。SRS の記録は消さない＝棚に戻せば再び出る。
   const groups = useMemo(() => {
     const m = new Map();
     const archived = loadArchived();
@@ -187,7 +187,8 @@ export default function ReviewHubScreen() {
     const keys = new Set();
     [...getAllVocabWords(history), ...(myWords || [])].forEach((w) => {
       const k = String(w.word || '').toLowerCase();
-      if (k && isNearMastery(srs[k])) keys.add(k);
+      // 棚から外した作品だけの語は数えない（今日の復習と同じ範囲・2026-10-08）
+      if (k && isNearMastery(srs[k]) && (!activeKeys || activeKeys.has(k))) keys.add(k);
     });
     const due = getDueReviewWords(history, srs, myWords, activeKeys).filter((w) =>
       keys.has(String(w.word || '').toLowerCase())
