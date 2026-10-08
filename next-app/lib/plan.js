@@ -19,6 +19,7 @@ export const PLAN_FEATURES = {
   trend: 'plus', // 語彙のあゆみ「週ごとの推移」
   workReview: 'plus', // 作品・話ごとの復習とクイズ
   reviewCount: 'free', // 毎日の復習語数の変更（オーナー 2026-10-08 無料に変更）
+  newWordsDaily: 'plus', // 初めて復習する語を1日に何語でも（無料は1日20語まで）＝オーナー 2026-10-09
 };
 
 // ベータ中の初期値（/api/plan の応答前・オフライン時）。ベータ中は全員使える約束なので開いておく。

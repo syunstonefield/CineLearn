@@ -25,7 +25,7 @@ import BottomNav from '@/components/BottomNav';
 import WelcomeTutorial from '@/components/WelcomeTutorial';
 import ExtensionGuide from '@/components/ExtensionGuide';
 import SplashScreen from '@/components/SplashScreen';
-import { getActiveWordCount, getDueReviewWords, ARCHIVE_EVENT } from '@/lib/storage';
+import { getActiveWordCount, getDueReviewWords, ARCHIVE_EVENT, setNewWordDailyCap, NEW_WORDS_DAILY_FREE } from '@/lib/storage';
 import { usePlan, featureAccess } from '@/lib/plan';
 import { dailyReviewCap } from '@/lib/reviewCount';
 
@@ -82,10 +82,13 @@ function AppShell() {
   // 上限は復習タブと同じ（プラスの人は設定の語数・無料は20語＝lib/reviewCount.js）。
   const plan = usePlan(loggedIn);
   const todayCap = dailyReviewCap(settings, featureAccess('reviewCount', plan).usable);
+  // 初めて復習する語の1日の上限＝正式版の無料の人だけ（ベータ中は全員無制限）。全画面の getDueReviewWords に効かせる。
+  const newWordsLocked = !featureAccess('newWordsDaily', plan).usable;
+  setNewWordDailyCap(newWordsLocked ? NEW_WORDS_DAILY_FREE : null);
   const dueCount = useMemo(
     () => (mounted ? Math.min(getDueReviewWords().length, todayCap) : 0),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [mounted, profile, reviewVersion, cloudVersion, wordbookVersion, archiveTick, todayCap]
+    [mounted, profile, reviewVersion, cloudVersion, wordbookVersion, archiveTick, todayCap, newWordsLocked]
   );
   // ボトムナビはアプリ内（プロフィール選択済み）でのみ表示。
   // プロフィール選択・オンボーディング中は出さない。

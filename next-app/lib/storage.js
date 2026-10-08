@@ -269,7 +269,29 @@ export function getDueReviewWords(
     const pb = srs[b.word.toLowerCase()] ? 0 : 1;
     return pa - pb || rnd.get(a) - rnd.get(b);
   });
+  // 初めて復習する語（未学習）の1日の上限（正式版の無料の人だけ・setNewWordDailyCap）。期日の来た語は上限に数えない。
+  if (_newWordDailyCap != null) {
+    const left = Math.max(0, _newWordDailyCap - newWordsStartedToday(srs));
+    let fresh = 0;
+    return eligible.filter((w) => (srs[w.word.toLowerCase()] ? true : fresh++ < left));
+  }
   return eligible;
+}
+
+// ── 初めて復習する語の1日の上限（オーナー 2026-10-09）─────────────────────
+// 無料＝1日 NEW_WORDS_DAILY_FREE 語まで・プラス＝無制限（lib/plan.js の newWordsDaily）。
+// 予習・保存はいくらでもできる。差を付けるのは「集めた語を1日に何語、初めての復習に回すか」だけ。
+// 呼び出し側（AppShell）がプランに応じて設定する＝getDueReviewWords の全ての呼び出しに効く。
+export const NEW_WORDS_DAILY_FREE = 20;
+let _newWordDailyCap = null;
+export function setNewWordDailyCap(n) {
+  _newWordDailyCap = Number.isFinite(n) ? n : null;
+}
+// 今日初めて復習した語の数（reviewWord が新しい SRS エントリを作った日＝firstReview）。
+// ※firstReview は端末の SRS にだけ残る（クラウドの srs 表に列が無い）＝端末ごとの数え方になる。
+export function newWordsStartedToday(srs = loadSrs()) {
+  const t = todayStr();
+  return Object.values(srs || {}).filter((e) => e?.firstReview === t).length;
 }
 
 // 今週の進捗（今日含む直近7日に復習した単語数・累計の習得語数）
@@ -683,7 +705,7 @@ export function reviewWord(word, quality, src = null) {
   const all = loadSrs();
   const k = word.toLowerCase();
   addStatsDaily(quality >= 3 ? { ok: 1 } : { fail: 1 }); // 日ごとの記録（同日2回目の練習も数える）
-  let e = all[k] || { interval: 1, repetitions: 0, easeFactor: 2.5, skipped: false };
+  let e = all[k] || { interval: 1, repetitions: 0, easeFactor: 2.5, skipped: false, firstReview: todayStr() };
   if (src?.title && !e.origin?.title) {
     e.origin = { title: src.title, season: src.season ?? null, episode: src.episode ?? null };
   }

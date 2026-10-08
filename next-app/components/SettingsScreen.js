@@ -18,6 +18,7 @@ import {
 } from '@/lib/export';
 import { usePlan, featureAccess } from '@/lib/plan';
 import { REVIEW_COUNT_OPTIONS, reviewCountLabel, normalizeReviewCount, DAILY_REVIEW_CAP } from '@/lib/reviewCount';
+import { NEW_WORDS_DAILY_FREE } from '@/lib/storage';
 import PlusNote from './PlusNote';
 
 // 設定（英語レベル / 利用サービス / テーマ / 単語階層 / 復習リマインダー）。
@@ -354,6 +355,10 @@ export default function SettingsScreen() {
                       {reviewCountLabel(v)}
                     </button>
                   ))}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, lineHeight: 1.7 }}>
+                  まだ一度も復習していない語を、1日に何語でも復習に回せます（無料は1日{NEW_WORDS_DAILY_FREE}語まで。期日の来た語はいつでも復習できます）。{' '}
+                  <PlusNote feature="newWordsDaily" plan={plan} short />
                 </div>
                 {reviewCountAccess.betaNote && (
                   <div style={{ marginTop: 8 }}>
