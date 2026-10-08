@@ -33,6 +33,71 @@ function senseHash(sentence, ver = '') {
 // 「違法な商品」になり、単語帳の語義として一般性を失っていた＝オーナー報告）。
 const WORDSENSE_PROMPT_VER = 'v3';
 
+// 語義プロンプト v3（本番）。評価モード（wordsense_eval）と同じ文面を使うため関数に切り出した。
+function wordsensePromptV3(word, sentence) {
+  return (
+    `字幕のセリフ: "${sentence}"\n\n` +
+    `このセリフに出てくる "${word}" を、英単語帳の語義欄に載せる短い日本語にしてください。\n\n` +
+    `規則:\n` +
+    `- 基本の語義（辞書の中心的な意味）を12字以内で書く。類義語の列挙・説明文・句点(。)は書かない。\n` +
+    `- このセリフの事情（誰が何をしているか）を基本の語義そのものに混ぜない。\n` +
+    `- セリフでの使われ方が基本の意味からずれる時（隠語・比喩・皮肉・専門用法）だけ、続けて「（この場面では◯◯）」を10字以内で足す。ずれていなければ足さない。\n\n` +
+    `出力の見本:\n` +
+    `  merchandise / "You said, move the merchandise." → 商品（この場面では密輸品）\n` +
+    `  personnel / "Qualified personnel." → 職員・要員\n` +
+    `  jurisdiction / "...now under our jurisdiction." → 管轄権\n` +
+    `  cold / "He gave me the cold shoulder." → 冷たい（この場面では冷淡な態度）\n\n` +
+    `語義だけを1行で出力してください。`
+  );
+}
+
+// 【一時・wordsense_eval 用】語義プロンプト v4 候補＝JSON で「基本義」と「場面でのずれ」を別欄に分け、
+//   付ける/付けないを null で明示させる（v3 を Haiku 5.5 に掛けると不要な場面注記・崩れが出た＝2026-10-08 本番実測）。
+const WS_EVAL_TOKEN_SHA256 = '94131e5abe334dc04ddd342c187057e09929f6f97aa00546053bd044adb2ac43';
+function wordsensePromptV4(word, sentence) {
+  return (
+    `字幕のセリフ: "${sentence}"\n\n` +
+    `このセリフに出てくる "${word}" について、英単語帳の語義欄に載せる日本語を JSON で返してください。\n` +
+    `形式: {"base": 基本の語義, "shift": 場面での特殊な意味 または null}\n\n` +
+    `規則:\n` +
+    `- base: 辞書の中心的な意味を12字以内。訳語は1〜2個（「・」区切り）。説明文・句点・矢印は書かない。セリフの事情（人物・場所・出来事）を混ぜない。\n` +
+    `- shift: 原則 null。セリフでの意味が base と別物のとき（隠語・比喩・皮肉・専門用法）だけ、その意味を10字以内で書く。base の言い換え・強調・場面の説明になるなら null。迷ったら null。\n\n` +
+    `見本:\n` +
+    `  merchandise / "You said, move the merchandise." → {"base":"商品","shift":"密輸品"}\n` +
+    `  personnel / "Qualified personnel." → {"base":"職員・要員","shift":null}\n` +
+    `  jurisdiction / "...now under our jurisdiction." → {"base":"管轄権","shift":null}\n` +
+    `  bright / "She's the brightest kid in her class." → {"base":"明るい・賢い","shift":null}\n` +
+    `  cold / "He gave me the cold shoulder." → {"base":"冷たい","shift":"冷淡な態度"}\n` +
+    `  furious / "Dad was furious when he saw the car." → {"base":"激怒した","shift":null}\n\n` +
+    `JSON だけを1行で出力してください。`
+  );
+}
+// v4 の応答 → 語義欄の文字列（形式崩れは null＝配らない）。
+function parseWordsenseV4(raw) {
+  let o;
+  try {
+    o = JSON.parse(String(raw).match(/\{[\s\S]*\}/)?.[0] || 'null');
+  } catch {
+    return null;
+  }
+  const clean = (x) => String(x ?? '').trim().replace(/^["「『]|["」』]$/g, '').replace(/[。．]+$/, '').trim();
+  const base = clean(o?.base);
+  const shift = o?.shift == null ? '' : clean(o.shift);
+  const bad = (x) => /→|->|\n/.test(x);
+  if (!base || base.length > 14 || bad(base) || shift.length > 12 || bad(shift) || (shift && shift === base)) return null;
+  return shift ? `${base}（この場面では${shift}）` : base;
+}
+// v3 の応答 → 本番と同じ後処理。
+function parseWordsenseV3(raw) {
+  const ja = String(raw)
+    .split('\n')[0]
+    .trim()
+    .replace(/^["「『]|["」』]$/g, '')
+    .replace(/[。．]+$/, '')
+    .trim();
+  return !ja || ja.length > 36 ? null : ja;
+}
+
 async function readCtxCache(word, hash) {
   if (!SUPABASE_SERVICE_KEY) return null;
   try {
@@ -282,6 +347,60 @@ export async function POST(req) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return json({ error: 'server_misconfigured' }, 500); // 鍵は設定済みの前提（旧経路フォールバックは撤去）
 
+  // ── 【一時】mode:'wordsense_eval'＝語義プロンプト v3/v4 × Haiku 4.5/5.5 の比較（2026-10-08・比較後に削除）──
+  //   共有キャッシュには一切書かない（読まない）。合言葉ヘッダ x-cl-eval の sha256 が一致した時だけ動く
+  //   （公開リポジトリにはハッシュのみ）。IP 日次40回の天井つき。
+  if (body.mode === 'wordsense_eval') {
+    const tok = String(req.headers.get('x-cl-eval') || '');
+    if (createHash('sha256').update(tok).digest('hex') !== WS_EVAL_TOKEN_SHA256) return json({ error: 'forbidden' }, 403);
+    if (!(await checkRateLimit(req, 'wseval', { perMin: 5, perHour: 20, perDay: 40 })).ok) {
+      return json({ error: 'rate_limited' }, 429);
+    }
+    const items = (Array.isArray(body.items) ? body.items : [])
+      .slice(0, 30)
+      .map((it) => ({ word: String(it?.word || '').trim().slice(0, 80), sentence: String(it?.sentence || '').trim().slice(0, 300) }))
+      .filter((it) => it.word && it.sentence);
+    const VARIANTS = {
+      A_45_v3: { model: HAIKU_MODEL, v: 3, max_tokens: 96 },
+      B_45_v4: { model: HAIKU_MODEL, v: 4, max_tokens: 96 },
+      C_55_v4: { model: TRANSLATE_MODEL, v: 4, max_tokens: 96, thinking: TRANSLATE_THINKING },
+      D_55_v4_think: { model: TRANSLATE_MODEL, v: 4, max_tokens: 1024, output_config: { effort: 'low' } },
+    };
+    const run = async ({ word, sentence }, cfg) => {
+      const t0 = Date.now();
+      try {
+        const { v, ...params } = cfg;
+        const r = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+          body: JSON.stringify({
+            ...params,
+            messages: [{ role: 'user', content: v === 4 ? wordsensePromptV4(word, sentence) : wordsensePromptV3(word, sentence) }],
+          }),
+        });
+        const data = await r.json().catch(() => null);
+        if (!r.ok) return { error: `${r.status} ${String(data?.error?.message || '').slice(0, 160)}`, ms: Date.now() - t0 };
+        const raw = responseText(data);
+        return { raw, ja: v === 4 ? parseWordsenseV4(raw) : parseWordsenseV3(raw), out: data?.usage?.output_tokens, ms: Date.now() - t0 };
+      } catch (e) {
+        return { error: String(e?.message || e).slice(0, 160), ms: Date.now() - t0 };
+      }
+    };
+    const results = [];
+    for (let i = 0; i < items.length; i += 6) {
+      const chunk = items.slice(i, i + 6);
+      results.push(
+        ...(await Promise.all(
+          chunk.map(async (it) => {
+            const entries = await Promise.all(Object.entries(VARIANTS).map(async ([k, cfg]) => [k, await run(it, cfg)]));
+            return { ...it, results: Object.fromEntries(entries) };
+          })
+        ))
+      );
+    }
+    return json({ results });
+  }
+
   // ── mode:'wordsense'＝文脈つき語義（docs/design-context-translation.md）──
   //   プロンプトはサーバ側で組む（クライアント文字列を実行しない）・max_tokens 64 固定。
   //   キャッシュ命中は無条件・無償配布＝レート制限より先に返す。
@@ -314,19 +433,7 @@ export async function POST(req) {
     // ★v3: 規則の言葉だけでは効かなかった（v2 を本番実測: merchandise が36字の辞書調・
     //   personnel は「必要な資格や技能を持つ職員や要員。」と場面が混ざったまま・句点つき）。
     //   出力の見本（few-shot）を付け、字数と禁止事項を具体化して形を固定する。
-    const prompt =
-      `字幕のセリフ: "${sentence}"\n\n` +
-      `このセリフに出てくる "${word}" を、英単語帳の語義欄に載せる短い日本語にしてください。\n\n` +
-      `規則:\n` +
-      `- 基本の語義（辞書の中心的な意味）を12字以内で書く。類義語の列挙・説明文・句点(。)は書かない。\n` +
-      `- このセリフの事情（誰が何をしているか）を基本の語義そのものに混ぜない。\n` +
-      `- セリフでの使われ方が基本の意味からずれる時（隠語・比喩・皮肉・専門用法）だけ、続けて「（この場面では◯◯）」を10字以内で足す。ずれていなければ足さない。\n\n` +
-      `出力の見本:\n` +
-      `  merchandise / "You said, move the merchandise." → 商品（この場面では密輸品）\n` +
-      `  personnel / "Qualified personnel." → 職員・要員\n` +
-      `  jurisdiction / "...now under our jurisdiction." → 管轄権\n` +
-      `  cold / "He gave me the cold shoulder." → 冷たい（この場面では冷淡な態度）\n\n` +
-      `語義だけを1行で出力してください。`;
+    const prompt = wordsensePromptV3(word, sentence);
     try {
       const r = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
