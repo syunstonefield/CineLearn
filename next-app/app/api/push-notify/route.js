@@ -4,7 +4,7 @@
 // morning（朝7時 JST = 22:00 UTC 前日）
 //   → srs_data の due_date が今日以前のユーザーに「今日N単語の復習があります」
 //     ※ srs_data は 2026-07-02 から next-app が復習のたびに同期する（lib/storage.js reviewWord）。
-// evening（夜21時 JST = 12:00 UTC）
+// evening（夕方17:30 JST = 08:30 UTC・2026-10-09 オーナー要望で 21:00 から変更）
 //   → 全購読者に「次のエピソードを見る前に復習しませんか？」
 
 export const dynamic = 'force-dynamic';
@@ -106,7 +106,7 @@ export async function GET(req) {
     return json({ sent, total: subscriptions.length, type });
   }
 
-  // ── 夜21時：全購読者に送信 ────────────────────────────────────────
+  // ── 夕方17:30：全購読者に送信 ────────────────────────────────────────
   if (type === 'evening') {
     const subsRes = await sbFetch(`/push_subscriptions?select=user_id,endpoint,p256dh,auth`);
     if (!subsRes.ok) return json({ error: 'subscriptions fetch failed' }, 500);

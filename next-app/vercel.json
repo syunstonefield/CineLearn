@@ -12,7 +12,7 @@
     },
     {
       "path": "/api/push-notify?type=evening",
-      "schedule": "0 12 * * *"
+      "schedule": "30 8 * * *"
     }
   ]
 }
