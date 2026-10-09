@@ -88,6 +88,11 @@ header {
   justify-content: space-between;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
+  /* スクロールしてもロゴ・＋・設定・ログアウトを常に出す（オーナー 2026-10-09）。
+     下に重なる sticky 要素は --header-h（Header.js が実測して入れる）ぶん下げる。 */
+  position: sticky;
+  top: 0;
+  z-index: 90;
 }
 
 .logo {
@@ -1465,7 +1470,7 @@ header {
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   position: sticky;
-  top: 0;
+  top: var(--header-h, 0px);
   z-index: 10;
 }
 
@@ -3348,7 +3353,7 @@ header {
   padding: 0 12px;
   margin-bottom: 18px;
   position: sticky;
-  top: 8px;
+  top: calc(var(--header-h, 0px) + 8px);
   z-index: 5;
 }
 .discover-search:focus-within { border-color: var(--accent); }

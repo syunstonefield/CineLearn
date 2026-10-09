@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
+
 // 既存 index.html の <header> を再現。
 // アイコンは OS依存の絵文字をやめ、単色のラインアイコン（currentColor）で統一する。
 
@@ -81,8 +83,22 @@ export default function Header({
   onAuth,
   onSignOut,
 }) {
+  // ヘッダーは sticky。高さ（モバイルで折り返すと変わる）を --header-h に出し、
+  // その下に貼り付く sticky 要素（ツールバー・検索）が重ならないようにする。
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const root = document.documentElement;
+    const set = () => root.style.setProperty('--header-h', `${el.offsetHeight}px`);
+    set();
+    const ro = new ResizeObserver(set);
+    ro.observe(el);
+    return () => { ro.disconnect(); root.style.removeProperty('--header-h'); };
+  }, []);
+
   return (
-    <header>
+    <header ref={ref}>
       <div className="logo" style={{ cursor: 'pointer' }} onClick={onLogoClick}>
         <img className="logo-mark" src="/icon-192.png" alt="" />
         Cine<span>Learn</span>
