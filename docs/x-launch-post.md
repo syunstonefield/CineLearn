@@ -29,7 +29,7 @@ PCのChromeなら拡張も。字幕の単語をクリックするだけで単語
 別の作品で覚えた単語が出てくると「SUITS S1E3で会った語」と教えてくれる。
 https://chromewebstore.google.com/detail/cinelearn/jdhgbdpaeoihopelnnganoojpnplkiie
 ```
-画像: `dist/x-post/extension-portrait.png`（Netflix スクショから字幕2行＋ポップアップ＋ON＋◀📋▶を黒地 1080×2340 に再配置）
+画像: `dist/x-post/extension-landscape.png`（Netflix スクショの横版 2000×1005＝上のブラウザ帯と下の操作バーを切り落としたもの・オーナー決定 2026-10-09）。縦版 `extension-portrait.png` は予備。
 
 ## 投稿後
 - 固定ポストに設定。プロフィール欄のリンクは LP（https://cinelearn-next.vercel.app/）。
