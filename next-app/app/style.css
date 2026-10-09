@@ -903,8 +903,10 @@ header {
 
 /* スマホ対応 */
 @media (max-width: 768px) {
-  header { padding: 12px 16px; flex-wrap: wrap; gap: 8px; }
-  .header-right { flex-wrap: wrap; gap: 8px; }
+  /* ヘッダーは常に1段（オーナー 2026-10-09）。折り返さず、狭い機種では下の段階で縮める */
+  header { padding: 12px 16px; flex-wrap: nowrap; gap: 8px; }
+  .header-right { flex-wrap: nowrap; gap: 4px; flex-shrink: 0; }
+  .logo { white-space: nowrap; min-width: 0; }
   .api-input { width: 140px; }
   .step-indicator { padding: 16px 20px; gap: 0; }
   .step-line { width: 30px; }
@@ -6964,3 +6966,25 @@ button.vj-cell { cursor: pointer; }
 .gen-confirm-body { margin: 0; font-size: 14px; line-height: 1.8; color: var(--text-soft); }
 .gen-confirm-body b { color: var(--text); }
 .gen-confirm-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+
+/* ── ヘッダー1段化（オーナー 2026-10-09）: 基本ルールより後ろに置いて上書きする ── */
+@media (max-width: 768px) {
+  .btn-header-icon { padding: 6px; }
+}
+/* 幅の狭い機種（〜380px）: ロゴとアイコンを少しずつ縮めて1段に収める */
+@media (max-width: 380px) {
+  header { gap: 6px; }
+  .logo { font-size: 18px; }
+  .logo-mark { width: 22px; height: 22px; margin-right: 6px; }
+  .logo .beta-tag { font-size: 9px; padding: 0 5px; line-height: 14px; margin-left: 5px; }
+  .header-right { gap: 2px; }
+  .btn-header-icon { padding: 5px; }
+  .btn-header-icon svg { width: 18px; height: 18px; }
+}
+/* さらに狭い機種（〜340px）: 余白も詰める */
+@media (max-width: 340px) {
+  header { padding-left: max(12px, env(safe-area-inset-left)); padding-right: max(12px, env(safe-area-inset-right)); }
+  .logo { font-size: 16px; }
+  .logo-mark { width: 20px; height: 20px; margin-right: 5px; }
+  .btn-header-icon { padding: 4px; }
+}
