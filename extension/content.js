@@ -41,9 +41,10 @@ let clMarkEpKey = null;      // clAutoMarkSet を作った時の「作品|S|E」
 let clMarkTitleAt = 0;       // 作品名を最後に確かめた時刻（getEpisodeContext は重いので間引く）
 const CL_MARK_TITLE_GAP_MS = 3000;
 // 自動生成リストのローカル保持。見つかった話は7日・未生成/未解決は1日（生成されたら翌日には拾う）。
-const CL_VOCAB_MARKS_KEY = 'cl_vocab_marks_v3'; // v3: 語に意味・品詞を同梱（v2 は文字列のみ）
+const CL_VOCAB_MARKS_KEY = 'cl_vocab_marks_v4'; // v4: 作品名照合の修正（…?）前に溜まった「無かった」を捨てる（v3: 語に意味・品詞を同梱）
 const CL_VOCAB_MARKS_TTL_HIT_MS = 7 * 24 * 3600 * 1000;
-const CL_VOCAB_MARKS_TTL_MISS_MS = 24 * 3600 * 1000;
+const CL_VOCAB_MARKS_TTL_MISS_MS = 10 * 60 * 1000; // 未生成は10分だけ（1日だと「生成した直後に開いても印が出ない」・オーナー報告 2026-10-09）
+let clAutoMarksMissed = false; // いま観ている話がまだ未生成だったか（タブに戻った時に引き直す）
 const CL_VOCAB_MARKS_MAX = 60; // 保持する話数の上限（古い順に落とす）
 
 // ── 他の作品で出会った語（視聴中の再会・2026-10-08 オーナー決定）────────────────────────
@@ -269,6 +270,7 @@ function loadAutoMarks(epKey, ctx) {
     const now = Date.now();
     if (hit && now - hit.at < (hit.words ? CL_VOCAB_MARKS_TTL_HIT_MS : CL_VOCAB_MARKS_TTL_MISS_MS)) {
       console.debug('[CL:marks] local', epKey, hit.words ? hit.words.length + ' words' : 'no list');
+      clAutoMarksMissed = !hit.words;
       applyAutoMarks(epKey, hit.words || []);
       return;
     }
@@ -277,6 +279,7 @@ function loadAutoMarks(epKey, ctx) {
       chrome.runtime.sendMessage({ type: 'CL_FETCH_VOCAB_MARKS', payload }, (res) => {
         if (chrome.runtime.lastError) return;
         const words = res?.found && Array.isArray(res.words) ? res.words : null;
+        clAutoMarksMissed = !words;
         if (!res?.found) console.debug('[CL:marks] no list', ctx.dramaTitle, res?.reason, res?.auth ? `auth=${res.auth}` : '');
         else console.debug('[CL:marks] list', ctx.dramaTitle, `S${ctx.season}E${ctx.episode}`, words.length, 'words');
         // 一時的な不調（混雑・通信）と blocked（ログインすれば通る）は保持しない＝次の機会にまた引く
@@ -750,6 +753,20 @@ function init() {
   loadMarkerSettings();
   refreshSavedWords();
   loadKnownWords(); // 他の作品で出会った語（単語帳＋覚えた以上）をクラウドから取り込む
+  // アプリで単語リストを生成→視聴タブに戻る、の流れで印が出るように。未生成だった話はタブが
+  // 表示に戻った時に保持を捨てて引き直す（1リクエスト・生成は起動しない）。
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible' || !clAutoMarksMissed || !clMarkEpKey || !clMarkCtx) return;
+    chrome.storage.local.get([CL_VOCAB_MARKS_KEY], (r) => {
+      const store = r[CL_VOCAB_MARKS_KEY] || {};
+      if (store[clMarkEpKey] && !store[clMarkEpKey].words) {
+        delete store[clMarkEpKey];
+        chrome.storage.local.set({ [CL_VOCAB_MARKS_KEY]: store }, () => loadAutoMarks(clMarkEpKey, clMarkCtx));
+      } else {
+        loadAutoMarks(clMarkEpKey, clMarkCtx);
+      }
+    });
+  });
   setInterval(() => loadKnownWords(), CL_KNOWN_TTL_MS);
   loadEjdict(); // 同梱英和辞書を先読み（クリック時にローカル訳を同期で出せる＝ポップアップ即時描画）
   try {
