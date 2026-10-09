@@ -52,3 +52,12 @@ test('wordMeanings: 語・意味・品詞だけ（例文は含めない）、意
   ]);
   assert.ok(!JSON.stringify(out).includes('secret'));
 });
+
+test('Disney+ 表記「ホワット・イフ...？」が TMDB の「ホワット・イフ…?」に当たる（三点リーダ・全角？）', () => {
+  assert.equal(normTitle('ホワット・イフ...？'), normTitle('ホワット・イフ…?'));
+  assert.equal(normTitle('What If...?'), 'whatif');
+  const c = titleQueryCandidates('ホワット・イフ...？');
+  assert.ok(c.includes('ホワット・イフ…?'));
+  const results = [{ id: 91363, media_type: 'tv', name: 'ホワット・イフ…?', original_name: 'What If...?', popularity: 80 }];
+  assert.equal(pickTmdbCandidate(results, 'ホワット・イフ...？', false), 91363);
+});

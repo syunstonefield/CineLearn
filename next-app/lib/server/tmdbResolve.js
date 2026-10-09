@@ -10,6 +10,10 @@ export function titleQueryCandidates(title) {
   const t = (title || '').trim();
   if (!t) return [];
   const cands = [t];
+  // 配信UIの「...？」（半角ドット3つ＋全角？）は TMDB の「…?」と一致しない（ホワット・イフ…? 2026-10-09 実測）。
+  // 三点リーダと半角記号に寄せた表記も候補にする。
+  const ellipsis = t.replace(/\.{3}/g, '…').replace(/？/g, '?').replace(/！/g, '!');
+  if (ellipsis !== t) cands.push(ellipsis);
   // 区切り（全角/半角スラッシュ・コロン・波ダッシュ・パイプ）を空白へ正規化
   const spaced = t.replace(/[／/:：|｜〜~–—-]+/g, ' ').replace(/\s+/g, ' ').trim();
   if (spaced && spaced !== t) cands.push(spaced);
@@ -23,7 +27,7 @@ export function titleQueryCandidates(title) {
 export function normTitle(s) {
   return String(s || '')
     .toLowerCase()
-    .replace(/[\s:：・／/｜|,.'"’”!?！？\-–—~〜]/g, '')
+    .replace(/[\s:：・／/｜|,.'"’”!?！？\-–—~〜…‥]/g, '')
     .trim();
 }
 
