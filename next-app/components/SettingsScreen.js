@@ -20,6 +20,7 @@ import { usePlan, featureAccess } from '@/lib/plan';
 import { REVIEW_COUNT_OPTIONS, reviewCountLabel, normalizeReviewCount, DAILY_REVIEW_CAP } from '@/lib/reviewCount';
 import { NEW_WORDS_DAILY_FREE } from '@/lib/storage';
 import PlusNote from './PlusNote';
+import { usageOptedOut, setUsageOptOut } from '@/lib/usage';
 
 // 設定（英語レベル / 利用サービス / テーマ / 単語階層 / 復習リマインダー）。
 // 旧 SettingsModal をモーダル→screen='settings' のページに置き換え。
@@ -45,6 +46,9 @@ const TIERS = [
 export default function SettingsScreen() {
   const { settings, updateSettings, closeSettings, profile, loggedIn } = useApp();
   const plan = usePlan(loggedIn);
+  // 利用統計を送るか（端末の localStorage・描画後に読む＝SSR と食い違わない）
+  const [usageOn, setUsageOn] = useState(true);
+  useEffect(() => setUsageOn(!usageOptedOut()), []);
 
   const toeicScore = settings.toeicScore || 0;
   const targetScore = settings.targetToeicScore || 0;
@@ -440,6 +444,36 @@ export default function SettingsScreen() {
               </div>
             </div>
           )}
+
+          {/* 利用統計（lib/usage.js・2026-10-09）。この端末だけの設定。オフの間はためるのも送るのも止める */}
+          <div className="settings-section">
+            <div className="settings-section-title">📊 利用統計</div>
+            <div className="tier-toggle-list">
+              <label className="tier-toggle-row">
+                <div className="tier-toggle-left">
+                  <div>
+                    <div className="tier-toggle-name">利用統計を送る</div>
+                    <div className="tier-toggle-desc">
+                      機能の使われ方・復習した語数・予習の進み方を、アカウントを元に戻せない番号に変えて集計し、機能と料金の検討に使います（作品名・単語は送りません。
+                      <a href="/privacy" target="_blank" rel="noopener noreferrer">
+                        プライバシーポリシー
+                      </a>
+                      ）。この端末だけの設定です。
+                    </div>
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  className="tier-checkbox"
+                  checked={usageOn}
+                  onChange={() => {
+                    setUsageOptOut(usageOn);
+                    setUsageOn(!usageOn);
+                  }}
+                />
+              </label>
+            </div>
+          </div>
 
           {/* プラン（isPro の土台・lib/plan.js）。ベータ中は全員使える＋プラスの印の意味だけ伝える */}
           <div className="settings-section">

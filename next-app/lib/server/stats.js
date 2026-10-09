@@ -5,7 +5,7 @@
 //   * 読み出しは readStats(days)（/api/stats・合言葉ヘッダ必須）。
 // seed（素の Node）からも import され得るため node:* と相対 import 以外は使わない。
 
-import { createHash } from 'node:crypto';
+import { hashId } from './hashId.js';
 import { upstashConfigured, redisPipeline, tryRedis, utcDayKey } from './upstash.js';
 
 const STAT_TTL_SEC = String(120 * 86400);
@@ -20,14 +20,9 @@ export const STAT_NAMES = [
   'gen_os_quota', // OS 日次枠切れ（★契約判断の最重要シグナル）
   'gen_fail', // その他の上流失敗（llm / timeout / tmdb / os_search 等）
   'gen_rate_limited', // ユーザー/IP の生成上限に当たった
+  'gen_month_limited', // 月の新規生成数の上限に当たった（正式版のみ・ベータは0）
   'os_dl', // OS ダウンロード実数（os:dl:d は 25h で消えるので長期用に別に数える）
 ];
-
-const hashId = (v) =>
-  createHash('sha256')
-    .update(`${process.env.CL_HASH_PEPPER || process.env.CL_SEED_SECRET || 'cl'}\n${v}`)
-    .digest('hex')
-    .slice(0, 16);
 
 // bumpStats(['vocab_hit'], { user: 'ip:1.2.3.4' | 'u:<uid>' })
 export async function bumpStats(names, { user = null, now = Date.now(), env = process.env, log = console } = {}) {

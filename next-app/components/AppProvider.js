@@ -11,6 +11,7 @@ import {
 import { issueTicket as issueTicketLib, loadTickets } from '@/lib/tickets';
 import { addStudySeconds, addDramaStudySeconds } from '@/lib/studytime';
 import { applyTheme, getThemePref } from '@/lib/theme';
+import { initUsage, trackUsage } from '@/lib/usage';
 import {
   ensureFreshSession,
   pullFromCloud,
@@ -168,6 +169,9 @@ export default function AppProvider({ children }) {
     if (!mounted) return;
     cleanupLegacySubtitleCache();
   }, [mounted]);
+
+  // ベータの利用データ（lib/usage.js・設定で止められる）。開いた回数を数え、送るきっかけを仕掛ける。
+  useEffect(() => initUsage(), []);
 
   useEffect(() => {
     setMounted(true);
@@ -527,6 +531,7 @@ export default function AppProvider({ children }) {
   // focus＝開いたあとに移る場所（'grass'＝学習した日）。下のタブから開く時はクリックのイベントが来るので文字列だけ受ける。
   const [journeyFocus, setJourneyFocus] = useState(null);
   const openJourney = useCallback((focus) => {
+    trackUsage(focus === 'grass' ? 'journey_grass' : 'journey_tab');
     exitReviewPage();
     setJourneyFocus(typeof focus === 'string' ? focus : null);
     setScreen('journey');

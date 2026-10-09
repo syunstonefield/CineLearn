@@ -4,6 +4,8 @@
 //   ・上限値は env `CL_VOCAB_LIMIT_*` 等で上書きできる（値の確定はオーナー判断＝A30）。
 //   ・seed（素の Node）からも import されるため、'next/server' や '@/…' は使わない（node:* と相対のみ）。
 
+import { hashId } from './hashId.js';
+
 // env の正整数を読む（未設定・不正値は既定へ）。
 function envInt(name, def) {
   const n = Number(process.env[name]);
@@ -58,9 +60,14 @@ export const GEN_MONTH_LIMITS = {
 };
 
 // 月の新規生成数のキー（JST の年月）＝日本の利用者の「今月」と揃える。生成と残り回数の問い合わせで共用。
-export function genMonthKey(uid, now = Date.now()) {
+//   利用者 ID はそのまま入れず hashId('u:'+uid)（集計の番号と同じ）＝40日残るキーに生の ID を置かない
+//   （プライバシーポリシーと揃える・法務 2026-10-09）。切り替えた月（2026-10）だけ数え直しになる。
+export function genMonthOf(now = Date.now()) {
   const d = new Date(now + 9 * 3600 * 1000);
-  return `gen:month:${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}:${uid}`;
+  return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+export function genMonthKey(uid, now = Date.now()) {
+  return `gen:month:${genMonthOf(now)}:${hashId(`u:${uid}`)}`;
 }
 
 export const VOCAB_LIMITS = {

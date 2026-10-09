@@ -23,6 +23,7 @@ import {
 import { usePlan, featureAccess } from '@/lib/plan';
 import { dailyReviewCap } from '@/lib/reviewCount';
 import PlusNote from './PlusNote';
+import { trackUsage } from '@/lib/usage';
 
 // 復習ハブ（ボトムナビ「復習」の着地点）。
 // それまでは復習/クイズに入るのに単語リストの最下部までスクロールする必要があった
@@ -236,6 +237,7 @@ export default function ReviewHubScreen() {
       });
     });
     if (!words.length) return;
+    trackUsage('work_all_review');
     setCurrentHistoryId(null); // 複数の話にまたがる＝特定エピソードに紐づかない
     openReview(words);
   };
@@ -254,6 +256,7 @@ export default function ReviewHubScreen() {
       },
     }));
     if (!words.length) return;
+    trackUsage('work_review');
     setCurrentHistoryId(entry.id);
     if (ep.due > 0) openReview(words.filter((w) => isWordDue(w, srs)));
     else openReview(words, { all: true }); // 期日前でも「もう一度見る」は許す
@@ -461,7 +464,10 @@ export default function ReviewHubScreen() {
                       <button
                         type="button"
                         className="rh-ep-quiz"
-                        onClick={() => startEpisodeQuiz(ep.entry)}
+                        onClick={() => {
+                          trackUsage('work_quiz');
+                          startEpisodeQuiz(ep.entry);
+                        }}
                         aria-label={`${g.title}${epLabel(g, ep.entry) ? ` ${epLabel(g, ep.entry)}` : ''} のクイズ`}
                       >
                         クイズ

@@ -48,6 +48,7 @@ import { selectQuizWords, buildQuizQuestions, prepIntegrity, orderWordsForPrep, 
 // 読み上げは lib/speak に一本化（独自コピーは cancel 直後 speak で無音になる既知バグ持ちだった）
 import { speak } from '@/lib/speak';
 import { backfillMissingExamples } from '@/lib/exampleBackfill';
+import { useListUsage } from '@/lib/useListUsage';
 
 export default function VocabScreen() {
   const app = useApp();
@@ -286,12 +287,17 @@ export default function VocabScreen() {
   // 画面を離れたら進行中の生成（fetch・busy ポーリング）を打ち切る（A12(2)）。
   useEffect(() => () => genAbort.current?.abort(), []);
 
+  // 利用データ（予習の流れの①: 単語リストを開いた・どこまで見たか）。
+  const mainListRef = useRef(null);
+  const listToWalk = useListUsage(mainListRef, !!drama && (phase === 'vocab' || phase === 'saved') && sortedVocab.length > 0, `${drama?.title || ''}|${season}|${episode}`);
+
   // ── 生成直後＝予習ウォークスルーへ直行（justGenerated の一回限りトリガ）──
   // 新出語（sortedVocab）が揃い phase==='vocab' になった瞬間に1回だけ開く。
   // 閉じてもフラグは倒れているので再オープンしない（戻り先は従来のスクロール一覧のまま）。
   useEffect(() => {
     if (!justGenerated) return;
     if (!drama || phase !== 'vocab' || !sortedVocab.length) return;
+    listToWalk();
     openPrepWalk(
       buildWalkPayload({ sortedVocab, timestamps, srs, drama, season, episode, isMovie, service: settings.selectedViewingService || '' })
     );
@@ -1383,6 +1389,7 @@ export default function VocabScreen() {
   //   ★単語リスト（スクロール一覧）は変えない。これは“予習”専用の表示で、見終えたら一覧へ戻る。
   //   📍時刻ラベルは timestamps から各語へ焼いて渡す（ウォークスルー側で再計算しない）。
   const openWalkthrough = () => {
+    listToWalk();
     openPrepWalk(
       buildWalkPayload({ sortedVocab, timestamps, srs, drama, season, episode, isMovie, service: settings.selectedViewingService || '' })
     );
@@ -1737,7 +1744,7 @@ export default function VocabScreen() {
                 </div>
               )}
 
-              <div className="vocab-list">
+              <div className="vocab-list" ref={mainListRef}>
                 {mainWords.map((w) => (
                   <VocabItem
                     key={w.word}

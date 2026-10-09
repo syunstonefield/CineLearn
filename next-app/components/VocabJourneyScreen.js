@@ -11,6 +11,7 @@ import { useApp } from './AppProvider';
 import VocabRings from './VocabRings';
 import GrassCard from './GrassCard';
 import PlusNote from './PlusNote';
+import { trackUsage } from '@/lib/usage';
 import { featureAccess, usePlan } from '@/lib/plan';
 import { canShowRings, loadRingSeen, saveRingSeen, settleRingValues } from '@/lib/rings';
 import { loadExpLedger } from '@/lib/exp';
@@ -127,6 +128,23 @@ function TrendChart({ series }) {
 
 function Trend({ trend, plan }) {
   const a = featureAccess('trend', plan);
+  // 利用データ: 週ごとの推移が画面に半分以上出たら1回（開くたびに1回まで・正式版の無料の人の説明文は数えない）。
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || a.locked || typeof IntersectionObserver === 'undefined') return undefined;
+    const io = new IntersectionObserver(
+      (es) => {
+        if (es.some((e) => e.isIntersecting)) {
+          trackUsage('trend_seen');
+          io.disconnect();
+        }
+      },
+      { threshold: 0.5 }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [a.locked]);
   const minW = JOURNEY.trendMinWeeks;
   let body;
   if (a.locked) {
@@ -153,7 +171,7 @@ function Trend({ trend, plan }) {
     body = <TrendChart series={trend.series} />;
   }
   return (
-    <section className="vj-card" aria-labelledby="vj-trend-h">
+    <section className="vj-card" aria-labelledby="vj-trend-h" ref={ref}>
       <div className="vj-ch">
         <h3 id="vj-trend-h">{T.trendTitle}</h3>
         <PlusNote feature="trend" plan={plan} />

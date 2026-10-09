@@ -5,13 +5,13 @@
 // §3 の第三者送信一覧は「コードの実態」から書く（2026-09-12 に全面改訂）。根拠となるルート:
 //   /api/vocab-generate（字幕全文→Anthropic）・/api/claude（wordsense/sentence/recommend）・
 //   /api/translate（Azure）・/api/example（OpenSubtitles）・/api/tmdb・/api/push-notify（web-push）・
-//   lib/ratelimit（Upstash）・両 layout（Google Fonts・Vercel Analytics）・拡張 content.js（dictionaryapi）。
+//   lib/ratelimit・/api/usage（利用状況の統計・2026-10-09）（Upstash）・両 layout（Google Fonts・Vercel Analytics）・拡張 content.js（dictionaryapi）。
 //   送信先や送る内容を変えたら、この一覧と docs/chrome-web-store-listing.md §6 を必ず同期する。
 
 import { NON_AFFILIATION } from '@/lib/legal';
 
 const CONTACT_EMAIL = 'cinelearn.202606@gmail.com';
-const UPDATED = '2026年9月12日';
+const UPDATED = '2026年10月9日';
 
 export const metadata = {
   title: 'プライバシーポリシー — CineLearn',
@@ -95,6 +95,12 @@ export default function PrivacyPage() {
           <strong>通知情報：</strong>復習リマインダーを有効にした場合、プッシュ通知の購読情報。
         </li>
         <li style={li}>
+          <strong>利用状況の統計：</strong>アプリを開いた回数、ログインの有無、各機能の利用回数、復習した語数、
+          予習をどこまで進めたか・どう終えたかを1日単位で集計します。ログイン中は利用者 ID、未ログイン時は
+          ブラウザ内で生成したランダムな端末識別子を、元に戻せない形に変換した番号と結び付けて保存します
+          （作品名・単語・字幕は含みません）。設定の「利用統計を送る」をオフにすると、その端末からは送信しません。
+        </li>
+        <li style={li}>
           <strong>アクセス情報：</strong>ホスティング事業者が標準的なアクセスログ（IPアドレス等）を
           取得する場合があります。また API の過剰利用を防ぐため、IP アドレス（ログイン中は利用者 ID）
           単位の利用回数を短期間保存します（下記 Upstash）。
@@ -108,7 +114,9 @@ export default function PrivacyPage() {
         <li style={li}>複数端末間でのクラウド同期</li>
         <li style={li}>復習リマインダーの配信</li>
         <li style={li}>API の過剰利用の防止、共有キャッシュの汚染対策</li>
-        <li style={li}>本サービスの品質改善（ページビュー等の匿名の利用統計）</li>
+        <li style={li}>
+          本サービスの品質改善と、機能・料金設計の検討（上記の利用状況の統計、および Vercel によるページビュー等の匿名の統計）
+        </li>
       </ul>
 
       <h2 style={h2}>3. 第三者サービスへのデータ送信</h2>
@@ -152,9 +160,9 @@ export default function PrivacyPage() {
           匿名の利用統計の取得。
         </li>
         <li style={li}>
-          <strong>Upstash</strong>：API の過剰利用防止（レート制限）。レート制限のため、IP アドレスまたは
-          ログイン利用者の ID を含むカウンタを最長24時間保存します（内容データは送りません）。
-          API 利用枠の統計も保存します。
+          <strong>Upstash</strong>：API の過剰利用防止と、利用状況の統計の保存。IP アドレスまたは利用者 ID を
+          含むレート制限のカウンタは最長24時間、月の新規生成数のカウンタ（利用者 ID を変換した番号）は最長40日、
+          利用状況の統計は最長120日保存し、自動で消去します（作品や字幕などの内容データは送りません）。
         </li>
         <li style={li}>
           <strong>Google Fonts</strong>：表示用フォント。お使いのブラウザが Google のサーバーから直接読み込みます。
@@ -179,7 +187,8 @@ export default function PrivacyPage() {
       <p>
         クラウドに保存されたデータは、アカウントの削除またはご依頼に応じて削除します。
         端末内データは、ブラウザまたは拡張機能の操作でいつでも削除できます。
-        レート制限のカウンタは最長24時間で自動的に消去されます。
+        レート制限のカウンタは最長24時間、月の新規生成数のカウンタは最長40日、利用状況の統計は最長120日で
+        自動的に消去されます。
         削除のご依頼は下記の連絡先までお願いします。
       </p>
 

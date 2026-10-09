@@ -7,6 +7,8 @@ import { addExp, EXP_PER_PREP_WORD } from '@/lib/exp';
 import { chunkParts } from '@/lib/chunk';
 // 読み上げは lib/speak に一本化（独自コピーは cancel 直後 speak で無音になる既知バグ持ちだった）
 import { speak } from '@/lib/speak';
+import { trackUsage, flushUsage } from '@/lib/usage';
+import { exitEventName, toDecile } from '@/lib/usageEvents';
 
 // 予習（＝生成直後）専用の「1枚ずつめくって見る」ウォークスルー。
 // 長い一覧スクロールの代わりに、全語を1枚ずつ通し見してもらう（＝一通り見る を“形式”で担保）。
@@ -65,6 +67,57 @@ export default function PrepWalkthrough() {
   const atCoreEnd = canStop && !extended && idx === coreCount - 1; // 重要語を見終えたチェックポイント
   const remaining = effectiveTotal - (idx + 1);
 
+  // 利用データ（予習の流れ・lib/usage.js）: 始めた／重要語を見終えた／残りも見た／完了／どこで・どう抜けたか。
+  const track = useRef({ started: false, ended: false, core: false, rest: false });
+  const posRef = useRef({ idx, extended });
+  posRef.current = { idx, extended };
+  const recordExit = (how) => {
+    if (track.current.ended) return;
+    track.current.ended = true;
+    const { idx: i, extended: ext } = posRef.current;
+    const inRest = ext && i >= coreCount;
+    const d = inRest ? toDecile(i + 1 - coreCount, total - coreCount) : toDecile(i + 1, coreCount);
+    trackUsage(exitEventName(inRest ? 'rest' : 'core', d, how));
+  };
+  const leave = (how) => {
+    recordExit(how);
+    closePrepWalk();
+  };
+  const leaveRef = useRef(leave);
+  leaveRef.current = leave;
+  const exitRef = useRef(recordExit);
+  exitRef.current = recordExit;
+  const alive = useRef(false);
+  useEffect(() => {
+    alive.current = true;
+    // 開発時の二重実行（付けて→外して→付け直す）でも1回だけ数える
+    if (!track.current.started) {
+      track.current.started = true;
+      trackUsage('walk_start');
+    }
+    const onHide = () => {
+      exitRef.current('close');
+      flushUsage({ keepalive: true });
+    };
+    window.addEventListener('pagehide', onHide);
+    return () => {
+      window.removeEventListener('pagehide', onHide);
+      alive.current = false;
+      // ✕・あとで・完了のどれでもなく閉じた＝別の画面へ（付け直された時は数えない）
+      setTimeout(() => !alive.current && exitRef.current('nav'), 0);
+    };
+  }, []);
+  useEffect(() => {
+    if (!track.current.core && coreCount > 0 && idx >= coreCount - 1) {
+      track.current.core = true;
+      trackUsage('walk_core');
+    }
+    if (!track.current.rest && extended && total > coreCount && idx >= total - 1) {
+      track.current.rest = true;
+      trackUsage('walk_rest');
+    }
+  }, [idx, extended, coreCount, total]);
+
   const go = (n) => {
     const clamped = Math.min(Math.max(0, n), Math.max(0, total - 1));
     setIdx(clamped);
@@ -79,6 +132,8 @@ export default function PrepWalkthrough() {
     // EXP: 予習完走＝語数×1。席番号と同じく「この話の初回」だけ（再予習の連打で稼げない）。
     if (!existing) addExp(words.length * EXP_PER_PREP_WORD);
     markPrepped(epId, seat);
+    track.current.ended = true;
+    trackUsage('walk_done');
     clearPos(posKey); // 次回は最初から
     closePrepWalk();
     const quizWords = selectQuizWords(words, 3, loadSrs()); // 0語でも完了は成立（半券は出る）。マスター済みは出題しない(#7b)
@@ -128,7 +183,7 @@ export default function PrepWalkthrough() {
         e.preventDefault();
         prevRef.current();
       } else if (e.key === 'Escape') {
-        closePrepWalk();
+        leaveRef.current('x');
       }
     };
     window.addEventListener('keydown', onKey);
@@ -162,7 +217,7 @@ export default function PrepWalkthrough() {
       <div className="pw-panel">
         <div className="pw-head">
           <span className="pw-title">🎬 今夜の予習</span>
-          <button className="pw-close" onClick={closePrepWalk} aria-label="閉じる">
+          <button className="pw-close" onClick={() => leave('x')} aria-label="閉じる">
             ✕
           </button>
         </div>
@@ -258,7 +313,7 @@ export default function PrepWalkthrough() {
               残り{total - coreCount}語も見る →
             </button>
           ) : (
-            <button className="pw-skip" onClick={closePrepWalk}>
+            <button className="pw-skip" onClick={() => leave('later')}>
               あとで予習する（一覧で見る）
             </button>
           )}
