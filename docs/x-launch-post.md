@@ -32,5 +32,5 @@ https://chromewebstore.google.com/detail/cinelearn/jdhgbdpaeoihopelnnganoojpnplk
 画像: `dist/x-post/extension-landscape.png`（オーナー撮り直しの全画面スクショ 2000×1301・そのまま使用＝下の操作バーに作品名「SUITS エピソード1」が入る・オーナー決定 2026-10-09）。縦版 `extension-portrait.png` は予備。
 
 ## 投稿後
-- 固定ポストに設定。プロフィール欄のリンクは LP（https://cinelearn-next.vercel.app/）。
+- 固定ポストに設定。プロフィール欄のリンクは LP（https://cinelearn-next.vercel.app/・空いていれば）。**bio は変更しない**（アカウントは CineLearn 専用ではない・オーナー判断 2026-10-09）＝製品導線は固定ポストとウェブサイト欄のみ。
 - 30日運用（1日1投稿＋リプ営業30〜60件）は research doc の週次手順どおり。
