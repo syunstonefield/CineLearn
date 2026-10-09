@@ -2890,6 +2890,30 @@ function updateDisneyOverlay() {
 // ─────────────────────────────────────────────────────────────────
 let watchedContainers = new Set();
 
+// Netflix の字幕の箱を中央に置き直す（2026-10-09 オーナー報告・拡張 OFF でも左に寄る＝Netflix 側の挙動）。
+//   Netflix は「測った文字幅」から箱の left（%）を決めるが、字幕の書体設定が「タイプライター」
+//   （Consolas/Menlo）だと実際の描画幅が見積もりより約 25% 狭く、箱ごと左に寄る（実測: left=20% で
+//   幅 45%・2000px 幅でも同じ比率）。箱は文字ぴったりの幅（inline-block）なので、親（.player-timedtext＝
+//   映像幅）の中で (親幅 − 箱幅)/2 に置けば中央になる。
+//   話者ごとに左右へ振る意図的な配置を壊さないよう、箱の中心が中央付近（35〜65%）の時だけ直す。
+//   上下（top）は触らない（高さはオーナー確認済み）。
+function recenterNetflixCaptions() {
+  if (!IS_NETFLIX || !clEnabled) return;
+  document.querySelectorAll('.player-timedtext-text-container').forEach((c) => {
+    const parent = c.parentElement;
+    if (!parent) return;
+    const pw = parent.getBoundingClientRect().width;
+    const cw = c.getBoundingClientRect().width;
+    if (!pw || !cw || cw >= pw) return;
+    const curLeft = c.getBoundingClientRect().left - parent.getBoundingClientRect().left;
+    const centerRatio = (curLeft + cw / 2) / pw;
+    if (centerRatio < 0.35 || centerRatio > 0.65) return; // 意図的な左右配置はそのまま
+    const want = Math.round((pw - cw) / 2);
+    if (Math.abs(curLeft - want) < 2) return; // もう中央
+    c.style.left = `${want}px`;
+  });
+}
+
 function findAndWatchSubtitles() {
   if (IS_AMAZON || IS_DISNEY) return; // アマプラ/Disney+ はオーバーレイ方式を使うため何もしない
   SUBTITLE_SELECTORS.forEach(sel => {
@@ -2898,12 +2922,14 @@ function findAndWatchSubtitles() {
         if (watchedContainers.has(el)) return;
         watchedContainers.add(el);
         wrapWordsInElement(el);
-        new MutationObserver(() => wrapWordsInElement(el))
-          .observe(el, { childList: true, subtree: true, characterData: true });
+        recenterNetflixCaptions();
+        new MutationObserver(() => { wrapWordsInElement(el); recenterNetflixCaptions(); })
+          .observe(el, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['style'] });
       });
     } catch { }
   });
 }
+if (IS_NETFLIX) window.addEventListener('resize', () => setTimeout(recenterNetflixCaptions, 50));
 
 // Netflix の SPA ナビゲーション対応
 // Netflix はページをリロードせず URL だけ変わるため、

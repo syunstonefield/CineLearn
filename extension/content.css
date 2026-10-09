@@ -11,7 +11,11 @@
   cursor: pointer !important;
   border-bottom: 2px dotted transparent !important;
   border-radius: 2px !important;
+  /* 左右の余白はホバー背景の見た目用。Netflix は字幕の left を文字幅を測って決めるため、
+     語ごとに幅が増えると行が右へずれて中央に来ない（オーナー報告 2026-10-09）。
+     負のマージンで相殺し、レイアウト上の幅は元の文字と同じにする。 */
   padding: 0 1px !important;
+  margin: 0 -1px !important;
   display: inline !important;
   pointer-events: auto !important;
   position: relative !important;
