@@ -30,9 +30,9 @@ export const metadata = {
   },
   twitter: { card: 'summary_large_image' },
   icons: { icon: '/favicon.ico', apple: '/apple-touch-icon.png' },
-  // ソフトローンチ中は低露出方針で検索インデックスを切る（X・直リンク等で配布）。
-  // フィードバックで製品が固まり、法的カバーが進んだ段で index:true に切替。
-  robots: { index: false, follow: false },
+  // 2026-10-11 拡張 v1.2.9 のストア審査合格を機に noindex を解除（公開拡大・オーナー決定）。
+  // LP・規約・PP・サポートは検索可。robots.txt / sitemap.xml は app/robots.js・app/sitemap.js。
+  robots: { index: true, follow: true },
 };
 
 export const viewport = {

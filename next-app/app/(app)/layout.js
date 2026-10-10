@@ -28,8 +28,9 @@ export const metadata = {
   // ホーム画面に追加した時の表示（iOS/Android）
   appleWebApp: { capable: true, statusBarStyle: 'default', title: 'CineLearn' },
   icons: { icon: '/favicon.ico', apple: '/apple-touch-icon.png' },
-  // ソフトローンチ中は低露出方針で検索インデックスを切る（後述の方針が固まったら解除）。
-  robots: { index: false, follow: false },
+  // /app はログイン・オンボーディングが前提のアプリ画面なので検索結果には出さない（入口は LP）。
+  // 2026-10-11 の noindex 解除は LP 側のみ。リンク追跡は許可。
+  robots: { index: false, follow: true },
 };
 
 export const viewport = {
