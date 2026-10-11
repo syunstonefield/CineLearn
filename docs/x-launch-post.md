@@ -12,7 +12,7 @@
 作品と話数を選ぶと重要単語がリストになり、観たあとは実際のセリフが例文になって復習に出てきます。
 スマホでもOK。いまはベータで無料公開中。リンクはリプに🎬
 ```
-画像4枚（2×2・左上→右上→左下→右下）＝**横長カード版 1200×675**（オーナー決定 2026-10-11・ロゴ単体は不採用、スクショ＋見出し＋小ロゴ）: `dist/x-post/cards/01-vocab-list-card.png`（観る前に3分、予習する。）/ `02-review-card.png`（セリフが、そのまま例文。）/ `03-home-card.png`（今日の復習は、20語だけ。）/ `04-progress-card.png`（出会った語が、積み上がる。）。横長なので X の 2×2 グリッドで切り抜かれない。元スクショ（`dist/x-post/0?-*.png`・Suits 統一）は予備。生成スクリプトはセッション scratchpad の make_cards.py（Pillow・Hiragino Sans GB・クリーム地 #faf7f0・ゴールド #b8923a）。
+画像4枚＝**縦カード版 1080×1350（App Store 風・オーナー決定 2026-10-11「画像全体が一目で分かるもの」）**: `dist/x-post/cards-portrait/01-vocab.png`（観る前に、3分だけ予習。）/ `02-review.png`（セリフが、そのまま例文。）/ `03-home.png`（今日の復習は、20語だけ。）/ `04-progress.png`（出会った語が、積み上がる。）。各カード＝白い見出しカード＋特長チップ2つ＋実機スクショを端末フレームで右下にはみ出し配置＋「01 / 05」バッジ＋下部タグライン「観たいドラマが、教材になる。」＋小ロゴ。縦なので X では横スクロールのカルーセル表示になる。生成スクリプト＝同フォルダ make_portrait_cards.py（Pillow・Hiragino Sans GB）。横長カード（`dist/x-post/cards/`）と元スクショは予備。
 
 ## 自己リプ1（リンク置き場）
 ```
@@ -29,7 +29,7 @@ PCのChromeなら拡張も。字幕の単語をクリックするだけで単語
 別の作品で覚えた単語が出てくると「SUITS S1E3で会った語」と教えてくれる。
 https://chromewebstore.google.com/detail/cinelearn/jdhgbdpaeoihopelnnganoojpnplkiie
 ```
-画像: `dist/x-post/extension-landscape.png`（オーナー撮り直しの全画面スクショ 2000×1301・そのまま使用＝下の操作バーに作品名「SUITS エピソード1」が入る・オーナー決定 2026-10-09）。縦版 `extension-portrait.png` は予備。
+画像: `dist/x-post/cards-portrait/05-extension.png`（縦カード 05/05「字幕の中で、再会する。」＝字幕2行＋ポップアップの黒パネル＋チップ2つ）。全画面スクショ `extension-landscape.png`（2000×1301）と縦版は予備。
 
 ## 投稿後
 - 固定ポストに設定。プロフィール欄のリンクは LP（https://cinelearn-next.vercel.app/・空いていれば）。**bio は変更しない**（アカウントは CineLearn 専用ではない・オーナー判断 2026-10-09）＝製品導線は固定ポストとウェブサイト欄のみ。
