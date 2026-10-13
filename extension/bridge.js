@@ -17,6 +17,24 @@
 const SESSION_KEY = 'cl_sb_session';
 let lastSent = null; // 直近に chrome.storage へ送った生文字列（重複送信防止）
 
+// セッションの形の検証（2026-10-13 セキュリティ監査 Medium「bridge の無検証転写」）。
+//   アプリ origin に XSS があると、任意の値（攻撃者のセッション・巨大な値）を localStorage 経由で拡張へ
+//   植え込めた。拡張が実際に使う4項目（background.js の access/refresh・期限・uid）の型と大きさだけを見る。
+//   1つでも外れたら送らない（壊れた JSON と同じく黙って捨てる）。本筋の対策はアプリ側 CSP。
+const TOKEN_MAX = 4096;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isValidSession(s) {
+  const tok = (t) => typeof t === 'string' && t.length > 0 && t.length <= TOKEN_MAX;
+  return (
+    !!s && typeof s === 'object' &&
+    tok(s.access_token) &&
+    tok(s.refresh_token) &&
+    typeof s.expires_at === 'number' && Number.isFinite(s.expires_at) &&
+    !!s.user && typeof s.user === 'object' &&
+    typeof s.user.id === 'string' && UUID_RE.test(s.user.id)
+  );
+}
+
 function syncSession() {
   let raw = null;
   try {
@@ -32,10 +50,17 @@ function syncSession() {
     chrome.storage.local.remove(SESSION_KEY);
     return;
   }
+  let session;
   try {
-    chrome.storage.local.set({ [SESSION_KEY]: JSON.parse(raw) });
+    session = JSON.parse(raw);
   } catch {
-    /* 壊れたJSONは送らない */
+    return; /* 壊れたJSONは送らない */
+  }
+  if (!isValidSession(session)) return; // 形が違う値も送らない（上の isValidSession）
+  try {
+    chrome.storage.local.set({ [SESSION_KEY]: session });
+  } catch {
+    /* 拡張の更新直後（context invalidated）等は次の同期に任せる */
   }
 }
 
