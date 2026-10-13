@@ -30,9 +30,20 @@ CREATE POLICY "own state" ON user_state
 -- srs_data: 復習同期(authenticated)＋朝の通知クエリ(service_role)が読めず 42501 だった
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_state TO authenticated, service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.srs_data   TO authenticated, service_role;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.profiles   TO authenticated, service_role;
+-- profiles の INSERT/UPDATE は列単位（supabase_profiles_plan.sql の 2) と同形・2026-10-13 セキュリティ監査 Medium）。
+--   旧版はここでテーブル単位の INSERT/UPDATE を付けていたため、profiles_plan.sql の後にこのファイルを
+--   再実行すると plan 列の書込封鎖が外れ、ログインユーザーが自分の plan を 'plus' に書き換えられた。
+--   plan は列リストに入れない（書けるのは service_role だけ）。REVOKE は旧版で付いたテーブル単位の権限を剥がすため
+--   （列単位の GRANT だけではテーブル単位の権限は消えない）。列は supabase_schema.sql の既存列のみ＝plan 列の有無に依らず通る。
+REVOKE INSERT, UPDATE ON public.profiles FROM authenticated;
+GRANT INSERT (id, user_id, name, color, settings, updated_at) ON public.profiles TO authenticated;
+GRANT UPDATE (id, user_id, name, color, settings, updated_at) ON public.profiles TO authenticated;
+GRANT SELECT, DELETE ON public.profiles TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.profiles   TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.history    TO authenticated, service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.my_words   TO authenticated, service_role;
 
 -- ── 3) 旧 VAPID 鍵の購読を掃除（2026-07-02 鍵ペア再生成により送信不能な死骸）────
-DELETE FROM public.push_subscriptions;
+-- ★実行済み（2026-07-02）・1回きりの掃除。このファイルを再実行しても走らないようコメント化（2026-10-13）。
+--   有効化すると現在の全ユーザーの通知購読が消え、各ブラウザが再登録するまで通知が止まる。
+-- DELETE FROM public.push_subscriptions;
