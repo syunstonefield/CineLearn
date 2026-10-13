@@ -34,6 +34,9 @@ export const EXAMPLE_FAIL_LABEL = {
   network: '通信に失敗しました',
   login_required: 'ログインすると例文が付きます',
   no_raw: 'この話の字幕データが未取得です',
+  // 2026-10-13（監査 H2）: 未生成かつカタログ外の話は層2で字幕を取りに行かない／DL 枠の計数器が不通
+  not_eligible: 'この話の字幕データが未取得です',
+  unavailable: '混み合っています（時間をおいて再取得します）',
 };
 
 export function exampleFailLabel(reason) {

@@ -12,6 +12,7 @@
 // 結果は語ごとに save(word, patch) へ渡す（呼び出し側が saveWordTranslation で my_words に永続化）。
 import { fetchCtxJa } from './ctxtranslate';
 import { fetchJa, readSentenceCache, writeSentenceCacheMany } from './jatranslate';
+import { isSubtitleSentence } from './subtitleSentence';
 
 const CONCURRENCY_WORD = 3; // 語義（wordsense・日次300の枠を1人で使い切らない範囲）
 const CONCURRENCY_BATCH = 2; // 例文一括訳（10文/リクエスト）
@@ -97,7 +98,10 @@ export async function fillTranslations(words, opts = {}) {
   );
 
   // ② 例文訳（端末キャッシュ命中は即時・残りを作品ごとに10文ずつ）
-  const needEx = list.filter((w) => !w.example_ja && sentenceOf(w) && sentenceOf(w).length <= SENTENCE_MAX);
+  // 英語字幕の文字以外を含む文はサーバが 400 bad_sentence で弾く（1文でバッチ全体が落ちる）ので最初から送らない
+  const needEx = list.filter(
+    (w) => !w.example_ja && sentenceOf(w) && sentenceOf(w).length <= SENTENCE_MAX && isSubtitleSentence(sentenceOf(w))
+  );
   const pending = [];
   for (const w of needEx) {
     const s = sentenceOf(w);

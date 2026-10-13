@@ -13,6 +13,13 @@
 //     ログイン必須・raw cache 命中時のみ（OS DL を誘発しない）・高頻度語は拒否・話あたりの上限・failClosed。
 //   * 層2の応答は必ず trimExampleToSentence（200字）を通す（manual に限らず）。
 //   * 既存 anchor/near 経路にも IP×話/日 の天井（EXAMPLE_EPISODE_DAY_LIMIT）を足した。
+// 2026-10-13（セキュリティ監査 H2・匿名で OS 日次 DL 枠を焼却できた穴）:
+//   * S/E を範囲チェック（整数・season 0〜100・episode 0〜500・外れは bad_request）。
+//   * manual 以外の層2で OS から DL するのは「その話の vocab_cache 行がある or 作品がカタログ内」のときだけ
+//     （lib/server/exampleGate.js）。満たさなければ DL せず not_eligible（待避候補があればそれを返す）。
+//   * さらに DL 直前にだけ DL 専用バケット（IP 20話/日・failClosed）を消費する。
+//   トレードオフ: 未生成かつカタログ外の作品で、拡張のクリック保存だけしているユーザーには層2の例文補完が付かない
+//   （raw cache が残っている間・vocab_cache 行がある話は従来どおり）。
 // 設計: docs/route-fold-in-design.md ／ 法的整合: public-launch-legal-posture。
 
 export const dynamic = 'force-dynamic';
@@ -25,7 +32,14 @@ import { fetchEpisodeSrt } from '@/lib/server/opensubtitles';
 import { rawCacheKey, readRawCache } from '@/lib/server/subtitleRawCache';
 import { vocabCacheKey, readVocabRow } from '@/lib/server/vocabCache';
 import { manualWordProblem } from '@/lib/server/commonWords';
-import { EXAMPLE_MANUAL_LIMITS, EXAMPLE_MANUAL_DL_LIMITS, EXAMPLE_EPISODE_DAY_LIMIT, UpstreamError } from '@/lib/server/constants';
+import { parseSeasonEpisode, exampleDlEligible } from '@/lib/server/exampleGate';
+import {
+  EXAMPLE_MANUAL_LIMITS,
+  EXAMPLE_MANUAL_DL_LIMITS,
+  EXAMPLE_EPISODE_DAY_LIMIT,
+  EXAMPLE_DL_PER_IP_DAY,
+  UpstreamError,
+} from '@/lib/server/constants';
 import {
   getWordVariants,
   exampleContainsWord,
@@ -106,12 +120,14 @@ export async function POST(req) {
   if (!word || (!title && !hasGivenId)) return json({ found: false, reason: 'missing_params' });
 
   // S/E がある＝TV、無い＝映画扱い（拡張の getEpisodeContext は映画/未検出で season=null）。
-  const hasSE =
-    body.season != null && body.season !== '' && body.episode != null && body.episode !== '';
+  //   TV の S/E は整数・範囲内のみ（監査 H2: 任意の値で raw cache/OS DL のキーを量産させない）。
+  const se = parseSeasonEpisode(body);
+  if (!se.ok) return json({ found: false, reason: 'bad_request' }, 400);
+  const hasSE = se.hasSE;
   const isMovie = !hasSE;
   const type = isMovie ? 'movie' : 'tv';
-  const s = hasSE ? Number(body.season) : 0;
-  const e = hasSE ? Number(body.episode) : 0;
+  const s = se.season;
+  const e = se.episode;
 
   // 呼び出し側が作品を確定できているなら、その ID を使う（曖昧検索より常に正しい）。
   const id = hasGivenId ? givenId : await resolveTmdbId(title, isMovie);
@@ -294,6 +310,17 @@ export async function POST(req) {
 
   let raw = await readRawCache(rawKey);
   if (!raw) {
+    // ── OS DL の前の締め（監査 H2）──
+    //   ① 適格性: その話の vocab_cache 行がある（層1で読んだ cachedRow を再利用・再クエリしない）か、作品がカタログ内
+    //     （/api/vocab-generate の匿名ゲートと同じ isInCatalog）。どちらでもなければ DL しない。
+    //     cachedRow.ok:false（DB 不調で行の有無が不明）は「行なし」としてカタログ照合へ回す。
+    if (!(await exampleDlEligible({ hasVocabRow: !!(cachedRow.ok && cachedRow.row), tmdbId: id }))) {
+      return farFallback('not_eligible');
+    }
+    //   ② DL 専用バケット（IP 20/日＝EXAMPLE_DL_PER_IP_DAY）。実際に DL する直前にだけ消費する（raw 命中・不適格では減らない）。
+    //     failClosed＝Upstash 不調なら DL しない（共有の OS 枠を守る側に倒す・manual の DL 締めと同じ）。
+    const dl = await checkRateLimit(req, 'example-dl', { perMin: 0, perHour: 0, perDay: EXAMPLE_DL_PER_IP_DAY }, { failClosed: true });
+    if (!dl.ok) return farFallback(dl.unavailable ? 'unavailable' : 'rate_limited');
     try {
       // in-process の OS 取得（raw cache 書込・日次キャップ・残枠ログ・GC は lib 側）。null＝字幕なし。
       const sub = await fetchEpisodeSrt({ tmdbId: id, type, season: s, episode: e });

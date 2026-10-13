@@ -101,6 +101,9 @@ export const EXAMPLE_MANUAL_DL_LIMITS = {
 };
 // 既存 anchor/near 経路の話単位天井（rl:example:<ip>:ep:<cacheKey>:d:<day>）。
 export const EXAMPLE_EPISODE_DAY_LIMIT = envInt('CL_EXAMPLE_PER_EP_DAY', 100);
+// 既存 anchor/near 経路（拡張バックフィル）で raw が無く OS から DL する時の専用枠（rl:example-dl:<ip>:d:<day>・監査 H2）。
+//   1話ぶん取れば以降はその話の raw キャッシュに当たる＝IP あたり「新しく温める話数/日」。failClosed で張る。
+export const EXAMPLE_DL_PER_IP_DAY = envInt('CL_EXAMPLE_DL_PER_IP_DAY', 20);
 
 // ── 生成の時間予算・ロック・否定キャッシュ（A1）──
 export const GENERATE_DEADLINE_MS = 240_000; // route が deadlineAt = now + これ を配る

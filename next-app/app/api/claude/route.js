@@ -12,6 +12,7 @@ import { checkRateLimit } from '@/lib/ratelimit';
 import { allowedOrigin } from '@/lib/server/origin';
 import { HAIKU_MODEL, TRANSLATE_MODEL, TRANSLATE_THINKING, responseText } from '@/lib/server/constants';
 import { vocabCacheKey } from '@/lib/server/vocabCache';
+import { isSubtitleSentence } from '@/lib/subtitleSentence';
 
 // ── 文脈つき語義（mode:'wordsense'）用の共有キャッシュ ──
 // translation_ctx_cache は service_role 専用（未設定ならキャッシュ無しで動く）。
@@ -23,6 +24,8 @@ const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 // 字幕文の正規化（空白・大小・引用符の揺れで別キーにならないように）→ 16hex。
 // ver は「語義プロンプトの版」。プロンプトを変えたら版を上げてキャッシュを切り替える
 // （旧行は残るが読まれない＝作り直しは新版の初回1回だけ）。
+// ⚠英数字以外を捨てる＝「正規文＋非英数字だけの追記」が正規文と同じキーになる。プロンプトには原文が入るので、
+//   ここに渡す文は必ず isSubtitleSentence（lib/subtitleSentence.js）を通しておく（2026-10-13 監査 H1・キャッシュ汚染）。
 function senseHash(sentence, ver = '') {
   const norm = String(sentence).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   return createHash('sha256').update(ver ? `${ver}\n${norm}` : norm).digest('hex').slice(0, 16);
@@ -201,6 +204,8 @@ async function patchVocabCacheExampleJa(ctx, jaByHash) {
       let changed = 0;
       const words = row.words.map((w) => {
         if (!w || !w.example || w.example_ja) return w;
+        // キーは**行の example から**計算する（要求側の文字列からは作らない）＝行に無い文の訳は行へ入らない。
+        // 「行の文と英数字が同じだけの別文」の訳が当たる余地は、入口の isSubtitleSentence で塞いでいる（監査 H1）。
         const ja = jaByHash.get(senseHash(normSentence(w.example)));
         if (!ja) return w;
         changed++;
@@ -328,9 +333,12 @@ export async function POST(req) {
   //   新規 Haiku 生成のみ IP 日次300回で絞る（財布攻撃の天井 ≈¥9/日/IP・下の 114行に経緯）。
   if (body.mode === 'wordsense') {
     const word = String(body.word || '').trim();
-    const sentence = String(body.sentence || '').trim().slice(0, 300);
+    const sentenceIn = String(body.sentence || '').trim();
+    const sentence = sentenceIn.slice(0, 300);
     // 80 = フレーズ対応（拡張のドラッグ保存は最大6語＝理論上50字を超え得る）
     if (!word || word.length > 80 || !sentence) return json({ ja: null, error: 'bad request' }, 400);
+    // 語・文とも英語字幕の文字だけ（日本語等の指示を混ぜて正規キーに書かせない・監査 H1）
+    if (!isSubtitleSentence(word, 80) || !isSubtitleSentence(sentenceIn)) return json({ ja: null, error: 'bad_sentence' }, 400);
 
     const hash = senseHash(sentence, WORDSENSE_PROMPT_VER);
     const cached =
@@ -391,8 +399,10 @@ export async function POST(req) {
   //   wordsense と同じ立て付け: 共有キャッシュ（word='__sentence__'）命中は無条件配布、
   //   新規生成のみ IP 日次で絞る。max_tokens 200（1文の和訳に十分）。
   if (body.mode === 'sentence') {
-    const sentence = String(body.text || body.sentence || '').trim().slice(0, 300);
+    const sentenceIn = String(body.text || body.sentence || '').trim();
+    const sentence = sentenceIn.slice(0, 300);
     if (!sentence) return json({ ja: null, error: 'bad request' }, 400);
+    if (!isSubtitleSentence(sentenceIn)) return json({ ja: null, error: 'bad_sentence' }, 400); // 監査 H1
 
     const SENT_KEY = '__sentence__';
     const hash = senseHash(sentence);
@@ -532,6 +542,11 @@ export async function POST(req) {
     const input = Array.isArray(body.sentences) ? body.sentences.slice(0, 10) : [];
     const norm = input.map(normSentence);
     if (!norm.length || norm.some((s) => !s)) return json({ ja: null, error: 'bad request' }, 400);
+    // 1文でも英語字幕の文字以外を含めばバッチごと拒否（監査 H1）。正規クライアント（lib/vocab.js・lib/translateQueue.js）は
+    // 同じ判定で事前に除外して送るので、ここに当たるのは手組みのリクエストだけ。
+    if (input.some((s) => !isSubtitleSentence(typeof s === 'string' ? s.trim() : null))) {
+      return json({ ja: null, error: 'bad_sentence' }, 400);
+    }
     const uniq = [...new Set(norm)];
     const hashOf = new Map(uniq.map((s) => [s, senseHash(s)]));
     const jaByHash = await readCtxCacheMany(SENT_KEY, uniq.map((s) => hashOf.get(s)));

@@ -6,6 +6,7 @@
 import { translateSentences } from './api';
 import { exampleContainsWord, trimExampleToSentence } from './subtitles';
 import { getExcludeSet } from './wordlist';
+import { isSubtitleSentence } from './subtitleSentence';
 
 // ── TOEIC/CEFR ヘルパー（app.js から移植）──────────────────
 export function getToeicLevel(score) {
@@ -614,7 +615,7 @@ export async function fillMissingExampleJa(words, ctx = {}) {
   const bySentence = new Map();
   for (const w of [...need, ...row]) {
     const k = keyOf(w.example);
-    if (!k) continue;
+    if (!k || !isSubtitleSentence(k)) continue; // サーバが 400 bad_sentence で弾く文は送らない（バッチ全体を落とさない）
     if (!bySentence.has(k)) bySentence.set(k, []);
     bySentence.get(k).push(w);
   }
