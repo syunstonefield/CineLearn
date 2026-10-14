@@ -61,3 +61,11 @@ test('Disney+ 表記「ホワット・イフ...？」が TMDB の「ホワット
   const results = [{ id: 91363, media_type: 'tv', name: 'ホワット・イフ…?', original_name: 'What If...?', popularity: 80 }];
   assert.equal(pickTmdbCandidate(results, 'ホワット・イフ...？', false), 91363);
 });
+
+test('全角＆（ファルコン＆ウィンター・ソルジャー）が TMDB の半角 & 表記に当たる（NFKC）', () => {
+  assert.equal(normTitle('ファルコン＆ウィンター・ソルジャー'), normTitle('ファルコン&ウィンター・ソルジャー'));
+  const c = titleQueryCandidates('ファルコン＆ウィンター・ソルジャー');
+  assert.ok(c.includes('ファルコン&ウィンター・ソルジャー'));
+  const results = [{ id: 88396, media_type: 'tv', name: 'ファルコン&ウィンター・ソルジャー', original_name: 'The Falcon and the Winter Soldier', popularity: 70 }];
+  assert.equal(pickTmdbCandidate(results, 'ファルコン＆ウィンター・ソルジャー', false), 88396);
+});

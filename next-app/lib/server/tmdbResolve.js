@@ -10,10 +10,14 @@ export function titleQueryCandidates(title) {
   const t = (title || '').trim();
   if (!t) return [];
   const cands = [t];
+  // 全角記号を半角に揃えた表記（＆→&・？→?・！→!）。TMDB 検索は半角側の表記で持っていることが多い
+  // （ファルコン＆ウィンター・ソルジャー→ファルコン&ウィンター・ソルジャー 2026-10-15 実測）。
+  const nfkc = t.normalize('NFKC');
+  if (nfkc !== t) cands.push(nfkc);
   // 配信UIの「...？」（半角ドット3つ＋全角？）は TMDB の「…?」と一致しない（ホワット・イフ…? 2026-10-09 実測）。
   // 三点リーダと半角記号に寄せた表記も候補にする。
-  const ellipsis = t.replace(/\.{3}/g, '…').replace(/？/g, '?').replace(/！/g, '!');
-  if (ellipsis !== t) cands.push(ellipsis);
+  const ellipsis = nfkc.replace(/\.{3}/g, '…');
+  if (ellipsis !== t && !cands.includes(ellipsis)) cands.push(ellipsis);
   // 区切り（全角/半角スラッシュ・コロン・波ダッシュ・パイプ）を空白へ正規化
   const spaced = t.replace(/[／/:：|｜〜~–—-]+/g, ' ').replace(/\s+/g, ' ').trim();
   if (spaced && spaced !== t) cands.push(spaced);
@@ -25,9 +29,12 @@ export function titleQueryCandidates(title) {
 
 // 照合用のタイトル正規化（記号・空白・大小の揺れを吸収）。
 export function normTitle(s) {
+  // NFKC で全角記号・英数を半角に揃える（＆→&・！→!・？→?・…→...・Ａ→A）。配信UIは全角、TMDB は半角で
+  // 出ることが多く、記号を個別に足しても漏れる（＆のファルコン&ウィンター・ソルジャー 2026-10-15 実測）。
   return String(s || '')
+    .normalize('NFKC')
     .toLowerCase()
-    .replace(/[\s:：・／/｜|,.'"’”!?！？\-–—~〜…‥]/g, '')
+    .replace(/[\s:：・／/｜|,.'"’”!?！？\-–—~〜…‥&＆]/g, '')
     .trim();
 }
 
