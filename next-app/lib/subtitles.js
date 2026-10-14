@@ -234,6 +234,20 @@ export function wordMatchRegex(word, flags = 'i') {
   return new RegExp(`\\b${body}\\b`, flags);
 }
 
+// 例文中で実際に使われている形（活用形）を返す。見出し語と同じなら null（単語のみ・フレーズは null）。
+//   用途: カードは見出しを原形で出すため、例文の形と品詞が食い違って「誤判定」に見えることがある
+//   （revolutionary [名詞] 革命家 ← 例文は revolutionaries＝名詞用法として正しい・2026-10-15 オーナー報告）。
+//   見出しの横に「例文では revolutionaries」と添えて、品詞タグが例文中の用法である事を伝える。
+export function surfaceFormInExample(example, word) {
+  const w = normApostrophes(word).toLowerCase().trim();
+  if (!w || /\s/.test(w)) return null;
+  const re = wordMatchRegex(w);
+  const m = re && normApostrophes(example || '').match(re);
+  if (!m) return null;
+  const hit = m[0].toLowerCase();
+  return hit === w ? null : hit;
+}
+
 // 例文に単語／フレーズ（活用形・分離込み）が含まれるか
 export function exampleContainsWord(example, word) {
   const re = wordMatchRegex(word);

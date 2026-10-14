@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
+import { surfaceFormInExample } from '@/lib/subtitles';
 import { buildCloze, selectQuizWords, nextSeat, getPrepped, markPrepped } from '@/lib/prep';
 import { addExp, EXP_PER_PREP_WORD } from '@/lib/exp';
 import { chunkParts } from '@/lib/chunk';
@@ -263,7 +264,15 @@ export default function PrepWalkthrough() {
                 </div>
               );
             })()}
-            {w.pos && <span className="pw-pos">{w.pos}</span>}
+            {w.pos && (
+              <span className="pw-pos">
+                {w.pos}
+                {(() => {
+                  const sf = surfaceFormInExample(w.example, w.word);
+                  return sf ? <span className="pos-surface">例文では {sf}</span> : null;
+                })()}
+              </span>
+            )}
             {w.definition && <div className="pw-def">{w.definition}</div>}
             {w.example && (
               <div className="pw-ex">

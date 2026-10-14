@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
+import { surfaceFormInExample } from '@/lib/subtitles';
 import { speak } from '@/lib/speak';
 import { chunkParts } from '@/lib/chunk';
 import {
@@ -488,7 +489,15 @@ function ReviewCard({ word: w, idx, total, flipped, retryMode, onFlip, onRate, o
             </div>
           );
         })()}
-        {w.pos && <div className="review-pos-tag">{w.pos}</div>}
+        {w.pos && (
+          <div className="review-pos-tag">
+            {w.pos}
+            {(() => {
+              const sf = surfaceFormInExample(w.example, w.word);
+              return sf ? <span className="pos-surface">例文では {sf}</span> : null;
+            })()}
+          </div>
+        )}
         {flipped && (
           <div className="review-answer" style={{ display: 'block' }}>
             <div className="review-def-text">{w.definition || ''}</div>

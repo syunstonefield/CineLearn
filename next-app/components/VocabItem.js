@@ -1,4 +1,5 @@
 'use client';
+import { surfaceFormInExample } from '@/lib/subtitles';
 
 import { useState } from 'react';
 import { statusBadge, nextReviewLabel } from '@/lib/storage';
@@ -112,7 +113,15 @@ export default function VocabItem({ word, srs, testTiers, ts, exampleSource, add
           <span className={`tier-pill ${tierCls}`}>{tierText}</span>
           {/* 薄い表示の理由を初見でも分かるように明示（実使用フィードバック#3） */}
           {notInTest && <span className="tier-excluded-note">クイズ対象外（設定で変更可）</span>}
-          {w.pos && <span className="vocab-pos">{w.pos}</span>}
+          {w.pos && (
+            <span className="vocab-pos">
+              {w.pos}
+              {(() => {
+                const sf = surfaceFormInExample(w.example, w.word);
+                return sf ? <span className="pos-surface">例文では {sf}</span> : null;
+              })()}
+            </span>
+          )}
           {next && <span className="srs-next-review">📅 次回: {next}</span>}
           {reviewCountLabel && <span className="review-count-label">{reviewCountLabel}</span>}
         </div>

@@ -79,3 +79,12 @@ test('parseSrt は台詞だけを結合しタイムコード・番号・タグ�
   assert.ok(!text.includes('-->'));
   assert.ok(!/\n\d+\n/.test(text));
 });
+
+test('surfaceFormInExample: 例文中の活用形を返す・同形/フレーズ/不在は null', async () => {
+  const { surfaceFormInExample } = await import('../lib/subtitles.js');
+  assert.equal(surfaceFormInExample("Yeah, violent revolutionaries aren't usually good.", 'revolutionary'), 'revolutionaries');
+  assert.equal(surfaceFormInExample('Alliances are built.', 'alliance'), 'alliances');
+  assert.equal(surfaceFormInExample('I negotiate.', 'negotiate'), null);
+  assert.equal(surfaceFormInExample('He pulled it off.', 'pull off'), null);
+  assert.equal(surfaceFormInExample('Nothing here.', 'alliance'), null);
+});

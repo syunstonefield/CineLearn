@@ -2407,6 +2407,14 @@ header {
   padding: 2px 8px;
 }
 
+.pos-surface {
+  margin-left: 6px;
+  padding-left: 6px;
+  border-left: 1px solid rgba(91,79,212,0.25);
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
 .review-flip {
   margin-top: 20px;
   padding: 12px 28px;
