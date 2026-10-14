@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { wordStrings, wordMeanings } from '../lib/server/vocabCache.js';
-import { titleQueryCandidates, pickTmdbCandidate, normTitle } from '../lib/server/tmdbResolve.js';
+import { titleQueryCandidates, pickTmdbCandidate, normTitle, titleMatchStrength, resolveTmdbIdFromHistory } from '../lib/server/tmdbResolve.js';
 
 test('wordStrings: 旧形式(word)と短縮形(w)の両方から小文字の語だけを重複なく取り出す', () => {
   const words = [
@@ -68,4 +68,26 @@ test('全角＆（ファルコン＆ウィンター・ソルジャー）が TMDB
   assert.ok(c.includes('ファルコン&ウィンター・ソルジャー'));
   const results = [{ id: 88396, media_type: 'tv', name: 'ファルコン&ウィンター・ソルジャー', original_name: 'The Falcon and the Winter Soldier', popularity: 70 }];
   assert.equal(pickTmdbCandidate(results, 'ファルコン＆ウィンター・ソルジャー', false), 88396);
+});
+
+test('titleMatchStrength: 等しい=3 / 含む=2 / 語の重なり=1 / 無関係=0', () => {
+  assert.equal(titleMatchStrength('ファルコン＆ウィンター・ソルジャー', 'ファルコン&ウィンター・ソルジャー'), 3);
+  assert.equal(titleMatchStrength('スター・ウォーズ／シスの復讐を視聴', 'スター・ウォーズ シスの復讐'), 2);
+  assert.equal(titleMatchStrength('The Falcon and the Winter Soldier', 'Falcon and Winter Soldier'), 1); // 'the' が挟まり包含にはならず語の重なり(4/5)で当たる
+  assert.equal(titleMatchStrength('Suits', 'Suits LA'), 0);   // 短い語の包含は当てない
+  assert.equal(titleMatchStrength('Suits', 'Friends'), 0);
+});
+
+test('resolveTmdbIdFromHistory: 本人の履歴から ID を引く（type の食い違いは除外・強い一致を優先）', () => {
+  const rows = [
+    { drama: { title: 'SUITS/スーツ', tmdbId: 37680 }, season: 1, episode: 1 },
+    { drama: { title: 'ファルコン&ウィンター・ソルジャー', tmdbId: 88396 }, season: 1, episode: 2 },
+    { drama: { title: 'アイアンマン', tmdbId: 1726, type: 'movie' }, season: 1, episode: 1 },
+    { drama: { title: '古い履歴（IDなし）' }, season: 1, episode: 1 },
+  ];
+  assert.equal(resolveTmdbIdFromHistory('ファルコン＆ウィンター・ソルジャー', false, rows), 88396);
+  assert.equal(resolveTmdbIdFromHistory('アイアンマン', true, rows), 1726);
+  assert.equal(resolveTmdbIdFromHistory('アイアンマン', false, rows), null); // TV として来た映画は当てない
+  assert.equal(resolveTmdbIdFromHistory('ワンダヴィジョン', false, rows), null);
+  assert.equal(resolveTmdbIdFromHistory('SUITS', false, rows), null);        // "suits" ⊂ "suitsスーツ" は短すぎる→0
 });

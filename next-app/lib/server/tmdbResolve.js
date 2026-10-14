@@ -81,3 +81,51 @@ export async function resolveTmdbId(title, isMovie) {
   }
   return null;
 }
+
+// ── 自分がリストを作った作品（history）からの照合 ─────────────────────────────────────
+// 拡張の作品名は配信UIの表記（全角記号・副題・「を視聴」等）で、TMDB 全体からの検索は表記揺れに弱い
+// （ワンダヴィジョン/ホワット・イフ/ファルコン＆… で3度同型の未解決・2026-10）。本人がリストを作った作品は
+// 数件〜数十件なので、相手が少ない前提の「ゆるい一致」を安全に使える。順に、
+//   ①正規化して等しい ②片方がもう片方を含む（短い方が6文字以上・長さ比0.6以上）
+//   ③語（スペース/記号区切り）の重なり Jaccard ≥ 0.6（語が2つ以上ある時だけ）
+// 複数当たれば ①>②>③ の強さ、同点なら新しい履歴（rows の先頭＝updated_at desc）を採る。
+function titleTokens(s) {
+  return new Set(
+    String(s || '')
+      .normalize('NFKC')
+      .toLowerCase()
+      .split(/[\s:：・／/｜|,.'"’”!?！？\-–—~〜…‥&＆()（）「」『』]+/)
+      .filter((x) => x.length >= 2)
+  );
+}
+export function titleMatchStrength(a, b) {
+  const na = normTitle(a);
+  const nb = normTitle(b);
+  if (!na || !nb) return 0;
+  if (na === nb) return 3;
+  const [short, long] = na.length <= nb.length ? [na, nb] : [nb, na];
+  if (short.length >= 6 && long.includes(short) && short.length / long.length >= 0.6) return 2;
+  const ta = titleTokens(a);
+  const tb = titleTokens(b);
+  if (ta.size >= 2 && tb.size >= 2) {
+    let inter = 0;
+    for (const t of ta) if (tb.has(t)) inter++;
+    const jac = inter / (ta.size + tb.size - inter);
+    if (jac >= 0.6) return 1;
+  }
+  return 0;
+}
+// rows: history の { drama:{title,tmdbId,type}, season, episode } 配列（updated_at desc）。
+// wantMovie と type が食い違う行は除く（type 未記録の旧行は TV 扱い＝映画の要求には当てない）。戻り値 tmdbId | null。
+export function resolveTmdbIdFromHistory(title, wantMovie, rows) {
+  let best = null;
+  for (const r of rows || []) {
+    const d = r?.drama;
+    const id = Number(d?.tmdbId);
+    if (!d?.title || !Number.isFinite(id) || id <= 0) continue;
+    if ((d.type === 'movie') !== !!wantMovie) continue;
+    const st = titleMatchStrength(title, d.title);
+    if (st > 0 && (!best || st > best.st)) best = { st, id };
+  }
+  return best ? best.id : null;
+}

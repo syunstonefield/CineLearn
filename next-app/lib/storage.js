@@ -810,10 +810,13 @@ export function saveHistoryEntry(ctx) {
     id: newId,
     date: todayStr(),
     // 映画なら type を残す（出典に偽の S1E1 を付けないため・2026-10-08）。TV は従来どおり持たない
+    // tmdbId も残す（2026-10-15）: 拡張の字幕マーカーが「自分がリストを作った作品」を作品名の揺れに関係なく
+    // ID で照合できるように（/api/vocab-marks が履歴を最優先で引く）。履歴はクラウド同期済み＝追加通信なし。
     drama: {
       title: drama.title,
       genre: drama.genre,
       platform: drama.platform,
+      ...(drama.tmdbId != null ? { tmdbId: drama.tmdbId } : {}),
       ...(drama.type === 'movie' || drama.mediaType === 'movie' ? { type: 'movie' } : {}),
     },
     season,
