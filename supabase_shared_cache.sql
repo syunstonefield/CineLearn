@@ -42,14 +42,11 @@ ALTER TABLE vocab_cache ENABLE ROW LEVEL SECURITY;
 -- 公開読み（ログアウト含む全員）。GRANT が無いと RLS 以前に 401 になるため明示する。
 -- ★2026-09-12: 表レベルではなく列指定で付与する（投稿元ハッシュ contributed_by/contributed_at を公開読みから外す
 --   ＝supabase_2026-09-12_hardening.sql と同じ）。本ファイルを再適用しても hardening が元に戻らないように。
+-- ★2026-10-15: anon/authenticated の SELECT を全面 REVOKE（docs/decision-shared-translation-2026-10-14.md）。
+--   公開 anon キーで REST 直読みすると /api/vocab の上限・ゲートを迂回して全話の例文＋和訳を一括取得できたため。
+--   読むのはサーバ（lib/server/vocabCache.js・service_role）だけ。クライアント/拡張は /api/vocab 経由のみ。
 REVOKE SELECT ON vocab_cache FROM anon, authenticated;
-GRANT SELECT (
-  id, cache_key, cache_version, tmdb_id, season, episode, display_title, title_norm, words, word_count,
-  coverage_min, coverage_max, subtitle_provider, model, created_at, updated_at
-) ON vocab_cache TO anon, authenticated;
 DROP POLICY IF EXISTS "vocab_cache public read" ON vocab_cache;
-CREATE POLICY "vocab_cache public read"
-  ON vocab_cache FOR SELECT TO anon, authenticated USING (true);
 -- 書き込みは service_role のみ（service_role は RLS をバイパス。明示 GRANT で堅牢化）。
 GRANT ALL ON vocab_cache TO service_role;
 
@@ -64,13 +61,11 @@ CREATE TABLE IF NOT EXISTS catalog (
   created_at    timestamptz NOT NULL DEFAULT now()
 );
 ALTER TABLE catalog ENABLE ROW LEVEL SECURITY;
-GRANT SELECT ON catalog TO anon, authenticated;
--- enabled な作品のみ公開（カタログ外＝「近日対応」表示の判定に使う）。
+-- ★2026-10-15: catalog も anon/authenticated の SELECT を REVOKE（読むのはサーバのみ）。
+REVOKE SELECT ON catalog FROM anon, authenticated;
 DROP POLICY IF EXISTS "catalog public read" ON catalog;
-CREATE POLICY "catalog public read"
-  ON catalog FOR SELECT TO anon, authenticated USING (enabled);
 GRANT ALL ON catalog TO service_role;
 
 -- ── 検証クエリ（実行後にダッシュボードで確認）──
 --   SELECT relrowsecurity FROM pg_class WHERE relname IN ('vocab_cache','catalog'); -- 両方 t
---   匿名 anon での SELECT が 200 で空配列を返すこと（401 でないこと）を実機確認する。
+--   匿名 anon での SELECT が 401/403（permission denied）になること、本番 /api/vocab が引き続き hit を返すことを実機確認する。

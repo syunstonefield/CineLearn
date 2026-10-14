@@ -1,7 +1,7 @@
 // 共有単語キャッシュ（vocab_cache）と厳選カタログ（catalog）の読み書き（§1・A2・A9・A23）。
 //   * vocabCacheKey: 'v{VOCAB_CACHE_VERSION}:tmdb{id}:s{S}e{E}'。/api/vocab・/api/example・/api/claude・seed に散っていた
 //     7箇所の複製をここへ集約（映画は常に s0e0）。
-//   * readVocabRow: anon で読む（公開読み）。DB 不調は miss と区別して { ok:false } を返す（1回だけ引き直す）。
+//   * readVocabRow: service_role で読む（anon の SELECT は 2026-10-15 に REVOKE 済み。鍵が無ければ anon）。DB 不調は miss と区別して { ok:false } を返す（1回だけ引き直す）。
 //   * writeVocabRow: service_role。既存行は**絶対に触らない**（ignore-duplicates）。catalog へは enabled:false で
 //     ignore-duplicates（既に enabled:true の行を false に戻さない＝A2）。contributed_by/at 列が無い DB では PGRST204 を
 //     検知して列を外し1回だけ再送（旧 vocab-contribute の _provenanceUnsupported を移設＝A23）。
@@ -44,10 +44,15 @@ function anonHeaders(extra = {}) {
 function svcHeaders(extra = {}) {
   return { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`, ...extra };
 }
+// 読み取りの既定ヘッダ。2026-10-15: anon の SELECT を REVOKE した（公開 anon キーで vocab_cache を一括取得できる抜け道を塞ぐ・
+// docs/decision-shared-translation-2026-10-14.md）ため、サーバは service_role で読む。鍵の無い環境（ローカル・seed の一部）だけ anon に落とす。
+function readHeaders(extra = {}) {
+  return SUPABASE_SERVICE_KEY ? svcHeaders(extra) : anonHeaders(extra);
+}
 
 // Supabase REST を読む。戻り値 { ok, rows }。失敗は1回だけ引き直し、それでも駄目なら ok:false（/api/vocab の sbSelect と同じ）。
 //   ★ 旧実装は通信失敗も一律 miss 扱いで、DB が一瞬つまずいただけで再生成（¥7）に入っていた（2026-09-12 実測）。
-export async function sbSelect(pathWithQuery, { headers = anonHeaders(), fetchImpl = fetch } = {}) {
+export async function sbSelect(pathWithQuery, { headers = readHeaders(), fetchImpl = fetch } = {}) {
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const res = await fetchImpl(`${SUPABASE_URL}/rest/v1/${pathWithQuery}`, { headers, cache: 'no-store' });
@@ -82,12 +87,12 @@ export function vocabRowMeta(row) {
   };
 }
 
-// カタログ照合。ゲート無効なら常に true。enabled な行のみ anon に見える（RLS）。不調は fail-open。
+// カタログ照合。ゲート無効なら常に true。service_role は RLS を通らないので enabled をクエリで明示する。不調は fail-open。
 export async function isInCatalog(tmdbId, { gateEnabled = CATALOG_GATE_ENABLED, fetchImpl = fetch } = {}) {
   if (!gateEnabled) return true;
   const id = parseInt(tmdbId, 10);
   if (!id) return false;
-  const cat = await sbSelect(`catalog?tmdb_id=eq.${id}&select=tmdb_id&limit=1`, { fetchImpl });
+  const cat = await sbSelect(`catalog?tmdb_id=eq.${id}&enabled=is.true&select=tmdb_id&limit=1`, { fetchImpl });
   if (!cat.ok) return true; // 一時障害で「近日対応」を出さない
   return cat.rows.length > 0;
 }
