@@ -826,7 +826,7 @@ function vidLog(msg, v) {
   const line = `${new Date().toISOString().slice(11, 23)} ${fs ? '[FS] ' : ''}${msg}${v ? ' | ' + vidState(v) : ''}`;
   console.debug('[CL:vid]', line);
   vidLogBuf.push(line);
-  if (vidLogBuf.length > 300) vidLogBuf.splice(0, vidLogBuf.length - 300);
+  if (vidLogBuf.length > 600) vidLogBuf.splice(0, vidLogBuf.length - 600);
   if (!vidLogFlushTimer && chrome.runtime?.id) {
     vidLogFlushTimer = setTimeout(() => {
       vidLogFlushTimer = null;
@@ -1945,6 +1945,12 @@ let pendingSeekTime   = null;
 let ttStoreKey    = null;             // 現在のエピソードの保存キー
 let ttStoreDirty  = false;            // 前回保存以降に追記があったか
 const TT_KEYS_IDX = 'cl_timeline_index'; // 保存キー一覧（古いエピソードを間引く用）
+// 保存キーの接頭辞。v2 = 画面の字幕を1枚として記録する方式（2026-10-15）。
+//   旧 'cl_timeline_' は Netflix の字幕を表示要素ごと（1行ずつ）に割って記録していたため、読み込むと
+//   新しい記録に1行ずつの断片が混ざり ◀ が字幕の途中に着地した（実ログ: 復元18件が "YOUR GRANDMOTHER'S" /
+//   "GETTING WORSE." 等に割れていた）。旧キーは読まず、起動時に消す。
+const TT_KEY_PREFIX = 'cl_timeline2_';
+const TT_LEGACY_PREFIX = 'cl_timeline_';
 const TT_KEYS_MAX = 30;               // 保持するエピソード数の上限
 
 // ◀ ▶ ボタン要素（先頭/フロンティアで淡色化するため参照を保持）
@@ -1992,6 +1998,12 @@ function getActiveVideo() {
   return vids.slice().sort((a, b) => score(b) - score(a))[0] || null;
 }
 
+// 再生ログ用: タイムラインのブロックを短く表す（#index 開始秒 "先頭30字"）
+function tlDesc(i) {
+  const b = captionTimeline[i];
+  return b ? `#${i} ${b.start.toFixed(1)} "${b.text.slice(0, 30)}"` : `#${i} -`;
+}
+
 // 画面に新しい字幕が出るたびに呼ぶ。最新到達点（フロンティア）でのみ追記する。
 function recordCaptionBlock(rawText) {
   const text = (rawText || '').replace(/\s+/g, ' ').trim();
@@ -2004,9 +2016,16 @@ function recordCaptionBlock(rawText) {
   const last = captionTimeline[captionTimeline.length - 1];
   if (last) {
     if (text === last.text)        return; // 同一字幕の継続表示
-    if (start <= last.start + 0.4) return; // 巻き戻し後の再表示＝既知領域は記録しない
+    if (start < last.start)        return; // 巻き戻し後の再表示＝既知領域は記録しない
+    if (start <= last.start + 0.4) {       // 切り替わりの途中（複数要素が順に書き換わる）→ 最新の見え方で上書き
+      last.text = text;
+      ttStoreDirty = true;
+      vidLog(`CL rec ~ ${tlDesc(captionTimeline.length - 1)}`);
+      return;
+    }
   }
   captionTimeline.push({ text, start });
+  vidLog(`CL rec + ${tlDesc(captionTimeline.length - 1)}`);
   if (captionTimeline.length > TIMELINE_MAX) captionTimeline.shift();
   ttStoreDirty = true; // ローカル保存対象として印を付ける
 }
@@ -2030,12 +2049,22 @@ function captionStartFor(rawText) {
 }
 
 // 現在のエピソードの保存キー（タイトル+S/E）。タイトル未取得なら null。
+//   ★旧実装は英数字以外を全部 _ にしていたため、邦題（「スパイダーマン：ファー・フロム・ホーム」等・
+//     日本の Netflix/Disney+ では洋画も邦題表示が普通）は空になって null＝タブを閉じるたび
+//     ◀▶ の履歴が消えていた（2026-10-15 修正）。NFKC で全角→半角に揃え、日本語の文字も残す。
+//     英数字だけのタイトルは旧実装と同じキーになる（保存済みデータをそのまま読める）。
+//   S/E 未確定は s?e?（旧実装は s1e1 扱い＝確定した瞬間に別エピソード扱いで履歴を捨てていた）。
+//   映画は S/E が無いので s?e? のまま。
+const TT_UNCONFIRMED_SE = '_s?e?';
 function episodeStorageKey() {
   try {
     const ctx = getEpisodeContext();
-    const titleKey = (ctx.dramaTitle || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
+    const titleKey = (ctx.dramaTitle || '').normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '_');
     if (titleKey.replace(/_/g, '').length < 2) return null; // タイトルがまだ取れていない
-    return `cl_timeline_${titleKey}_s${ctx.season || 1}e${ctx.episode || 1}`;
+    const se = ctx.season == null && ctx.episode == null
+      ? TT_UNCONFIRMED_SE
+      : `_s${ctx.season || 1}e${ctx.episode || 1}`;
+    return `${TT_KEY_PREFIX}${titleKey}${se}`;
   } catch { return null; }
 }
 
@@ -2057,7 +2086,9 @@ function loadTimelineFor(key) {
   try {
     chrome.storage.local.get([key], (r) => {
       if (chrome.runtime.lastError) return;
+      const before = captionTimeline.length;
       mergeIntoTimeline(r[key]);
+      vidLog(`CL timeline restored ${key}: saved=${Array.isArray(r[key]) ? r[key].length : 0} → ${before}→${captionTimeline.length} blocks`);
     });
   } catch { /* 接続切れは無視 */ }
 }
@@ -2083,9 +2114,34 @@ function saveTimelineNow() {
 
 // エピソードの確定・切替を監視して復元/保存を回す。
 function initTimelinePersistence() {
+  // 旧方式（cl_timeline_*）の保存を一度だけ掃除（索引キー cl_timeline_index 自体は残す）
+  try {
+    chrome.storage.local.get([TT_KEYS_IDX], (r) => {
+      if (chrome.runtime.lastError) return;
+      const list = Array.isArray(r[TT_KEYS_IDX]) ? r[TT_KEYS_IDX] : [];
+      const legacy = list.filter(k => k.startsWith(TT_LEGACY_PREFIX) && !k.startsWith(TT_KEY_PREFIX));
+      if (!legacy.length) return;
+      chrome.storage.local.remove(legacy);
+      chrome.storage.local.set({ [TT_KEYS_IDX]: list.filter(k => !legacy.includes(k)) });
+      vidLog(`CL timeline legacy removed: ${legacy.length} keys`);
+    });
+  } catch { /* 接続切れ */ }
+
   setInterval(() => {
     const key = episodeStorageKey();
     if (key !== ttStoreKey) {
+      // 同じ作品で S/E が後から確定しただけ（s?e? → sXeY）なら同じ話＝履歴は捨てずに新キーへ引き継ぐ。
+      // 仮キーに保存した分は消す（残すと、同じ作品の別の話を S/E 未確定で開いた時に混ざる）。
+      const confirmedLater = !!(ttStoreKey && key && ttStoreKey.endsWith(TT_UNCONFIRMED_SE) &&
+        key.startsWith(ttStoreKey.slice(0, -TT_UNCONFIRMED_SE.length)) &&
+        /^_s\d+e\d+$/.test(key.slice(ttStoreKey.length - TT_UNCONFIRMED_SE.length)));
+      if (confirmedLater) {
+        try { chrome.storage.local.remove(ttStoreKey); } catch { /* 接続切れ */ }
+        ttStoreKey = key;
+        ttStoreDirty = captionTimeline.length > 0; // 次のティックで新キーへ保存
+        loadTimelineFor(key);                      // 同じ話を以前に観ていれば合流（merge）
+        return;
+      }
       if (ttStoreKey) saveTimelineNow();          // 直前のエピソードを保存
       if (ttStoreKey && key) {                    // 別エピソードへ切替 → 旧データを破棄
         captionTimeline = [];
@@ -2136,13 +2192,24 @@ function getCurrentBlockIndex() {
 // 画面に今出ている字幕テキスト（タイムライン未蓄積時のフォールバック）
 function getOnScreenCaption() {
   if (IS_AMAZON || IS_DISNEY) return lastOverlayText || '';
+  return screenCaptionText();
+}
+
+// 画面に出ている字幕を「1枚」として読む（Netflix / YouTube）。
+//   Netflix は2人のセリフが同時に出ると表示位置ごとに別要素になる。旧実装は要素ごとに記録していたため、
+//   1枚の字幕がタイムライン上で2〜3ブロックに割れ（実データ SUITS: 844.0 "THAT I JUST MADE SENIOR PARTNER," /
+//   845.0 "I-- WHAT?" / 845.5 同じ1行目をもう一度）、◀ が同じ画面の途中に着地していた（2026-10-15 オーナー報告
+//   「Netflix で巻き戻すと現在表示されている分の先頭に飛ぶ」）。
+//   一致した要素のうち一番外側だけを DOM 順に連結する（入れ子の二重取りを避ける）。
+function screenCaptionText() {
+  const found = [];
   for (const sel of SUBTITLE_SELECTORS) {
-    for (const el of document.querySelectorAll(sel)) {
-      const txt = (el.innerText || '').trim();
-      if (txt) return txt;
-    }
+    try { document.querySelectorAll(sel).forEach(el => { if (!found.includes(el)) found.push(el); }); } catch { }
   }
-  return '';
+  const outer = found.filter(el => !found.some(o => o !== el && o.contains(el)));
+  outer.sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) ? -1 : 1);
+  return outer.map(el => (el.innerText || '').trim()).filter(Boolean)
+    .join(' ').replace(/\s+/g, ' ').trim();
 }
 
 // ── 機能1: 巻き戻し / 先送り（1セリフ単位）──────────────────────
@@ -2239,6 +2306,12 @@ function seekRelative(dir) {
   if (!plan || plan.idx == null) return;
   const targetT = captionTimeline[plan.idx].start;
   const t = navSeekTime(video, targetT, plan.floorT, dir);
+  {
+    const cur = getCurrentBlockIndex();
+    const around = [];
+    for (let i = Math.max(0, Math.min(cur, plan.idx) - 1); i <= Math.min(captionTimeline.length - 1, Math.max(cur, plan.idx) + 1); i++) around.push(tlDesc(i));
+    vidLog(`CL nav ${dir < 0 ? '◀' : '▶'} t=${video.currentTime.toFixed(1)} chain=${chaining} onscreen="${getOnScreenCaption().slice(0, 40)}" cur=${cur} → ${plan.idx} (floor ${plan.floorT.toFixed(1)}) | ${around.join(' / ')}`);
+  }
   if (t == null) {
     // 範囲外へは行かない（連打の積み上げ位置も進めない＝次に範囲内へ戻った時に正しく続く）
     const b = bufferedInfo(video, targetT);
@@ -2626,7 +2699,7 @@ function wrapWordsInElement(el) {
   const currentText = el.textContent.trim();
   if (el.dataset.clWrapped === currentText) return; // 同じ内容なら何もしない
   captureVodAnchor(currentText);   // VOD実時刻アンカーを記録（Netflix/YouTube）
-  recordCaptionBlock(currentText); // ◀▶📋 用の字幕タイムラインに記録
+  recordCaptionBlock(screenCaptionText() || currentText); // ◀▶📋 用の字幕タイムラインに記録（画面全体＝1枚）
 
   // 既存の cl-word span を元のテキストノードに戻す
   el.querySelectorAll?.('.cl-word').forEach(span => {

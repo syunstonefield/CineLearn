@@ -30,7 +30,7 @@ function save() {
 modeSel.addEventListener('change', save);
 hardChk.addEventListener('change', save);
 
-// ── 再生ログ（content.js の vidLog が chrome.storage.local 'cl_vid_log' に溜める直近300行）──
+// ── 再生ログ（content.js の vidLog が chrome.storage.local 'cl_vid_log' に溜める直近600行）──
 const vidlogTa = document.getElementById('vidlog');
 const vidlogNote = document.getElementById('vidlog-note');
 function loadVidLog(cb) {
