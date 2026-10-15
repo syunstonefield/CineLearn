@@ -49,23 +49,23 @@ export default function GrassCard({ grass, days, dailyStart, compact = false, mi
       );
     } else if (dailyStart && d >= dailyStart) {
       const x = dayDetail(days, sel);
-      const parts = [`学習量 ${L[lv - 1]}`];
+      // 並び＝日付→学習時間→思い出せた→新しく覚えた→マスター（オーナー 2026-10-15・学習量の段階名は出さない）
+      const parts = [];
       if (x) {
+        if (x.min) parts.push(`学習時間 ${x.min}分`);
         parts.push(`思い出せた ${x.ok}語`);
-        if (x.min) parts.push(`学習 ${x.min}分`);
         if (x.gain) parts.push(`新しく覚えた ${x.gain}語`);
         if (x.masteredGain) parts.push(`マスターになった ${x.masteredGain}語`);
       }
       detail = (
         <>
-          {head}　{parts.join('・')}
+          {head}　{parts.length ? parts.join('・') : T.grassBeforeDaily}
         </>
       );
     } else {
       detail = (
         <>
-          {head}　学習量 {L[lv - 1]}
-          {T.grassBeforeDaily}
+          {head}　{T.grassBeforeDaily}
         </>
       );
     }
@@ -151,7 +151,7 @@ export default function GrassCard({ grass, days, dailyStart, compact = false, mi
                     type="button"
                     className={`vj-cell${d.level ? ` l${d.level}` : ''}${d.today ? ' is-today' : ''}`}
                     aria-pressed={sel === d.ymd}
-                    aria-label={`${label(d)}${d.level ? `学習量 ${L[d.level - 1]}` : '学習なし'}${d.today ? '・今日' : ''}`}
+                    aria-label={`${label(d)}${d.level ? '学習あり' : '学習なし'}${d.today ? '・今日' : ''}`}
                     onClick={() => setSel((s) => (s === d.ymd ? null : d.ymd))}
                   />
                 )

@@ -22,7 +22,7 @@ export const JOURNEY = {
     grassHint: (n) => `濃さは、その日の学習量（自分の学習日の中で比べた${n}段階）です。`,
     grassPick: 'マスを押すと、その日の中身が出ます。',
     grassNone: '学習の記録はありません。',
-    grassBeforeDaily: '（この日より前は、詳しい内訳の記録がありません）',
+    grassBeforeDaily: 'この日は、詳しい内訳の記録がありません。',
     trendTitle: '週ごとの推移',
     trendWait: '記録をためています',
     trendWaitSub: (weeks, from) => `週ごとの推移は、記録が${weeks}週分たまると表示されます（${from}から記録中）。`,
