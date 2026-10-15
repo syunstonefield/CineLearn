@@ -1933,6 +1933,7 @@ const TIMELINE_MAX    = 1500; // 1エピソードあたりの保持上限（フ�
 
 // ◀▶ ナビ用カーソル。連続操作（連打）を取りこぼさず文単位で積み上げる。
 let navStart          = -1;   // いまナビ中の「文の先頭ブロック」index
+let navStartT         = 0;    // navStart へ実際にシークした時刻（Disney+ の範囲内フォールバックでブロック先頭とずれる）
 let navTime           = 0;    // 最後にナビ操作した時刻（performance.now）
 const NAV_CHAIN_MS    = 1200; // この間隔内の操作は連続操作として navStart を基準にする
 let seekDebounceTimer = null; // 連打を1回のシークにまとめる
@@ -2144,37 +2145,82 @@ function getOnScreenCaption() {
   return '';
 }
 
-// ── 機能1: 巻き戻し / 先送り（最小ステップ方式）──────────────────────
+// ── 機能1: 巻き戻し / 先送り（1セリフ単位）──────────────────────
 //   ◀▶ は画面に表示された字幕（captionTimeline）だけを使う DOM 読み方式（傍受なし）。
-//   句読点が不規則で「文の境目」を当てにできないので、グループ化に頼らず
-//   「現在位置から SEEK_MIN_STEP 秒“以上”離れた最初の字幕」へ飛ぶ。
-//   → 小さな断片では止まらず（前のセリフに届く）、かつ戻り幅に上限ができて
-//     大きく飛ばない（＝未バッファ位置へのシークでスタールしない）。
-//   補正値 SEEK_MIN_STEP を上下すれば「届かない↔飛びすぎ」を調整できる。
-const SEEK_MIN_STEP = 2.5; // 補正値（秒）: 1押しで最低これだけ時間を移動する
+//   1押し＝字幕1枚（画面に出たセリフ1つ）だけ動く。
+//   ★旧実装は「現在位置から 2.5 秒以上離れた最初の字幕」へ飛ぶ最小ステップ方式だったが、
+//     短いセリフが続く場面で 1押し 2〜3 セリフ戻ってしまう（2026-10-15 オーナー報告
+//     「複数の文を巻き戻すことがある・一文ずつ前のセリフに戻りたい」）ため廃止。
+//   同じ字幕の描画途中の断片（1行目→2行目と段階的に出る等）だけは1枚として扱う（isCueContinuation）。
+const CUE_FRAGMENT_GAP = 0.6; // 秒: 直前の字幕からこれ未満で切り替わった表示は同じ字幕の断片とみなす
 
-// 基準ブロックから dir 方向の次の目標ブロック index（無ければ null）。seekRelative と淡色化で共用。
+// captionTimeline[i] が直前ブロックと同じ字幕の続き（描画途中の断片）か。
+function isCueContinuation(i) {
+  if (i <= 0 || i >= captionTimeline.length) return false;
+  const prev = captionTimeline[i - 1], cur = captionTimeline[i];
+  const gap = cur.start - prev.start;
+  if (gap < CUE_FRAGMENT_GAP) return true;
+  // 前の表示に行が足されただけ（例 "Hey." → "Hey. Where are you going?"）なら数秒空いても同じ字幕
+  return gap < 3 && cur.text.startsWith(prev.text);
+}
+
+// 断片を遡って、その字幕の先頭ブロック index を返す。
+function cueHeadIdx(i) {
+  while (i > 0 && isCueContinuation(i)) i--;
+  return i;
+}
+
+// 基準ブロックから dir 方向に字幕1枚ぶん動いた先の先頭ブロック index（無ければ null）。seekRelative と淡色化で共用。
 function navTargetIdx(curIdx, dir) {
-  const baseT = captionTimeline[curIdx].start;
-  if (dir < 0) {
-    // baseT より SEEK_MIN_STEP 秒以上前の最初のブロック（断片はスキップ）
-    let j = curIdx - 1;
-    while (j - 1 >= 0 && baseT - captionTimeline[j].start < SEEK_MIN_STEP) j--;
-    return j >= 0 ? j : null;
-  }
-  // baseT より SEEK_MIN_STEP 秒以上後の最初のブロック（記録済みのみ）
+  const head = cueHeadIdx(curIdx);
+  if (dir < 0) return head > 0 ? cueHeadIdx(head - 1) : null;
   let j = curIdx + 1;
-  while (j + 1 < captionTimeline.length && captionTimeline[j].start - baseT < SEEK_MIN_STEP) j++;
-  return j < captionTimeline.length && captionTimeline[j].start > baseT ? j : null;
+  while (j < captionTimeline.length && isCueContinuation(j)) j++;
+  return j < captionTimeline.length ? j : null;
+}
+
+// 連続操作でないときの ◀▶ の行き先 { idx, floorT }（無ければ null）。
+//   idx    = 目標ブロック index
+//   floorT = 動かなかった場合にいる時刻（Disney+ の「届く所まで戻る」でこれより手前かを判定する）
+//   字幕が消えた「セリフの合間」で ◀ を押したら、いま言い終えたセリフの頭へ戻す
+//   （聞き取れなかった直後に押すのが典型。1つ前まで戻すと2セリフ戻ったように感じる）。
+function freshNavPlan(dir) {
+  const cur = getCurrentBlockIndex();
+  const video = getActiveVideo();
+  const t = video ? video.currentTime : 0;
+  if (dir < 0 && cur >= 0 && !getOnScreenCaption().trim()) {
+    const head = cueHeadIdx(cur);
+    // シーク直後で字幕の描画待ち（＝すでにそのセリフの頭にいる）なら、もう1つ前へ
+    if (t - captionTimeline[head].start >= 1) return { idx: head, floorT: t };
+  }
+  const base = cur < 0 ? 0 : cur;
+  const idx = navTargetIdx(base, dir);
+  if (idx == null) return null;
+  return { idx, floorT: dir < 0 ? Math.min(t, captionTimeline[cueHeadIdx(base)].start) : t };
 }
 
 // Disney+: 公開API currentTime のシークは、ブラウザの読み込み済み範囲（buffered）の中なら Disney+ 自身の
 // シークと同じ速さ（実測 30〜110ms）で動くが、外だとプレイヤーが読み込みに来ず永久 waiting になる
 // （2026-10-02 実機ログで IN=成功/OUT=失敗が完全に一致）。そのため Disney+ では buffered 内の目標にだけ動く。
 // 読み込み済み範囲は再生位置の約9秒前〜15秒先（実測）＝「1文戻る」はほぼ範囲内、2〜3文は範囲外になりやすい。
-function navTargetReachable(video, t) {
-  if (!IS_DISNEY) return true;
-  return bufferedInfo(video, t).inside;
+// ◀ の行き先が範囲外のときは「読み込み済み範囲の先頭（届く所）まで」戻す（前のセリフの途中から聞き直せる）。
+//   2026-10-15 実機ログ: ◀ で戻るとその地点の少し手前（約2秒）からしか読み込み済みにならず
+//   （例 現在 47.8・buffered=[45.6-66.4]・前のセリフ 42.2）、2回目の ◀ が前のセリフの頭に届かずに淡色のまま押せなかった。
+// 実際にシークする時刻を返す（行けなければ null）。floorT = 動かなかった場合にいる時刻。
+function navSeekTime(video, targetT, floorT, dir) {
+  if (!IS_DISNEY) return targetT;
+  if (bufferedInfo(video, targetT).inside) return targetT;
+  if (dir > 0) return null;
+  try {
+    for (let i = 0; i < video.buffered.length; i++) {
+      const a = video.buffered.start(i), b = video.buffered.end(i);
+      if (floorT < a - 0.05 || floorT > b + 0.05) continue;
+      const t = a + 0.2; // 範囲の端ちょうどは避けて少し内側
+      // 今のセリフの頭より 0.5 秒以上手前に戻れる時だけ（それ未満なら実質動かない）
+      return t > targetT && t < floorT - 0.5 ? t : null;
+    }
+  } catch { /* buffered 不可 */ }
+  return null;
 }
 
 function seekRelative(dir) {
@@ -2184,45 +2230,60 @@ function seekRelative(dir) {
   // 基準ブロック（＝表示中の字幕行）。直近 NAV_CHAIN_MS 内の連続操作は
   // 前回ナビ位置から積み上げる（連打で1ステップずつ確実に遡る）。
   const now = performance.now();
-  let curIdx;
-  if (navStart >= 0 && navStart < captionTimeline.length && (now - navTime) < NAV_CHAIN_MS) {
-    curIdx = navStart;
-  } else {
-    const cur = getCurrentBlockIndex();
-    curIdx = cur < 0 ? 0 : cur;
-  }
+  const chaining = navStart >= 0 && navStart < captionTimeline.length && (now - navTime) < NAV_CHAIN_MS;
   navTime = now;
 
-  const targetIdx = navTargetIdx(curIdx, dir);
-  if (targetIdx == null) return;
-  const t = captionTimeline[targetIdx].start;
-  if (!navTargetReachable(video, t)) {
+  const plan = chaining
+    ? { idx: navTargetIdx(navStart, dir), floorT: navStartT }
+    : freshNavPlan(dir);
+  if (!plan || plan.idx == null) return;
+  const targetT = captionTimeline[plan.idx].start;
+  const t = navSeekTime(video, targetT, plan.floorT, dir);
+  if (t == null) {
     // 範囲外へは行かない（連打の積み上げ位置も進めない＝次に範囲内へ戻った時に正しく続く）
-    const b = bufferedInfo(video, t);
-    vidLog(`CL nav blocked: target ${t.toFixed(1)} OUT of buffered=[${b.text}]`);
+    const b = bufferedInfo(video, targetT);
+    vidLog(`CL nav blocked: target ${targetT.toFixed(1)} OUT of buffered=[${b.text}]`);
     showMiniToast(dir < 0 ? 'Disney+ では読み込み済みの範囲（数秒前まで）にだけ戻れます' : 'Disney+ では読み込み済みの範囲にだけ進めます');
     return;
   }
-  navStart = targetIdx;
+  if (t !== targetT) vidLog(`CL nav partial: target ${targetT.toFixed(1)} OUT → ${t.toFixed(1)} (buffered=[${bufferedInfo(video, t).text}])`);
+  navStart = plan.idx;
+  navStartT = t;
   scheduleSeek(video, t);
+}
+
+// ◀▶ の表示/淡色が切り替わった時だけコンソールに理由を出す（2026-10-15「一定時間再生すると◀が出なくなる」の切り分け用）。
+//   DevTools のコンソールで「CL:nav」で絞り込むと見える。
+const navDiagLast = {};
+function navDiag(kind, state) {
+  const key = state.split(' ')[0];
+  if (navDiagLast[kind] === key) return;
+  navDiagLast[kind] = key;
+  const v = getActiveVideo();
+  console.info('[CL:nav]', `${new Date().toISOString().slice(11, 19)} ${kind}: ${state}${v ? ` | t=${v.currentTime.toFixed(1)}` : ''}`);
 }
 
 // ◀▶ ボタンの淡色化。先頭では◀、未視聴フロンティアでは▶を淡く。
 function updateNavButtonsState() {
   if (!clPrevBtn || !clNextBtn) return;
   const len = captionTimeline.length;
-  const cur = len ? getCurrentBlockIndex() : -1;
-  const curIdx = cur < 0 ? 0 : cur;
-  // Disney+ は目標が読み込み済み範囲の外なら淡色（押しても動かないことを先に示す）
+  // Disney+ は目標が読み込み済み範囲の外で、届く所まで戻ることもできなければ淡色（押しても動かないことを先に示す）
   const video = IS_DISNEY ? getActiveVideo() : null;
   const can = (dir) => {
     if (!len) return false;
-    const idx = navTargetIdx(curIdx, dir);
-    if (idx == null) return false;
-    return !video || navTargetReachable(video, captionTimeline[idx].start);
+    const plan = freshNavPlan(dir);
+    if (!plan) return false;
+    return !video || navSeekTime(video, captionTimeline[plan.idx].start, plan.floorT, dir) != null;
   };
-  clPrevBtn.classList.toggle('cl-ctrl-disabled', !can(-1));
+  const prevOk = can(-1);
+  clPrevBtn.classList.toggle('cl-ctrl-disabled', !prevOk);
   clNextBtn.classList.toggle('cl-ctrl-disabled', !can(+1));
+  if (!prevOk && len) {
+    const cur = getCurrentBlockIndex();
+    navDiag('prev', `DISABLED len=${len} cur=${cur} head=${cur >= 0 ? cueHeadIdx(cur) : '-'} onscreen=${JSON.stringify(getOnScreenCaption().slice(0, 30))}`);
+  } else {
+    navDiag('prev', prevOk ? 'enabled' : 'DISABLED (timeline empty)');
+  }
 }
 
 // 連打を1回のシークにまとめてプレイヤーのフリーズを防ぐ。
@@ -2342,8 +2403,14 @@ function positionControls() {
   // ◀📋▶ は字幕送り/コピー用なので、視聴中に字幕が出てから初めて表示する。
   const v = getActiveVideo();
   const r = v ? v.getBoundingClientRect() : null;
-  if (!clEnabled || captionTimeline.length === 0 ||
-      !r || r.width <= 0 || r.height <= 0 || !isFinite(v.duration) || v.duration <= 0) {
+  const hideWhy = !clEnabled ? 'OFF'
+    : captionTimeline.length === 0 ? 'timeline empty'
+    : !r ? 'no video'
+    : (r.width <= 0 || r.height <= 0) ? `video rect ${Math.round(r.width)}x${Math.round(r.height)}`
+    : (!isFinite(v.duration) || v.duration <= 0) ? `video duration ${v.duration}`
+    : '';
+  navDiag('controls', hideWhy ? `HIDDEN (${hideWhy})` : 'shown');
+  if (hideWhy) {
     clControls.style.display = 'none';
     return;
   }
