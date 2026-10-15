@@ -50,16 +50,17 @@ export default function GrassCard({ grass, days, dailyStart, compact = false, mi
     } else if (dailyStart && d >= dailyStart) {
       const x = dayDetail(days, sel);
       // 並び＝日付→学習時間→思い出せた→新しく覚えた→マスター（オーナー 2026-10-15・学習量の段階名は出さない）
-      const parts = [];
+      // 学習時間と語数の間は「・」でなく全角スペース（オーナー 2026-10-15）
+      const words = [];
       if (x) {
-        if (x.min) parts.push(`学習時間 ${x.min}分`);
-        parts.push(`思い出せた ${x.ok}語`);
-        if (x.gain) parts.push(`新しく覚えた ${x.gain}語`);
-        if (x.masteredGain) parts.push(`マスターになった ${x.masteredGain}語`);
+        words.push(`思い出せた ${x.ok}語`);
+        if (x.gain) words.push(`新しく覚えた ${x.gain}語`);
+        if (x.masteredGain) words.push(`マスターになった ${x.masteredGain}語`);
       }
+      const body = [x?.min ? `学習時間 ${x.min}分` : '', words.join('・')].filter(Boolean).join('　');
       detail = (
         <>
-          {head}　{parts.length ? parts.join('・') : T.grassBeforeDaily}
+          {head}　{body || T.grassBeforeDaily}
         </>
       );
     } else {
