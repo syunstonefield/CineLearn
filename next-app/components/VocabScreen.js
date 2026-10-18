@@ -1335,6 +1335,8 @@ export default function VocabScreen() {
   const showVocab = phase === 'vocab' || phase === 'saved';
   // この話を予習済みか（完了で永続化・「✓予習済み」表示用）。prepWalk の開閉で再レンダーされ再評価される。
   const prepped = getPrepped(episodeId(drama, season, episode, isMovie));
+  // まだ予習していない（生成直後／予習せず閉じた保存リスト）＝操作バーの右端を「予習する」にする。
+  const prepNeeded = prepFresh && !prepped;
 
   // 出所明示（著作権法48条）：このリストの例文＝字幕の逐語引用の出典。
   // drama語/ext語（字幕由来）に付け、plus語（Claude作例・字幕外）には付けない。
@@ -1799,34 +1801,9 @@ export default function VocabScreen() {
                   設定で「時刻順にまぜる」がオンの時は上のリストに統合済みなのでここは出さない。 */}
               {!mergeAdded && renderAddedWords('✏️ 追加した単語')}
 
-              {stats.due > 0 ? (
-                <button
-                  className="btn-review-start"
-                  onClick={() =>
-                    // 復習カードの出所明示用に、各語へ作品/話メタ（_src）を付帯（Dashboard経路と同形）。
-                    // sortedVocab＋追加した単語(reviewWords)を渡す＝追加語も今日の復習に含める。
-                    // isDue で絞る＝「{stats.due}単語」表示と中身を一致させ、マスター済み
-                    // （他作品で習得済み含む）や今日復習済みを出さない（#7b）。
-                    openReview(
-                      reviewWords
-                        .filter((w) => {
-                          const e = srs[w.word.toLowerCase()];
-                          return !e || isDue(e);
-                        })
-                        .map((w) => ({
-                          ...w,
-                          _src: { title: drama.title, season, episode, type: drama.type },
-                        }))
-                    )
-                  }
-                >
-                  今日の復習 {stats.due}単語を始める
-                  {doneToday > 0 && <span className="review-done-count">（今日{doneToday}回済み）</span>}
-                </button>
-              ) : (
-                doneToday > 0 && (
-                  <div className="review-completed-today">✅ 今日の復習完了（{doneToday}回）</div>
-                )
+              {/* 「今日の復習」の起動は下部固定の操作バー（vocab-action-bar）へ移動（2026-10-18）。ここは完了の印だけ。 */}
+              {stats.due === 0 && doneToday > 0 && (
+                <div className="review-completed-today">✅ 今日の復習完了（{doneToday}回）</div>
               )}
             </>
           ) : phase === 'soon' ? (
@@ -1909,32 +1886,67 @@ export default function VocabScreen() {
           </div>
         )}
 
-        {/* 予習エンジン：新規生成成功時だけ「次に進む」→ モード選択ページへ。
-            saved 再表示・error・soon・generating では従来の「テストを受ける」を出す。 */}
-        {showVocab && sortedVocab.length > 0 && prepFresh && !prepped ? (
+        {/* 下部固定の操作バー（オーナー 2026-10-18・案2を試行）：単語リストを開いた瞬間から
+            復習／クイズ／カードの3つが親指の届く位置に並ぶ（ボトムナビの上に sticky）。
+            下まで読み切る前でも押せる＝「下までスクロールしないと出てこない」の解消。
+            - 復習: 今日の復習（期日の語だけ・#7b）。0語なら無効表示
+            - クイズ: 「テスト」の語感は避ける（視聴前のテスト予告は偶発学習を阻害しがち＝Montero Perez 2022系）
+            - カード: 予習前は「予習する」（設定の語数で重要語から）／予習後・再表示は「カード」（全語） */}
+        {showVocab && sortedVocab.length > 0 && (
           <>
-            {/* 主動線：重要語から1枚ずつめくって“一通り見る”ウォークスルー（語数は設定・残りは任意）。 */}
-            <button className="btn-primary vocab-cta-sticky" onClick={openWalkthrough}>
-              予習する →
-            </button>
-            {/* 副動線：クイズ／じっくり等の予習エンジン（控えめに温存）。 */}
-            <button type="button" className="vocab-cta-alt" onClick={() => setPrepModes(true)}>
-              クイズ・カードで予習する
-            </button>
+            <div className="vocab-action-bar" role="toolbar" aria-label="学習のアクション">
+              <button
+                type="button"
+                className={'vab-btn' + (!prepNeeded && stats.due > 0 ? ' is-primary' : '')}
+                disabled={stats.due === 0}
+                onClick={() =>
+                  // 復習カードの出所明示用に、各語へ作品/話メタ（_src）を付帯（Dashboard経路と同形）。
+                  // sortedVocab＋追加した単語(reviewWords)を渡す＝追加語も今日の復習に含める。
+                  // isDue で絞る＝「{stats.due}語」表示と中身を一致させ、マスター済み
+                  // （他作品で習得済み含む）や今日復習済みを出さない（#7b）。
+                  openReview(
+                    reviewWords
+                      .filter((w) => {
+                        const e = srs[w.word.toLowerCase()];
+                        return !e || isDue(e);
+                      })
+                      .map((w) => ({
+                        ...w,
+                        _src: { title: drama.title, season, episode, type: drama.type },
+                      }))
+                  )
+                }
+              >
+                <span className="vab-main">🔁 復習</span>
+                <span className="vab-sub">{stats.due > 0 ? `${stats.due}語` : doneToday > 0 ? `今日${doneToday}回済み` : '0語'}</span>
+              </button>
+              <button
+                type="button"
+                className={'vab-btn' + (!prepNeeded && stats.due === 0 ? ' is-primary' : '')}
+                onClick={() => goToQuiz()}
+              >
+                <span className="vab-main">🎯 クイズ</span>
+                <span className="vab-sub">腕試し</span>
+              </button>
+              {prepNeeded ? (
+                <button type="button" className="vab-btn is-primary" onClick={openWalkthrough}>
+                  <span className="vab-main">📖 予習する</span>
+                  <span className="vab-sub">重要語から</span>
+                </button>
+              ) : (
+                <button type="button" className="vab-btn" onClick={openStudyAll}>
+                  <span className="vab-main">📖 カード</span>
+                  <span className="vab-sub">全{sortedVocab.length}語</span>
+                </button>
+              )}
+            </div>
+            {prepNeeded && (
+              /* 副動線：クイズ／じっくり等の予習エンジン（控えめに温存）。 */
+              <button type="button" className="vocab-cta-alt" onClick={() => setPrepModes(true)}>
+                クイズ・カードで予習する
+              </button>
+            )}
           </>
-        ) : (
-          showVocab && sortedVocab.length > 0 && (
-            <>
-              {/* 「テスト」の語感は避ける（視聴前のテスト予告は偶発学習を阻害しがち＝Montero Perez 2022系・docs/research-2026-07参照） */}
-              <button className="btn-primary vocab-cta-sticky" onClick={() => goToQuiz()}>
-                クイズで腕試し →
-              </button>
-              {/* あとから見直す：同じカードUIで全語（予習済み・保存リストの再表示でも常に出す）。腕試しと同じ色＝埋もれない（オーナー 2026-10-18）。 */}
-              <button type="button" className="btn-primary vocab-cta-study" onClick={openStudyAll}>
-                📖 勉強する（全{sortedVocab.length}語をカードで）
-              </button>
-            </>
-          )
         )}
       </div>
 
