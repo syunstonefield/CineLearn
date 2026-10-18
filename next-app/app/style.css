@@ -7103,6 +7103,7 @@ button.vj-cell { cursor: pointer; }
 .srs-heading { min-width: 0; flex: 1 1 auto; }
 .srs-work-title {
   font-family: inherit; /* セリフ体は却下（オーナー 2026-10-18）→本文と同じ書体 */
+  text-align: center; /* 作品名だけ中央揃え（オーナー 2026-10-18） */
   font-size: 18px;
   font-weight: 600;
   line-height: 1.22;
@@ -7168,6 +7169,7 @@ button.vj-cell { cursor: pointer; }
 /* リスト未作成のあいだだけ出す作品名（学習状況カードの見出しと同じ書体） */
 .vocab-work-heading {
   font-family: inherit;
+  text-align: center;
   font-size: 18px;
   font-weight: 600;
   line-height: 1.22;
