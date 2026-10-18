@@ -118,6 +118,9 @@ export default function VocabScreen() {
   // 単語リスト表示中のエピソード変更・削除シート（2026-10-18 オーナー案1）。リストがある時は
   // 上部の選択枠を出さず、学習状況カードのバッジからこのシートを開く。
   const [epSheet, setEpSheet] = useState(false);
+  // 下部の操作バーを「いま開いているリストの間だけ」閉じる（2026-10-18 オーナー要望）。
+  // 設定には保存しない＝別の話を開く／リロードで必ず戻る。全ユーザーに毎回出す前提。
+  const [barHidden, setBarHidden] = useState(false);
   const [historyId, setHistoryId] = useState(null);
   // 予習エンジン：下部3択ゾーンの表示フラグ。新規生成(onGenerate)成功時だけ true。
   // saved 再表示・error・soon・generating では出さない（finish line でなく launch ramp）。
@@ -1261,6 +1264,9 @@ export default function VocabScreen() {
   }, [bulkDel]);
   const bulkListCount = Object.values(studiedByEp).reduce((n, set) => n + set.size, 0);
   useEffect(() => {
+    setBarHidden(false);
+  }, [drama?.title, season, episode]);
+  useEffect(() => {
     if (!epSheet) return;
     const onKey = (e) => e.key === 'Escape' && setEpSheet(false);
     window.addEventListener('keydown', onKey);
@@ -1674,22 +1680,28 @@ export default function VocabScreen() {
               {/* 進捗バー */}
               <div className="srs-progress-wrap">
                 <div className="srs-progress-header">
-                  <span className="srs-ep-label">
-                    {!isMovie && (
-                      <button
-                        type="button"
-                        className="ep-inline-badge"
-                        onClick={() => setEpSheet(true)}
-                        title="エピソードを変更"
-                        aria-haspopup="dialog"
-                      >
-                        S{season}E{episode}
-                        <span className="ep-inline-badge-chev" aria-hidden="true">▾</span>
-                      </button>
-                    )}
-                    <span className="srs-ep-title">{drama.title} の単語リスト</span>
-                    {prepped && <span className="prepped-chip">✓ 予習済み</span>}
-                  </span>
+                  {/* 作品名を見出しに（セリフ体・大きめ）。その下にエピソードバッジ＋「単語リスト」＋予習済み */}
+                  <div className="srs-heading">
+                    <div className="srs-work-title">{drama.title}</div>
+                    <div className="srs-heading-sub">
+                      {isMovie ? (
+                        <span className="srs-media-chip">🎬 映画</span>
+                      ) : (
+                        <button
+                          type="button"
+                          className="ep-inline-badge"
+                          onClick={() => setEpSheet(true)}
+                          title="エピソードを変更"
+                          aria-haspopup="dialog"
+                        >
+                          S{season}E{episode}
+                          <span className="ep-inline-badge-chev" aria-hidden="true">▾</span>
+                        </button>
+                      )}
+                      <span className="srs-ep-title">単語リスト</span>
+                      {prepped && <span className="prepped-chip">✓ 予習済み</span>}
+                    </div>
+                  </div>
                   <span className="srs-pct" style={{ color: pctColor }}>
                     {pct}% 覚えた
                   </span>
@@ -1927,9 +1939,18 @@ export default function VocabScreen() {
             - 復習: 今日の復習（期日の語だけ・#7b）。0語なら無効表示
             - クイズ: 「テスト」の語感は避ける（視聴前のテスト予告は偶発学習を阻害しがち＝Montero Perez 2022系）
             - カード: 予習前は「予習する」（設定の語数で重要語から）／予習後・再表示は「カード」（全語） */}
-        {showVocab && sortedVocab.length > 0 && (
+        {showVocab && sortedVocab.length > 0 && !barHidden && (
           <>
             <div className="vocab-action-bar" role="toolbar" aria-label="学習のアクション">
+              <button
+                type="button"
+                className="vab-close"
+                onClick={() => setBarHidden(true)}
+                aria-label="操作バーを閉じる（このリストを開いている間だけ）"
+                title="閉じる"
+              >
+                ✕
+              </button>
               <button
                 type="button"
                 className={'vab-btn' + (!prepNeeded && stats.due > 0 ? ' is-primary' : '')}

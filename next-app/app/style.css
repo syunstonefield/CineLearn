@@ -7097,3 +7097,61 @@ button.vj-cell { cursor: pointer; }
 }
 /* 「15% 覚えた」はスマホ幅でも折り返さない（バッジ追加でタイトル行が詰まったため） */
 .srs-pct { white-space: nowrap; flex-shrink: 0; margin-left: 8px; }
+
+/* ── 学習状況カードの見出し：作品名をセリフ体の見出しに（2026-10-18 オーナー要望・単調すぎる対策）── */
+.srs-progress-header { align-items: flex-start; gap: 10px; }
+.srs-heading { min-width: 0; flex: 1 1 auto; }
+.srs-work-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.22;
+  letter-spacing: 0.1px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.srs-heading-sub {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  margin-top: 7px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.srs-heading-sub .srs-ep-title { font-weight: 500; }
+.srs-heading-sub .prepped-chip { margin-left: 0; }
+.srs-media-chip {
+  flex-shrink: 0;
+  padding: 3px 9px;
+  border-radius: 8px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+}
+.srs-pct { margin-top: 3px; }
+
+/* ── 操作バーの×（いま開いているリストの間だけ閉じる。設定には残さない）── */
+.vocab-action-bar { position: sticky; }
+.vab-close {
+  position: absolute;
+  top: -9px;
+  right: -6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.vab-close:hover { color: var(--text); border-color: var(--accent); }
