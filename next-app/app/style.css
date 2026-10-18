@@ -7104,6 +7104,7 @@ button.vj-cell { cursor: pointer; }
 .srs-work-title {
   font-family: inherit; /* セリフ体は却下（オーナー 2026-10-18）→本文と同じ書体 */
   text-align: center; /* 作品名だけ中央揃え（オーナー 2026-10-18） */
+  text-wrap: balance; /* 長い題は2行の長さが揃うよう自動で折り返す（非対応環境は通常の折り返し） */
   font-size: 18px;
   font-weight: 600;
   line-height: 1.22;
@@ -7170,6 +7171,7 @@ button.vj-cell { cursor: pointer; }
 .vocab-work-heading {
   font-family: inherit;
   text-align: center;
+  text-wrap: balance;
   font-size: 18px;
   font-weight: 600;
   line-height: 1.22;
