@@ -7103,7 +7103,7 @@ button.vj-cell { cursor: pointer; }
 .srs-heading { min-width: 0; flex: 1 1 auto; }
 .srs-work-title {
   font-family: 'Playfair Display', serif;
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 600;
   line-height: 1.22;
   letter-spacing: 0.1px;
@@ -7115,7 +7115,7 @@ button.vj-cell { cursor: pointer; }
   align-items: center;
   flex-wrap: wrap;
   gap: 6px 8px;
-  margin-top: 7px;
+  margin-top: 6px;
   font-size: 12px;
   color: var(--text-muted);
 }
@@ -7168,7 +7168,7 @@ button.vj-cell { cursor: pointer; }
 /* リスト未作成のあいだだけ出す作品名（学習状況カードの見出しと同じ書体） */
 .vocab-work-heading {
   font-family: 'Playfair Display', serif;
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 600;
   line-height: 1.22;
   color: var(--text);
