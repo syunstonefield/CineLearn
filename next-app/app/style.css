@@ -7109,7 +7109,7 @@ button.vj-cell { cursor: pointer; }
   font-weight: 600;
   line-height: 1.22;
   letter-spacing: 0.1px;
-  color: var(--text);
+  color: color-mix(in srgb, var(--text) 78%, var(--surface)); /* 少し薄く（オーナー 2026-10-18） */
   overflow-wrap: anywhere;
 }
 .srs-heading-sub {
@@ -7175,7 +7175,7 @@ button.vj-cell { cursor: pointer; }
   font-size: 18px;
   font-weight: 600;
   line-height: 1.22;
-  color: var(--text);
+  color: color-mix(in srgb, var(--text) 78%, var(--surface));
   overflow-wrap: anywhere;
   margin: -2px 0 2px;
 }
