@@ -7196,8 +7196,7 @@ button.vj-cell { cursor: pointer; }
 .vocab-work-heading::before,
 .vocab-work-heading::after {
   content: '';
-  flex: 1 1 0;
-  min-width: 0;
+  flex: 1 0 18px; /* 収まらない時も両脇に最低18pxは残す＝題はその内側で折り返す */
   height: 1px;
   background: var(--border);
 }
@@ -7208,31 +7207,3 @@ button.vj-cell { cursor: pointer; }
   text-wrap: balance;
   overflow-wrap: anywhere;
 }
-.srs-work-title.is-wrapped::before,
-.srs-work-title.is-wrapped::after,
-.vocab-work-heading.is-wrapped::before,
-.vocab-work-heading.is-wrapped::after { display: none; }
-/* 収まらない時は縦並び：1行目／線／2行目（線は1行目と2行目の間・オーナー 2026-10-18） */
-.srs-work-title.is-wrapped,
-.vocab-work-heading.is-wrapped {
-  flex-direction: column;
-  gap: 5px;
-}
-.work-title-line { text-align: center; overflow-wrap: anywhere; }
-.work-title-rule {
-  display: block;
-  width: 100%;
-  height: 1px;
-  background: var(--border);
-}
-/* 1行に収まるか測るための非表示コピー（幅だけ使う） */
-.work-title-probe {
-  position: absolute;
-  visibility: hidden;
-  pointer-events: none;
-  white-space: nowrap;
-  height: 0;
-  overflow: hidden;
-}
-.srs-work-title,
-.vocab-work-heading { position: relative; }
