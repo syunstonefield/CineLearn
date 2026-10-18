@@ -7038,3 +7038,62 @@ button.vj-cell { cursor: pointer; }
   .logo-mark { width: 20px; height: 20px; margin-right: 5px; }
   .btn-header-icon { padding: 4px; }
 }
+
+/* ── 単語リスト表示中のエピソード変更・削除（2026-10-18 オーナー案1）──
+   リストがある時は上部の選択枠を出さず、学習状況カードを最上段に。タイトル行の S1E1 バッジで
+   下からのシート（エピソードグリッド＋削除リンク）を開く。映画はバッジ無し＝削除はリスト末尾。 */
+.srs-ep-label {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  min-width: 0;
+}
+.srs-ep-title { min-width: 0; }
+.ep-inline-badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px 4px 10px;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 65%, #000), color-mix(in srgb, var(--accent) 55%, #000));
+  color: #fff;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: .4px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: filter .15s ease, transform .12s ease;
+}
+.ep-inline-badge:hover { filter: brightness(1.12); }
+.ep-inline-badge:active { transform: scale(0.97); }
+.ep-inline-badge-chev { font-size: 11px; opacity: .85; }
+
+.ep-sheet { max-width: 560px; }
+.ep-sheet-body { padding: 16px 20px; }
+.ep-sheet-foot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  padding: 6px 16px 12px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.ep-sheet-foot .bulkdel-link { margin: 0; }
+@media (max-width: 768px) {
+  /* スマホは下から出るシートに。親指で届く位置にグリッドと削除を置く */
+  .ep-sheet-overlay { align-items: flex-end; padding: 0; }
+  .ep-sheet {
+    max-width: none;
+    max-height: 82vh;
+    border-radius: 16px 16px 0 0;
+  }
+  .ep-sheet-foot { padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
+}
+/* 「15% 覚えた」はスマホ幅でも折り返さない（バッジ追加でタイトル行が詰まったため） */
+.srs-pct { white-space: nowrap; flex-shrink: 0; margin-left: 8px; }

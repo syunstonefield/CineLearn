@@ -115,6 +115,9 @@ export default function VocabScreen() {
   const [selectorReady, setSelectorReady] = useState(false);
   // エピソード選択の折りたたみ（既定は畳む＝選択後すぐ単語へ。「変更」で展開）
   const [pickerOpen, setPickerOpen] = useState(false);
+  // 単語リスト表示中のエピソード変更・削除シート（2026-10-18 オーナー案1）。リストがある時は
+  // 上部の選択枠を出さず、学習状況カードのバッジからこのシートを開く。
+  const [epSheet, setEpSheet] = useState(false);
   const [historyId, setHistoryId] = useState(null);
   // 予習エンジン：下部3択ゾーンの表示フラグ。新規生成(onGenerate)成功時だけ true。
   // saved 再表示・error・soon・generating では出さない（finish line でなく launch ramp）。
@@ -1222,6 +1225,7 @@ export default function VocabScreen() {
     setEpisode(ep);
     loadEpisode(season, ep);
     setPickerOpen(false); // 選択したら畳んで単語リストへ（スマホで長いグリッドを越えてスクロールしない）
+    setEpSheet(false);
   };
   // ── 全エピソードのリストを一括削除（2026-10-08 オーナー要望）──
   // 誤操作防止のため、タップ→警告画面（消えるもの・残るもの・外れる語数）→確定の2段。
@@ -1256,6 +1260,12 @@ export default function VocabScreen() {
     return () => window.removeEventListener('keydown', onKey);
   }, [bulkDel]);
   const bulkListCount = Object.values(studiedByEp).reduce((n, set) => n + set.size, 0);
+  useEffect(() => {
+    if (!epSheet) return;
+    const onKey = (e) => e.key === 'Escape' && setEpSheet(false);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [epSheet]);
 
   const onDelete = () => {
     if (!confirm('この単語リストを削除しますか？')) return;
@@ -1337,6 +1347,9 @@ export default function VocabScreen() {
   const prepped = getPrepped(episodeId(drama, season, episode, isMovie));
   // まだ予習していない（生成直後／予習せず閉じた保存リスト）＝操作バーの右端を「予習する」にする。
   const prepNeeded = prepFresh && !prepped;
+  // 単語リストが画面に出ている（学習状況カード＋語の一覧）。この時は上部のエピソード選択枠を隠し、
+  // エピソード変更・削除はカードのバッジ→シートに逃がす（2026-10-18 オーナー案1）。
+  const hasList = showVocab && sortedVocab.length > 0;
 
   // 出所明示（著作権法48条）：このリストの例文＝字幕の逐語引用の出典。
   // drama語/ext語（字幕由来）に付け、plus語（Claude作例・字幕外）には付けない。
@@ -1503,6 +1516,51 @@ export default function VocabScreen() {
     </div>
   );
 
+  // シーズンチップ＋エピソードグリッド。リスト未作成時は上部の選択枠（折りたたみ）に、
+  // リスト表示中はバッジから開くシートに、同じものを出す。
+  const epPicker = (
+    <div className="ep-picker">
+      {seasons.length > 1 && (
+        <div className="ep-seasons" role="tablist" aria-label="シーズン">
+          {seasons.map((s) => (
+            <button
+              key={s.season}
+              type="button"
+              className={'ep-season-chip' + (s.season === season ? ' is-active' : '')}
+              onClick={() => pickSeason(s.season)}
+              aria-pressed={s.season === season}
+            >
+              S{s.season}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="ep-grid">
+        {Array.from({ length: epCount }, (_, i) => i + 1).map((ep) => {
+          const done = (studiedByEp[season] || new Set()).has(ep);
+          const active = ep === episode;
+          return (
+            <button
+              key={ep}
+              type="button"
+              className={'ep-card' + (active ? ' is-active' : '') + (done ? ' is-done' : '')}
+              onClick={() => pickEpisode(ep)}
+              aria-pressed={active}
+            >
+              <span className="ep-card-num">{ep}</span>
+              <span className="ep-card-body">
+                <span className="ep-card-title">Episode {ep}</span>
+                <span className="ep-card-state">
+                  {done ? '✓ 学習済み' : active ? 'NEXT' : '未学習'}
+                </span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
   return (
     <div className="screen active" id="screen-4">
       {genConfirmModal}
@@ -1529,7 +1587,7 @@ export default function VocabScreen() {
 
         {/* タイプ確定・シーズン構築まで選択枠ごと非表示（操作の競合を防止・546da24準拠）。
             生成中は選択UIを畳んで縦スペースを空け、ローディングのあらすじを画面内に収める。 */}
-        {selectorReady && phase !== 'generating' && (
+        {selectorReady && phase !== 'generating' && !hasList && (
         <div className="episode-selector">
           {isMovie ? (
             <div className="episode-label">🎬 映画（字幕から単語を予習）</div>
@@ -1549,48 +1607,7 @@ export default function VocabScreen() {
               <span className="ep-collapse-chev">{pickerOpen ? '閉じる ▲' : '変更 ▾'}</span>
             </button>
           )}
-          {!isMovie && pickerOpen && (
-            <div className="ep-picker">
-              {seasons.length > 1 && (
-                <div className="ep-seasons" role="tablist" aria-label="シーズン">
-                  {seasons.map((s) => (
-                    <button
-                      key={s.season}
-                      type="button"
-                      className={'ep-season-chip' + (s.season === season ? ' is-active' : '')}
-                      onClick={() => pickSeason(s.season)}
-                      aria-pressed={s.season === season}
-                    >
-                      S{s.season}
-                    </button>
-                  ))}
-                </div>
-              )}
-              <div className="ep-grid">
-                {Array.from({ length: epCount }, (_, i) => i + 1).map((ep) => {
-                  const done = (studiedByEp[season] || new Set()).has(ep);
-                  const active = ep === episode;
-                  return (
-                    <button
-                      key={ep}
-                      type="button"
-                      className={'ep-card' + (active ? ' is-active' : '') + (done ? ' is-done' : '')}
-                      onClick={() => pickEpisode(ep)}
-                      aria-pressed={active}
-                    >
-                      <span className="ep-card-num">{ep}</span>
-                      <span className="ep-card-body">
-                        <span className="ep-card-title">Episode {ep}</span>
-                        <span className="ep-card-state">
-                          {done ? '✓ 学習済み' : active ? 'NEXT' : '未学習'}
-                        </span>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+          {!isMovie && pickerOpen && epPicker}
           <div className="episode-row">
             {!genBtn.hidden && (
               <button className="btn-episode" disabled={genBtn.disabled} onClick={onGenerate}>
@@ -1658,8 +1675,19 @@ export default function VocabScreen() {
               <div className="srs-progress-wrap">
                 <div className="srs-progress-header">
                   <span className="srs-ep-label">
-                    {drama.title}
-                    {isMovie ? '' : ` S${season}E${episode}`} の単語リスト
+                    {!isMovie && (
+                      <button
+                        type="button"
+                        className="ep-inline-badge"
+                        onClick={() => setEpSheet(true)}
+                        title="エピソードを変更"
+                        aria-haspopup="dialog"
+                      >
+                        S{season}E{episode}
+                        <span className="ep-inline-badge-chev" aria-hidden="true">▾</span>
+                      </button>
+                    )}
+                    <span className="srs-ep-title">{drama.title} の単語リスト</span>
                     {prepped && <span className="prepped-chip">✓ 予習済み</span>}
                   </span>
                   <span className="srs-pct" style={{ color: pctColor }}>
@@ -1886,6 +1914,13 @@ export default function VocabScreen() {
           </div>
         )}
 
+        {/* 映画はエピソードが無いので、削除だけをリスト末尾の控えめなリンクに置く（2026-10-18 案1） */}
+        {hasList && isMovie && (
+          <button type="button" className="bulkdel-link" onClick={onDelete}>
+            この映画の単語リストを削除
+          </button>
+        )}
+
         {/* 下部固定の操作バー（オーナー 2026-10-18・案2を試行）：単語リストを開いた瞬間から
             復習／クイズ／カードの3つが親指の届く位置に並ぶ（ボトムナビの上に sticky）。
             下まで読み切る前でも押せる＝「下までスクロールしないと出てこない」の解消。
@@ -1949,6 +1984,51 @@ export default function VocabScreen() {
           </>
         )}
       </div>
+
+      {/* エピソード変更・削除シート（リスト表示中のバッジから。2026-10-18 オーナー案1） */}
+      {epSheet && !isMovie && (
+        <div className="modal-overlay ep-sheet-overlay" style={{ display: 'flex' }} onClick={() => setEpSheet(false)}>
+          <div
+            className="modal-panel ep-sheet"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="ep-sheet-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header">
+              <div className="modal-title" id="ep-sheet-title">エピソードを選ぶ</div>
+              <button type="button" className="modal-close" onClick={() => setEpSheet(false)} aria-label="閉じる">
+                ✕
+              </button>
+            </div>
+            <div className="modal-body ep-sheet-body">{epPicker}</div>
+            <div className="ep-sheet-foot">
+              <button
+                type="button"
+                className="bulkdel-link"
+                onClick={() => {
+                  setEpSheet(false);
+                  onDelete();
+                }}
+              >
+                S{season}E{episode} の単語リストを削除
+              </button>
+              {bulkListCount >= 2 && (
+                <button
+                  type="button"
+                  className="bulkdel-link"
+                  onClick={() => {
+                    setEpSheet(false);
+                    openBulkDelete();
+                  }}
+                >
+                  この作品の単語リストをすべて削除（{bulkListCount}話）
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 全エピソードのリスト一括削除の警告画面（誤操作防止の2段目） */}
       {bulkDel && (
