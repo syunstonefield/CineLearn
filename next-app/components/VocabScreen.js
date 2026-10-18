@@ -50,30 +50,56 @@ import { speak } from '@/lib/speak';
 import { backfillMissingExamples } from '@/lib/exampleBackfill';
 import { useListUsage } from '@/lib/useListUsage';
 
-// 作品名の見出し（オーナー 2026-10-18）。1行に収まる時は「― 作品名 ―」と両脇に線、
-// 折り返して2行になったら両脇の線を消して下に1本（is-wrapped・CSS側）。折り返しの判定は
-// CSSではできないので、文字の高さを測って行数を見る（ResizeObserver で幅の変化にも追従）。
+// 作品名の見出し（オーナー 2026-10-18）。1行に収まる時は「― 作品名 ―」と両脇に線。
+// 収まらない時は題をこちらで2行に分け、1行目と2行目の間に線を入れる（ブラウザの折り返し位置には
+// 線を差し込めないため）。分け方＝2行の長さが釣り合う語境界。「in / of / the / : 」の前なら少し優遇。
+// 収まるかどうかは、非表示の1行計測用 span の幅と枠の幅を比べて判定（ResizeObserver で幅変化に追従）。
+const SPLIT_PREFER = new Set(['in', 'of', 'the', 'and', 'on', 'at', 'to', 'for', 'with', 'a', 'an', '-', '–', ':']);
+function splitTitle(title) {
+  const words = String(title).trim().split(/\s+/);
+  if (words.length < 2) return [title, ''];
+  let best = null;
+  for (let k = 1; k < words.length; k++) {
+    const left = words.slice(0, k).join(' ');
+    const right = words.slice(k).join(' ');
+    let score = Math.abs(left.length - right.length);
+    const head = words[k].toLowerCase();
+    const tail = words[k - 1];
+    if (SPLIT_PREFER.has(head) || /[:–-]$/.test(tail)) score -= 4;
+    if (best === null || score < best.score) best = { score, left, right };
+  }
+  return [best.left, best.right];
+}
 function WorkTitle({ title, className }) {
-  const ref = useRef(null);
+  const boxRef = useRef(null);
+  const probeRef = useRef(null);
   const [wrapped, setWrapped] = useState(false);
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const check = () => {
-      const lh = parseFloat(getComputedStyle(el).lineHeight) || 22;
-      setWrapped(el.getBoundingClientRect().height > lh * 1.5);
-    };
+    const box = boxRef.current;
+    const probe = probeRef.current;
+    if (!box || !probe) return;
+    const check = () => setWrapped(probe.offsetWidth > box.clientWidth);
     check();
     if (typeof ResizeObserver === 'undefined') return;
     const ro = new ResizeObserver(check);
-    ro.observe(el);
+    ro.observe(box);
     return () => ro.disconnect();
   }, [title]);
+  const [l1, l2] = wrapped ? splitTitle(title) : [title, ''];
   return (
-    <div className={className + (wrapped ? ' is-wrapped' : '')}>
-      <span className="work-title-text" ref={ref}>
+    <div className={className + (wrapped ? ' is-wrapped' : '')} ref={boxRef}>
+      <span className="work-title-probe" aria-hidden="true" ref={probeRef}>
         {title}
       </span>
+      {wrapped && l2 ? (
+        <>
+          <span className="work-title-line">{l1}</span>
+          <span className="work-title-rule" aria-hidden="true" />
+          <span className="work-title-line">{l2}</span>
+        </>
+      ) : (
+        <span className="work-title-text">{title}</span>
+      )}
     </div>
   );
 }

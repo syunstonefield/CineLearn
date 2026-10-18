@@ -7212,8 +7212,27 @@ button.vj-cell { cursor: pointer; }
 .srs-work-title.is-wrapped::after,
 .vocab-work-heading.is-wrapped::before,
 .vocab-work-heading.is-wrapped::after { display: none; }
-/* 2行になった時は、作品名と S1E1 の段の間に1本 */
-.srs-work-title.is-wrapped {
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border);
+/* 収まらない時は縦並び：1行目／線／2行目（線は1行目と2行目の間・オーナー 2026-10-18） */
+.srs-work-title.is-wrapped,
+.vocab-work-heading.is-wrapped {
+  flex-direction: column;
+  gap: 5px;
 }
+.work-title-line { text-align: center; overflow-wrap: anywhere; }
+.work-title-rule {
+  display: block;
+  width: 100%;
+  height: 1px;
+  background: var(--border);
+}
+/* 1行に収まるか測るための非表示コピー（幅だけ使う） */
+.work-title-probe {
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
+  white-space: nowrap;
+  height: 0;
+  overflow: hidden;
+}
+.srs-work-title,
+.vocab-work-heading { position: relative; }
