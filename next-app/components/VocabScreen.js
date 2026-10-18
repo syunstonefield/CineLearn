@@ -1704,11 +1704,12 @@ export default function VocabScreen() {
                       )}
                       <span className="srs-ep-title">単語リスト</span>
                       {prepped && <span className="prepped-chip">✓ 予習済み</span>}
+                      {/* 「n% 覚えた」は見出し行ではなく、この段の右端（オーナー 2026-10-18） */}
+                      <span className="srs-pct" style={{ color: pctColor }}>
+                        {pct}% 覚えた
+                      </span>
                     </div>
                   </div>
-                  <span className="srs-pct" style={{ color: pctColor }}>
-                    {pct}% 覚えた
-                  </span>
                 </div>
                 <div className="srs-bar">
                   <div className="srs-bar-fill" style={{ width: `${pct}%`, background: barFill }} />

@@ -7131,7 +7131,7 @@ button.vj-cell { cursor: pointer; }
   font-size: 12px;
   font-weight: 600;
 }
-.srs-pct { margin-top: 3px; }
+.srs-heading-sub .srs-pct { margin-left: auto; margin-top: 0; font-size: 13px; }
 
 /* ── 操作バーの×（いま開いているリストの間だけ閉じる。設定には残さない）── */
 .vocab-action-bar { position: sticky; }
