@@ -7182,3 +7182,38 @@ button.vj-cell { cursor: pointer; }
 @media (max-width: 768px) {
   .vocab-header-compact { margin-bottom: 6px; }
 }
+
+/* ── 作品名見出しの飾り線（オーナー 2026-10-18）：1行なら「― 作品名 ―」、折り返したら下線1本 ── */
+.srs-work-title,
+.vocab-work-heading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+.srs-work-title::before,
+.srs-work-title::after,
+.vocab-work-heading::before,
+.vocab-work-heading::after {
+  content: '';
+  flex: 1 1 0;
+  min-width: 0;
+  height: 1px;
+  background: var(--border);
+}
+.work-title-text {
+  flex: 0 1 auto;
+  min-width: 0;
+  text-align: center;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+.srs-work-title.is-wrapped::before,
+.srs-work-title.is-wrapped::after,
+.vocab-work-heading.is-wrapped::before,
+.vocab-work-heading.is-wrapped::after { display: none; }
+/* 2行になった時は、作品名と S1E1 の段の間に1本 */
+.srs-work-title.is-wrapped {
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}

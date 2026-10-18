@@ -50,6 +50,34 @@ import { speak } from '@/lib/speak';
 import { backfillMissingExamples } from '@/lib/exampleBackfill';
 import { useListUsage } from '@/lib/useListUsage';
 
+// 作品名の見出し（オーナー 2026-10-18）。1行に収まる時は「― 作品名 ―」と両脇に線、
+// 折り返して2行になったら両脇の線を消して下に1本（is-wrapped・CSS側）。折り返しの判定は
+// CSSではできないので、文字の高さを測って行数を見る（ResizeObserver で幅の変化にも追従）。
+function WorkTitle({ title, className }) {
+  const ref = useRef(null);
+  const [wrapped, setWrapped] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const check = () => {
+      const lh = parseFloat(getComputedStyle(el).lineHeight) || 22;
+      setWrapped(el.getBoundingClientRect().height > lh * 1.5);
+    };
+    check();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [title]);
+  return (
+    <div className={className + (wrapped ? ' is-wrapped' : '')}>
+      <span className="work-title-text" ref={ref}>
+        {title}
+      </span>
+    </div>
+  );
+}
+
 export default function VocabScreen() {
   const app = useApp();
   const {
@@ -1592,7 +1620,7 @@ export default function VocabScreen() {
 
         {/* リストが無い間は作品名が画面のどこにも出ないので、選択枠の上に見出しとして出す */}
         {!hasList && phase !== 'generating' && (
-          <div className="vocab-work-heading">{drama.title}</div>
+          <WorkTitle className="vocab-work-heading" title={drama.title} />
         )}
 
         {/* タイプ確定・シーズン構築まで選択枠ごと非表示（操作の競合を防止・546da24準拠）。
@@ -1686,7 +1714,7 @@ export default function VocabScreen() {
                 <div className="srs-progress-header">
                   {/* 作品名を見出しに（セリフ体・大きめ）。その下にエピソードバッジ＋「単語リスト」＋予習済み */}
                   <div className="srs-heading">
-                    <div className="srs-work-title">{drama.title}</div>
+                    <WorkTitle className="srs-work-title" title={drama.title} />
                     <div className="srs-heading-sub">
                       {isMovie ? (
                         <span className="srs-media-chip">🎬 映画</span>
