@@ -5158,7 +5158,7 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
   cursor: pointer;
 }
 .vocab-cta-alt:hover { color: var(--text); }
-/* 「勉強する」（全語をカードで）：腕試しの下に控えめな二次ボタンで常設 */
+/* 「勉強する」（全語をカードで）：腕試しの下に同じ色（btn-primary）で常設＝埋もれない */
 .vocab-cta-study { display: block; width: 100%; margin-top: 10px; }
 
 /* ── プレミアパス：紙チケット画像を土台に、動的テキストを重ねる＋タップでフリップ ── */

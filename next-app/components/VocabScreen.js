@@ -1929,8 +1929,8 @@ export default function VocabScreen() {
               <button className="btn-primary vocab-cta-sticky" onClick={() => goToQuiz()}>
                 クイズで腕試し →
               </button>
-              {/* あとから見直す：同じカードUIで全語（予習済み・保存リストの再表示でも常に出す）。 */}
-              <button type="button" className="btn-secondary vocab-cta-study" onClick={openStudyAll}>
+              {/* あとから見直す：同じカードUIで全語（予習済み・保存リストの再表示でも常に出す）。腕試しと同じ色＝埋もれない（オーナー 2026-10-18）。 */}
+              <button type="button" className="btn-primary vocab-cta-study" onClick={openStudyAll}>
                 📖 勉強する（全{sortedVocab.length}語をカードで）
               </button>
             </>
