@@ -1,26 +1,14 @@
 'use client';
 
-import { useMemo, useState } from 'react';
 import { useApp } from './AppProvider';
-import { buildCloze, watchSearchUrl } from '@/lib/prep';
+import { watchSearchUrl } from '@/lib/prep';
 
-// 予習エンジンの完了 = 映画館の「今夜のチケット＋開演」。
-// quiz 完了は public/premiere-pass.webp（文字なしの紙チケット・形と質感は画像と一致）を
-//   背景にして、作品名・話数・予習クリア・指定席・日付を上に重ねる。タップで裏返すと
-//   今夜の聞きどころ。入場（視聴サービスへ）は下に常時。cards / watch は暖色シネマページ。
+// 予習エンジンの完了 = 映画館の「開演」ページ（暖色シネマ）。quiz / cards / watch の3バリエ。
+// 入場（視聴サービスへ）は下に常時。半券（プレミアパス画像・席番号）は 2026-10-18 に廃止。
 // window.open は入場タップのジェスチャ内で呼びポップアップブロックを回避。
 export default function PrepLaunch() {
   const { prepLaunch, closePrepLaunch } = useApp();
   const p = prepLaunch;
-  const [flipped, setFlipped] = useState(false);
-
-  // 「今夜聞く3行」: 出題3語の example の対象語をクローズ位置で強調。
-  const lines = useMemo(() => {
-    if (!p || p.variant !== 'quiz') return [];
-    return (p.quizWords || [])
-      .filter((w) => w.example)
-      .map((w) => ({ word: w.word, cloze: buildCloze(w.example, w.word), example: w.example }));
-  }, [p]);
 
   if (!p) return null;
 
@@ -29,15 +17,6 @@ export default function PrepLaunch() {
   const url = watchSearchUrl(title, service);
   const isNetflix = !service || service.toLowerCase().includes('netflix');
   const serviceLabel = isNetflix ? 'Netflix' : service;
-
-  // チケットは英語表記で統一（元画像に合わせる）。英題が無ければ表示名にフォールバック。
-  const enTitle = p.drama?.englishTitle || title;
-  const hasSE = !p.isMovie && p.season != null && p.episode != null;
-  const seLabel = hasSE ? `SEASON ${p.season} · EPISODE ${p.episode}` : '';
-  // 指定席は PrepQuiz が nextSeat() で採番した通し番号（A-01→…→B-01…）。payload から受ける。
-  const seat = p.seat || 'A-01';
-  const d = new Date();
-  const dateLabel = `${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
 
   // 入場＝視聴サービスを開く（タップのジェスチャ内で window.open＝ポップアップブロック回避）。
   const enter = () => {
@@ -53,88 +32,12 @@ export default function PrepLaunch() {
     </div>
   );
 
-  // ── quiz 完了 = プレミアパス（画像チケット＋オーバーレイ＋フリップ）──
-  if (p.variant === 'quiz') {
-    return (
-      <div className="prep-cinema-overlay" onClick={closePrepLaunch}>
-        <div className="prep-cinema-panel" onClick={(e) => e.stopPropagation()}>
-          <div className="prep-cinema-head">
-            <span className="prep-cinema-title">🎟 今夜のチケット</span>
-            <button className="prep-cinema-close" onClick={closePrepLaunch} aria-label="閉じる">
-              ✕
-            </button>
-          </div>
-
-          <div className="prep-cinema-body">
-            <div className="prep-cinema-earned">✓ 今夜の半券を手に入れた</div>
-
-            <div
-              className={`pf-ticket-card${flipped ? ' is-flipped' : ''}`}
-              onClick={() => setFlipped((f) => !f)}
-            >
-              <div className="pf-ticket-inner">
-                {/* 表＝プレミアパス。位置%(top/left)はテンプレ画像に合わせて要微調整(TUNE)。 */}
-                <div className="pf-face pf-front">
-                  <div className="pf-ov pf-ov-title" style={{ top: '44.1%', left: '41.8%' }}>
-                    {enTitle}
-                  </div>
-                  {seLabel && (
-                    <div className="pf-ov pf-ov-se" style={{ top: '59.4%', left: '41.8%' }}>
-                      {seLabel}
-                    </div>
-                  )}
-                  <div className="pf-ov pf-ov-result" style={{ top: '67%', left: '41.8%' }}>
-                    TEST CLEARED
-                  </div>
-                  <div className="pf-ov pf-ov-seat" style={{ top: '49.2%', left: '86.4%' }}>
-                    {seat}
-                  </div>
-                  <div className="pf-ov pf-ov-date" style={{ top: '67%', left: '86.4%' }}>
-                    {dateLabel}
-                  </div>
-                </div>
-
-                {/* 裏＝今夜の聞きどころ */}
-                <div className="pf-face pf-back">
-                  <div className="pf-back-head">今夜、この3つを聞きに行こう</div>
-                  <div className="pf-back-lines">
-                    {lines.map((l) => (
-                      <div className="pf-back-line" key={l.word}>
-                        “
-                        {l.cloze.blank ? (
-                          <>
-                            {l.cloze.before}
-                            <span className="pf-back-hl">{l.cloze.blank}</span>
-                            {l.cloze.after}
-                          </>
-                        ) : (
-                          l.example
-                        )}
-                        ”
-                      </div>
-                    ))}
-                  </div>
-                  {/* 出所明示（著作権法48条）：3行は字幕の逐語引用 */}
-                  {p.credit && lines.length > 0 && <div className="pf-back-src">{p.credit}</div>}
-                </div>
-              </div>
-            </div>
-
-            <div className="pf-hint">タップで裏 ・ 今夜の聞きどころ</div>
-          </div>
-
-          {foot}
-        </div>
-      </div>
-    );
-  }
-
-  // ── cards / watch = 暖色シネマページ ──
+  // ── quiz / cards / watch = 暖色シネマページ ──
   const tomorrow =
     p.variant === 'cards' ? (
       <div className="prep-cinema-tomorrow">うろ覚えの語は、明日また戻ってきます。</div>
     ) : null;
-  const headTitle = p.variant === 'watch' ? '🍿 今夜の上映' : '🎟 今夜の予習';
+  const headTitle = p.variant === 'watch' ? '🍿 今夜の上映' : '🎬 今夜の予習';
 
   return (
     <div className="prep-cinema-overlay" onClick={closePrepLaunch}>
@@ -147,6 +50,14 @@ export default function PrepLaunch() {
         </div>
 
         <div className="prep-cinema-body">
+          {p.variant === 'quiz' && (
+            <>
+              <div className="prep-cinema-lead">
+                {p.total ? `クイズ ${p.correct ?? 0} / ${p.total} 正解。` : 'クイズを終えました。'}
+              </div>
+              <div className="prep-cinema-sub">今夜、この{(p.quizWords || []).length || 3}語が聞こえたら合図です。</div>
+            </>
+          )}
           {p.variant === 'cards' && (
             <>
               <div className="prep-cinema-lead">

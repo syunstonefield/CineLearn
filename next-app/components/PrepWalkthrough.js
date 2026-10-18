@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
 import { surfaceFormInExample } from '@/lib/subtitles';
-import { buildCloze, selectQuizWords, nextSeat, getPrepped, markPrepped } from '@/lib/prep';
+import { buildCloze, getPrepped, markPrepped } from '@/lib/prep';
 import { addExp, EXP_PER_PREP_WORD } from '@/lib/exp';
 import { chunkParts } from '@/lib/chunk';
 // 読み上げは lib/speak に一本化（独自コピーは cancel 直後 speak で無音になる既知バグ持ちだった）
@@ -11,17 +11,20 @@ import { speak } from '@/lib/speak';
 import { trackUsage, flushUsage } from '@/lib/usage';
 import { exitEventName, toDecile } from '@/lib/usageEvents';
 
-// 予習（＝生成直後）専用の「1枚ずつめくって見る」ウォークスルー。
+// 「1枚ずつめくって見る」ウォークスルー。生成直後の予習（「予習する →」）と、あとから見直す
+// 「勉強する」（全語・上限なし）の両方がこの1画面。
 // 長い一覧スクロールの代わりに、全語を1枚ずつ通し見してもらう（＝一通り見る を“形式”で担保）。
-// ★ここは予習だけ。予習後に単語リストへ戻ったら従来のスクロール一覧のまま（VocabScreen は変更しない）。
-// 観るのは常に自由・チケットは特典（ゲートにしない）。✕/「あとで予習する」でいつでも離脱できる。
+// ★予習後に単語リストへ戻ったら従来のスクロール一覧のまま（VocabScreen の一覧は変更しない）。
+// 観るのは常に自由（ゲートにしない）。✕/「あとで予習する」でいつでも離脱できる。
 //
 // 体験磨き：
-//   - 賢いデッキ：重要語（新出・高レベル）を先頭に並べ、まず CORE 枚を見せて残りは任意（「残りも見る」）。
+//   - 賢いデッキ：重要語（新出・高レベル）を先頭に並べ、まず meta.core 枚（設定「予習で最初に見る語数」・
+//     既定 15・null＝全語）を見せて残りは任意（「残りも見る」）。
 //   - 途中再開：閉じた位置を端末に保存し、再入場で続きから。
 //   - スワイプ／矢印キー／終盤の「あと◯枚」momentum。
-// 整合性：完了で半券（プレミアパス）発行。席番号は初回のみ採番（再予習で増えない）＝markPrepped で固定。
-const CORE = 15; // まず見せる「重要語」枚数。これを超える分は任意で「残りも見る」。
+// 完了＝markPrepped（「✓予習済み」）＋EXP（この話の初回だけ）。半券（プレミアパス）の発行は
+//   2026-10-18 に廃止（報酬感が薄く、ホームの作品カードが予習の有無に関係なく全員に付くため）。
+const DEFAULT_CORE = 15; // meta.core 未指定時に「まず見せる」枚数。
 
 const posKeyOf = (epId) => (epId ? `cl_prep_pos_${epId}` : '');
 function loadPos(key) {
@@ -50,14 +53,16 @@ function clearPos(key) {
 }
 
 export default function PrepWalkthrough() {
-  const { prepWalk, closePrepWalk, openPrepLaunch } = useApp();
+  const { prepWalk, closePrepWalk } = useApp();
   const words = useMemo(() => prepWalk?.words || [], [prepWalk]);
   const meta = prepWalk?.meta || null;
   const epId = meta?.epId || '';
   const posKey = posKeyOf(epId);
   const total = words.length;
-  const coreCount = Math.min(CORE, total);
-  const canStop = total > coreCount; // CORE を超える時だけ「ここで完了／残りも見る」の分岐を出す
+  // meta.core: 数値＝まず見せる枚数 / null＝全語を最初から（「勉強する」・設定「全部」）。
+  const core = meta?.core === null ? total : meta?.core > 0 ? meta.core : DEFAULT_CORE;
+  const coreCount = Math.min(core, total);
+  const canStop = total > coreCount; // core を超える時だけ「ここで完了／残りも見る」の分岐を出す
 
   // 途中再開：保存位置から開始。保存位置がコアを超えていれば最初から全語表示にする。
   const [extended, setExtended] = useState(() => loadPos(posKey) >= coreCount && canStop);
@@ -125,32 +130,16 @@ export default function PrepWalkthrough() {
     savePos(posKey, clamped);
   };
 
-  // 予習完了＝報酬（プレミアパス／半券）。視聴は常に自由・チケットは“特典”。
-  // 席番号は初回のみ採番（markPrepped が保持）＝リロード/再予習で増えない＝整合性。
+  // 予習完了＝「✓予習済み」を永続化して一覧へ戻る（半券の発行は廃止・2026-10-18）。
+  // EXP は「この話の初回」だけ（再予習の連打で稼げない）＝getPrepped で判定。
   const finish = () => {
     const existing = getPrepped(epId);
-    const seat = existing?.seat || nextSeat();
-    // EXP: 予習完走＝語数×1。席番号と同じく「この話の初回」だけ（再予習の連打で稼げない）。
     if (!existing) addExp(words.length * EXP_PER_PREP_WORD);
-    markPrepped(epId, seat);
+    markPrepped(epId, existing?.seat || '');
     track.current.ended = true;
     trackUsage('walk_done');
     clearPos(posKey); // 次回は最初から
     closePrepWalk();
-    const quizWords = selectQuizWords(words, 3, loadSrs()); // 0語でも完了は成立（半券は出る）。マスター済みは出題しない(#7b)
-    openPrepLaunch({
-      variant: 'quiz',
-      seat,
-      quizWords,
-      drama: meta?.drama || null,
-      title: meta?.title || '',
-      season: meta?.season,
-      episode: meta?.episode,
-      isMovie: meta?.isMovie,
-      service: meta?.service || '',
-      integrity: meta?.integrity || null,
-      freshCount: meta?.freshCount ?? null,
-    });
   };
 
   const next = () => {
@@ -168,13 +157,6 @@ export default function PrepWalkthrough() {
   const prevRef = useRef(prev);
   nextRef.current = next;
   prevRef.current = prev;
-  // 半券（プレミアパス）の紙画像を、ウォークスルー開始時点で先読みしておく。
-  // 完了→発行の瞬間に初めて背景画像を取りに行くと枠が一拍遅れて出るため（オーナー報告 2026-09-22）。
-  useEffect(() => {
-    const img = new Image();
-    img.src = '/premiere-pass.webp';
-  }, []);
-
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'Enter') {
@@ -314,7 +296,7 @@ export default function PrepWalkthrough() {
               ← 戻る
             </button>
             <button className="pw-next" onClick={next}>
-              {atCoreEnd || last ? '予習完了 🎟' : '次へ →'}
+              {atCoreEnd || last ? '予習完了 ✓' : '次へ →'}
             </button>
           </div>
           {atCoreEnd ? (

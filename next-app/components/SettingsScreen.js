@@ -20,6 +20,10 @@ import { usePlan, featureAccess } from '@/lib/plan';
 import { REVIEW_COUNT_OPTIONS, reviewCountLabel, normalizeReviewCount, DAILY_REVIEW_CAP } from '@/lib/reviewCount';
 import { NEW_WORDS_DAILY_FREE } from '@/lib/storage';
 import PlusNote from './PlusNote';
+
+// 予習カードで最初に見せる語数の選択肢（0＝全部）。
+const PREP_CORE_OPTIONS = [15, 30, 0];
+const prepCoreLabel = (v) => (v === 0 ? '全部' : `${v}語`);
 import { usageOptedOut, setUsageOptOut } from '@/lib/usage';
 
 // 設定（英語レベル / 利用サービス / テーマ / 単語階層 / 復習リマインダー）。
@@ -60,6 +64,8 @@ export default function SettingsScreen() {
   // 単語リストで「追加した単語」を本編の語と混ぜて📍時刻順に並べるか（既定=混ぜる）。
   // オフなら従来どおり「✏️ 追加した単語」セクションとして末尾にまとめる。
   const mergeAdded = settings.mergeAddedWords !== false;
+  // 予習カードで最初に見せる語数（15/30/全部=0）。未設定は15。残りは「残りも見る」で任意。
+  const prepCore = PREP_CORE_OPTIONS.includes(settings.prepCoreCount) ? settings.prepCoreCount : 15;
   // 毎日の復習の語数（今日の復習にだけ効く・正式版ではプラス）。未設定は20。
   const reviewCount = normalizeReviewCount(settings.dailyReviewCount);
   const reviewCountAccess = featureAccess('reviewCount', plan);
@@ -331,6 +337,28 @@ export default function SettingsScreen() {
                   onChange={() => updateSettings({ mergeAddedWords: !mergeAdded })}
                 />
               </label>
+            </div>
+          </div>
+
+          {/* 予習カードで最初に見せる語数（無料・端末設定）。全部にすると生成直後から全語を1枚ずつ。 */}
+          <div className="settings-section">
+            <div className="settings-section-title">📖 予習で最初に見る語数</div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8, lineHeight: 1.7 }}>
+              単語リストを作った直後の「予習する →」で、まず1枚ずつ見せる語数です。重要な語から並びます。残りはカードの途中で「残りも見る」から続けられます。
+            </div>
+            <div className="rc-options" role="radiogroup" aria-label="予習で最初に見る語数">
+              {PREP_CORE_OPTIONS.map((v) => (
+                <button
+                  key={String(v)}
+                  type="button"
+                  role="radio"
+                  aria-checked={prepCore === v}
+                  className={'rc-option' + (prepCore === v ? ' is-on' : '')}
+                  onClick={() => updateSettings({ prepCoreCount: v })}
+                >
+                  {prepCoreLabel(v)}
+                </button>
+              ))}
             </div>
           </div>
 

@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from 'react';
 import { useApp } from './AppProvider';
-import { nextSeat } from '@/lib/prep';
 import { speak } from '@/lib/speak';
 
 // 予習エンジン「今夜のリハーサル」＝3問固定の recognition クイズ。
@@ -55,11 +54,10 @@ export default function PrepQuiz() {
 
   const next = () => {
     if (last) {
-      // クイズ完了 → quiz バリエの launch ramp へ。出題3語を渡す。
+      // クイズ完了 → quiz バリエの launch ramp へ（半券は出さない・2026-10-18）。出題3語を渡す。
       closePrepQuiz();
       openPrepLaunch({
         variant: 'quiz',
-        seat: nextSeat(), // 指定席を1ずつ採番（=観覧通し番号）。ここで一度だけ確定。
         quizWords: questions.map((x) => x.word),
         correct: correctCount, // 正誤は pick 時点で集計済み
         total: questions.length,

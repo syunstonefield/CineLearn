@@ -299,7 +299,7 @@ export default function VocabScreen() {
     if (!drama || phase !== 'vocab' || !sortedVocab.length) return;
     listToWalk();
     openPrepWalk(
-      buildWalkPayload({ sortedVocab, timestamps, srs, drama, season, episode, isMovie, service: settings.selectedViewingService || '' })
+      buildWalkPayload({ sortedVocab, timestamps, srs, drama, season, episode, isMovie, service: settings.selectedViewingService || '', core: prepCoreOf(settings) })
     );
     setJustGenerated(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1333,7 +1333,7 @@ export default function VocabScreen() {
   const doneToday = historyId ? todaySessionCount(historyId) : 0;
   const testTiers = settings.testTiers || ['core', 'advanced'];
   const showVocab = phase === 'vocab' || phase === 'saved';
-  // この話を予習済みか（完了で永続化・「✓予習済み」表示用）。tickets 変化で再評価される。
+  // この話を予習済みか（完了で永続化・「✓予習済み」表示用）。prepWalk の開閉で再レンダーされ再評価される。
   const prepped = getPrepped(episodeId(drama, season, episode, isMovie));
 
   // 出所明示（著作権法48条）：このリストの例文＝字幕の逐語引用の出典。
@@ -1391,7 +1391,14 @@ export default function VocabScreen() {
   const openWalkthrough = () => {
     listToWalk();
     openPrepWalk(
-      buildWalkPayload({ sortedVocab, timestamps, srs, drama, season, episode, isMovie, service: settings.selectedViewingService || '' })
+      buildWalkPayload({ sortedVocab, timestamps, srs, drama, season, episode, isMovie, service: settings.selectedViewingService || '', core: prepCoreOf(settings) })
+    );
+  };
+  // 「勉強する」＝同じカードUIで全語（上限なし・途中再開あり）。あとから見直す人向けに常設（オーナー 2026-10-18）。
+  const openStudyAll = () => {
+    listToWalk();
+    openPrepWalk(
+      buildWalkPayload({ sortedVocab, timestamps, srs, drama, season, episode, isMovie, service: settings.selectedViewingService || '', core: null })
     );
   };
 
@@ -1904,9 +1911,9 @@ export default function VocabScreen() {
 
         {/* 予習エンジン：新規生成成功時だけ「次に進む」→ モード選択ページへ。
             saved 再表示・error・soon・generating では従来の「テストを受ける」を出す。 */}
-        {showVocab && sortedVocab.length > 0 && prepFresh ? (
+        {showVocab && sortedVocab.length > 0 && prepFresh && !prepped ? (
           <>
-            {/* 主動線：全語を1枚ずつめくって“一通り見る”ウォークスルー（見終えたら半券＝特典）。 */}
+            {/* 主動線：重要語から1枚ずつめくって“一通り見る”ウォークスルー（語数は設定・残りは任意）。 */}
             <button className="btn-primary vocab-cta-sticky" onClick={openWalkthrough}>
               予習する →
             </button>
@@ -1917,10 +1924,16 @@ export default function VocabScreen() {
           </>
         ) : (
           showVocab && sortedVocab.length > 0 && (
-            // 「テスト」の語感は避ける（視聴前のテスト予告は偶発学習を阻害しがち＝Montero Perez 2022系・docs/research-2026-07参照）
-            <button className="btn-primary vocab-cta-sticky" onClick={() => goToQuiz()}>
-              クイズで腕試し →
-            </button>
+            <>
+              {/* 「テスト」の語感は避ける（視聴前のテスト予告は偶発学習を阻害しがち＝Montero Perez 2022系・docs/research-2026-07参照） */}
+              <button className="btn-primary vocab-cta-sticky" onClick={() => goToQuiz()}>
+                クイズで腕試し →
+              </button>
+              {/* あとから見直す：同じカードUIで全語（予習済み・保存リストの再表示でも常に出す）。 */}
+              <button type="button" className="btn-secondary vocab-cta-study" onClick={openStudyAll}>
+                📖 勉強する（全{sortedVocab.length}語をカードで）
+              </button>
+            </>
           )
         )}
       </div>
@@ -1984,7 +1997,7 @@ function episodeId(drama, season, episode, isMovie) {
 // 予習ウォークスルーの payload を組む（auto-open effect と「予習する →」ボタンで共用）。
 //   - 重要語（新出・高レベル）優先に並び替え（orderWordsForPrep）
 //   - 各語に📍時刻ラベルを焼く／出所明示（48条）の credit／エピソードID を載せる
-function buildWalkPayload({ sortedVocab, timestamps, srs, drama, season, episode, isMovie, service }) {
+function buildWalkPayload({ sortedVocab, timestamps, srs, drama, season, episode, isMovie, service, core }) {
   const ordered = orderWordsForPrep(sortedVocab, srs);
   const wordsForWalk = ordered.map((w) => ({
     ...w,
@@ -2007,8 +2020,16 @@ function buildWalkPayload({ sortedVocab, timestamps, srs, drama, season, episode
       freshCount: integrity.fresh,
       credit,
       epId: episodeId(drama, season, episode, isMovie),
+      core: core === null ? null : core > 0 ? core : 15, // null＝全語を最初から（「勉強する」・設定「全部」）
     },
   };
+}
+
+// 設定「予習で最初に見る語数」→ ウォークスルーの core（0＝全部 → null）。
+function prepCoreOf(settings) {
+  const v = settings?.prepCoreCount;
+  if (v === 0) return null;
+  return v > 0 ? v : 15;
 }
 
 // useCallback の安全ラッパ（依存配列を明示）

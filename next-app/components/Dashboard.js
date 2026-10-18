@@ -77,8 +77,6 @@ export default function Dashboard() {
     cloudVersion,
     startFromRecommend,
     openGuide,
-    tickets,
-    openSceneCards,
     openJourney,
     bumpWordbook,
     wordbookVersion,
@@ -485,21 +483,6 @@ export default function Dashboard() {
     watchMeta && watchMeta.season != null && watchMeta.episode != null
       ? ` S${watchMeta.season}E${watchMeta.episode}`
       : '';
-  // この話の半券（予習クイズ済みなら存在）。祝い状態から「あの場面を思い出す」導線に使う。
-  // epKey文字列でなくフィールド照合（tmdbId一致 or タイトル一致）＝片側だけtmdbId未解決でも外れない。
-  const epTicket = useMemo(() => {
-    if (!watchMeta) return null;
-    return (
-      (tickets || []).find(
-        (t) =>
-          (t.words || []).length &&
-          t.season === watchMeta.season &&
-          t.episode === watchMeta.episode &&
-          ((watchMeta.tmdbId != null && t.tmdbId === watchMeta.tmdbId) || t.title === watchMeta.dramaTitle)
-      ) || null
-    );
-  }, [tickets, watchMeta]);
-
   const handleWatchDone = () => {
     if (!watchMeta) return;
     confirmWatch(profile?.id, watchMeta);
@@ -667,11 +650,6 @@ export default function Dashboard() {
               すべての{pendingQuick.length}語を復習する →
             </button>
           )}
-          {epTicket && (
-            <button className="recap-more-link" onClick={() => openSceneCards(epTicket)}>
-              🃏 あの場面の聞きどころを思い出す →
-            </button>
-          )}
         </div>
       )}
       {showWatchCelebrateLight && (
@@ -707,11 +685,6 @@ export default function Dashboard() {
           {pendingQuick.length > 5 && (
             <button className="recap-more-link" onClick={startFullReview}>
               すべての{pendingQuick.length}語を復習する →
-            </button>
-          )}
-          {epTicket && (
-            <button className="recap-more-link" onClick={() => openSceneCards(epTicket)}>
-              🃏 あの場面の聞きどころを思い出す →
             </button>
           )}
         </div>
