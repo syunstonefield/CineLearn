@@ -7109,7 +7109,7 @@ button.vj-cell { cursor: pointer; }
   font-weight: 600;
   line-height: 1.22;
   letter-spacing: 0.1px;
-  color: color-mix(in srgb, var(--text) 78%, var(--surface)); /* 少し薄く（オーナー 2026-10-18） */
+  color: color-mix(in srgb, var(--text) 73%, var(--surface)); /* 少し薄く（78→73%・オーナー 2026-10-18） */
   overflow-wrap: anywhere;
 }
 .srs-heading-sub {
@@ -7175,7 +7175,7 @@ button.vj-cell { cursor: pointer; }
   font-size: 18px;
   font-weight: 600;
   line-height: 1.22;
-  color: color-mix(in srgb, var(--text) 78%, var(--surface));
+  color: color-mix(in srgb, var(--text) 73%, var(--surface));
   overflow-wrap: anywhere;
   margin: -2px 0 2px;
 }
@@ -7198,7 +7198,7 @@ button.vj-cell { cursor: pointer; }
   content: '';
   flex: 1 0 18px; /* 収まらない時も両脇に最低18pxは残す＝題はその内側で折り返す */
   height: 1px;
-  background: var(--border);
+  background: color-mix(in srgb, var(--border) 80%, var(--text)); /* 枠線より少し濃く（オーナー 2026-10-18） */
 }
 .work-title-text {
   flex: 0 1 auto;
