@@ -1571,25 +1571,29 @@ export default function VocabScreen() {
     <div className="screen active" id="screen-4">
       {genConfirmModal}
       <div className="screen-inner">
-        <div className="screen-header">
+        {/* ヘッダーは「戻る」と「サービス変更」だけの1行（オーナー 2026-10-18）。
+            「視聴前の準備」の題と説明文は、作品名が学習状況カードの見出しになったので廃止。 */}
+        <div className="screen-header vocab-header-compact">
           <button className="btn-back" onClick={() => setScreen(vocabReturn)}>
             {vocabReturn === 'search' ? '← 検索結果' : '← マイドラマ'}
           </button>
-          <div>
-            <div className="screen-title">視聴前の準備</div>
-            <div className="screen-desc">
-              「{drama.title}」のエピソードを選んで単語を予習する ・ サービス：
-              <button
-                type="button"
-                className="svc-change-btn"
-                onClick={() => setScreen('service-select')}
-                title="視聴サービスを変更"
-              >
-                {settings.selectedViewingService || '未選択'}（変更）
-              </button>
-            </div>
-          </div>
+          <span className="vocab-svc">
+            サービス：
+            <button
+              type="button"
+              className="svc-change-btn"
+              onClick={() => setScreen('service-select')}
+              title="視聴サービスを変更"
+            >
+              {settings.selectedViewingService || '未選択'}（変更）
+            </button>
+          </span>
         </div>
+
+        {/* リストが無い間は作品名が画面のどこにも出ないので、選択枠の上に見出しとして出す */}
+        {!hasList && phase !== 'generating' && (
+          <div className="vocab-work-heading">{drama.title}</div>
+        )}
 
         {/* タイプ確定・シーズン構築まで選択枠ごと非表示（操作の競合を防止・546da24準拠）。
             生成中は選択UIを畳んで縦スペースを空け、ローディングのあらすじを画面内に収める。 */}

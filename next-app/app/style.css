@@ -7155,3 +7155,26 @@ button.vj-cell { cursor: pointer; }
   padding: 0;
 }
 .vab-close:hover { color: var(--text); border-color: var(--accent); }
+
+/* ── 単語リスト画面のヘッダー：「戻る」＋「サービス変更」だけの1行（2026-10-18 オーナー）── */
+.vocab-header-compact {
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.vocab-header-compact .btn-back { margin-bottom: 0; }
+.vocab-svc { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+/* リスト未作成のあいだだけ出す作品名（学習状況カードの見出しと同じ書体） */
+.vocab-work-heading {
+  font-family: 'Playfair Display', serif;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.22;
+  color: var(--text);
+  overflow-wrap: anywhere;
+  margin: -2px 0 2px;
+}
+@media (max-width: 768px) {
+  .vocab-header-compact { margin-bottom: 6px; }
+}
