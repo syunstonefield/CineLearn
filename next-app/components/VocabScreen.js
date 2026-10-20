@@ -1174,6 +1174,34 @@ export default function VocabScreen() {
           : `「${w}」を追加しました${NOTE[reason] || '（例文なしで保存しました）'}`
       );
       loadExtWords(season, episode, vocab); // ✏️セクションへ即反映
+      // 追加直後にその語だけのカードを1枚出す（2026-10-20 オーナー要望）。動画を観ながら追加する前提で、
+      // 意味・例文・発音（🔊）をその場で確かめられるように。予習の記録には触れない（PrepWalkthrough の single）。
+      const card = merged || entry;
+      openPrepWalk({
+        words: [
+          {
+            ...card,
+            word: card.word || w,
+            definition: card.definition || card.ja || ja || '',
+            example: card.sentence || card.example || hit?.sentence || '',
+            example_ja: card.example_ja || exampleJa || '',
+            source: 'ext', // 字幕由来の例文＝出典（48条）を付ける側
+            _tsLabel: Number.isFinite(card.tsSec) ? secToTimeLabel(card.tsSec) : null,
+          },
+        ],
+        meta: {
+          single: true,
+          drama,
+          title: drama.title,
+          season,
+          episode,
+          isMovie,
+          core: null,
+          credit: isMovie
+            ? `📺 ${drama.title}（字幕：OpenSubtitles）`
+            : `📺 ${drama.title} S${season}E${episode}（字幕：OpenSubtitles）`,
+        },
+      });
     } finally {
       setAddBusy(false);
     }

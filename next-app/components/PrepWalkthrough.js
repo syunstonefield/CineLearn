@@ -25,6 +25,11 @@ import { exitEventName, toDecile } from '@/lib/usageEvents';
 // 完了＝markPrepped（「✓予習済み」）＋EXP（この話の初回だけ）。半券（プレミアパス）の発行は
 //   2026-10-18 に廃止（報酬感が薄く、ホームの作品カードが予習の有無に関係なく全員に付くため）。
 const DEFAULT_CORE = 15; // meta.core 未指定時に「まず見せる」枚数。
+//
+// 1枚モード（meta.single・2026-10-20 オーナー要望）: 単語リストで語を手動追加した直後に、その語だけを
+// 同じカードで見せる（動画を観ながら追加する前提＝意味・発音をすぐ確かめたい）。予習ではないので
+// 「✓予習済み」・EXP・途中再開位置・予習の利用データには一切触れない。発音は自動再生しない
+// （再生中の動画の音とぶつかる）＝🔊で本人が鳴らす。
 
 const posKeyOf = (epId) => (epId ? `cl_prep_pos_${epId}` : '');
 function loadPos(key) {
@@ -56,7 +61,8 @@ export default function PrepWalkthrough() {
   const { prepWalk, closePrepWalk } = useApp();
   const words = useMemo(() => prepWalk?.words || [], [prepWalk]);
   const meta = prepWalk?.meta || null;
-  const epId = meta?.epId || '';
+  const single = !!meta?.single;
+  const epId = single ? '' : meta?.epId || ''; // 1枚モードは位置を保存しない（posKey が空になる）
   const posKey = posKeyOf(epId);
   const total = words.length;
   // meta.core: 数値＝まず見せる枚数 / null＝全語を最初から（「勉強する」・設定「全部」）。
@@ -78,6 +84,7 @@ export default function PrepWalkthrough() {
   const posRef = useRef({ idx, extended });
   posRef.current = { idx, extended };
   const recordExit = (how) => {
+    if (single) return; // 1枚モードは予習の利用データに数えない
     if (track.current.ended) return;
     track.current.ended = true;
     const { idx: i, extended: ext } = posRef.current;
@@ -99,7 +106,7 @@ export default function PrepWalkthrough() {
     // 開発時の二重実行（付けて→外して→付け直す）でも1回だけ数える
     if (!track.current.started) {
       track.current.started = true;
-      trackUsage('walk_start');
+      if (!single) trackUsage('walk_start');
     }
     const onHide = () => {
       exitRef.current('close');
@@ -114,6 +121,7 @@ export default function PrepWalkthrough() {
     };
   }, []);
   useEffect(() => {
+    if (single) return;
     if (!track.current.core && coreCount > 0 && idx >= coreCount - 1) {
       track.current.core = true;
       trackUsage('walk_core');
@@ -133,6 +141,10 @@ export default function PrepWalkthrough() {
   // 予習完了＝「✓予習済み」を永続化して一覧へ戻る（半券の発行は廃止・2026-10-18）。
   // EXP は「この話の初回」だけ（再予習の連打で稼げない）＝getPrepped で判定。
   const finish = () => {
+    if (single) {
+      closePrepWalk(); // 1枚モード：予習完了の扱い（予習済み・EXP）にしない
+      return;
+    }
     const existing = getPrepped(epId);
     if (!existing) addExp(words.length * EXP_PER_PREP_WORD);
     markPrepped(epId, existing?.seat || '');
@@ -199,23 +211,27 @@ export default function PrepWalkthrough() {
     <div className="pw-overlay">
       <div className="pw-panel">
         <div className="pw-head">
-          <span className="pw-title">🎬 今夜の予習</span>
+          <span className="pw-title">{single ? '✏️ 追加した単語' : '🎬 今夜の予習'}</span>
           <button className="pw-close" onClick={() => leave('x')} aria-label="閉じる">
             ✕
           </button>
         </div>
 
-        <div className="pw-progress" aria-hidden="true">
-          <span className="pw-progress-fill" style={{ width: `${pct}%` }} />
-        </div>
+        {!single && (
+          <div className="pw-progress" aria-hidden="true">
+            <span className="pw-progress-fill" style={{ width: `${pct}%` }} />
+          </div>
+        )}
 
         <div className="pw-body" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+          {!single && (
           <div className="pw-counter">
             {idx + 1} / {effectiveTotal}
             {remaining > 0 && remaining <= 5 && !atCoreEnd && (
               <span className="pw-momentum">あと{remaining}枚！</span>
             )}
           </div>
+          )}
           {!extended && canStop && (
             <div className="pw-note">重要語から表示中 ・ 全{total}語</div>
           )}
@@ -290,6 +306,20 @@ export default function PrepWalkthrough() {
           </div>
         </div>
 
+        {single ? (
+          <div className="pw-foot">
+            <div className="pw-foot-row">
+              <button className="pw-next" onClick={finish} autoFocus>
+                OK（リストに戻る）
+              </button>
+            </div>
+            {!w.example && (
+              <div className="pw-note" style={{ textAlign: 'center', marginTop: 8 }}>
+                例文はまだありません（字幕が用意できると付きます）
+              </div>
+            )}
+          </div>
+        ) : (
         <div className="pw-foot">
           <div className="pw-foot-row">
             <button className="pw-prev" onClick={prev} disabled={idx === 0}>
@@ -309,6 +339,7 @@ export default function PrepWalkthrough() {
             </button>
           )}
         </div>
+        )}
       </div>
     </div>
   );
