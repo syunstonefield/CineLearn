@@ -5,6 +5,8 @@
 //   再生成: node -e で extension/common-words.js の配列を読み、この定数へ書き出す（S1 実装時の手順）。
 // seed（素の Node）からも import され得るため node:* と相対 import 以外は使わない。
 
+import { wordStems } from '../subtitles.js';
+
 export const COMMON_WORDS = new Set([
   "the", "to", "and", "of", "a", "in", "i", "is", "for", "that", "you", "it",
   "on", "with", "this", "was", "be", "as", "are", "have", "at", "he", "not", "by",
@@ -356,6 +358,20 @@ export function isCommonWord(word) {
 //   'multi_token': 空白を含む（1トークン限定＝句で総当りされない）
 //   'too_short'  : 3文字未満（a / an / it 等）
 //   'common_word': 高頻度語（字幕のほぼ全行に当たる語で本文を引き出させない）
+// 手動追加の照合を「入力したそのままの形だけ」に絞るか（2026-10-20 /decide 穴①）。
+//   照合器は語尾を外して原形に戻してから活用形を広げる（knowed→know・bedding→bed・happier→happy）ので、
+//   綴りが頻出語でなくても、戻した原形が頻出語なら頻出語の文を引き出せる＝頻出語ゲートの迂回になる。
+//   判定は「語尾を外して戻した原形」（wordStems）だけで行う。入力語から広げた形（partner→partners・
+//   associate→associated）は同じ語の活用形なので見ない（見ると普通の語まで絞ってしまう・実測）。
+//   拒否はしない: 正規の語（bedding・briefing・seated・happier 等）も同じ形になるため、拒否すると
+//   25語中14語を巻き込んだ（実測）。そのままの形だけで探せば、正規の語は例文が付き、迂回は空振りする。
+export function manualMatchIsExact(word) {
+  const w = norm(word);
+  if (!w) return false;
+  for (const b of wordStems(w)) if (COMMON_WORDS.has(b)) return true;
+  return false;
+}
+
 export function manualWordProblem(word) {
   const w = norm(word);
   if (!w) return 'too_short';

@@ -442,6 +442,32 @@ export function getWordVariants(word) {
   return v;
 }
 
+// 入力語から「語尾を外して戻した原形」の候補だけを返す（入力語から広げた活用形は含めない）。
+//   手動追加の頻出語ゲート（lib/server/commonWords.js manualMatchIsExact）が使う。getWordVariants が
+//   原形として expandBase する語と同じ規則（逆引き・-ing/-ed/-ies/-ied/-es/-s・表の逆引き・綴りの相手）。
+//   例: knowed→know・bedding→bed・happier→happy・sayings→saying。partner→（なし。partners は広げた形）。
+export function wordStems(word) {
+  const w = normApostrophes(word).toLowerCase().trim();
+  const out = new Set();
+  if (!w) return out;
+  const add = (b) => b && b.length >= 2 && b !== w && out.add(b);
+  add(IRREGULAR_REVERSE[w]);
+  add(TABLE_REVERSE[w]);
+  add(SPELLING[w]);
+  for (const suf of ['ing', 'ed']) {
+    if (w.endsWith(suf) && w.length > suf.length + 2) {
+      const stem = w.slice(0, -suf.length);
+      add(stem + 'e');
+      add(stem);
+      if (stem.length > 2 && stem.slice(-1) === stem.slice(-2, -1)) add(stem.slice(0, -1));
+    }
+  }
+  if ((w.endsWith('ies') || w.endsWith('ied')) && w.length > 4) add(w.slice(0, -3) + 'y');
+  if (w.endsWith('es') && w.length > 4) add(w.slice(0, -2));
+  if (w.endsWith('s') && w.length > 3 && !w.endsWith('ss')) add(w.slice(0, -1));
+  return out;
+}
+
 // ── 語／フレーズ照合器（活用形・句動詞の分離・冠詞/目的語の差を吸収）──────────
 // 句動詞・コロケーションは原形（pull off / cut a deal / file a lawsuit）で生成されるが、
 // 字幕では "pulled it off" / "cut deals" / "filed a lawsuit" のように活用・分離・冠詞省略で
@@ -516,6 +542,18 @@ export function exampleContainsWord(example, word) {
   return !!re && re.test(normApostrophes(example));
 }
 
+// 入力したそのままの形だけに一致する RegExp（活用形を広げない）。手動追加で、変化形に頻出語が
+//   混ざる語（bedding→bed・knowed→know）を照合する時に使う（2026-10-20 /decide 穴①・lib/server/commonWords.js
+//   manualMatchIsExact）。広げると頻出語ゲートを迂回して頻出語の文を引き出せるため。
+export function exactWordRegex(word) {
+  const w = normApostrophes(word).toLowerCase().trim();
+  if (!w) return null;
+  return new RegExp(`\\b${escapeRe(w)}\\b`, 'i');
+}
+function matchRegexFor(word, exact) {
+  return exact ? exactWordRegex(word) : wordMatchRegex(word);
+}
+
 // 例文を「その語を含む1〜2文」に詰める。
 //   単語帳の例文が段落まるごと（複数人の会話が数百字）になっていた実データがあり
 //   （2026-08-07 オーナー報告: personnel の例文が391字＝話者4人分）、
@@ -525,7 +563,7 @@ export function exampleContainsWord(example, word) {
 //   の3点で有害。生成・バックフィルの出口でここを通し、語を含む1文へ落とす。
 //   1文が見つからない／もともと短いときは原文をそのまま返す（壊さない・落とさない）。
 export const EXAMPLE_MAX_CHARS = 200;
-export function trimExampleToSentence(example, word, maxLen = EXAMPLE_MAX_CHARS) {
+export function trimExampleToSentence(example, word, maxLen = EXAMPLE_MAX_CHARS, { exact = false } = {}) {
   const s = String(example || '').trim();
   if (!s || s.length <= maxLen || !word) return s;
   const parts = s
@@ -533,7 +571,8 @@ export function trimExampleToSentence(example, word, maxLen = EXAMPLE_MAX_CHARS)
     .map((p) => p.trim())
     .filter(Boolean);
   if (parts.length < 2) return s; // 分割できない＝1文が長いだけ（切ると意味が壊れる）
-  const idx = parts.findIndex((p) => exampleContainsWord(p, word));
+  const re = matchRegexFor(word, exact);
+  const idx = re ? parts.findIndex((p) => re.test(normApostrophes(p))) : -1;
   if (idx < 0) return s;
   let out = parts[idx];
   // 単体だと短すぎて場面が分からない時だけ、直前の1文を足す（それでも上限内に収める）。
@@ -613,11 +652,12 @@ function expandToFullSentence(cues, best) {
 //     使えない旧クライアント・アンカー不一致時のフォールバック経路。窓内ヒット0なら null。
 //   返す sentence は引用表示用に原文の大小文字を保持する（判定は exampleContainsWord 内で小文字化）。
 //   戻り値: { sentence, sec, label } / 一致なし・窓外は null。
-export function findExampleForWord(rawSrt, word, nearSec, windowSec) {
+export function findExampleForWord(rawSrt, word, nearSec, windowSec, { exact = false } = {}) {
   if (!rawSrt || !word) return null;
   const cues = parseServeCues(rawSrt);
   // 正規表現は1回だけ作る（キューごとに getWordVariants＋RegExp を作り直さない・2026-10-20 /decide）。
-  const re = wordMatchRegex(word);
+  //   exact: 入力したそのままの形だけ（手動追加の頻出語迂回対策・exactWordRegex）。
+  const re = matchRegexFor(word, exact);
   if (!re) return null;
   let hits = cues.filter((c) => re.test(normApostrophes(c.text)));
   if (!hits.length) return null;

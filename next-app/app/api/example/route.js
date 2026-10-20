@@ -31,7 +31,7 @@ import { resolveTmdbId } from '@/lib/server/tmdbResolve';
 import { fetchEpisodeSrt } from '@/lib/server/opensubtitles';
 import { rawCacheKey, readRawCache } from '@/lib/server/subtitleRawCache';
 import { vocabCacheKey, readVocabRow } from '@/lib/server/vocabCache';
-import { manualWordProblem } from '@/lib/server/commonWords';
+import { manualWordProblem, manualMatchIsExact } from '@/lib/server/commonWords';
 import { parseSeasonEpisode, exampleDlEligible, exampleWordProblem } from '@/lib/server/exampleGate';
 import {
   EXAMPLE_MANUAL_LIMITS,
@@ -43,6 +43,8 @@ import {
 import {
   getWordVariants,
   exampleContainsWord,
+  exactWordRegex,
+  normApostrophes,
   findExampleForWord,
   findExampleByAnchor,
   trimExampleToSentence,
@@ -64,8 +66,8 @@ function json(obj, status = 200) {
 
 // 配る例文の硬い上限（A4(e)・32条の必要最小限）。trimExampleToSentence は文に割れないときに元文を素通しし、
 // expandToFullSentence は 240 字まで連結し得るので、最後にここで 200 字に切る（語境界・末尾に…）。
-function capSentence(sentence, word) {
-  const t = trimExampleToSentence(sentence, word);
+function capSentence(sentence, word, exact = false) {
+  const t = trimExampleToSentence(sentence, word, EXAMPLE_MAX_CHARS, { exact });
   if (!t || t.length <= EXAMPLE_MAX_CHARS) return t;
   const cut = t.slice(0, EXAMPLE_MAX_CHARS);
   const sp = cut.lastIndexOf(' ');
@@ -151,6 +153,11 @@ export async function POST(req) {
 
   // 照合専用のアンカー（lineText＝保存時の字幕行／📍修復では保存済み例文）。長さを制限して保存はしない。
   const anchorLine = manual ? '' : String(body.lineText || '').slice(0, 300).trim();
+  // 手動追加で、活用形に頻出語が混ざる語は「入力したそのままの形」だけで探す（頻出語ゲートの迂回対策・
+  //   2026-10-20 /decide 穴①）。層1（共有リストの例文の流用）と層2（生字幕）の両方に効かせる。
+  const exactOnly = manual && manualMatchIsExact(word);
+  const exactRe = exactOnly ? exactWordRegex(word) : null;
+  const hasWord = (text) => (exactRe ? exactRe.test(normApostrophes(text)) : exampleContainsWord(text, word));
 
   // ── 層1: vocab_cache の語一致（無料）──
   //   ★ drama 語のみを対象にする。drama の example は字幕の逐語文（= OpenSubtitles 引用/32条）だが、
@@ -167,9 +174,12 @@ export async function POST(req) {
     const variants = getWordVariants(word);
     const drama = cached.filter((w) => w && w.source === 'drama' && w.example);
     const strong = drama.filter(
-      (w) => w.word && variants.has(String(w.word).toLowerCase()) && exampleContainsWord(w.example, word)
+      (w) =>
+        w.word &&
+        (exactOnly ? String(w.word).toLowerCase() === word.toLowerCase() : variants.has(String(w.word).toLowerCase())) &&
+        hasWord(w.example)
     );
-    const loose = drama.filter((w) => exampleContainsWord(w.example, word));
+    const loose = drama.filter((w) => hasWord(w.example));
     const pool = strong.length ? strong : loose;
     // ★2026-08-08: 同じ語が作品中に何度も出る場合、保存時の再生位置が分かるなら最も近い出現を選ぶ。
     let pick = pool[0];
@@ -199,7 +209,7 @@ export async function POST(req) {
       return json({
         found: true,
         // vocab_cache の example は生成時に複数キューがつながって段落化していることがある。配る前に語を含む1文へ詰める。
-        sentence: capSentence(pick.example, word),
+        sentence: capSentence(pick.example, word, exactOnly),
         source: 'opensubtitles',
         tmdbId: id,
         season: s,
@@ -277,12 +287,12 @@ export async function POST(req) {
         return json({ found: false, reason: 'subtitle_fetch_failed', tmdbId: id, type });
       }
     }
-    const hit = findExampleForWord(raw, word);
+    const hit = findExampleForWord(raw, word, undefined, undefined, { exact: exactOnly });
     console.info('[CL:EXAMPLE] manual', { subject: `user:${auth.uid.slice(0, 8)}`, cacheKey, word, via: hit ? 'raw' : 'no_match' });
     if (!hit) return json({ found: false, reason: 'no_match', tmdbId: id, type });
     return json({
       found: true,
-      sentence: capSentence(hit.sentence, word),
+      sentence: capSentence(hit.sentence, word, exactOnly),
       source: 'opensubtitles',
       tmdbId: id,
       season: s,
