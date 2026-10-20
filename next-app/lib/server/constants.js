@@ -131,6 +131,13 @@ export const PROBE_TTL_SEC = 6 * 3600; // probe:<key>
 export const MIN_WORDS = 20; // clean 語数の下限
 export const MIN_DRAMA_WORDS = 5; // drama（字幕内・逐語例文）語の下限
 export const MAX_WORDS = 300; // 異常データ防止
+// 1話の共有リストに載せる字幕例文（drama 語の逐語文）の上限（2026-10-20 /decide A の二次の防御）。
+//   変化形の補強で plus→drama 昇格が増えても、引用の量が今の範囲を超えないようにする。
+//   値は本番の実測（63話: 最大152件・キュー数の最大27%）を下回らない＝既存のリストは削られない。
+//   「1割まで絞るか」は別判断（docs/decision-manual-example-matching-2026-10-20.md 保留）。
+export const EXAMPLES_PER_EPISODE_MAX = 160;
+export const EXAMPLES_PER_EPISODE_RATIO = 0.3; // キュー数に対する割合
+export const EXAMPLES_PER_EPISODE_FLOOR = 40; // 短い話でも最低これだけは許す
 export const VOCAB_COUNT_MIN = 20; // vocabCount の受理範囲（route の検証用）
 export const VOCAB_COUNT_MAX = 60;
 export const VOCAB_COUNT_DEFAULT = 40;

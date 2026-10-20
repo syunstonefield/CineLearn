@@ -9,7 +9,7 @@
 //   * 失敗は UpstreamError（tmdb / os_* / llm / timeout / generation / misconfigured）。字幕なしは throw せず { nosub:true }。
 // seed（素の Node）からも import され得るため node:* と相対 import 以外は使わない。
 
-import { parseSrt, attachBaseTimestamps, exampleContainsWord } from '../subtitles.js';
+import { parseSrt, splitSrtCues, attachBaseTimestamps, exampleContainsWord } from '../subtitles.js';
 import { generateSuperset, CHUNK_CHARS } from '../vocab.js';
 import { coverageOk } from '../coverage.js';
 import { fetchEpisodeSrt } from './opensubtitles.js';
@@ -20,6 +20,9 @@ import {
   MIN_WORDS,
   MIN_DRAMA_WORDS,
   MAX_WORDS,
+  EXAMPLES_PER_EPISODE_MAX,
+  EXAMPLES_PER_EPISODE_RATIO,
+  EXAMPLES_PER_EPISODE_FLOOR,
   MIN_SRT_CHARS,
   VOCAB_COUNT_MIN,
   VOCAB_COUNT_MAX,
@@ -61,6 +64,32 @@ export function qualityGate(words, rawSrt) {
   }
   if (!coverageOk(clean, rawSrt)) return { ok: false, reason: 'coverage', clean, dramaCount, storeWords };
   return { ok: true, reason: 'ok', clean, dramaCount, storeWords };
+}
+
+// 字幕例文の数の上限（2026-10-20 /decide A の二次の防御・in-place）。
+//   上限 = min(EXAMPLES_PER_EPISODE_MAX, max(FLOOR, floor(キュー数 × RATIO)))。
+//   超えた drama 語は例文・訳・📍を空にする（plus に落とすのは不可＝字幕文を AI 作例として出すと
+//   出所表示が嘘になる）。例文の無い drama 語は続く qualityGate で落ちる。戻り値: 空にした語数。
+export function capDramaExamples(words, cueCount) {
+  const cap = Math.min(
+    EXAMPLES_PER_EPISODE_MAX,
+    Math.max(EXAMPLES_PER_EPISODE_FLOOR, Math.floor((Number(cueCount) || 0) * EXAMPLES_PER_EPISODE_RATIO))
+  );
+  let kept = 0;
+  let cut = 0;
+  for (const w of Array.isArray(words) ? words : []) {
+    if (!w || w.source !== 'drama' || !w.example) continue;
+    if (kept < cap) {
+      kept++;
+      continue;
+    }
+    w.example = '';
+    w.example_ja = '';
+    w.tsSec = null;
+    w.tsLabel = null;
+    cut++;
+  }
+  return cut;
 }
 
 // 既定の LLM 注入（lib/server/anthropic.js）。deps.callLlm を差し替えればテスト/別モデルに切り替えられる。
@@ -142,6 +171,10 @@ export async function generateEpisodeVocab(input, deps = {}) {
 
   // 4) 📍（example 基準・plus は null）。配信/保存の2系統で同じ照合器（wordMatchRegex）を使う不変則。
   attachBaseTimestamps(superset, { title: englishTitle, season: n.season, episode: n.episode, rawSrt: sub.raw });
+
+  // 4.5) 字幕例文の数の上限（二次の防御・通常は発火しない値）
+  const capped = capDramaExamples(superset, splitSrtCues(sub.raw).length);
+  if (capped) log.warn?.(`[CL:GEN] ${epLabel} example cap: ${capped} drama examples cleared`);
 
   // 5) 品質ゲート＋coverage
   const gate = qualityGate(superset, sub.raw);

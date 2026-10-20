@@ -203,7 +203,167 @@ const IRREGULAR_VERBS = {
   become: ['becomes', 'became', 'becoming'],
   happen: ['happens', 'happened', 'happening'],
   suppose: ['supposes', 'supposed', 'supposing'],
+  // ── 2026-10-20 /decide A: 拡充（別の語と同形になる形は入れない＝rose(rise)・lay(lie)・bound(bind)・
+  //    ground(grind)・wound(wind)・bore/born(bear)・drew(draw＝人名 Drew)・slew(slay)・dove(dive)・bit(bite)・
+  //    tore(tear＝涙)・lit は残す（light を表に入れないので lit→light の逆引きは起きない）。
+  arise: ['arises', 'arose', 'arisen', 'arising'],
+  awake: ['awakes', 'awoke', 'awoken', 'awaking'],
+  beat: ['beats', 'beaten', 'beating'],
+  bend: ['bends', 'bent', 'bending'],
+  bet: ['bets', 'betting'],
+  bite: ['bites', 'bitten', 'biting'],
+  bleed: ['bleeds', 'bled', 'bleeding'],
+  blow: ['blows', 'blew', 'blown', 'blowing'],
+  break: ['breaks', 'broke', 'broken', 'breaking'],
+  breed: ['breeds', 'bred', 'breeding'],
+  burn: ['burns', 'burnt', 'burned', 'burning'],
+  catch: ['catches', 'caught', 'catching'],
+  choose: ['chooses', 'chose', 'chosen', 'choosing'],
+  cling: ['clings', 'clung', 'clinging'],
+  cost: ['costs', 'costing'],
+  creep: ['creeps', 'crept', 'creeping'],
+  deal: ['deals', 'dealt', 'dealing'],
+  dig: ['digs', 'dug', 'digging'],
+  draw: ['draws', 'drawn', 'drawing'],
+  dream: ['dreams', 'dreamt', 'dreamed', 'dreaming'],
+  drink: ['drinks', 'drank', 'drunk', 'drinking'],
+  drive: ['drives', 'drove', 'driven', 'driving'],
+  dwell: ['dwells', 'dwelt', 'dwelling'],
+  eat: ['eats', 'ate', 'eaten', 'eating'],
+  feed: ['feeds', 'fed', 'feeding'],
+  fight: ['fights', 'fought', 'fighting'],
+  flee: ['flees', 'fled', 'fleeing'],
+  fling: ['flings', 'flung', 'flinging'],
+  fly: ['flies', 'flew', 'flown', 'flying'],
+  forbid: ['forbids', 'forbade', 'forbidden', 'forbidding'],
+  forget: ['forgets', 'forgot', 'forgotten', 'forgetting'],
+  forgive: ['forgives', 'forgave', 'forgiven', 'forgiving'],
+  freeze: ['freezes', 'froze', 'frozen', 'freezing'],
+  grow: ['grows', 'grew', 'grown', 'growing'],
+  hang: ['hangs', 'hung', 'hanged', 'hanging'],
+  hide: ['hides', 'hid', 'hidden', 'hiding'],
+  hit: ['hits', 'hitting'],
+  hurt: ['hurts', 'hurting'],
+  kneel: ['kneels', 'knelt', 'kneeling'],
+  lay: ['lays', 'laid', 'laying'],
+  leap: ['leaps', 'leapt', 'leaped', 'leaping'],
+  learn: ['learns', 'learnt', 'learned', 'learning'],
+  lend: ['lends', 'lent', 'lending'],
+  mislead: ['misleads', 'misled', 'misleading'],
+  mistake: ['mistakes', 'mistook', 'mistaken', 'mistaking'],
+  overcome: ['overcomes', 'overcame', 'overcoming'],
+  overtake: ['overtakes', 'overtook', 'overtaken', 'overtaking'],
+  prove: ['proves', 'proved', 'proven', 'proving'],
+  quit: ['quits', 'quitting'],
+  repay: ['repays', 'repaid', 'repaying'],
+  rewrite: ['rewrites', 'rewrote', 'rewritten', 'rewriting'],
+  ride: ['rides', 'rode', 'ridden', 'riding'],
+  ring: ['rings', 'rang', 'rung', 'ringing'],
+  seek: ['seeks', 'sought', 'seeking'],
+  sell: ['sells', 'sold', 'selling'],
+  sew: ['sews', 'sewed', 'sewn', 'sewing'],
+  shake: ['shakes', 'shook', 'shaken', 'shaking'],
+  shed: ['sheds', 'shedding'],
+  shine: ['shines', 'shone', 'shined', 'shining'],
+  shoot: ['shoots', 'shot', 'shooting'],
+  shrink: ['shrinks', 'shrank', 'shrunk', 'shrinking'],
+  shut: ['shuts', 'shutting'],
+  sing: ['sings', 'sang', 'sung', 'singing'],
+  sink: ['sinks', 'sank', 'sunk', 'sinking'],
+  sleep: ['sleeps', 'slept', 'sleeping'],
+  slide: ['slides', 'slid', 'sliding'],
+  sling: ['slings', 'slung', 'slinging'],
+  speed: ['speeds', 'sped', 'speeding'],
+  spill: ['spills', 'spilt', 'spilled', 'spilling'],
+  spin: ['spins', 'spun', 'spinning'],
+  spit: ['spits', 'spat', 'spitting'],
+  split: ['splits', 'splitting'],
+  spread: ['spreads', 'spreading'],
+  spring: ['springs', 'sprang', 'sprung', 'springing'],
+  steal: ['steals', 'stole', 'stolen', 'stealing'],
+  stick: ['sticks', 'stuck', 'sticking'],
+  sting: ['stings', 'stung', 'stinging'],
+  stink: ['stinks', 'stank', 'stunk', 'stinking'],
+  stride: ['strides', 'strode', 'striding'],
+  strike: ['strikes', 'struck', 'stricken', 'striking'],
+  strive: ['strives', 'strove', 'striven', 'striving'],
+  swear: ['swears', 'swore', 'sworn', 'swearing'],
+  sweep: ['sweeps', 'swept', 'sweeping'],
+  swim: ['swims', 'swam', 'swum', 'swimming'],
+  swing: ['swings', 'swung', 'swinging'],
+  teach: ['teaches', 'taught', 'teaching'],
+  throw: ['throws', 'threw', 'thrown', 'throwing'],
+  undergo: ['undergoes', 'underwent', 'undergone', 'undergoing'],
+  undertake: ['undertakes', 'undertook', 'undertaken', 'undertaking'],
+  undo: ['undoes', 'undid', 'undone', 'undoing'],
+  upset: ['upsets', 'upsetting'],
+  uphold: ['upholds', 'upheld', 'upholding'],
+  wake: ['wakes', 'woke', 'woken', 'waking'],
+  wear: ['wears', 'wore', 'worn', 'wearing'],
+  weave: ['weaves', 'wove', 'woven', 'weaving'],
+  weep: ['weeps', 'wept', 'weeping'],
+  win: ['wins', 'won', 'winning'],
+  withdraw: ['withdraws', 'withdrew', 'withdrawn', 'withdrawing'],
+  withhold: ['withholds', 'withheld', 'withholding'],
+  withstand: ['withstands', 'withstood', 'withstanding'],
+  wring: ['wrings', 'wrung', 'wringing'],
 };
+
+// ── 対応表に載せた語だけに足す変化形（2026-10-20 /decide A）──────────────
+//   規則で機械的に足すと、品詞を知らない照合器では別の語に当たる（numb→number・safe→saves・
+//   filled→filed・floor→flour・setup→"set up"）。誤一致した字幕文は生成時に plus→drama 昇格で
+//   出所付きの引用になってしまうので、比較級・f→ves・英米綴り・ハイフンは表に載った語だけにし、
+//   規則での「逆剥がし」（-er を外す等）はしない。表の形からの逆引き（stronger→strong）は完全一致なので可。
+// 比較級・最上級を持つ形容詞（形は規則で作る: e→r/st・子音+y→ier/iest・短母音+子音→重ね・他→er/est）。
+//   入れない語: light（lighter＝ライター）・late（later＝あとで）・fit（fitter）・good/bad/far/little（不規則で別語っぽい）。
+const COMPARATIVE_ADJ = `strong weak small tall short long old young fast slow hard high low rich poor smart dumb cheap clean
+bright calm cold warm cool deep dark kind loud quick rough sharp soft strict sweet thick tight tough weird wild fair firm
+fresh full grand neat near plain proud quiet smooth steep stiff great dear harsh brief clever narrow shallow mean keen damp
+dull faint mild odd sick slight bold broad crisp
+safe wise brave rude cute pure rare nice strange gentle simple close large fine ripe wide true loose vague fierce polite
+humble noble pale dense
+happy easy early busy crazy dirty dry funny heavy lucky angry healthy hungry lazy lonely noisy pretty scary silly sleepy
+tidy ugly wealthy friendly tiny messy risky tricky nasty sneaky creepy shady fancy handy filthy steady sturdy chilly cozy
+big sad hot fat thin wet mad slim dim red grim`
+  .split(/\s+/)
+  .filter(Boolean);
+function comparativeForms(a) {
+  if (a.endsWith('e')) return [a + 'r', a + 'st'];
+  if (/[^aeiou]y$/.test(a)) return [a.slice(0, -1) + 'ier', a.slice(0, -1) + 'iest'];
+  if (/^[^aeiou]*[aeiou][^aeiouwxy]$/.test(a)) return [a + a.slice(-1) + 'er', a + a.slice(-1) + 'est'];
+  return [a + 'er', a + 'est'];
+}
+const COMPARATIVES = Object.fromEntries(COMPARATIVE_ADJ.map((a) => [a, comparativeForms(a)]));
+// f/fe → ves（入れない語: life→lives＝live の3単現・leaf→leaves＝leave の3単現）
+const VES_PLURALS = {
+  knife: 'knives', wife: 'wives', half: 'halves', wolf: 'wolves', shelf: 'shelves', thief: 'thieves',
+  calf: 'calves', loaf: 'loaves', elf: 'elves', scarf: 'scarves', self: 'selves', hoof: 'hooves',
+};
+// 英米綴り・ハイフンの有無（どちらから引いても相手の活用形まで含める）
+const SPELLING_PAIRS = [
+  ['realize', 'realise'], ['recognize', 'recognise'], ['apologize', 'apologise'], ['organize', 'organise'],
+  ['criticize', 'criticise'], ['emphasize', 'emphasise'], ['prioritize', 'prioritise'], ['authorize', 'authorise'],
+  ['memorize', 'memorise'], ['minimize', 'minimise'], ['maximize', 'maximise'], ['specialize', 'specialise'],
+  ['sympathize', 'sympathise'], ['summarize', 'summarise'], ['utilize', 'utilise'], ['analyze', 'analyse'],
+  ['paralyze', 'paralyse'], ['finalize', 'finalise'], ['characterize', 'characterise'], ['organization', 'organisation'],
+  ['color', 'colour'], ['honor', 'honour'], ['favor', 'favour'], ['behavior', 'behaviour'], ['neighbor', 'neighbour'],
+  ['humor', 'humour'], ['labor', 'labour'], ['rumor', 'rumour'], ['flavor', 'flavour'], ['harbor', 'harbour'],
+  ['endeavor', 'endeavour'], ['savior', 'saviour'], ['favorite', 'favourite'], ['neighborhood', 'neighbourhood'],
+  ['colorful', 'colourful'], ['honorable', 'honourable'],
+  ['center', 'centre'], ['theater', 'theatre'], ['fiber', 'fibre'], ['defense', 'defence'], ['offense', 'offence'],
+  ['license', 'licence'], ['pretense', 'pretence'], ['gray', 'grey'], ['catalog', 'catalogue'], ['practice', 'practise'],
+  ['mold', 'mould'], ['plow', 'plough'], ['skeptical', 'sceptical'], ['jewelry', 'jewellery'], ['traveler', 'traveller'],
+  ['counselor', 'counsellor'], ['judgment', 'judgement'], ['aging', 'ageing'], ['fulfill', 'fulfil'], ['enroll', 'enrol'],
+  ['email', 'e-mail'], ['coworker', 'co-worker'], ['cooperate', 'co-operate'], ['online', 'on-line'],
+];
+const SPELLING = {};
+for (const [a, b] of SPELLING_PAIRS) {
+  SPELLING[a] = b;
+  SPELLING[b] = a;
+}
+const TABLE_REVERSE = {}; // 表の形 → 原形（完全一致の逆引き）
+for (const [a, forms] of Object.entries(COMPARATIVES)) for (const f of forms) TABLE_REVERSE[f] ??= a;
+for (const [a, f] of Object.entries(VES_PLURALS)) TABLE_REVERSE[f] ??= a;
 
 const IRREGULAR_REVERSE = {};
 for (const [base, forms] of Object.entries(IRREGULAR_VERBS)) {
@@ -234,6 +394,10 @@ export function getWordVariants(word) {
       v.add(base + 'ing');
     } else {
       v.add(base + 's');
+      // 語尾 s/sh/ch/x/z/o は -es（watches・witnesses・boxes・crashes・vetoes）。規則で足しても、
+      //   実在しない形（photoes 等）は字幕に現れないので誤一致は生まない（2026-10-20 /decide A）。
+      //   2文字の語には付けない（us→uses・to→toes・ho→hoes が別の語になる）。
+      if (base.length >= 3 && /(?:s|sh|ch|x|z|o)$/.test(base)) v.add(base + 'es');
       v.add(base + 'ing');
       v.add(base + 'ed');
       v.add(base + 'd');
@@ -266,6 +430,14 @@ export function getWordVariants(word) {
   if (w.endsWith('ied') && w.length > 4) expandBase(w.slice(0, -3) + 'y');
   if (w.endsWith('es') && w.length > 4) expandBase(w.slice(0, -2));
   if (w.endsWith('s') && w.length > 3 && !w.endsWith('ss')) expandBase(w.slice(0, -1));
+
+  // 対応表（2026-10-20 /decide A）: 表に載った語だけ。逆引きは表の形との完全一致のみ。
+  const base = TABLE_REVERSE[w] || w;
+  if (base !== w) expandBase(base);
+  if (COMPARATIVES[base]) COMPARATIVES[base].forEach((f) => v.add(f));
+  if (VES_PLURALS[base]) v.add(VES_PLURALS[base]);
+  // 綴りの相手は、ここまでに出た形（realised→realise 等の剥がした形も含む）から引いて活用形ごと足す
+  for (const x of [...v]) if (SPELLING[x]) expandBase(SPELLING[x]);
 
   return v;
 }
