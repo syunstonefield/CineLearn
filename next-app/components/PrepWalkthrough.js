@@ -315,7 +315,7 @@ export default function PrepWalkthrough() {
             </div>
             {!w.example && (
               <div className="pw-note" style={{ textAlign: 'center', marginTop: 8 }}>
-                例文はまだありません（字幕が用意できると付きます）
+                {meta?.noExampleNote || '例文なしで保存しました'}
               </div>
             )}
           </div>

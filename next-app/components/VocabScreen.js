@@ -26,6 +26,7 @@ import {
   fetchMovieInfoFromTMDb,
 } from '@/lib/tmdb';
 import { secToTimeLabel } from '@/lib/subtitles';
+import { manualExampleNote } from '@/lib/exampleNote';
 import { personalizeWords, fillMissingExampleJa } from '@/lib/vocab';
 // ★2026-09-12: 字幕本文（生SRT/整形済み）はクライアントに置かない。生成は /api/vocab-generate に
 //   1回投げて words だけを受け取り（generateEpisodeVocab）、字幕の有無は probeSubtitle で聞く。
@@ -1149,30 +1150,9 @@ export default function VocabScreen() {
       const merged = await addManualWord(pid, entry);
       pushMyWord(merged || entry); // マージ後の姿をクラウドへ（遭遇ログ・既存値保護をローカルと一致させる）
       setAddWordText('');
-      // 例文が付かなかった理由を正直に添える（A4）。「見つかりませんでした」は探して無かった時だけ。
-      const NOTE = {
-        // 字幕は取り直しを試みたうえで、それでも用意できなかった時だけこの文言になる
-        // （取り直しの枠は話あたり・人あたりで1日の上限がある）。
-        no_raw: '（この話の字幕を用意できず例文なしで保存しました。時間をおくと付くことがあります）',
-        no_subtitle_file: '（この話の字幕が配信元に見つからず例文なしで保存しました）',
-        subtitle_fetch_failed: '（字幕の取得に失敗したため例文なしで保存しました）',
-        os_quota: '（字幕の取得枠が本日上限のため例文なしで保存しました）',
-        login_required: '（ログインすると例文が付きます）',
-        common_word: '（よく使う語のため例文は付けません）',
-        multi_token: '（例文が付くのは1語のみです。フレーズは例文なしで保存しました）',
-        too_short: '（3文字以上の語にのみ例文を探します）',
-        rate_limited: '（混み合っているため例文なしで保存しました）',
-        unavailable: '（混み合っているため例文なしで保存しました）',
-        tmdb_unresolved: '（作品を特定できず例文なしで保存しました）',
-        missing_params: '（作品情報が足りず例文なしで保存しました）',
-        network: '（通信に失敗したため例文なしで保存しました）',
-        no_match: '（この話の字幕に見つからず例文なし）', // 探して無かった時だけ「見つからず」
-      };
-      setAddMsg(
-        hit
-          ? `「${w}」を追加しました ✓`
-          : `「${w}」を追加しました${NOTE[reason] || '（例文なしで保存しました）'}`
-      );
+      // 例文が付かなかった理由を正直に添える（A4・文言は lib/exampleNote.js に一本化・2026-10-20 /decide E）。
+      const note = hit ? null : manualExampleNote(reason);
+      setAddMsg(hit ? `「${w}」を追加しました ✓` : `「${w}」を追加しました（${note.text}）`);
       loadExtWords(season, episode, vocab); // ✏️セクションへ即反映
       // 追加直後にその語だけのカードを1枚出す（2026-10-20 オーナー要望）。動画を観ながら追加する前提で、
       // 意味・例文・発音（🔊）をその場で確かめられるように。予習の記録には触れない（PrepWalkthrough の single）。
@@ -1191,6 +1171,7 @@ export default function VocabScreen() {
         ],
         meta: {
           single: true,
+          noExampleNote: note?.text || '',
           drama,
           title: drama.title,
           season,

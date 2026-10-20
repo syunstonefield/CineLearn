@@ -281,7 +281,8 @@ export async function POST(req) {
       } catch (err) {
         if (err instanceof UpstreamError) {
           console.warn('[CL:EXAMPLE] manual subtitle fetch failed', { cacheKey, reason: err.reason, status: err.status ?? null });
-          return json({ found: false, reason: err.reason === 'os_quota' ? 'os_quota' : 'subtitle_fetch_failed', tmdbId: id, type });
+          // os_quota は外向きには unavailable にまとめる（共有の取得枠を使い切れたことを外に教えない・2026-10-20 /decide E）
+          return json({ found: false, reason: err.reason === 'os_quota' ? 'unavailable' : 'subtitle_fetch_failed', tmdbId: id, type });
         }
         console.error('[CL:EXAMPLE] manual internal', String(err?.message || err));
         return json({ found: false, reason: 'subtitle_fetch_failed', tmdbId: id, type });
@@ -348,7 +349,7 @@ export async function POST(req) {
     } catch (err) {
       if (err instanceof UpstreamError) {
         console.warn('[CL:EXAMPLE] subtitle fetch failed', { cacheKey, reason: err.reason, status: err.status ?? null });
-        return farFallback(err.reason === 'os_quota' ? 'os_quota' : 'subtitle_fetch_failed');
+        return farFallback(err.reason === 'os_quota' ? 'unavailable' : 'subtitle_fetch_failed'); // os_quota は外向き unavailable
       }
       console.error('[CL:EXAMPLE] internal', String(err?.message || err));
       return farFallback('subtitle_fetch_failed');
