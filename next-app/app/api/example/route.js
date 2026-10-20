@@ -29,6 +29,7 @@ import { resolveUserId } from '@/lib/server/auth';
 import { checkRateLimit, clientIp } from '@/lib/ratelimit';
 import { resolveTmdbId } from '@/lib/server/tmdbResolve';
 import { fetchEpisodeSrt } from '@/lib/server/opensubtitles';
+import { refetchSubtitleForManual } from '@/lib/server/manualRefetch';
 import { rawCacheKey, readRawCache } from '@/lib/server/subtitleRawCache';
 import { vocabCacheKey, readVocabRow } from '@/lib/server/vocabCache';
 import { manualWordProblem, manualMatchIsExact } from '@/lib/server/commonWords';
@@ -274,10 +275,11 @@ export async function POST(req) {
         return json({ found: false, reason: dl.unavailable ? 'unavailable' : 'no_raw', tmdbId: id, type }, dl.unavailable ? 503 : 200);
       }
       try {
-        const sub = await fetchEpisodeSrt({ tmdbId: id, type, season: s, episode: e });
+        // 記録した字幕ファイルで取り直す（検索し直さない）。消えていた時だけ1回検索（lib/server/manualRefetch.js）。
+        const sub = await refetchSubtitleForManual({ cacheKey, tmdbId: id, type, season: s, episode: e });
         if (!sub?.raw) return json({ found: false, reason: 'no_subtitle_file', tmdbId: id, type });
         raw = sub.raw;
-        console.info('[CL:EXAMPLE] manual raw refetch', { subject: `user:${auth.uid.slice(0, 8)}`, cacheKey, chars: raw.length });
+        console.info('[CL:EXAMPLE] manual raw refetch', { subject: `user:${auth.uid.slice(0, 8)}`, cacheKey, chars: raw.length, via: sub.via });
       } catch (err) {
         if (err instanceof UpstreamError) {
           console.warn('[CL:EXAMPLE] manual subtitle fetch failed', { cacheKey, reason: err.reason, status: err.status ?? null });

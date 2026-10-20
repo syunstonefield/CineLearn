@@ -201,6 +201,7 @@ export async function generateEpisodeVocab(input, deps = {}) {
     displayTitle,
     posterPath: titles?.posterPath ?? null,
     fileId: sub.fileId ?? null,
+    episodeMatch: sub.episodeMatch ?? null, // 'exact'|'unknown'|'fallback'|null（2026-10-20 /decide D）
     subtitleVia: sub.via || null,
     cacheKey,
     chunks,

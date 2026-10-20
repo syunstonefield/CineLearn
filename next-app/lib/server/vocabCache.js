@@ -117,11 +117,14 @@ export function contributedByOf({ uid, ip }, env = process.env) {
 
 // contributed_by/at 列が無い DB（PGRST204）を1回検知したら以後は列を付けない（デプロイ順に依存しない）。
 let _provenanceUnsupported = false;
+// subtitle_file_id / episode_match 列が無い DB（SQL 適用前）も同じ方式で検知して以後は付けない（2026-10-20 /decide D）。
+let _subtitleSourceUnsupported = false;
 function isMissingColumn(status, text) {
-  return status === 400 && /PGRST204|contributed_(by|at)/.test(text || '');
+  return status === 400 && /PGRST204|contributed_(by|at)|subtitle_file_id|episode_match/.test(text || '');
 }
 export function _resetProvenanceFlagForTests() {
   _provenanceUnsupported = false;
+  _subtitleSourceUnsupported = false;
 }
 
 // vocab_cache への書込（既存行は触らない）。
@@ -188,6 +191,12 @@ export async function writeVocabRow(input, { fetchImpl = fetch, log = console, n
     row.contributed_by = input.contributedBy;
     row.contributed_at = nowIso;
   }
+  // 生成に使った字幕ファイル（2026-10-20 /decide D）。サーバだけが読む列（anon に GRANT しない）。
+  const fid = parseInt(input.subtitleFileId, 10);
+  if (!_subtitleSourceUnsupported && fid > 0) {
+    row.subtitle_file_id = fid;
+    if (['exact', 'unknown', 'fallback'].includes(input.episodeMatch)) row.episode_match = input.episodeMatch;
+  }
   const post = () =>
     fetchImpl(`${SUPABASE_URL}/rest/v1/vocab_cache?on_conflict=cache_key`, {
       method: 'POST',
@@ -198,15 +207,24 @@ export async function writeVocabRow(input, { fetchImpl = fetch, log = console, n
   let res;
   try {
     res = await post();
-    if (!res.ok && 'contributed_by' in row) {
+    // 列がまだ無い DB → その列なしで再送（寄与そのものは止めない）。足りない列ごとに最大2回。
+    for (let i = 0; i < 2 && !res.ok; i++) {
       const text = await res.text().catch(() => '');
-      if (isMissingColumn(res.status, text)) {
-        // 列がまだ無い DB → 記録なしで再送（寄与そのものは止めない）
+      if (!isMissingColumn(res.status, text)) break;
+      if (/subtitle_file_id|episode_match/.test(text) && 'subtitle_file_id' in row) {
+        _subtitleSourceUnsupported = true;
+        delete row.subtitle_file_id;
+        delete row.episode_match;
+      } else if ('contributed_by' in row) {
         _provenanceUnsupported = true;
         delete row.contributed_by;
         delete row.contributed_at;
-        res = await post();
-      }
+      } else if ('subtitle_file_id' in row) {
+        _subtitleSourceUnsupported = true;
+        delete row.subtitle_file_id;
+        delete row.episode_match;
+      } else break;
+      res = await post();
     }
   } catch (err) {
     log.error?.('[CL:VOCABCACHE] write exception', cacheKey, String(err?.message || err));
@@ -218,6 +236,44 @@ export async function writeVocabRow(input, { fetchImpl = fetch, log = console, n
   }
   log.info?.(`[CL:VOCABCACHE] wrote ${cacheKey} words=${store.length} by=${row.contributed_by ? row.contributed_by.slice(0, 5) + '…' : '-'}`);
   return { written: true, count: store.length, cacheKey };
+}
+
+// 生成に使った字幕ファイルの記録を読む（手動追加の取り直し専用・2026-10-20 /decide D）。
+//   VOCAB_ROW_SELECT（/api/vocab 等の共通の読み）には混ぜない＝列が無い DB で共通の読みが 400 で止まらない。
+//   → { fileId, episodeMatch } | null（記録なし・列なし・DB 不調はすべて null＝従来どおり検索する）
+export async function readSubtitleSource(cacheKey, { fetchImpl = fetch } = {}) {
+  if (!cacheKey || !SUPABASE_SERVICE_KEY) return null;
+  const r = await sbSelect(
+    `vocab_cache?cache_key=eq.${encodeURIComponent(cacheKey)}&select=subtitle_file_id,episode_match&limit=1`,
+    { headers: svcHeaders(), fetchImpl }
+  );
+  const row = r.ok ? r.rows[0] : null;
+  const fileId = parseInt(row?.subtitle_file_id, 10);
+  if (!(fileId > 0)) return null;
+  return { fileId, episodeMatch: row.episode_match || null };
+}
+
+// OS から消えた（404/410）ファイルの記録を消す。同じ番号の時だけ消す（別の番号に置き換わっていたら触らない）。
+//   権利者の申立て等で消えたファイルを再び使わないため（法務 R1）。
+export async function clearSubtitleFileId(cacheKey, fileId, { fetchImpl = fetch, log = console } = {}) {
+  const fid = parseInt(fileId, 10);
+  if (!cacheKey || !(fid > 0) || !SUPABASE_SERVICE_KEY) return false;
+  try {
+    const res = await fetchImpl(
+      `${SUPABASE_URL}/rest/v1/vocab_cache?cache_key=eq.${encodeURIComponent(cacheKey)}&subtitle_file_id=eq.${fid}`,
+      {
+        method: 'PATCH',
+        headers: svcHeaders({ 'Content-Type': 'application/json', Prefer: 'return=minimal' }),
+        cache: 'no-store',
+        body: JSON.stringify({ subtitle_file_id: null, episode_match: null }),
+      }
+    );
+    if (!res.ok) log.warn?.('[CL:VOCABCACHE] clear file_id failed', cacheKey, res.status);
+    return res.ok;
+  } catch (err) {
+    log.warn?.('[CL:VOCABCACHE] clear file_id exception', cacheKey, String(err?.message || err));
+    return false;
+  }
 }
 
 // 旧形式（word）と短縮形（w）の両方から語だけを取り出す（lib/vocab.js expandShortKeys と同じ互換規則）。

@@ -244,6 +244,8 @@ export async function POST(req) {
           displayTitle: r.displayTitle,
           words: r.storeWords,
           subtitleProvider: r.provider,
+          subtitleFileId: r.fileId, // 生成に使った字幕ファイル（2026-10-20 /decide D）
+          episodeMatch: r.episodeMatch,
           model: r.model,
           contributedBy: contributedByOf({ uid, ip: clientIp(req) }),
         });

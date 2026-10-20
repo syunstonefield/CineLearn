@@ -244,7 +244,7 @@ export async function fetchEpisodeSrt({ tmdbId, type = 'tv', season = 0, episode
   const row = await readRawCacheRow(rawKey, { fetchImpl });
   if (row) {
     log.info?.(`[CL:OS] raw cache hit ${rawKey} chars=${row.raw.length}`);
-    return { raw: row.raw, fileId: row.fileId, via: 'raw_cache' };
+    return { raw: row.raw, fileId: row.fileId, via: 'raw_cache', episodeMatch: null }; // 話数一致は不明（記録時に選んだ候補の情報は残っていない）
   }
 
   // 2) 否定キャッシュ（前回 OS 検索が空）
@@ -264,6 +264,7 @@ export async function fetchEpisodeSrt({ tmdbId, type = 'tv', season = 0, episode
   // 4) 上位1候補を DL。歌詞字幕／短すぎ のときだけ次候補へ（最大 OS_CANDIDATES_MAX）
   let raw = null;
   let fileId = null;
+  let episodeMatch = null;
   let tried = 0;
   for (const cand of sorted.slice(0, OS_CANDIDATES_MAX)) {
     const fid = positiveInt(cand?.attributes?.files?.[0]?.file_id);
@@ -283,6 +284,7 @@ export async function fetchEpisodeSrt({ tmdbId, type = 'tv', season = 0, episode
     }
     raw = srt;
     fileId = fid;
+    episodeMatch = candidateEpisodeMatch(cand, isMovie, s, e);
     break;
   }
   if (!raw) {
@@ -295,7 +297,42 @@ export async function fetchEpisodeSrt({ tmdbId, type = 'tv', season = 0, episode
   // 5) raw cache 書込（await）→ 日次1回の失効行 GC
   await writeRawCache({ key: rawKey, tmdbId: id, season: s, episode: e, raw, fileId }, { fetchImpl, log });
   await gcRawCacheOpportunistic({ fetchImpl, log, env, now: now() });
-  return { raw, fileId, via: 'opensubtitles' };
+  return { raw, fileId, via: 'opensubtitles', episodeMatch };
+}
+
+// 選んだ候補が頼んだ話数のファイルか（2026-10-20 /decide D・G）。
+//   'exact'＝話数一致（映画は常に exact）/ 'unknown'＝候補に話数の情報が無い / 'fallback'＝別の話数
+//   （selectSubtitleCandidates は話数一致がゼロだと候補全体に戻るため、別の話の字幕が選ばれ得る）。
+export function candidateEpisodeMatch(cand, isMovie, season, episode) {
+  if (isMovie) return 'exact';
+  const f = cand?.attributes?.feature_details || {};
+  const cs = Number(f.season_number);
+  const ce = Number(f.episode_number);
+  if (!Number.isFinite(cs) || !Number.isFinite(ce) || f.season_number == null || f.episode_number == null) return 'unknown';
+  return cs === Number(season) && ce === Number(episode) ? 'exact' : 'fallback';
+}
+
+// 記録しておいたファイル番号で、検索し直さずに字幕を取り直す（手動追加の取り直し専用・2026-10-20 /decide D）。
+//   → { raw, fileId, via:'file_id' } | null（歌詞字幕・短すぎ＝使えない）
+//   投げる: UpstreamError（os_quota / os_download{status}）。status 404/410 は「ファイルが OS から消えた」。
+//   日次キャップ・歌詞率・短すぎの検査は fetchEpisodeSrt と同じ。raw cache には同じ30日 TTL で書く。
+export async function fetchSrtByFileId({ tmdbId, type = 'tv', season = 0, episode = 0, fileId }, deps = {}) {
+  const { env = process.env, fetchImpl = fetch, log = console, now = Date.now } = deps;
+  const id = positiveInt(tmdbId);
+  const fid = positiveInt(fileId);
+  if (!id || !fid) throw new TypeError('fetchSrtByFileId: tmdbId と fileId は正の整数');
+  const isMovie = type === 'movie';
+  const s = isMovie ? 0 : Number(season) || 1;
+  const e = isMovie ? 0 : Number(episode) || 1;
+  const rawKey = rawCacheKey(id, s, e);
+  const { srt } = await osDownload(fid, { enforceDailyCap: true, env, fetchImpl, log, now });
+  if (!srt) return null;
+  if (musicRatioOf(srt) > OS_MUSIC_RATIO_MAX || parseSrt(srt).length < MIN_SRT_CHARS) {
+    log.info?.(`[CL:OS] file_id=${fid} (recorded) unusable for ${rawKey}`);
+    return null;
+  }
+  await writeRawCache({ key: rawKey, tmdbId: id, season: s, episode: e, raw: srt, fileId: fid }, { fetchImpl, log });
+  return { raw: srt, fileId: fid, via: 'file_id' };
 }
 
 // ── 字幕の有無だけを返す（/api/subtitles action:'probe' 用・A5）─────────
