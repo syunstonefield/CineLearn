@@ -10,7 +10,7 @@
 export const dynamic = 'force-dynamic';
 
 import { allowedOrigin } from '@/lib/server/origin';
-import { vocabCacheKey, readVocabRow, vocabRowMeta, isInCatalog } from '@/lib/server/vocabCache';
+import { vocabCacheKey, readVocabRow, vocabRowMeta, wordsForServe, isInCatalog } from '@/lib/server/vocabCache';
 import { isSeedRequest } from '@/lib/server/auth';
 import { clientIp } from '@/lib/ratelimit';
 import { bumpStats } from '@/lib/server/stats';
@@ -55,7 +55,7 @@ export async function POST(req) {
   }
   if (q.row) {
     await stat('vocab_hit');
-    return jsonResponse({ hit: true, words: q.row.words, meta: vocabRowMeta(q.row) });
+    return jsonResponse({ hit: true, words: wordsForServe(q.row.words, q.row.episode_match), meta: vocabRowMeta(q.row) });
   }
   await stat('vocab_miss');
   return jsonResponse({ miss: true });

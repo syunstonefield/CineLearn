@@ -32,6 +32,7 @@ import {
   vocabCacheKey,
   readVocabRow,
   vocabRowMeta,
+  wordsForServe,
   isInCatalog,
   writeVocabRow,
   contributedByOf,
@@ -138,7 +139,7 @@ export async function POST(req) {
   const stat = (name) => (seed ? null : bumpStats([name], { user: uid ? `u:${uid}` : null }));
   if (cached.row) {
     await stat('gen_hit');
-    return json({ hit: true, words: cached.row.words, meta: vocabRowMeta(cached.row) });
+    return json({ hit: true, words: wordsForServe(cached.row.words, cached.row.episode_match), meta: vocabRowMeta(cached.row) });
   }
 
   // ── 5) 否定キャッシュ（直近の失敗・品質不通過・連続失敗）──
@@ -272,7 +273,7 @@ export async function POST(req) {
     return json({
       hit: false,
       generated: true,
-      words: r.words,
+      words: wordsForServe(r.words, r.episodeMatch),
       meta: {
         model: r.model,
         provider: r.provider,
@@ -280,6 +281,7 @@ export async function POST(req) {
         wordCount: r.wordCount,
         contributed,
         reason,
+        episodeMismatch: r.episodeMatch === 'fallback', // 別の話数の字幕で作った（2026-10-20 /decide G）
       },
     });
   } catch (err) {

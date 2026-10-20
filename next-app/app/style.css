@@ -7207,3 +7207,13 @@ button.vj-cell { cursor: pointer; }
   text-wrap: balance;
   overflow-wrap: anywhere;
 }
+
+/* 別の話数の字幕で作った単語リストの注記（2026-10-20 /decide G） */
+.srs-episode-note {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  background: var(--surface2);
+  border-radius: 8px;
+  padding: 6px 10px;
+}

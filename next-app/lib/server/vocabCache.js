@@ -65,12 +65,18 @@ export async function sbSelect(pathWithQuery, { headers = readHeaders(), fetchIm
   return { ok: false, rows: null };
 }
 
-export const VOCAB_ROW_SELECT = 'words,model,subtitle_provider,coverage_min,coverage_max,word_count,display_title';
+const VOCAB_ROW_SELECT_BASE = 'words,model,subtitle_provider,coverage_min,coverage_max,word_count,display_title';
+// episode_match（2026-10-20 /decide G）: 別の話数の字幕で作った行（'fallback'）を見分ける。サーバの中だけで使い、
+//   クライアントへは meta.episodeMismatch（真偽）だけを返す。ファイル番号（subtitle_file_id）は読まない。
+export const VOCAB_ROW_SELECT = `${VOCAB_ROW_SELECT_BASE},episode_match`;
 
 // { ok:true, row: {...}|null } | { ok:false, row:null }（DB 不調＝miss ではない）
+//   episode_match 列が無い DB（SQL 未適用の環境）では従来の列で読み直す（共通の読みを 400 で止めない）。
 export async function readVocabRow(cacheKey, opts = {}) {
   if (!cacheKey) return { ok: true, row: null };
-  const q = await sbSelect(`vocab_cache?cache_key=eq.${encodeURIComponent(cacheKey)}&select=${VOCAB_ROW_SELECT}&limit=1`, opts);
+  const sel = (cols) => sbSelect(`vocab_cache?cache_key=eq.${encodeURIComponent(cacheKey)}&select=${cols}&limit=1`, opts);
+  let q = await sel(VOCAB_ROW_SELECT);
+  if (!q.ok) q = await sel(VOCAB_ROW_SELECT_BASE);
   if (!q.ok) return { ok: false, row: null };
   const row = q.rows[0];
   if (row && Array.isArray(row.words) && row.words.length) return { ok: true, row };
@@ -84,7 +90,16 @@ export function vocabRowMeta(row) {
     provider: row?.subtitle_provider ?? null,
     coverage: [row?.coverage_min ?? null, row?.coverage_max ?? null],
     wordCount: row?.word_count ?? (Array.isArray(row?.words) ? row.words.length : null),
+    // 別の話数の字幕で作ったリスト（2026-10-20 /decide G）。クライアントは出所表示から話数を外し、その旨を添える。
+    episodeMismatch: row?.episode_match === 'fallback',
   };
+}
+
+// 配る語（2026-10-20 /decide G）。別の話数の字幕で作ったリストは📍時刻を外す（その回の時刻ではない＝
+//   「この場面で言っている」が誤りになり、Netflix のシークも別の場所へ飛ぶ）。保存データ自体は変えない。
+export function wordsForServe(words, episodeMatch) {
+  if (episodeMatch !== 'fallback' || !Array.isArray(words)) return words;
+  return words.map((w) => (w && (w.tsSec != null || w.tsLabel != null) ? { ...w, tsSec: null, tsLabel: null } : w));
 }
 
 // カタログ照合。ゲート無効なら常に true。service_role は RLS を通らないので enabled をクエリで明示する。不調は fail-open。

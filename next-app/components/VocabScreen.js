@@ -18,6 +18,8 @@ import {
   workDeletionImpact,
   todaySessionCount,
   todayStr,
+  episodeCredit,
+  isEpisodeMismatch,
 } from '@/lib/storage';
 import {
   fetchTitleCandidatesFromTMDb,
@@ -1020,6 +1022,7 @@ export default function VocabScreen() {
         userLevel: settings.userLevel,
         targetLevel: settings.targetToeicScore > 0 ? settings.targetLevel : null,
         words,
+        episodeMismatch: !!r.meta?.episodeMismatch, // 別の話数の字幕で作った（2026-10-20 /decide G）
       });
       setHistoryId(id);
       setCurrentHistoryId(id);
@@ -1178,9 +1181,7 @@ export default function VocabScreen() {
           episode,
           isMovie,
           core: null,
-          credit: isMovie
-            ? `📺 ${drama.title}（字幕：OpenSubtitles）`
-            : `📺 ${drama.title} S${season}E${episode}（字幕：OpenSubtitles）`,
+          credit: episodeCredit(drama.title, season, episode, isMovie),
         },
       });
     } finally {
@@ -1379,9 +1380,9 @@ export default function VocabScreen() {
 
   // 出所明示（著作権法48条）：このリストの例文＝字幕の逐語引用の出典。
   // drama語/ext語（字幕由来）に付け、plus語（Claude作例・字幕外）には付けない。
-  const exampleCredit = isMovie
-    ? `📺 ${drama.title}（字幕：OpenSubtitles）`
-    : `📺 ${drama.title} S${season}E${episode}（字幕：OpenSubtitles）`;
+  // 別の話数の字幕で作ったリストは話数を付けない（2026-10-20 /decide G・lib/storage.js episodeCredit）。
+  const exampleCredit = episodeCredit(drama.title, season, episode, isMovie);
+  const episodeMismatch = !isMovie && isEpisodeMismatch(drama.title, season, episode);
 
   // ── 予習エンジン（下部3択ゾーン）─────────────────────────
   // このエピソードの新出語（SRS にエントリ無し＝今夜が初対面）。「じっくり覚える」first-pass の対象。
@@ -1747,6 +1748,11 @@ export default function VocabScreen() {
                   {stats.reviewedToday > 0 ? ` / 今日復習済み：${stats.reviewedToday}単語` : ''}
                 </div>
                 {completeMsg && <div className="srs-complete">{completeMsg}</div>}
+                {episodeMismatch && (
+                  <div className="srs-episode-note">
+                    この回の字幕が見つからなかったため、同じ作品の別の回の字幕から作った単語リストです（📍時刻は出しません）
+                  </div>
+                )}
               </div>
 
               {/* #20 手動追加。リストの一番上に置く（2026-08-05 オーナー要望: 追加しやすく）。
@@ -2141,9 +2147,7 @@ function buildWalkPayload({ sortedVocab, timestamps, srs, drama, season, episode
     ...w,
     _tsLabel: timestamps.get(w.word)?.label || null,
   }));
-  const credit = isMovie
-    ? `📺 ${drama.title}（字幕：OpenSubtitles）`
-    : `📺 ${drama.title} S${season}E${episode}（字幕：OpenSubtitles）`;
+  const credit = episodeCredit(drama.title, season, episode, isMovie);
   const integrity = prepIntegrity(ordered);
   return {
     words: wordsForWalk,

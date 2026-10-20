@@ -11,7 +11,7 @@ import {
   saveWordTranslation,
   repairLongExamples,
 } from '@/lib/words';
-import { loadSrs, skipWord, unskipWord, isLearned, isMastered, todayStr } from '@/lib/storage';
+import { loadSrs, skipWord, unskipWord, isLearned, isMastered, todayStr, isEpisodeMismatch } from '@/lib/storage';
 import { fillTranslations } from '@/lib/translateQueue';
 import { speak } from '@/lib/speak';
 import { secToTimeLabel } from '@/lib/subtitles';
@@ -25,10 +25,12 @@ import { sameWorkTitle, isUnassignedTvWord } from '@/lib/words';
 // unassigned=true（TV なのに S/E が無い語・A22(a)）は作品名の後に「話数不明」を添える。
 function wordSource(w, unassigned = false) {
   if (w.dramaTitle) {
+    // 別の話数の字幕で作ったリストから★で入れた語は話数を付けない（2026-10-20 /decide G）
+    const mismatch = isEpisodeMismatch(w.dramaTitle, w.season, w.episode);
     return (
       `📺 ${w.dramaTitle}` +
-      (w.season != null ? ` S${w.season}` : '') +
-      (w.episode != null ? `E${w.episode}` : '') +
+      (w.season != null && !mismatch ? ` S${w.season}` : '') +
+      (w.episode != null && !mismatch ? `E${w.episode}` : '') +
       (unassigned ? '（話数不明）' : '') +
       (w.sentence ? '（字幕：OpenSubtitles）' : '')
     );

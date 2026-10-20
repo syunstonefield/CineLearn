@@ -219,6 +219,36 @@ export function getAllVocabWords(history = loadHistory()) {
   return [...map.values()];
 }
 
+// ── 別の話数の字幕で作ったリスト（2026-10-20 /decide G）────────────────
+// 話数一致の字幕が見つからず、同じ作品の別の回の字幕で作ったリスト（cl_history の episodeMismatch）。
+// その例文に「📺作品 SxE」と付けると出所表示が事実と違う（48条）ので、話数を外して作品単位で出す。
+// 出所表示を作る箇所が多い（復習・クイズ・単語帳・単語リスト）ので、_src を持つ側は変えずに、ここで履歴から引く。
+let _mismatchCache = { key: null, set: new Set() };
+function episodeMismatchSet() {
+  let key = '';
+  try {
+    key = localStorage.getItem(HISTORY_KEY) || '';
+  } catch {
+    return new Set();
+  }
+  if (_mismatchCache.key === key) return _mismatchCache.set;
+  const set = new Set();
+  readJson(HISTORY_KEY, []).forEach((h) => {
+    if (h?.episodeMismatch && h.drama?.title) set.add(`${normWorkTitle(h.drama.title)}|${h.season}|${h.episode}`);
+  });
+  _mismatchCache = { key, set };
+  return set;
+}
+export function isEpisodeMismatch(title, season, episode) {
+  if (!title || season == null || episode == null) return false;
+  return episodeMismatchSet().has(`${normWorkTitle(title)}|${season}|${episode}`);
+}
+// 出所表示（作品・話）。映画と、別の話数の字幕で作ったリストは話数を付けない。
+export function episodeCredit(title, season, episode, isMovie) {
+  const ep = isMovie || season == null || episode == null || isEpisodeMismatch(title, season, episode) ? '' : ` S${season}E${episode}`;
+  return `📺 ${title}${ep}（字幕：OpenSubtitles）`;
+}
+
 // 例文（字幕の逐語引用）の出所表示文字列。著作権法48条の出所明示に用いる。
 // plus 語の例文は Claude 生成（字幕外）なので空文字＝出典を出さない。
 export function subtitleCredit(w) {
@@ -226,8 +256,7 @@ export function subtitleCredit(w) {
   const s = w._src || {};
   if (!s.title) return '';
   const movie = s.type === 'movie' || (s.type !== 'tv' && isMovieWork(s.title));
-  const ep = movie || s.season == null || s.episode == null ? '' : ` S${s.season}E${s.episode}`;
-  return `📺 ${s.title}${ep}（字幕：OpenSubtitles）`;
+  return episodeCredit(s.title, s.season, s.episode, movie);
 }
 
 // 今日復習すべき単語（未学習 or 期日到来）。期日到来を未学習より優先して並べる。
@@ -824,6 +853,8 @@ export function saveHistoryEntry(ctx) {
     level: userLevel,
     targetLevel: targetLevel || null,
     words,
+    // 別の話数の字幕で作ったリスト（サーバの meta.episodeMismatch・2026-10-20 /decide G）。出所表示から話数を外す。
+    ...(ctx.episodeMismatch ? { episodeMismatch: true } : {}),
     quiz: [],
     quizScore: null,
     quizDate: null,

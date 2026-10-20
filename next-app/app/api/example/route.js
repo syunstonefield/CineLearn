@@ -165,6 +165,12 @@ export async function POST(req) {
   //     plus 語の example は Claude 生成の作例で「引用」ではない。例文補完に plus を使うと
   //     source:'opensubtitles' の表示が偽りになり #3 の出所明示が崩れるため除外する。
   const cachedRow = await readVocabRow(cacheKey);
+  // 別の話数の字幕で作ったリスト（episode_match='fallback'・2026-10-20 /decide G）では例文を返さない。
+  //   共有リストの例文も、この話の raw cache（同じ別ファイル）も別の回の台詞で、📺SxE の出所表示が事実と違ってしまう
+  //   （48条）。手動追加・拡張の補完の両方。字幕ファイルが正しく取り直されるまでは「この回では見つからない」扱い。
+  if (cachedRow.ok && cachedRow.row?.episode_match === 'fallback') {
+    return json({ found: false, reason: 'no_subtitle_file', tmdbId: id, type });
+  }
   const cached = cachedRow.ok && cachedRow.row ? cachedRow.row.words : null;
   // 再生位置（保存した場面）。層1でも「どの出現か」を選ぶのに使う。
   const nearSec = Number(body.currentTimeSec);
