@@ -24,6 +24,7 @@ import { usePlan, featureAccess } from '@/lib/plan';
 import { dailyReviewCap } from '@/lib/reviewCount';
 import PlusNote from './PlusNote';
 import { trackUsage } from '@/lib/usage';
+import { rememberHubScroll, takeHubScroll } from '@/lib/hubScroll';
 
 // 復習ハブ（ボトムナビ「復習」の着地点）。
 // それまでは復習/クイズに入るのに単語リストの最下部までスクロールする必要があった
@@ -86,6 +87,8 @@ export default function ReviewHubScreen() {
   const todayCap = dailyReviewCap(settings, featureAccess('reviewCount', plan).usable);
 
   const [myWords, setMyWords] = useState([]);
+  // マイ単語帳の読み込みが済んだか（済むまで一覧の高さが決まらない＝位置を戻すのはその後）。
+  const [wordsReady, setWordsReady] = useState(false);
 
   // 履歴・SRS は localStorage 由来。復習完了/クラウド取込/単語帳更新で読み直す。
   const history = useMemo(
@@ -112,11 +115,24 @@ export default function ReviewHubScreen() {
       .then((w) => {
         if (!cancelled) setMyWords(w || []);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setWordsReady(true);
+      });
     return () => {
       cancelled = true;
     };
   }, [mounted, profile, wordbookVersion, cloudVersion]);
+
+  // 復習／クイズ／リストから戻った時は、押した時のスクロール位置へ戻す（lib/hubScroll.js）。
+  //   中身（マイ単語帳の段）がそろってから・画面切替の scrollTo(0,0) より後に（rAF）。
+  useEffect(() => {
+    if (!wordsReady) return;
+    const y = takeHubScroll();
+    if (y == null || y <= 0) return;
+    const id = requestAnimationFrame(() => window.scrollTo(0, y));
+    return () => cancelAnimationFrame(id);
+  }, [wordsReady]);
 
   // 履歴の drama は {title,genre,platform} だけで type を持たない。
   // 映画かどうかはライブラリ(myDramas)側の型で判定する（Dashboard と同じ手口）。
@@ -211,6 +227,7 @@ export default function ReviewHubScreen() {
 
   const startNearMastery = () => {
     if (!nearMastery.due.length) return;
+    rememberHubScroll();
     setCurrentHistoryId(null);
     openReview(nearMastery.due.map(toCard));
   };
@@ -218,6 +235,7 @@ export default function ReviewHubScreen() {
   const myDue = useMemo(() => (myWords || []).filter((w) => isWordDue(w, srs)).length, [myWords, srs]);
 
   const startToday = () => {
+    rememberHubScroll();
     setCurrentHistoryId(null); // 横断復習（特定エピソードに紐づかない）
     openReview(getDueReviewWords(history, srs, myWords, activeKeys).slice(0, todayCap));
   };
@@ -240,6 +258,7 @@ export default function ReviewHubScreen() {
       });
     });
     if (!words.length) return;
+    rememberHubScroll();
     trackUsage('work_all_review');
     setCurrentHistoryId(null); // 複数の話にまたがる＝特定エピソードに紐づかない
     openReview(words);
@@ -259,6 +278,7 @@ export default function ReviewHubScreen() {
       },
     }));
     if (!words.length) return;
+    rememberHubScroll();
     trackUsage('work_review');
     setCurrentHistoryId(entry.id);
     if (ep.due > 0) openReview(words.filter((w) => isWordDue(w, srs)));
@@ -268,6 +288,7 @@ export default function ReviewHubScreen() {
   const startMyWordsReview = () => {
     const words = (myWords || []).map((w) => toCard({ ...w, _src: srcForMyWord(w, movieTitles) }));
     if (!words.length) return;
+    rememberHubScroll();
     setCurrentHistoryId(null);
     if (myDue > 0) openReview(words.filter((w) => isWordDue(w, srs)).slice(0, DAILY_REVIEW_CAP));
     else openReview(words.slice(0, DAILY_REVIEW_CAP), { all: true });
@@ -278,6 +299,7 @@ export default function ReviewHubScreen() {
   const openWordList = (g, entry) => {
     const d = (settings.myDramas || []).find((x) => sameWorkTitle(x.title, g.title)) || entry.drama;
     if (!d) return;
+    rememberHubScroll();
     openDrama(d, false, { returnTo: 'review-hub' });
     if (entry.season != null) setSeason(entry.season);
     if (entry.episode != null) setEpisode(entry.episode);
@@ -481,6 +503,7 @@ export default function ReviewHubScreen() {
                           className="rh-ep-quiz"
                           onClick={() => {
                             trackUsage('work_quiz');
+                            rememberHubScroll();
                             startEpisodeQuiz(ep.entry);
                           }}
                           aria-label={`${g.title}${epLabel(g, ep.entry) ? ` ${epLabel(g, ep.entry)}` : ''} のクイズ`}

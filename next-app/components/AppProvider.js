@@ -20,6 +20,7 @@ import {
   deleteProfileRow,
 } from '@/lib/supabase';
 import { recommendedToDrama } from '@/lib/recommended';
+import { forgetHubScroll } from '@/lib/hubScroll';
 
 // app.js のグローバル状態（selectedDrama / selectedSeason 等）に相当する共有状態。
 // 画面間（ダッシュボード / サービス選択 / 単語リスト）で参照・更新する。
@@ -547,6 +548,7 @@ export default function AppProvider({ children }) {
   // ここで受け止める。
   const openReviewHub = useCallback(() => {
     exitReviewPage();
+    forgetHubScroll(); // 下タブから入り直した時は最上部から（位置を戻すのは 復習／クイズ／リスト からの戻りだけ）
     setScreen('review-hub');
   }, []);
 
