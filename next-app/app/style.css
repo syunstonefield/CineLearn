@@ -4260,6 +4260,12 @@ html[data-theme="light"] .rh-hero:not(.is-done) .rh-hero-sub { color: var(--text
   .review-screen .review-card { flex: 1; display: flex; flex-direction: column; width: 100%; }
   .review-screen .review-card-body { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
   .review-screen .review-done { margin-top: auto; margin-bottom: auto; } /* 完了画面は中央寄せ */
+  /* 復習カード表示中はページ全体を固定（ReviewModal が html に付ける）。上下に触ってもずれない。
+     TMDB 表記は設定のクレジット欄に常にあるので、この間だけ隠してはみ出しを無くす。 */
+  html.cl-review-lock,
+  html.cl-review-lock body { overflow: hidden; overscroll-behavior: none; }
+  html.cl-review-lock .app-tmdb-footer { display: none; }
+  .review-screen .review-content { overscroll-behavior: contain; }
 }
 
 /* ── ⑤ エピソード選択チップ＋下部固定CTA ──────────────────── */
@@ -6383,7 +6389,6 @@ html[data-theme="dark"] .rh-near-count { background: linear-gradient(100deg, var
 .rh-gauge-mastered { background: color-mix(in srgb, var(--gold, #d99a00) 78%, var(--surface)); }
 .rh-gauge-pct { font-size: 12px; font-weight: 700; color: var(--green); white-space: nowrap; }
 .rh-gauge-mpct { font-size: 12px; font-weight: 700; color: var(--gold, #d99a00); white-space: nowrap; }
-.rh-gauge-full { font-size: 12px; font-weight: 700; color: var(--green); white-space: nowrap; }
 @media (max-width: 600px) {
   /* スマホ全幅（375〜430px）: S1E1＋バー＋数字2段＋語数/バッジ＋クイズ を1行に収める。
      数字2段が語数に食い込んでいた（実機 414px・オーナー報告 2026-10-08）。足りない分は
@@ -6423,12 +6428,18 @@ button.rh-due-badge-btn:active { transform: none; }
   transition: color 0.12s ease, border-color 0.12s ease;
 }
 .rh-ep-quiz:hover { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, var(--review-border)); }
+/* 右端の操作（クイズ／リスト＝その話の単語リストへ）。PC は横並び、スマホ幅は縦2段 */
+.rh-ep-acts { display: flex; align-items: center; gap: 6px; flex-shrink: 0; margin: 8px 10px 8px 0; }
+.rh-ep-acts .rh-ep-quiz { margin: 0; }
 
 @media (max-width: 600px) {
   .rh-screen { padding: 12px 12px 24px; }
   .rh-hero { padding: 14px 15px; gap: 10px; }
   .rh-hero-btn { padding: 10px 14px; font-size: 13px; }
   .rh-ep-main { padding: 12px 12px; }
+  .rh-ep-acts { flex-direction: column; align-items: stretch; gap: 4px; margin: 6px 8px 6px 0; }
+  .rh-ep-acts .rh-ep-quiz { padding: 4px 9px; font-size: 11px; border-radius: 8px; }
+  .rh-ep-done-long { display: none; } /* 「✅ 今日の分は完了」→「✅ 完了」 */
 }
 
 /* 例文の読み上げ🔊（予習ウォークスルー／予習クイズ）。

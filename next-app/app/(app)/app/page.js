@@ -153,6 +153,7 @@ function AppShell() {
       {guideOpen && <ExtensionGuide />}
 
       <div
+        className="app-tmdb-footer"
         style={{
           textAlign: 'center',
           padding: 12,

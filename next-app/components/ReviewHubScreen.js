@@ -74,6 +74,9 @@ export default function ReviewHubScreen() {
     startEpisodeQuiz,
     setScreen,
     loggedIn,
+    openDrama,
+    setSeason,
+    setEpisode,
   } = useApp();
 
   // 作品・話ごとの復習とクイズ／作品まとめ復習／語数の変更＝正式版ではプラス（ベータ中は全員使える）。
@@ -270,13 +273,23 @@ export default function ReviewHubScreen() {
     else openReview(words.slice(0, DAILY_REVIEW_CAP), { all: true });
   };
 
+  // その話の単語リストへ（無料・オーナー 2026-10-20）。作品はライブラリ(myDramas)の記録を優先
+  //   （tmdbId・視聴サービスを持つ）。戻るボタンは「← 復習」でこの画面へ戻る。
+  const openWordList = (g, entry) => {
+    const d = (settings.myDramas || []).find((x) => sameWorkTitle(x.title, g.title)) || entry.drama;
+    if (!d) return;
+    openDrama(d, false, { returnTo: 'review-hub' });
+    if (entry.season != null) setSeason(entry.season);
+    if (entry.episode != null) setEpisode(entry.episode);
+  };
+
   // 習得ゲージ（行の左）。「あと何語」より「ここまで来た」を見せて復習意欲を上げる（オーナー提案 2026-09-22）。
   //   バー1本＝覚えた率（緑）。マスターは同じバーの濃い部分（金）として重ねる。数字は「覚えた N%」＋マスター到達後は「マスター N%」。
-  //   0% は数字を出さず薄いバーのみ（「0%」と書くと逆に萎える）。全語覚えたら「✅ 全部覚えた」。
+  //   0% は数字を出さず薄いバーのみ（「0%」と書くと逆に萎える）。全語覚えても他の話と同じバー＋「覚えた 100%」
+  //   （「✅ 全部覚えた」の文字だけにすると並びが揃わずマスター率も見えなかった・オーナー 2026-10-20）。
   //   覚えた率を主役にする理由: マスターは4回連続＋約3週間半かかり序盤は延々0%になるため。
   const Gauge = ({ learned, mastered, total }) => {
     if (!total) return null;
-    if (learned >= total) return <span className="rh-gauge-full">✅ 全部覚えた</span>;
     const lp = Math.round((learned / total) * 100);
     const mp = Math.round((mastered / total) * 100);
     return (
@@ -410,7 +423,7 @@ export default function ReviewHubScreen() {
                       {myDue > 0 ? (
                         <span className="rh-due-badge">復習 {myDue}</span>
                       ) : (
-                        <span className="rh-ep-done">✅ 今日の分は完了</span>
+                        <span className="rh-ep-done">✅ <span className="rh-ep-done-long">今日の分は</span>完了</span>
                       )}
                     </span>
                   </button>
@@ -456,23 +469,35 @@ export default function ReviewHubScreen() {
                         {ep.due > 0 ? (
                           <span className="rh-due-badge">復習 {ep.due}</span>
                         ) : (
-                          <span className="rh-ep-done">✅ 今日の分は完了</span>
+                          <span className="rh-ep-done">✅ <span className="rh-ep-done-long">今日の分は</span>完了</span>
                         )}
                       </span>
                     </button>
-                    {work.usable && (
+                    {/* 右端の操作（スマホ幅では縦2段＝行の中身に幅を残す） */}
+                    <div className="rh-ep-acts">
+                      {work.usable && (
+                        <button
+                          type="button"
+                          className="rh-ep-quiz"
+                          onClick={() => {
+                            trackUsage('work_quiz');
+                            startEpisodeQuiz(ep.entry);
+                          }}
+                          aria-label={`${g.title}${epLabel(g, ep.entry) ? ` ${epLabel(g, ep.entry)}` : ''} のクイズ`}
+                        >
+                          クイズ
+                        </button>
+                      )}
+                      {/* 単語リストへ（無料・プランに関係なく出す） */}
                       <button
                         type="button"
-                        className="rh-ep-quiz"
-                        onClick={() => {
-                          trackUsage('work_quiz');
-                          startEpisodeQuiz(ep.entry);
-                        }}
-                        aria-label={`${g.title}${epLabel(g, ep.entry) ? ` ${epLabel(g, ep.entry)}` : ''} のクイズ`}
+                        className="rh-ep-quiz rh-ep-list"
+                        onClick={() => openWordList(g, ep.entry)}
+                        aria-label={`${g.title}${epLabel(g, ep.entry) ? ` ${epLabel(g, ep.entry)}` : ''} の単語リスト`}
                       >
-                        クイズ
+                        リスト
                       </button>
-                    )}
+                    </div>
                   </div>
                 ))}
               </div>

@@ -80,7 +80,7 @@ export default function ServiceSelect() {
       <div className="screen-inner">
         <div className="screen-header">
           <button className="btn-back" onClick={() => setScreen(vocabReturn)}>
-            {vocabReturn === 'search' ? '← 検索結果' : '← マイドラマ'}
+            {vocabReturn === 'search' ? '← 検索結果' : vocabReturn === 'review-hub' ? '← 復習' : '← マイドラマ'}
           </button>
           <div>
             <div className="screen-title">視聴サービスを選択</div>

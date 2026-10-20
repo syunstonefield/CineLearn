@@ -1596,7 +1596,7 @@ export default function VocabScreen() {
             「視聴前の準備」の題と説明文は、作品名が学習状況カードの見出しになったので廃止。 */}
         <div className="screen-header vocab-header-compact">
           <button className="btn-back" onClick={() => setScreen(vocabReturn)}>
-            {vocabReturn === 'search' ? '← 検索結果' : '← マイドラマ'}
+            {vocabReturn === 'search' ? '← 検索結果' : vocabReturn === 'review-hub' ? '← 復習' : '← マイドラマ'}
           </button>
           <span className="vocab-svc">
             サービス：

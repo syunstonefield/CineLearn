@@ -185,6 +185,17 @@ function KeysHelp({ onClose }) {
 export default function ReviewModal({ asPage = false }) {
   const { reviewWords, reviewAll, closeReview, currentHistoryId } = useApp();
 
+  // ページ表示（スマホの復習タブ）の間はページ全体のスクロールを止める（CSS: html.cl-review-lock）。
+  // 下の TMDB 表記の分だけページが画面からはみ出し、上下に触るとカードがずれていた（オーナー報告 2026-10-20）。
+  // 長いカードは .review-content の中だけでスクロールする。
+  useEffect(() => {
+    if (!asPage) return;
+    const root = document.documentElement;
+    window.scrollTo(0, 0);
+    root.classList.add('cl-review-lock');
+    return () => root.classList.remove('cl-review-lock');
+  }, [asPage]);
+
   // 初期キュー：未学習 or 期日到来のみ・シャッフル（reviewWords が変わるたびに作り直す）
   const [queue, setQueue] = useState([]);
   const [idx, setIdx] = useState(0);
