@@ -98,6 +98,9 @@ export const EXAMPLE_MANUAL_LIMITS = {
 export const EXAMPLE_MANUAL_DL_LIMITS = {
   perUserDay: envInt('CL_EXAMPLE_MANUAL_DL_PER_USER_DAY', 5), // 1人が温められる話数/日
   perEpisodeDay: envInt('CL_EXAMPLE_MANUAL_DL_PER_EP_DAY', 2), // 同じ話の取り直し/日（失敗時の再試行ぶん）
+  // 同じ IP からの取り直し/日（2026-10-20 /decide・複数アカウントで共有 OS 枠を焼く穴の対策）。
+  //   正規利用は1人数話/日なので、家庭・携帯キャリアの共有 IP でも 10話/日 あれば足りる。
+  perIpDay: envInt('CL_EXAMPLE_MANUAL_DL_PER_IP_DAY', 10),
 };
 // 既存 anchor/near 経路の話単位天井（rl:example:<ip>:ep:<cacheKey>:d:<day>）。
 export const EXAMPLE_EPISODE_DAY_LIMIT = envInt('CL_EXAMPLE_PER_EP_DAY', 100);

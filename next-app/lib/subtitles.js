@@ -217,11 +217,25 @@ const PHRASE_FILLERS = new Set([
   'our', 'its', 'yourself',
 ]);
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// 1語あたりの活用形候補の上限（2026-10-20 /decide・正規表現の肥大化対策）。通常の語は20前後で、ここには届かない。
+export const VARIANTS_PER_TOKEN_MAX = 32;
 function variantAlternation(tok) {
   // 長い活用形を先に置く（match の一致幅を最長にする＝クイズの空欄化で "running" が "run" に食われない）
-  const vs = [...getWordVariants(tok)].sort((a, b) => b.length - a.length).map(escapeRe);
+  const vs = [...getWordVariants(tok)]
+    .sort((a, b) => b.length - a.length)
+    .slice(0, VARIANTS_PER_TOKEN_MAX)
+    .map(escapeRe);
   return `(?:${vs.join('|')})`;
 }
+// 照合に効く語の数（フレーズの埋め草＝冠詞・代名詞等を除いた語数）。wordMatchRegex が実際に連結する語の数と同じ。
+//   外部入力の語（/api/example）の上限判定に使う（lib/server/exampleGate.js exampleWordProblem）。
+export function phraseContentTokenCount(word) {
+  const toks = normApostrophes(word).toLowerCase().trim().split(/\s+/).filter(Boolean);
+  if (toks.length <= 1) return toks.length;
+  const content = toks.filter((t) => !PHRASE_FILLERS.has(t));
+  return content.length || toks.length;
+}
+
 // 語／フレーズに一致する RegExp を返す（空語は null）。flags は 'i' か 'gi'。
 export function wordMatchRegex(word, flags = 'i') {
   const w = normApostrophes(word).toLowerCase().trim();
@@ -380,7 +394,10 @@ function expandToFullSentence(cues, best) {
 export function findExampleForWord(rawSrt, word, nearSec, windowSec) {
   if (!rawSrt || !word) return null;
   const cues = parseServeCues(rawSrt);
-  let hits = cues.filter((c) => exampleContainsWord(c.text, word));
+  // 正規表現は1回だけ作る（キューごとに getWordVariants＋RegExp を作り直さない・2026-10-20 /decide）。
+  const re = wordMatchRegex(word);
+  if (!re) return null;
+  let hits = cues.filter((c) => re.test(normApostrophes(c.text)));
   if (!hits.length) return null;
 
   const hasNear = typeof nearSec === 'number' && isFinite(nearSec);
@@ -415,7 +432,9 @@ export function findExampleByAnchor(rawSrt, word, anchorLine, nearSec) {
   if (aSet.size < 2) return null; // 1語だけの曖昧アンカーは弾く（窓フォールバックへ回す）
 
   const cues = parseServeCues(rawSrt);
-  const cands = cues.filter((c) => exampleContainsWord(c.text, word));
+  const re = wordMatchRegex(word); // 1回だけ作る（findExampleForWord と同じ）
+  if (!re) return null;
+  const cands = cues.filter((c) => re.test(normApostrophes(c.text)));
   if (!cands.length) return null;
 
   const hasNear = typeof nearSec === 'number' && isFinite(nearSec);

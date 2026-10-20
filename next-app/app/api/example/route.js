@@ -32,7 +32,7 @@ import { fetchEpisodeSrt } from '@/lib/server/opensubtitles';
 import { rawCacheKey, readRawCache } from '@/lib/server/subtitleRawCache';
 import { vocabCacheKey, readVocabRow } from '@/lib/server/vocabCache';
 import { manualWordProblem } from '@/lib/server/commonWords';
-import { parseSeasonEpisode, exampleDlEligible } from '@/lib/server/exampleGate';
+import { parseSeasonEpisode, exampleDlEligible, exampleWordProblem } from '@/lib/server/exampleGate';
 import {
   EXAMPLE_MANUAL_LIMITS,
   EXAMPLE_MANUAL_DL_LIMITS,
@@ -118,6 +118,9 @@ export async function POST(req) {
   const givenId = Number(body.tmdbId);
   const hasGivenId = Number.isFinite(givenId) && givenId > 0;
   if (!word || (!title && !hasGivenId)) return json({ found: false, reason: 'missing_params' });
+  // 語の長さ・語数の上限（ReDoS 対策・2026-10-20 /decide）。manual と anchor/near の両経路に効かせる。
+  const wordProblem = exampleWordProblem(word);
+  if (wordProblem) return json({ found: false, reason: wordProblem });
 
   // S/E がある＝TV、無い＝映画扱い（拡張の getEpisodeContext は映画/未検出で season=null）。
   //   TV の S/E は整数・範囲内のみ（監査 H2: 任意の値で raw cache/OS DL のキーを量産させない）。
@@ -242,9 +245,15 @@ export async function POST(req) {
     //   手動追加は raw キャッシュに当たり、通常利用では1日1回しか発火しない。
     let raw = await readRawCache(rawKey);
     if (!raw) {
-      const dl = await checkRateLimit(req, 'example-manual-dl', { perMin: 0, perHour: 0, perDay: 0 }, {
+      // 適格性（2026-10-20 /decide・通常経路 H2 と同じ）: その話の vocab_cache 行がある or 作品がカタログ内。
+      //   カタログゲートが無効の間は常に通る（全作品許可）＝今の挙動は変わらない。有効化した時に効く。
+      if (!(await exampleDlEligible({ hasVocabRow: !!(cachedRow.ok && cachedRow.row), tmdbId: id }))) {
+        return json({ found: false, reason: 'not_eligible', tmdbId: id, type });
+      }
+      // IP 単位の上限も張る（ipLimitsOff を外す）: ユーザー単位の5話/日だけだと、アカウントを増やせば
+      //   共有の OS 日次枠（700）を焼ける（1人最大 5話×3候補＝15DL/日 → 約47アカウントで枯渇）。
+      const dl = await checkRateLimit(req, 'example-manual-dl', { perMin: 0, perHour: 0, perDay: EXAMPLE_MANUAL_DL_LIMITS.perIpDay }, {
         failClosed: true,
-        ipLimitsOff: true,
         extra: [
           { keyBase: `rl:example-manual-dl:user:${auth.uid}`, window: 'day', limit: EXAMPLE_MANUAL_DL_LIMITS.perUserDay, scope: 'user' },
           { keyBase: `rl:example-manual-dl:ep:${cacheKey}`, window: 'day', limit: EXAMPLE_MANUAL_DL_LIMITS.perEpisodeDay, scope: 'episode' },

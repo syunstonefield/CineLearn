@@ -10,6 +10,21 @@
 // seed（素の Node）・node:test から import できるよう node:* と相対 import 以外は使わない。
 
 import { isInCatalog } from './vocabCache.js';
+import { phraseContentTokenCount } from '../subtitles.js';
+
+// 照合する語の上限（2026-10-20 /decide・ReDoS 対策）。フレーズの正規表現は語の間に0〜2語を許すため、
+//   語数が増えると一致しない時の試行が指数的に増える（同じ語を並べた細工キューで 12語=1.17秒/キュー を実測）。
+//   5語なら形式崩れで2000語の巨大キューになっても最悪 14ms。句動詞・慣用句は5語に収まる
+//   （keep an eye on someone＝埋め草を除くと keep/eye/on の3語）。
+export const EXAMPLE_WORD_MAX_CHARS = 64;
+export const EXAMPLE_WORD_MAX_TOKENS = 5;
+// 語の形の問題 → 'too_long' | null。route は found:false で返す（例文なしで保存＝従来の失敗と同じ扱い）。
+export function exampleWordProblem(word) {
+  const w = String(word || '');
+  if (w.length > EXAMPLE_WORD_MAX_CHARS) return 'too_long';
+  if (phraseContentTokenCount(w) > EXAMPLE_WORD_MAX_TOKENS) return 'too_long';
+  return null;
+}
 
 export const EXAMPLE_SEASON_MAX = 100;
 export const EXAMPLE_EPISODE_MAX = 500;
