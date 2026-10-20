@@ -12,22 +12,98 @@
 //   「字幕tsSec二重パスの罠」）。
 
 // ── SRT パース ──────────────────────────────────────────────
-export function parseSrt(srtText) {
-  const lines = srtText.split('\n');
-  const dialogues = [];
-  let isDialogue = false;
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (/^\d+$/.test(trimmed)) {
-      isDialogue = false;
-    } else if (/-->/.test(trimmed)) {
-      isDialogue = true;
-    } else if (trimmed && isDialogue) {
-      const clean = trimmed.replace(/<[^>]+>/g, '');
-      if (clean) dialogues.push(clean);
+// 3つの使い道（生成に渡す本文 parseSrt／生成の📍 parseCues／配信の例文 parseServeCues）は、
+// すべてこの1つの分割関数 splitSrtCues を通す（2026-10-20 /decide C）。経路ごとに分割や除外の
+// 規則が割れると「字幕tsSec二重パスの罠」が再発する（例: 旧 parseSrt は♪の行を本文に残し、
+// parseCues は♪のキューを捨てていた＝歌詞から選ばれた例文に📍が付かない）。
+//
+// 分割はタイムスタンプ行（-->）で切る。空行には頼らない（空行に空白が混じる・空行が無い・
+// 改行が CR だけ、という形式崩れの SRT でもキューが正しく分かれる）。
+// 除外の規則（2026-10-20 /decide B）:
+//   - 歌詞: ♪〜♪ で囲まれた区間は本文ごと消す（歌詞は台詞と別の著作物で、出所表示も不正確になる）。
+//     ♪ で始まり閉じが無い行は行ごと歌詞扱い。判定は行ごと。残った単独の♪は記号だけ消す。
+//   - クレジット・宣伝: "subtitles by"・"original air date"・"sync, corrected by"・"opensubtitles"
+//     や URL を含むキューは丸ごと捨てる（OS は誰でも上げられる＝宣伝文が例文として配られるのを防ぐ）。
+// 上限: 生 SRT 全体・キュー数・1キューの長さ（異常なファイルで処理が膨らまないように）。
+export const SRT_MAX_CHARS = 2_000_000; // 通常の1話は 30〜150KB・長編映画でも数百KB
+export const SRT_MAX_CUES = 20_000; // 通常 600〜2000
+export const CUE_MAX_CHARS = 1_000; // 通常の1キューは 120 字前後
+
+const CREDIT_RE = /original air date|sync,?\s*(?:and\s*)?correct(?:ed|ions)? by|subtitles? by|opensubtitles|addic7ed|https?:\/\/|www\.|\b[a-z0-9-]+\.(?:com|org|net|tv)\b/i;
+const TIMESTAMP_RE = /^\s*(\d{1,2}):(\d{2}):(\d{2})[,.]\d{1,3}\s*-->/;
+const NOTE_RE = /[♪♫]/;
+
+// 1キューの行から歌詞を除く（行ごとに判定・歌詞の開きはキュー内の次の行へ持ち越す）。
+//   ① 開いた歌詞の続きの行: 閉じの♪までを捨てる（閉じが無ければ行ごと捨てる）
+//   ② ♪…♪ の閉じた区間を本文ごと消す（♪ と ♫ は同じ扱い）
+//   ③ ♪ で始まり閉じが無い＝行ごと歌詞（次の行へ持ち越す）
+//   ④ 残った単独の♪（行の途中・末尾）は記号だけ消す（台詞に紛れた♪）
+function stripLyricLines(lines) {
+  const out = [];
+  let open = false;
+  for (let line of lines) {
+    if (open) {
+      const i = line.search(NOTE_RE);
+      if (i < 0) continue; // まだ歌詞の中
+      line = line.slice(i + 1);
+      open = false;
     }
+    if (!NOTE_RE.test(line)) {
+      out.push(line);
+      continue;
+    }
+    const rest = line.replace(/[♪♫][^♪♫]*[♪♫]/g, ' ');
+    if (/^\s*[♪♫]/.test(rest)) {
+      open = true;
+      continue;
+    }
+    out.push(rest.replace(/[♪♫]/g, ' '));
   }
-  return dialogues.join(' ');
+  return out;
+}
+
+// 生 SRT → [{ sec, text }]（ファイル順・原文の大小文字・空白は1つに詰める）。
+export function splitSrtCues(rawSrt) {
+  let raw = String(rawSrt || '');
+  if (raw.length > SRT_MAX_CHARS) raw = raw.slice(0, SRT_MAX_CHARS);
+  const lines = raw.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').split('\n');
+  const cues = [];
+  let cur = null;
+  const flush = () => {
+    if (!cur) return;
+    // 次のキューの番号行が末尾に紛れていたら落とす（空行が無い SRT）
+    while (cur.lines.length && /^\s*\d+\s*$/.test(cur.lines[cur.lines.length - 1])) cur.lines.pop();
+    const rawText = cur.lines.join(' ');
+    if (!CREDIT_RE.test(rawText)) {
+      const text = stripLyricLines(cur.lines.map((l) => l.replace(/<[^>]+>/g, '').replace(/\{\\[^}]*\}/g, '')))
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, CUE_MAX_CHARS);
+      if (text) cues.push({ sec: cur.sec, text });
+    }
+    cur = null;
+  };
+  for (const line of lines) {
+    const mt = line.match(TIMESTAMP_RE);
+    if (mt) {
+      flush();
+      if (cues.length >= SRT_MAX_CUES) break;
+      cur = { sec: +mt[1] * 3600 + +mt[2] * 60 + +mt[3], lines: [] };
+      continue;
+    }
+    if (!cur) continue; // 最初のタイムスタンプより前（番号・ヘッダ）
+    if (line.trim()) cur.lines.push(line.trim());
+  }
+  if (cues.length < SRT_MAX_CUES) flush();
+  return cues;
+}
+
+// 生成に渡す本文（台詞だけを空白で結合）。短すぎ判定（opensubtitles.js）にも使う。
+export function parseSrt(srtText) {
+  return splitSrtCues(srtText)
+    .map((c) => c.text)
+    .join(' ');
 }
 
 // ── 候補選別（全取得経路で共通） ────────────────────────────
@@ -306,36 +382,10 @@ export function secToTimeLabel(sec) {
     : `${m}:${String(s).padStart(2, '0')}`;
 }
 
-// 字幕のメタ行（OPテロップ/配布クレジット/歌詞）を照合・引用の対象から外す判定。
-//   セリフではないため、機械マッチで誤った時刻や誤った引用文を生む（例: OP の "♪ Suits ♪"、
-//   "Subtitles by ..." を拾う）。整形前の生行に対して大小無視で判定する。
-const META_LINE_RE = /[♪♫]|original air date|sync,?\s*corrected by|subtitles? by|opensubtitles/i;
-function isMetaLine(rawLine) {
-  return META_LINE_RE.test(rawLine || '');
-}
-
-// 生 SRT を {sec, text} のキュー配列へ。メタ行（OP/クレジット/歌詞）は除外する。
-//   配信時マッチ（findExampleForWord / findExampleByAnchor）専用。原文の大小文字を保持する
-//   （引用表示用）。generation 経路は下の parseCues（小文字化・ソート・メタ行除外）を使う。
+// 配信時マッチ（findExampleForWord / findExampleByAnchor）用のキュー配列。原文の大小文字を保持する
+//   （引用表示用）。分割・除外の規則は splitSrtCues に一本化（生成の parseCues と同じ）。
 function parseServeCues(rawSrt) {
-  const cues = [];
-  rawSrt.split(/\r?\n\r?\n/).forEach((block) => {
-    const lines = block.split(/\r?\n/);
-    const tIdx = lines.findIndex((l) => /-->/.test(l));
-    if (tIdx === -1) return;
-    const mt = lines[tIdx].match(/(\d{2}):(\d{2}):(\d{2})/);
-    if (!mt) return;
-    const sec = +mt[1] * 3600 + +mt[2] * 60 + +mt[3];
-    const rawText = lines.slice(tIdx + 1).join(' ');
-    if (isMetaLine(rawText)) return; // テロップ/クレジット/歌詞は除外
-    const text = rawText
-      .replace(/<[^>]+>/g, '')
-      .replace(/[♪♫]/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
-    if (text) cues.push({ sec, text });
-  });
-  return cues;
+  return splitSrtCues(rawSrt);
 }
 
 // 字幕照合用にテキストをトークン集合へ正規化（小文字・記号除去・1文字語は捨てる）。
@@ -462,33 +512,17 @@ export function findExampleByAnchor(rawSrt, word, anchorLine, nearSec) {
   return { sentence: expandToFullSentence(cues, best), sec: best.sec, label: secToTimeLabel(best.sec) };
 }
 
-// 生SRTを {sec, text} のキュー配列にして時刻昇順で返す（同一署名はキャッシュ）。
-//   メタ行（OPテロップ/配布クレジット/歌詞）は除外する＝generation 経路の tsSec 算出が
-//   OP の "♪ Suits 1x01 ♪" 等を誤マッチして保存時刻がずれるのを構造的に防ぐ
-//   （配信経路 parseServeCues と同じ isMetaLine を使い回す）。
+// 生SRTを {sec, text} のキュー配列にして時刻昇順で返す（同一署名はキャッシュ）。生成の📍用。
+//   分割・除外（歌詞・クレジット）は splitSrtCues に一本化＝配信経路 parseServeCues と必ず同じ。
+//   ここでは照合用に小文字化・アポストロフィ統一だけを足す。
 let _cueCacheSig = '';
 let _cueCacheArr = [];
 function parseCues(raw, sig) {
   if (_cueCacheSig === sig) return _cueCacheArr;
-  const cues = [];
-  raw.split(/\r?\n\r?\n/).forEach((block) => {
-    const lines = block.split(/\r?\n/);
-    const tIdx = lines.findIndex((l) => /-->/.test(l));
-    if (tIdx === -1) return;
-    const mt = lines[tIdx].match(/(\d{2}):(\d{2}):(\d{2})/);
-    if (!mt) return;
-    const sec = +mt[1] * 3600 + +mt[2] * 60 + +mt[3];
-    const rawText = lines.slice(tIdx + 1).join(' ');
-    if (isMetaLine(rawText)) return; // テロップ/クレジット/歌詞は除外（OPテロップ誤マッチ防止）
-    const text = rawText
-      .replace(/<[^>]+>/g, '')
-      .replace(/[♪♫]/g, '')
-      .replace(/[’'`]/g, "'")
-      .replace(/\s+/g, ' ')
-      .trim()
-      .toLowerCase();
-    if (text) cues.push({ sec, text });
-  });
+  const cues = splitSrtCues(raw).map((c) => ({
+    sec: c.sec,
+    text: c.text.replace(/[’'`]/g, "'").toLowerCase(),
+  }));
   cues.sort((a, b) => a.sec - b.sec);
   _cueCacheSig = sig;
   _cueCacheArr = cues;
