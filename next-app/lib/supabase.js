@@ -210,20 +210,32 @@ export async function pullFromCloud(profileId = null) {
       };
       // 出所（最初に出会った作品/話）。列が無いDBでは undefined＝付けない
       if (e.origin_title) cloudEntry.origin = { title: e.origin_title, season: e.origin_season ?? null, episode: e.origin_episode ?? null };
+      // 初回の答え（first_quality・supabase_srs_first_quality.sql）。先に入った値を優先・null は上書きしない
+      if (e.first_quality != null) cloudEntry.firstQuality = e.first_quality;
       const l = local[e.word];
       // クラウドの方が新しい復習日を持つ場合のみ採用（YYYY-MM-DD の文字列比較）。
       if (!l || (e.last_review || '') > (l.lastReview || '')) {
         // ローカルだけが出所を持っていれば引き継ぐ（クラウド行が古い＝出所列が空のことがある）
         if (!cloudEntry.origin && l?.origin?.title) cloudEntry.origin = l.origin;
+        if (cloudEntry.firstQuality == null && l?.firstQuality != null) cloudEntry.firstQuality = l.firstQuality;
         merged[e.word] = cloudEntry;
-      } else if (!l.origin?.title && cloudEntry.origin) {
-        merged[e.word] = { ...l, origin: cloudEntry.origin }; // ローカル優先でも出所だけは補う
+      } else {
+        const fill = {};
+        if (!l.origin?.title && cloudEntry.origin) fill.origin = cloudEntry.origin; // ローカル優先でも出所だけは補う
+        if (l.firstQuality == null && cloudEntry.firstQuality != null) fill.firstQuality = cloudEntry.firstQuality;
+        if (Object.keys(fill).length) merged[e.word] = { ...l, ...fill };
       }
     });
     const pushBack = {};
     Object.entries(merged).forEach(([w, e]) => {
       const c = cloudByWord[w];
-      if (!c || (e.lastReview || '') > (c.last_review || '') || !!e.skipped !== !!c.skipped) {
+      if (
+        !c ||
+        (e.lastReview || '') > (c.last_review || '') ||
+        !!e.skipped !== !!c.skipped ||
+        // 列はあるのにクラウド側が空＝ローカルだけが初回の答えを持つ（列が無いDBでは c に key 自体が無い＝送らない）
+        ('first_quality' in c && c.first_quality == null && e.firstQuality != null)
+      ) {
         pushBack[w] = e;
       }
     });
@@ -505,19 +517,24 @@ export function queueStatePush(key, delayMs = 3000) {
 
 // SRS を語単位でクラウドへ upsert（entries = { word: srsEntry }）。
 // スキーマ列のみ送る（lastQuality/reviewCount 等の拡張フィールドはローカル専用）。
-// origin_*（最初に出会った作品/話・supabase_srs_origin.sql）。列が無いDBでは PGRST204 で行ごと弾かれる
-// ので、一度弾かれたらセッション中は送らない（ts_sec / in_wordbook と同じ作法）。
+// origin_*（最初に出会った作品/話・supabase_srs_origin.sql）と first_quality（初回の答え・
+// supabase_srs_first_quality.sql）は後から足した列。列が無いDBでは PGRST204 で行ごと弾かれるので、
+// 一度弾かれたらセッション中はその列を送らない（ts_sec / in_wordbook と同じ作法）。
 let _srsOriginUnsupported = false;
-function isMissingSrsOrigin(res) {
+let _srsFirstQualityUnsupported = false;
+function missingSrsColumn(res) {
   const msg = `${res?.code || ''} ${res?.message || ''}`;
-  return /PGRST204/.test(msg) && /origin_/.test(msg);
+  if (!/PGRST204/.test(msg)) return null;
+  if (/origin_/.test(msg)) return 'origin';
+  if (/first_quality/.test(msg)) return 'firstQuality';
+  return null;
 }
 
 export async function pushSrsWords(entries) {
   if (!isLoggedIn()) return;
   const uid = getCurrentUser()?.id;
   if (!uid || !entries) return;
-  const build = (withOrigin) =>
+  const build = () =>
     Object.entries(entries)
       .filter(([, e]) => e)
       .map(([word, e]) => {
@@ -533,14 +550,16 @@ export async function pushSrsWords(entries) {
           updated_at: new Date().toISOString(),
         };
         // 出所は持っている時だけ送る（省略＝据え置き・merge-duplicates）。最初に出会った作品を上書きしない
-        if (withOrigin && e.origin?.title) {
+        if (!_srsOriginUnsupported && e.origin?.title) {
           row.origin_title = e.origin.title;
           row.origin_season = e.origin.season ?? null;
           row.origin_episode = e.origin.episode ?? null;
         }
+        // 初回の答えも持っている時だけ送る（省略＝据え置き）。先に入った値を null で潰さない
+        if (!_srsFirstQualityUnsupported && e.firstQuality != null) row.first_quality = e.firstQuality;
         return row;
       });
-  let rows = build(!_srsOriginUnsupported);
+  let rows = build();
   if (!rows.length) return;
   const post = () =>
     sbFetch('/rest/v1/srs_data', {
@@ -548,11 +567,14 @@ export async function pushSrsWords(entries) {
       headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
       body: JSON.stringify(rows),
     });
-  const res = await post();
-  if (isMissingSrsOrigin(res) && rows.some((r) => 'origin_title' in r)) {
-    _srsOriginUnsupported = true;
-    rows = build(false);
-    await post();
+  // 列が無い DB では、弾かれた列を外して再送（origin_* と first_quality の両方が無ければ最大2回）
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const res = await post();
+    const missing = missingSrsColumn(res);
+    if (missing === 'origin' && !_srsOriginUnsupported) _srsOriginUnsupported = true;
+    else if (missing === 'firstQuality' && !_srsFirstQualityUnsupported) _srsFirstQualityUnsupported = true;
+    else return;
+    rows = build();
   }
 }
 

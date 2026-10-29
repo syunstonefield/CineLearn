@@ -1,0 +1,22 @@
+-- srs_data.first_quality（初回の答え）列追加 ★「CineLearn 経由で初めて知った語」の割合・2026-10-29
+-- ⏳未適用。オーナーが Supabase ダッシュボードの SQL Editor で実行する。
+--
+-- 【なぜ必要か】
+-- オーナーの問い「初回復習時に知らなかった単語の割合と語数は？」に答えるため。
+-- reviewWord（next-app/lib/storage.js）は SRS エントリを上書きするだけで初回の採点結果が残らず、
+-- srs_data にも interval/repetitions/ease_factor/due_date/last_review/skipped/origin_* しか無かった。
+-- アプリは **新しい SRS エントリを作る時だけ** firstQuality(0=知らなかった/3=うろ覚え/5=知ってた) を記録し、
+-- 以後は上書きしない。skipWord（知ってるで外した語）で作られた行や、記録開始前からの語は NULL のまま。
+-- 機種変更しても残るよう、この列で同期する（pushSrsWords / pull の語単位マージ＝先に入った値を優先・NULL で潰さない）。
+--
+-- 負荷: 通信回数は増えない（採点時の1行に列が1つ増えるだけ）。NULL 許容・既存行に影響なし。
+-- GRANT は既存の srs_data の権限がそのまま列にも効く（列単位の GRANT は使っていない）。
+--
+-- 【適用前でも壊れない】送信側（next-app/lib/supabase.js pushSrsWords）は列が無い間は first_quality を外して
+-- 再送するので、復習の同期は止まらない（初回の答えが端末 cl_srs にだけ残る）。
+ALTER TABLE srs_data ADD COLUMN IF NOT EXISTS first_quality smallint;
+
+-- ── 検証 ──
+-- 自分の語数と初回の答えの内訳（0=知らなかった / 3=うろ覚え / 5=知ってた）
+-- SELECT first_quality, count(*) FROM srs_data
+--   WHERE user_id = auth.uid() AND first_quality IS NOT NULL GROUP BY first_quality ORDER BY first_quality;

@@ -730,11 +730,14 @@ export function recordReviewSession(historyId, easy, hard, fail) {
 // SM-2アルゴリズム（同日復習ガードつき）。quality 0=失敗 / 3=うろ覚え / 5=完璧
 // src＝カードの出所（_src: {title, season, episode}）。**最初の採点時だけ** e.origin に固定する
 // （同じ語が複数作品のリストに出ても「最初に出会った作品」を残す＝拡張の再会表示が使う・2026-10-08）。
+// firstQuality＝初回の答え（2026-10-29〜）。**新しい SRS エントリを作る時だけ** quality(0/3/5) を記録し、
+// 以後は上書きしない。skipWord（＝知ってるで外した語）で作られた既存エントリや、記録開始前からの語には
+// 付かない（過去分は不明のまま）。「CineLearn で初めて知った語の割合」を firstLearnStats で出すため。
 export function reviewWord(word, quality, src = null) {
   const all = loadSrs();
   const k = word.toLowerCase();
   addStatsDaily(quality >= 3 ? { ok: 1 } : { fail: 1 }); // 日ごとの記録（同日2回目の練習も数える）
-  let e = all[k] || { interval: 1, repetitions: 0, easeFactor: 2.5, skipped: false, firstReview: todayStr() };
+  let e = all[k] || { interval: 1, repetitions: 0, easeFactor: 2.5, skipped: false, firstReview: todayStr(), firstQuality: quality };
   if (src?.title && !e.origin?.title) {
     e.origin = { title: src.title, season: src.season ?? null, episode: src.episode ?? null };
   }
@@ -768,6 +771,22 @@ export function reviewWord(word, quality, src = null) {
   all[k] = e;
   saveSrs(all);
   pushSrsWords({ [k]: e }); // クラウドへ（未ログイン時は no-op・fire-and-forget）
+}
+
+// 初回の答えの集計（2026-10-29）。recorded＝firstQuality を持つ語数（記録開始後に初めて採点した語）、
+// unknown＝初回「知らなかった」(0)・shaky＝「うろ覚え」(3)・known＝「知ってた」(5)。
+// 「CineLearn 経由で初めて知った語」＝unknown（広く取るなら unknown+shaky）。skipped の語は含めない。
+export function firstLearnStats(srs = loadSrs()) {
+  const r = { recorded: 0, unknown: 0, shaky: 0, known: 0 };
+  Object.values(srs || {}).forEach((e) => {
+    const q = e?.firstQuality;
+    if (q == null || e?.skipped) return;
+    r.recorded++;
+    if (q < 3) r.unknown++;
+    else if (q < 5) r.shaky++;
+    else r.known++;
+  });
+  return r;
 }
 
 // 出所の埋め戻し（2026-10-08）: origin を持たない SRS エントリに、予習履歴（作品ごとの語リスト）から
