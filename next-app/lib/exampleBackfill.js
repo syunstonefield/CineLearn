@@ -105,7 +105,10 @@ export async function backfillMissingExamples(words, { drama, season, episode, i
   // ここで叩き直すと no_anchor_no_near（「保存時の再生位置が不明でした」）が永続化されて A4 の説明と矛盾する
   //（レビュー指摘）。例文の取り直しはしない（📍修復＝例文ありの語は対象のまま）。
   const needsExample = (w) => w.origin !== 'manual' && !(w.example || '').trim();
-  const needsTs = (w) => !needsExample(w) && !hasTsSec(w) && !_tsTried.has(tsKey(w));
+  // 📍の取り直しは「例文あり・時刻なし」の語だけ（例文そのものを照合のアンカーにする）。
+  //   例文の無い手動追加の語は needsExample から外れるので、例文の有無を見ないと空のアンカーで
+  //   毎回1回問い合わせていた（2026-10-30 本番で確認・単語リストと単語帳の両方）。
+  const needsTs = (w) => !!(w.example || '').trim() && !hasTsSec(w) && !_tsTried.has(tsKey(w));
   const targets = words
     .filter((w) => w?.word && ((needsExample(w) && retryable(w)) || needsTs(w)))
     .slice(0, MAX_PER_RUN);
