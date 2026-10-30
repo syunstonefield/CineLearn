@@ -15,14 +15,14 @@ CineLearn は、単語の難易度判定と基礎語の除外のために、以�
 |---|---|
 | 権利者 | 東京外国語大学 投野由紀夫研究室（Tono Laboratory at TUFS） |
 | 版 | Version 1.6（2020.3.24 更新版） |
-| 入手元 | https://www.cefr-j.org/download.html |
-| 取得日 | 2026年10月（ダウンロード日は作品・予習部門が確定後に追記） |
+| 入手元 | https://www.cefr-j.org/download.html（zip: https://www.cefr-j.org/data/CEFRJ_wordlist_ver1.6.zip） |
+| 取得日 | 2026年10月30日 |
 | ライセンス | 独自の利用条件（適切な引用を条件に、研究教育・商用とも無償） |
 | 本サービスでの用途 | A1〜B2 の語の難易度判定 |
 
 **本サービスでの表示（法務指定）**
 
-> 『CEFR-J Wordlist Version 1.6』東京外国語大学投野由紀夫研究室.（URL: https://www.cefr-j.org/download.html より 2026年10月ダウンロード）
+> 『CEFR-J Wordlist Version 1.6』東京外国語大学投野由紀夫研究室.（URL: https://www.cefr-j.org/download.html より 2026年10月30日ダウンロード）
 
 **利用条件の原文の写し**（出典: https://www.cefr-j.org/download.html ・2026-10-30 取得）
 
@@ -49,8 +49,8 @@ CineLearn は、単語の難易度判定と基礎語の除外のために、以�
 |---|---|
 | 権利者 | Octanove Labs（http://www.octanove.com/） |
 | 版 | ver 1.0（`octanove-vocabulary-profile-c1c2-1.0.csv`） |
-| 入手元 | https://github.com/openlanguageprofiles/olp-en-cefrj |
-| 取得日 | 2026年10月 |
+| 入手元 | https://github.com/openlanguageprofiles/olp-en-cefrj（master ブランチの `octanove-vocabulary-profile-c1c2-1.0.csv`） |
+| 取得日 | 2026年10月30日 |
 | ライセンス | Creative Commons Attribution-ShareAlike 4.0 International（CC BY-SA 4.0）<br>https://creativecommons.org/licenses/by-sa/4.0/ |
 | 変更 | 本サービス向けに形式変換と見出し語の正規化を行っています。 |
 | 本サービスでの用途 | C1/C2 の語の難易度判定 |

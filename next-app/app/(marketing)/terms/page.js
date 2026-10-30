@@ -133,7 +133,7 @@ export default function TermsPage() {
       <ul>
         <li style={li}>
           『CEFR-J Wordlist Version 1.6』東京外国語大学投野由紀夫研究室.
-          （URL: <a href="https://www.cefr-j.org/download.html" style={a} target="_blank" rel="noopener noreferrer">https://www.cefr-j.org/download.html</a> より 2026年10月ダウンロード）
+          （URL: <a href="https://www.cefr-j.org/download.html" style={a} target="_blank" rel="noopener noreferrer">https://www.cefr-j.org/download.html</a> より 2026年10月30日ダウンロード）
         </li>
         <li style={li}>
           Octanove Vocabulary Profile C1/C2 (ver 1.0), created by Octanove Labs
