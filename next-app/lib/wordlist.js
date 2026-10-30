@@ -4,6 +4,9 @@
  * NGSL（New General Service List）の頻度データを TOEIC スコア帯に対応させた
  * コンパクトな除外語セット。単語生成時にこのレベル以下の語を Claude に渡さない。
  *
+ * 出典: New General Service List (NGSL) by Browne, Culligan & Phillips, CC BY-SA 4.0,
+ *       https://www.newgeneralservicelist.com/ （語リスト部分は CC BY-SA 4.0。詳細は repo 直下 THIRD_PARTY_NOTICES.md）
+ *
  * Tier 定義：
  *   tier0  : TOEIC ≤ 400（A2 以下）— 超基礎語 ~500語
  *   tier400: TOEIC ≤ 600（B1）    — 日常語  ~700語

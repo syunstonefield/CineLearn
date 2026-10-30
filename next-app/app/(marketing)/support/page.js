@@ -90,6 +90,8 @@ export default function SupportPage() {
         <div>
           例文は字幕データベース（OpenSubtitles）に登録のある映画・ドラマから引用しています。
           該当作品・話数のデータが無い場合は例文が付かないことがあります（単語の保存・意味の表示は可能です）。
+          また、単語の難易度判定と基礎語の除外には CEFR-J Wordlist・Octanove Vocabulary Profile・NGSL の語彙データを利用しています
+          （出典とライセンスは<a href="/terms#third-party" style={a}>利用規約「第三者データ」</a>をご覧ください）。
         </div>
       </div>
 

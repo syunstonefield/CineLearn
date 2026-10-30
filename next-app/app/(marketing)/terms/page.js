@@ -7,7 +7,7 @@
 import { NON_AFFILIATION } from '@/lib/legal';
 
 const CONTACT_EMAIL = 'cinelearn.202606@gmail.com';
-const UPDATED = '2026年10月8日';
+const UPDATED = '2026年10月30日';
 
 export const metadata = {
   title: '利用規約 — CineLearn',
@@ -124,16 +124,41 @@ export default function TermsPage() {
         This product uses the TMDB API but is not endorsed or certified by TMDB.
       </p>
 
-      <h2 style={h2}>10. 準拠法・管轄</h2>
+      <h2 style={h2} id="third-party">10. 第三者データ</h2>
+      <p>
+        {/* 出典の正典は repo 直下の THIRD_PARTY_NOTICES.md（ライセンス原文・取得日つき）。文言は法務指定（2026-10-30） */}
+        本サービスは、単語の難易度判定および基礎語の除外のために、次の第三者が公開する語彙データを利用しています。
+        各データの権利は各権利者に帰属します。
+      </p>
+      <ul>
+        <li style={li}>
+          『CEFR-J Wordlist Version 1.6』東京外国語大学投野由紀夫研究室.
+          （URL: <a href="https://www.cefr-j.org/download.html" style={a} target="_blank" rel="noopener noreferrer">https://www.cefr-j.org/download.html</a> より 2026年10月ダウンロード）
+        </li>
+        <li style={li}>
+          Octanove Vocabulary Profile C1/C2 (ver 1.0), created by Octanove Labs
+          (<a href="http://www.octanove.com/" style={a} target="_blank" rel="noopener noreferrer">http://www.octanove.com/</a>),
+          licensed under CC BY-SA 4.0
+          (<a href="https://creativecommons.org/licenses/by-sa/4.0/" style={a} target="_blank" rel="noopener noreferrer">https://creativecommons.org/licenses/by-sa/4.0/</a>).
+          Source: <a href="https://github.com/openlanguageprofiles/olp-en-cefrj" style={a} target="_blank" rel="noopener noreferrer">https://github.com/openlanguageprofiles/olp-en-cefrj</a>.
+          本サービス向けに形式変換と見出し語の正規化を行っています。
+        </li>
+        <li style={li}>
+          New General Service List (NGSL) by Browne, Culligan &amp; Phillips, CC BY-SA 4.0,
+          <a href="https://www.newgeneralservicelist.com/" style={a} target="_blank" rel="noopener noreferrer">https://www.newgeneralservicelist.com/</a>
+        </li>
+      </ul>
+
+      <h2 style={h2}>11. 準拠法・管轄</h2>
       <p>
         本規約は日本法に準拠して解釈されます。本サービスに関して紛争が生じた場合は、
         運営者の所在地を管轄する裁判所を専属的合意管轄裁判所とします。
       </p>
 
-      <h2 style={h2}>11. 本規約の変更</h2>
+      <h2 style={h2}>12. 本規約の変更</h2>
       <p>本規約は必要に応じて改定します。重要な変更がある場合はこのページで告知します。</p>
 
-      <h2 style={h2}>12. お問い合わせ</h2>
+      <h2 style={h2}>13. お問い合わせ</h2>
       <p>
         本規約に関するご質問、権利者からの削除要請（著作権等）は、以下までご連絡ください。
         <br />
