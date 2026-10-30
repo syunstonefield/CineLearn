@@ -7,6 +7,10 @@
 // 使い道: ① レベル判定（firstQuality × 段階 → lib/levelEstimate.js・品詞を問わず易しい方）
 //         ② 単語リストの絞り込み（下の selectForLearner・品詞一致・原形化なし・2026-10-30 オーナー決定）
 //   vocab_cache の level（AI 判定）は書き換えない。
+// ⚠ 法務のルール（2026-10-30・82ce4c0 の回答）:
+//     1. 表の作り方（変換・正規化・持つ列）を変えたら、JSON の _modified・repo 直下の THIRD_PARTY_NOTICES.md・
+//        利用規約「第三者データ」節の3か所を同時に直す（文言は ⑤ 検索・半券・設定・その他 部門）。
+//     2. 表の段階そのものを API 応答・履歴（端末/クラウド同期）に含める変更は、事前に法務へ回す。
 import 'server-only';
 import cefrj from '../data/cefrj-wordlist-1.6.json' with { type: 'json' };
 import octanove from '../data/octanove-c1c2-1.0.json' with { type: 'json' };
