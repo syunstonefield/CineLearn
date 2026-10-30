@@ -11,7 +11,10 @@ import {
   saveWordTranslation,
   repairLongExamples,
 } from '@/lib/words';
-import { loadSrs, skipWord, unskipWord, isLearned, isMastered, todayStr, isEpisodeMismatch } from '@/lib/storage';
+import { loadSrs, loadHistory, skipWord, unskipWord, isLearned, isMastered, todayStr, isEpisodeMismatch } from '@/lib/storage';
+import CefrNote from './CefrNote';
+import { cefrHintOf } from '@/lib/cefrHint';
+import { cefrIndexFromHistory, withWordbookCefr } from '@/lib/wordbookCefr';
 import { fillTranslations } from '@/lib/translateQueue';
 import { speak } from '@/lib/speak';
 import { secToTimeLabel } from '@/lib/subtitles';
@@ -49,9 +52,13 @@ export default function WordbookScreen() {
   const [syncing, setSyncing] = useState(false);
   const [exJa, setExJa] = useState({}); // word(小文字) → 例文の和訳（/api/translate）
   const [wordJa, setWordJa] = useState({}); // word(小文字) → 単語の和訳（意味を日本語に）
+  // CEFR の目安（試作 2026-10-30）: 保存レコードは level を持たないので、端末の予習の記録（cl_history）から
+  // 同じ語の level / levelShown を借りる（lib/wordbookCefr.js）。サーバへの照会はしない。
+  const [cefrIndex, setCefrIndex] = useState(() => new Map());
 
   useEffect(() => {
     setSrs(loadSrs());
+    setCefrIndex(cefrIndexFromHistory(loadHistory()));
     let cancelled = false;
     // ★を外した語（inWordbook:false）は出さない（2026-09-22）。作品の単語リスト側には残っている。
     getWordbookWords(pid).then((w) => {
@@ -297,6 +304,8 @@ export default function WordbookScreen() {
                 </button>
               </span>
             </div>
+            {/* CEFR の目安の一行（単語リストと同じ CefrNote・法務 条件2）。目安を出せる語が1語でもある時だけ */}
+            {visibleWords.some((w) => cefrHintOf(withWordbookCefr(w, cefrIndex))) && <CefrNote />}
             <div className="vocab-list">
               {visibleWords.length === 0 && (
                 <div className="empty-state" style={{ padding: '24px 8px' }}>
@@ -307,6 +316,7 @@ export default function WordbookScreen() {
                 // 話数不明（A22(a)）: 拡張が S/E を検出できずに保存した TV の語。作品の各話リストには
                 // 出ないので、ここで所在が分かるようバッジを付ける（映画は S/E が無いのが正＝付けない）。
                 const unassigned = isUnassignedTvWord(w, settings.myDramas || []);
+                const wc = withWordbookCefr(w, cefrIndex); // CEFR の目安の値（履歴から借りる・試作）
                 return (
                   <div key={w.word} style={unassigned ? { position: 'relative' } : undefined}>
                     {unassigned && (
@@ -327,7 +337,7 @@ export default function WordbookScreen() {
                     )}
                     <VocabItem
                       word={{
-                        ...w,
+                        ...wc,
                         definition: wordJa[w.word.toLowerCase()] || w.definition,
                         example: w.example || w.sentence || '',
                         example_ja: w.example_ja || exJa[w.word.toLowerCase()] || '',
@@ -339,6 +349,7 @@ export default function WordbookScreen() {
                       // 並んで「どの作品の何分ごろか」が分かる。
                       ts={w.tsSec != null ? { sec: w.tsSec, label: secToTimeLabel(w.tsSec) } : null}
                       exampleSource={wordSource(w, unassigned)}
+                      showCefr // 各語に「CEFR目安」（試作 2026-10-30・法務の回答まで本番に出さない）
                       starred
                       onSpeak={speak}
                       onSkip={handleSkip}
