@@ -825,6 +825,8 @@ export default function VocabScreen() {
         englishTitle: String(drama.englishTitle || '').slice(0, 120),
         displayTitle: String(drama.englishTitle || drama.title || '').slice(0, 120),
         vocabCount: Math.min(60, Math.max(20, Number(settings.vocabCount) || 40)),
+        // 学習者設定（2026-10-30〜）: サーバが難易度表の段階で絞り、表示する語の番号 selected を返す
+        personalize: personalizeOpts,
       };
       setGenStatus('単語を分析中...');
       let r = await generateEpisodeVocab(body, { signal: ac.signal });
@@ -977,7 +979,9 @@ export default function VocabScreen() {
       // example_ja_ok を落としているため、そのままだと fillMissingExampleJa が全語を「未訳」とみなして
       // 訳し直す（本番実測: Suits S1E1 は 86/87 語が既訳）。訳があるものは既訳として扱う。
       const rowWords = r.words.map((w) => ({ ...w, example_ja_ok: !!w.example_ja }));
-      const words = personalizeWords(rowWords, personalizeOpts);
+      // サーバが絞った（selected あり）ならその語だけ。無ければ従来どおり AI の level で自分で絞る
+      //（WORD_LEVEL_FILTER=off の時・2026-10-30）。rowWords は全語のまま＝例文和訳の行ごと埋め戻しに使う。
+      const words = r.selected ? r.selected.map((i) => rowWords[i]).filter(Boolean) : personalizeWords(rowWords, personalizeOpts);
       // 0語は成功扱いにしない（空リスト＋ボタン消滅で沈黙する既知の穴・2026-08-02）。
       if (!words.length) {
         fail('単語リストを作れませんでした。時間をおいて「単語を再生成」をお試しください');

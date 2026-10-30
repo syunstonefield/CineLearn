@@ -1,15 +1,18 @@
 // 語ごとの固定難易度表（サーバ専用・2026-10-30 オーナー選択肢1・法務 条件付きOK）。
-//   CEFR-J Wordlist 1.6（A1〜B2）＋ Octanove Vocabulary Profile C1/C2 1.0（CC BY-SA 4.0）。
+//   CEFR-J Wordlist 1.6（A1〜B2）＋ Octanove Vocabulary Profile C1/C2 1.0（CC BY-SA 4.0）。品詞ごとの段階を持つ。
 //   原本→JSON の変換は scripts/build-word-levels.py。出典ごとに別ファイル（法務 条件2）。
 //
 // ⚠ 表はユーザーに表示・配布しない（法務 条件4）。'server-only' でクライアントからの import を
 //   ビルドエラーにする。クライアントに返してよいのは「その人の語の段階」や集計結果までで、表そのものではない。
-// ⚠ 使い道は今のところレベル判定（firstQuality × 段階 → lib/levelEstimate.js）だけ。
-//   生成（vocab_cache の level）・personalizeWords の帯フィルタには使わない（オーナー判断 2026-10-30）。
+// 使い道: ① レベル判定（firstQuality × 段階 → lib/levelEstimate.js・品詞を問わず易しい方）
+//         ② 単語リストの絞り込み（下の selectForLearner・品詞一致・原形化なし・2026-10-30 オーナー決定）
+//   vocab_cache の level（AI 判定）は書き換えない。
 import 'server-only';
 import cefrj from '../data/cefrj-wordlist-1.6.json' with { type: 'json' };
 import octanove from '../data/octanove-c1c2-1.0.json' with { type: 'json' };
-import { createWordLevelLookup } from '../wordLevelLookup';
+import { createWordLevelLookup, makeFilterLevelOf } from '../wordLevelLookup';
+import { selectIndices } from '../personalize';
+export { parsePersonalize } from '../personalize';
 
 export const WORD_LEVEL_TABLES = [
   { id: 'cefrj', version: '1.6', retrieved: cefrj._retrieved, levels: cefrj.levels },
@@ -18,3 +21,20 @@ export const WORD_LEVEL_TABLES = [
 
 // wordLevel('running') → { level: 'A1', src: 'cefrj', via: 'lemma', key: 'run' } / 表に無い語は null
 export const wordLevel = createWordLevelLookup(WORD_LEVEL_TABLES);
+
+// ── 単語リストの絞り込み（2026-10-30 オーナー決定・サーバで絞る方式）──────────────
+//   クライアントの personalizeWords（AI の level で絞る）の代わりに、サーバが難易度表の段階
+//   （品詞一致・原形化なし。表に無い語は AI の level）で絞り、**表示する語の番号**だけを返す。
+//   語オブジェクトは変えない（level は AI のまま）＝表の値はサーバの外に出ない（法務 条件4）。
+//   全語も今まで通り返す（例文の和訳の行ごと埋め戻し runFillExampleJa が行の全語を使うため）。
+//   戻すとき: Vercel の環境変数 WORD_LEVEL_FILTER=off を入れて再デプロイ → selected を返さない
+//   ＝クライアントは従来どおり自分で AI の level で絞る。
+export const WORD_LEVEL_FILTER_ENABLED = process.env.WORD_LEVEL_FILTER !== 'off';
+const filterLevelOf = makeFilterLevelOf(wordLevel);
+
+// words（wordsForServe 済み）と学習者設定（parsePersonalize 済み）から、表示する語の番号（words の添字・昇順）。
+// 絞り込みが無効・設定が無い時は null（クライアントが従来どおり自分で絞る）。
+export function selectForLearner(words, personalize) {
+  if (!WORD_LEVEL_FILTER_ENABLED || !personalize) return null;
+  return selectIndices(words, { ...personalize, levelOf: filterLevelOf });
+}

@@ -114,13 +114,14 @@
 - 品詞を合わせ原形化しない版で2段以上ずれる語は drama・team・festival・memory・interview・agree（AI B1 → 表 A1）など、表の方がもっともらしいものが中心。
 
 表示される語の入れ替わり（品詞を合わせ原形化なし・語数設定30・目標＝現在＋200）:
+※ 2026-10-30 訂正: 初版のこの表は2か所（Stranger Things と The Crown の TOEIC 500）に原形化ありの版の数字が混ざっていた。合計は初版から正しい。
 
 | 作品 | TOEIC 500 | TOEIC 700 | TOEIC 860 |
 |---|---|---|---|
 | Suits S1E7 | 52→50（+5 −7） | 72→65（−7） | 73→68（−5） |
-| Stranger Things S1E1 | 54→46（−8） | 54→49（−5） | 46→42（−4） |
+| Stranger Things S1E1 | 54→47（−7） | 54→49（−5） | 46→42（−4） |
 | Breaking Bad S1E1 | 44→44（+2 −2） | 55→52（−3） | 50→51（+3 −2） |
-| The Crown S1E1 | 46→43（+2 −5） | 65→59（−6） | 60→59（+2 −3） |
+| The Crown S1E1 | 46→44（+2 −4） | 65→59（−6） | 60→59（+2 −3） |
 | プラダを着た悪魔 | 62→59（+5 −8） | 78→69（−9） | 69→63（+2 −8） |
 | **合計（15通り）** | | | **880→821 語（+21 −80）** |
 
@@ -147,3 +148,12 @@
 2. (a1) サーバで level を差し替え（最小改修・1.5日・法務確認1が通れば）
 3. (b) DB 上書き＋埋め戻し（戻しにくい・非推奨）
 4. 反映しない（今のまま AI の段階で絞る。レベル判定だけ表を使う）
+
+### 7.6 実装（2026-10-30・オーナー決定＝(a2) サーバで絞り込み）
+- 表のファイルを品詞ごとの段階を持つ形に作り直した（`"go": {"noun":"B1","verb":"A1"}`）。見出し語数・段階別の件数は変わらない（レベル判定の結果も変わらない）。Octanove の品詞の誤記 vern は verb に、空欄は unknown に正規化（`_modified` に明記）。
+- `lib/wordLevelLookup.js`: `lookup(word, { pos, exactOnly })` と、絞り込み用の `makeFilterLevelOf`（単語・context 以外・品詞一致・原形化なし）。
+- `lib/personalize.js`: personalizeWords を lib/vocab.js から分離（クライアント依存なし）。`levelOf` を受け取り、その段階を優先・無ければ AI の level。`selectIndices`・`parsePersonalize`。
+- `/api/vocab-generate`: body に `personalize`（TOEIC・目標・語数）があれば、全語（AI の level のまま）に加えて**表示する語の添字 `selected`** を返す。表の値はサーバの外に出ない。全語を返し続けるのは、例文和訳の行ごと埋め戻し（runFillExampleJa）が行の全語を使うため。
+- 画面（VocabScreen）: `personalize` を送り、`selected` があればその語だけを表示。無ければ従来どおり自分で絞る（古い画面のコード・seed・`WORD_LEVEL_FILTER=off` の時）。
+- 戻し方: Vercel の環境変数 `WORD_LEVEL_FILTER=off` を入れて再デプロイ。DB は触っていないので後始末なし。
+- 確認: ローカルの本番ビルドで本物の共有キャッシュに対し 5 作品 × TOEIC 3 段を叩き、表示語数が 7.2 の実測（原形化なし）と 15 通りすべて一致、返る語の level は全件 AI のまま、設定を送らない呼び出しには selected が付かないことを確認。テスト 175 件パス。

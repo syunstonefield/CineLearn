@@ -107,38 +107,71 @@ export function lemmaCandidates(w) {
   return out;
 }
 
-// tables: [{ id: 'cefrj', levels: { word: 'A1', ... } }, ...]
-// 戻り値: lookup(word) → { level, src, via: 'exact'|'lemma', key } | null
+// 語リストの品詞（日本語・英語・「名詞/動詞」のような併記）→ 表の品詞名。
+// 句動詞・名詞句・固有名詞・イディオムなどは表に対応する品詞が無い＝空集合（品詞を合わせる引き方では引かない）。
+const POS_MAP = {
+  名詞: ['noun'], noun: ['noun'],
+  動詞: ['verb'], verb: ['verb'],
+  形容詞: ['adjective'], adjective: ['adjective'],
+  副詞: ['adverb'], adverb: ['adverb'],
+  前置詞: ['preposition'], preposition: ['preposition'],
+  代名詞: ['pronoun'], pronoun: ['pronoun'],
+  接続詞: ['conjunction'], conjunction: ['conjunction'],
+  間投詞: ['interjection'], 感動詞: ['interjection'], interjection: ['interjection'],
+  限定詞: ['determiner'], determiner: ['determiner'],
+  数詞: ['number'], number: ['number'],
+};
+export function tablePosOf(pos) {
+  const out = [];
+  String(pos ?? '')
+    .replace(/[（(][^）)]*[）)]/g, '') // 「動詞（過去分詞）」→「動詞」
+    .split(/[\/／・,、]/)
+    .forEach((x) => (POS_MAP[x.trim().toLowerCase()] || POS_MAP[x.trim()] || []).forEach((p) => !out.includes(p) && out.push(p)));
+  return out;
+}
+
+// tables: [{ id: 'cefrj', levels: { word: { noun: 'A1', verb: 'A1' } | 'A1', ... } }, ...]
+//   値は品詞ごとの段階（2026-10-30〜）。古い形（段階の文字列だけ）も受け付ける。
+// 戻り値: lookup(word, { pos, exactOnly }) → { level, src, via: 'exact'|'lemma', key } | null
+//   pos 無し    … 品詞を問わず易しい方（レベル判定用・SRS は品詞を持たない）
+//   pos あり    … その品詞の段階だけを見る。品詞が表に無い・対応しない（句動詞など）なら null
+//   exactOnly   … 原形化しない（単語リストの絞り込み用。fell(伐採)→fall のような取り違えを避ける）
 export function createWordLevelLookup(tables) {
   const list = (tables || []).filter((t) => t && t.levels);
 
-  // 全表から易しい方を採る
-  function hit(key) {
+  // 全表から易しい方を採る。posList が空配列なら「品詞を問わない」。
+  function hit(key, posList) {
     let best = null;
     for (const t of list) {
-      const lv = t.levels[key];
-      if (!lv) continue;
-      const i = CEFR_ORDER.indexOf(lv);
-      if (i < 0) continue;
-      if (!best || i < CEFR_ORDER.indexOf(best.level)) best = { level: lv, src: t.id };
+      const v = t.levels[key];
+      if (!v) continue;
+      const cands = typeof v === 'string' ? (posList.length ? [] : [v]) : posList.length ? posList.map((p) => v[p]) : Object.values(v);
+      for (const lv of cands) {
+        const i = CEFR_ORDER.indexOf(lv);
+        if (i < 0) continue;
+        if (!best || i < CEFR_ORDER.indexOf(best.level)) best = { level: lv, src: t.id };
+      }
     }
     return best;
   }
 
-  return function lookup(word) {
+  return function lookup(word, { pos, exactOnly = false } = {}) {
+    const posList = pos == null ? [] : tablePosOf(pos);
+    if (pos != null && !posList.length) return null; // 品詞が指定されたが表の品詞に対応しない
     // 1. 記号を残した形 → 2. 記号を落とした形 の順にそのまま引く
     const light = lightNormalize(word);
     const w = normalizeWord(word);
     if (!w) return null;
     for (const k of light === w ? [w] : [light, w]) {
-      const exact = hit(k);
+      const exact = hit(k, posList);
       if (exact) return { ...exact, via: 'exact', key: k };
     }
+    if (exactOnly) return null;
 
     const parts = w.split(' ');
     if (parts.length === 1) {
       for (const c of lemmaCandidates(w)) {
-        const h = hit(c);
+        const h = hit(c, posList);
         if (h) return { ...h, via: 'lemma', key: c };
       }
       return null;
@@ -147,9 +180,20 @@ export function createWordLevelLookup(tables) {
     const rest = parts.slice(1).join(' ');
     for (const c of lemmaCandidates(parts[0])) {
       const key = `${c} ${rest}`;
-      const h = hit(key);
+      const h = hit(key, posList);
       if (h) return { ...h, via: 'lemma', key };
     }
     return null;
+  };
+}
+
+// 単語リストの絞り込み用の段階（2026-10-30 オーナー決定・サーバで絞る方式）。
+//   対象: 単語（空白なし）・context tier 以外・品詞が表の品詞に対応する語。品詞を合わせ、原形化しない。
+//   表に無い語は null（personalizeWords は AI の level を使う）。
+export function makeFilterLevelOf(lookup) {
+  return (w) => {
+    if (!w || /\s/.test(String(w.word || '').trim()) || w.tier === 'context') return null;
+    const r = lookup(w.word, { pos: w.pos ?? '', exactOnly: true });
+    return r ? r.level : null;
   };
 }

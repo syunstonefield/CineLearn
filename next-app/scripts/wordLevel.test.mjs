@@ -8,7 +8,8 @@ import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
-const { createWordLevelLookup, CEFR_ORDER } = await import('../lib/wordLevelLookup.js');
+const { createWordLevelLookup, makeFilterLevelOf, tablePosOf, CEFR_ORDER } = await import('../lib/wordLevelLookup.js');
+const { personalizeWords, parsePersonalize, selectIndices } = await import('../lib/personalize.js');
 const { firstQualityByLevel, estimateBoundary } = await import('../lib/levelEstimate.js');
 
 const raw = (f) => readFileSync(join(ROOT, 'lib/data', f), 'utf8');
@@ -33,8 +34,13 @@ test('出典ごとに別ファイル・先頭に _source/_license/_modified/_ret
   assert.match(OCT._source, /Octanove/);
   assert.match(OCT._license, /CC BY-SA 4\.0/);
   // 1ファイルに混ぜない: CEFR-J は A1〜B2 だけ、Octanove は C1/C2 だけ
-  assert.ok(Object.values(CEFRJ.levels).every((l) => ['A1', 'A2', 'B1', 'B2'].includes(l)));
-  assert.ok(Object.values(OCT.levels).every((l) => ['C1', 'C2'].includes(l)));
+  const all = (doc) => Object.values(doc.levels).flatMap((d) => Object.values(d));
+  assert.ok(all(CEFRJ).every((l) => ['A1', 'A2', 'B1', 'B2'].includes(l)));
+  assert.ok(all(OCT).every((l) => ['C1', 'C2'].includes(l)));
+  // 品詞ごとの段階を持つ（2026-10-30〜）
+  assert.deepEqual(CEFRJ.levels.go, { noun: 'B1', verb: 'A1' });
+  assert.deepEqual(OCT.levels.engineer, { verb: 'C1' });
+  assert.ok(OCT._modified.includes('vern→verb'));
 });
 
 test('表の見出し語はすべてその語のまま引ける（\'m / mr. / a.m. のような記号つきも）', () => {
@@ -196,4 +202,80 @@ test('本物の表と組み合わせて動く', () => {
   assert.equal(s.byLevel.A1.known, 1);
   assert.equal(s.byLevel[lookup('meticulous').level].unknown, 1);
   assert.equal(s.unleveled, 1);
+});
+
+// ── 品詞を合わせる・原形化しない（単語リストの絞り込み用・2026-10-30）──────────
+test('品詞の対応（日本語・英語・併記・括弧つき）と、表に無い品詞は空', () => {
+  assert.deepEqual(tablePosOf('名詞'), ['noun']);
+  assert.deepEqual(tablePosOf('verb'), ['verb']);
+  assert.deepEqual(tablePosOf('名詞/動詞'), ['noun', 'verb']);
+  assert.deepEqual(tablePosOf('動詞（過去分詞）'), ['verb']);
+  assert.deepEqual(tablePosOf('句動詞'), []);
+  assert.deepEqual(tablePosOf('固有名詞'), []);
+  assert.deepEqual(tablePosOf(''), []);
+});
+
+test('品詞を合わせると、別の品詞の段階を誤って使わない（skirt 動詞・engineer 動詞）', () => {
+  assert.equal(lookup('skirt').level, 'A1'); // 品詞を問わなければ名詞の A1
+  assert.equal(lookup('skirt', { pos: '動詞' }), null); // 動詞は表に無い → AI のまま
+  assert.equal(lookup('skirt', { pos: '名詞' }).level, 'A1');
+  assert.deepEqual(lookup('engineer', { pos: '動詞' }), { level: 'C1', src: 'octanove', via: 'exact', key: 'engineer' });
+  assert.equal(lookup('engineer', { pos: 'noun' }).level, 'A1');
+  assert.equal(lookup('go', { pos: '名詞' }).level, 'B1');
+  assert.equal(lookup('go', { pos: '名詞/動詞' }).level, 'A1'); // 併記は易しい方
+  assert.equal(lookup('give up', { pos: '句動詞' }), null);
+});
+
+test('exactOnly は原形化しない（fell を fall にしない）', () => {
+  assert.equal(lookup('went').key, 'go');
+  assert.equal(lookup('went', { exactOnly: true }), null);
+  assert.equal(lookup('fell', { pos: '動詞', exactOnly: true }), null);
+  assert.equal(lookup('manage', { pos: '動詞', exactOnly: true }).level, 'A2');
+});
+
+test('絞り込み用の段階: 単語・context 以外・品詞一致・原形化なし', () => {
+  const lv = makeFilterLevelOf(lookup);
+  assert.equal(lv({ word: 'hospital', pos: '名詞', level: 'A2' }), 'A1');
+  assert.equal(lv({ word: 'skirt', pos: '動詞', level: 'B2' }), null);
+  assert.equal(lv({ word: 'hospital', pos: '名詞', tier: 'context', level: 'A2' }), null);
+  assert.equal(lv({ word: 'according to', pos: '前置詞', level: 'B1' }), null);
+  assert.equal(lv({ word: 'stopped', pos: '動詞', level: 'A2' }), null);
+  assert.equal(lv({ word: 'gonna', pos: '動詞', level: 'B1' }), null);
+});
+
+// ── サーバでの絞り込み（personalizeWords の levelOf・selectIndices）─────────────
+const W = (word, level, pos = '名詞', extra = {}) => ({ word, level, pos, source: 'drama', ...extra });
+
+test('levelOf の段階が優先され、表に無い語は AI の level で絞る', () => {
+  // TOEIC 700（B1）・目標未設定（900＝B2）→ 残る段階 A2〜B2
+  const words = [W('hospital', 'A2'), W('skirt', 'B2', '動詞'), W('gonna', 'B1', '動詞'), W('meticulous', 'C1', '形容詞')];
+  const opts = { toeicScore: 700, targetToeicScore: 0, vocabCount: 30 };
+  const ai = personalizeWords(words, opts).map((w) => w.word);
+  const tbl = personalizeWords(words, { ...opts, levelOf: makeFilterLevelOf(lookup) }).map((w) => w.word);
+  assert.ok(ai.includes('hospital')); // AI A2 → 残る
+  assert.ok(!tbl.includes('hospital')); // 表 A1 → 落ちる
+  assert.ok(tbl.includes('skirt') && tbl.includes('gonna')); // 表に無い（品詞違い・口語）→ AI のまま残る
+  assert.ok(!tbl.includes('meticulous')); // 表 C2・AI C1 どちらでも帯の外
+});
+
+test('selectIndices は添字だけを返し、語オブジェクト（AI の level）は変えない', () => {
+  const words = [W('hospital', 'A2'), W('settlement', 'B2'), W('skirt', 'B2', '動詞')]; // negotiate は既知語の除外リストに入るので使わない
+  const before = JSON.stringify(words);
+  const idx = selectIndices(words, { toeicScore: 700, targetToeicScore: 0, vocabCount: 30, levelOf: makeFilterLevelOf(lookup) });
+  assert.deepEqual(idx, [1, 2]);
+  assert.equal(JSON.stringify(words), before); // 表の値が語に書き込まれていない
+  assert.equal(selectIndices(null, {}), null);
+});
+
+test('TOEIC 未設定なら段階では絞らない（今までと同じ）', () => {
+  const words = [W('hospital', 'A2'), W('meticulous', 'C1', '形容詞')];
+  assert.deepEqual(selectIndices(words, { toeicScore: 0, levelOf: makeFilterLevelOf(lookup) }), [0, 1]);
+});
+
+test('parsePersonalize: 範囲に丸め、不正は null', () => {
+  assert.deepEqual(parsePersonalize({ toeicScore: 700, targetToeicScore: 900, vocabCount: 30 }), { toeicScore: 700, targetToeicScore: 900, vocabCount: 30 });
+  assert.deepEqual(parsePersonalize({ toeicScore: 5000, targetToeicScore: -3, vocabCount: 'x' }), { toeicScore: 990, targetToeicScore: 0, vocabCount: 30 });
+  assert.equal(parsePersonalize(null), null);
+  assert.equal(parsePersonalize('700'), null);
+  assert.equal(parsePersonalize([700]), null);
 });

@@ -225,7 +225,9 @@ export async function generateEpisodeVocab(body, { signal } = {}) {
   if (data.blocked) return { kind: 'blocked', loginHint: !!data.loginHint }; // カタログ外は未ログインのみ（ログインで解除）
   if (data.nosub) return { kind: 'nosub' };
   if (Array.isArray(data.words)) {
-    return { kind: data.hit ? 'hit' : 'generated', words: data.words, meta: data.meta || {} };
+    // selected＝サーバが難易度表の段階で絞った「表示する語」の添字（2026-10-30〜・無ければ null＝自分で絞る）
+    const selected = Array.isArray(data.selected) ? data.selected.filter((i) => Number.isInteger(i) && i >= 0 && i < data.words.length) : null;
+    return { kind: data.hit ? 'hit' : 'generated', words: data.words, selected, meta: data.meta || {} };
   }
   if (data.hit === false && data.generated === false) return { kind: 'nogen', reason: data.reason || 'unknown' };
   return { kind: 'error', status: res.status, message: '単語リストの応答が不正でした' };

@@ -5,7 +5,11 @@
 //   ＝このファイルは api.js の生成系に依存しない（translateSentences＝例文和訳だけ残る）。
 import { translateSentences } from './api';
 import { exampleContainsWord, trimExampleToSentence } from './subtitles';
-import { getExcludeSet } from './wordlist';
+import { toeicToCefr, cefrTargetBand, personalizeWords } from './personalize';
+
+// personalizeWords は lib/personalize.js（クライアント依存なしの純関数・サーバの絞り込みでも使う）へ移した。
+// 既存の import（components/VocabScreen.js など）のためにここから再エクスポートする。
+export { personalizeWords };
 import { isSubtitleSentence } from './subtitleSentence';
 
 // ── TOEIC/CEFR ヘルパー（app.js から移植）──────────────────
@@ -21,22 +25,6 @@ export function getVocabCount(score) {
   if (score <= 600) return 30;
   if (score <= 800) return 40;
   return 50;
-}
-function toeicToCefr(score) {
-  if (!score || score <= 0) return null;
-  if (score < 225) return 'A1';
-  if (score < 550) return 'A2';
-  if (score < 785) return 'B1';
-  if (score < 945) return 'B2';
-  return 'C1';
-}
-function cefrTargetBand(cur, tgt) {
-  const order = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
-  const c = toeicToCefr(cur) || 'A2';
-  const t = toeicToCefr(tgt) || order[Math.min(order.indexOf(c) + 1, order.length - 1)];
-  const lo = order.indexOf(c);
-  const hi = Math.max(order.indexOf(t), lo + 1);
-  return `${order[lo]}〜${order[Math.min(hi, order.length - 1)]}`;
 }
 
 // ── JSON 修復・抽出（app.js の repairJson / extractWords）────
@@ -380,57 +368,6 @@ function parseAndRefineWords(text, subtitleText, log = console) {
   return refineDramaWords(json, subtitleText);
 }
 
-// 生成済みスーパーセットを学習者レベルで絞る（読み取り時・AI呼び出しなし）。
-//  - 既知語の除外（getExcludeSet, スコア依存）
-//  - CEFRバンド外フィルタ（複数語/context tier は免除）
-//  - 字幕内(drama)で minTotal に達していれば余剰 plus を落とす
-export function personalizeWords(words, { toeicScore = 0, targetToeicScore = 0, vocabCount = 30 } = {}) {
-  const cur = toeicScore > 0 ? toeicScore : 0;
-  const upper = targetToeicScore > 0 ? targetToeicScore : cur + 200;
-  const targetBand = cefrTargetBand(cur, upper);
-  const minTotal = Math.min(50, Math.max(30, vocabCount));
-
-  let json = Array.isArray(words) ? words.slice() : [];
-
-  // 除外語フィルター
-  if (toeicScore > 0) {
-    const excluded = getExcludeSet(toeicScore);
-    json = json.filter((w) => !excluded.has(w.word.toLowerCase()));
-  }
-
-  // CEFRバンド外フィルター
-  if (cur > 0) {
-    const order = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
-    const band = targetBand.split('〜');
-    const loIdx = Math.max(0, order.indexOf(band[0]) - 1);
-    const hiIdx = order.indexOf(band[band.length - 1]);
-    if (hiIdx >= 0) {
-      json = json.filter((w) => {
-        // 句動詞・イディオム（複数語）と context（ジャンル専門語）は帯フィルター免除。
-        // 単語頻度では測れず、学習者が最も調べる対象なので残す（再現率＝予習の的中率重視）。
-        if (/\s/.test(w.word) || w.tier === 'context') return true;
-        const li = order.indexOf(String(w.level || '').toUpperCase());
-        return li === -1 ? true : li >= loIdx && li <= hiIdx;
-      });
-    }
-  }
-
-  // 字幕内(drama)だけで最低総数 minTotal に達していれば字幕外(plus)は足さない。
-  // 足りない場合のみ不足分だけ plus を残す（drama が minTotal を超えるのは許容）。
-  const dramaCount = json.filter((w) => w.source === 'drama').length;
-  const needPlus = Math.max(0, minTotal - dramaCount);
-  let keptPlus = 0;
-  json = json.filter((w) => {
-    if (w.source !== 'plus') return true;
-    if (keptPlus < needPlus) {
-      keptPlus++;
-      return true;
-    }
-    return false; // 余剰 plus を除外
-  });
-
-  return json;
-}
 
 // レベル非依存に CEFR A2〜C2 を広く生成（シード/共有キャッシュ用）。
 // personalizeWords で読み取り時に学習者レベルへ絞る前提なので、ここでは

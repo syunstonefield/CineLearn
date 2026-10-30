@@ -9,7 +9,8 @@
 //   → 8 SET NX でロック取得 → 9 生成 → 10 vocab_cache 書込（await・応答前に完了）→ 11 finally 解放
 //
 // 応答（lib/api.js generateEpisodeVocab がこの形で分岐する）:
-//   200 { hit:true, words, meta }                         … 共有キャッシュ命中（計数なし）
+//   200 { hit:true, words, selected?, meta }              … 共有キャッシュ命中（計数なし）
+//     selected … body.personalize があれば、難易度表の段階で絞った「表示する語」の words 添字（2026-10-30〜）
 //   200 { hit:false, generated:true, words, meta }        … 生成した（meta.contributed=false は共有されなかった）
 //   200 { hit:false, generated:false, reason }            … 否定キャッシュ（直近の失敗・品質不通過・連続失敗）
 //   200 { blocked:true, loginHint:true }                  … カタログ外（ゲート有効時・**未ログインのみ**。ログインすればどの作品でも生成可）
@@ -38,6 +39,7 @@ import {
   contributedByOf,
 } from '@/lib/server/vocabCache';
 import { generateEpisodeVocab, clampVocabCount } from '@/lib/server/vocabGen';
+import { parsePersonalize, selectForLearner } from '@/lib/server/wordLevel';
 import { bumpStats } from '@/lib/server/stats';
 import { resolvePlan } from '@/lib/server/plan';
 import {
@@ -111,6 +113,12 @@ export async function POST(req) {
   }
   const n = normalizeEpisode(type, body?.season, body?.episode);
   const vocabCount = clampVocabCount(body?.vocabCount);
+  // 学習者設定（2026-10-30〜）。あれば難易度表の段階で絞った「表示する語の番号」selected を添える。
+  const personalize = parsePersonalize(body?.personalize);
+  const withSelected = (words) => {
+    const selected = selectForLearner(words, personalize);
+    return selected ? { words, selected } : { words };
+  };
   const cacheKey = vocabCacheKey(id, n.type, n.season, n.episode);
   if (!cacheKey) return json({ error: 'bad request' }, 400);
   const epLabel = n.type === 'movie' ? `tmdb${id} movie` : `tmdb${id} s${n.season}e${n.episode}`;
@@ -139,7 +147,7 @@ export async function POST(req) {
   const stat = (name) => (seed ? null : bumpStats([name], { user: uid ? `u:${uid}` : null }));
   if (cached.row) {
     await stat('gen_hit');
-    return json({ hit: true, words: wordsForServe(cached.row.words, cached.row.episode_match), meta: vocabRowMeta(cached.row) });
+    return json({ hit: true, ...withSelected(wordsForServe(cached.row.words, cached.row.episode_match)), meta: vocabRowMeta(cached.row) });
   }
 
   // ── 5) 否定キャッシュ（直近の失敗・品質不通過・連続失敗）──
@@ -273,7 +281,7 @@ export async function POST(req) {
     return json({
       hit: false,
       generated: true,
-      words: wordsForServe(r.words, r.episodeMatch),
+      ...withSelected(wordsForServe(r.words, r.episodeMatch)),
       meta: {
         model: r.model,
         provider: r.provider,
