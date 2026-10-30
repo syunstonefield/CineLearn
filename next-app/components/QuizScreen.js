@@ -4,7 +4,9 @@ import { useEffect, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
 import { updateHistoryScore, loadHistory, loadSrs, subtitleCredit } from '@/lib/storage';
 import { buildLocalQuiz } from '@/lib/prep';
-import { addExp, EXP_PER_QUIZ_WORD, EXP_QUIZ_PASS_BONUS, QUIZ_PASS_PCT } from '@/lib/exp';
+import { addExp, levelInfo } from '@/lib/exp';
+import { awardQuizAnswer, quizPassBonus } from '@/lib/quizAward';
+import ExpBlock from './ExpBlock';
 
 // 既存 screen-5（renderQuiz / answer / renderScore）の再現。
 export default function QuizScreen() {
@@ -30,6 +32,12 @@ export default function QuizScreen() {
   const [finished, setFinished] = useState(false);
   const [savedPct, setSavedPct] = useState(null);
   const [failed, setFailed] = useState(false);
+  // 途中でやめた時の成果（オーナー判断 2026-10-30）。答えた問題1つにつき2 EXP を答えた瞬間に付ける
+  // （lib/quizAward.js・同じ話の同じ問題は1回だけ）＝画面ごと離れても残る。戻るボタンで抜ける時は
+  // 1問以上答えていれば「ここまでで N問 答えました」の画面を出す。
+  const [answeredN, setAnsweredN] = useState(0); // この回に答えた問題数
+  const [runEarned, setRunEarned] = useState(0); // この回に付いた EXP（問題ぶん＋合格ボーナス）
+  const [partial, setPartial] = useState(false);
   const genIdRef = useRef(null); // 二重生成ガード（生成済み/生成中の historyId）
 
   // テストを開いた時にクイズをローカルで組む（AI生成はしない・2026-08-07）。
@@ -57,8 +65,11 @@ export default function QuizScreen() {
       // EXP: テスト合格＝語数×2＋20。同じ話の「初回合格」だけに出す（保存前の履歴スコアで判定）
       // ＝再挑戦の連打で稼げない。落ちても減点はない（EXPは減らない不変則）。
       const prevPct = loadHistory().find((h) => h.id === currentHistoryId)?.quizScore;
-      if (pct >= QUIZ_PASS_PCT && !(prevPct >= QUIZ_PASS_PCT)) {
-        addExp(quizData.length * EXP_PER_QUIZ_WORD + EXP_QUIZ_PASS_BONUS);
+      // 問題ごとの EXP は答えた時に付与済み。ここでは初回合格のボーナスだけ足す（二重にしない）。
+      const bonus = quizPassBonus(pct, prevPct);
+      if (bonus) {
+        addExp(bonus);
+        setRunEarned((n) => n + bonus);
       }
       setSavedPct(pct);
       updateHistoryScore(currentHistoryId, pct);
@@ -71,7 +82,17 @@ export default function QuizScreen() {
     setPicked(null);
     setFinished(false);
     setSavedPct(null);
+    setAnsweredN(0);
+    setRunEarned(0);
+    setPartial(false);
   };
+
+  // 戻るボタン：出題中に1問以上答えていれば、まず成果画面（EXP は付与済み）。それ以外はそのまま戻る。
+  const requestBack = () => {
+    if (!finished && !partial && answeredN > 0) setPartial(true);
+    else onBack();
+  };
+  const expView = runEarned > 0 ? <ExpBlock earned={runEarned} lv={levelInfo()} /> : null;
 
   // ── 準備中 / 失敗 ──
   if (quizData.length === 0) {
@@ -124,11 +145,38 @@ export default function QuizScreen() {
                 </div>
                 <div className="score-comment">{comment}</div>
               </div>
+              {expView}
               <button className="btn-primary" style={{ marginTop: 20 }} onClick={restart}>
                 もう一度挑戦する
               </button>
               <button className="btn-secondary" style={{ marginTop: 8 }} onClick={goHome}>
                 ← マイドラマへ
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── 途中でやめた時の成果 ──（やった分だけを肯定的に。「途中」「未完了」「あと○問」は出さない）
+  if (partial) {
+    return (
+      <div className="screen active" id="screen-5">
+        <div className="screen-inner">
+          <QuizHeader onBack={onBack} label={backLabel} />
+          <div id="quizSection">
+            <div className="quiz-card">
+              <div className="score-display">
+                <div style={{ fontSize: 19, fontWeight: 600 }}>ここまでで {answeredN}問 答えました</div>
+                <div style={{ color: 'var(--text-muted)', fontSize: 14, marginTop: 8 }}>正解 {score}問</div>
+              </div>
+              {expView}
+              <button className="btn-primary" style={{ marginTop: 20 }} onClick={() => setPartial(false)}>
+                続きを解く
+              </button>
+              <button className="btn-secondary" style={{ marginTop: 8 }} onClick={onBack}>
+                {backLabel}
               </button>
             </div>
           </div>
@@ -144,6 +192,9 @@ export default function QuizScreen() {
     if (answered) return;
     setPicked(choice);
     if (choice === q.answer) setScore((s) => s + 1);
+    setAnsweredN((n) => n + 1);
+    const got = awardQuizAnswer(currentHistoryId, q.word);
+    if (got) setRunEarned((n) => n + got);
   };
   const onNext = () => {
     setPicked(null);
@@ -159,7 +210,7 @@ export default function QuizScreen() {
   return (
     <div className="screen active" id="screen-5">
       <div className="screen-inner">
-        <QuizHeader onBack={onBack} label={backLabel} />
+        <QuizHeader onBack={requestBack} label={backLabel} />
         <div id="quizSection">
           <div className="quiz-card">
             <div className="quiz-q">
