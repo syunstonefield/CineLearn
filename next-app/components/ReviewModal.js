@@ -12,11 +12,10 @@ import {
   isMastered,
   reviewWord,
   restoreSrsEntry,
-  recordReviewSession,
-  getTodaySessions,
   subtitleCredit,
 } from '@/lib/storage';
 import { addExp, levelInfo, expForReviewSession } from '@/lib/exp';
+import { awardReviewSession } from '@/lib/reviewAward';
 
 const KEYS_SEEN_KEY = 'cl_review_keys_seen';
 
@@ -209,6 +208,14 @@ export default function ReviewModal({ asPage = false }) {
   const [retryMode, setRetryMode] = useState(false);
   // 採点の取り消し用スナップショット（押し間違い救済）。1枚採点するごとに積む。
   const [undoStack, setUndoStack] = useState([]);
+  // 途中でやめた時の成果画面（オーナー要望 2026-10-30「途中で辞めた時にも成果と EXP を表示したい」）。
+  // ✕／オーバーレイで抜ける時、採点済みの語があれば閉じずに「ここまでで N語」の画面を出す。
+  // 採点した語は reviewWord で SRS に入っているので、記録と EXP だけが抜けていた。
+  const [partial, setPartial] = useState(false);
+  // 記録＋EXP は1セッション1回（完了画面 or 途中の成果画面 or 画面を離れた時のアンマウント）。
+  const awardedRef = useRef(false);
+  // ボトムナビ等でこの画面ごと離れた時（成果画面を出せない経路）は、採点した分だけ黙って記録する。
+  const latestRef = useRef(null);
   // 操作ヘルプ（キー／スワイプ）。初めて復習を開いた時に一度だけ自動表示し、以後は右上の「?」から
   // （オーナー要望 2026-09-29）。既読は端末ローカル（cl_review_keys_seen）。
   const [showKeys, setShowKeys] = useState(false);
@@ -244,13 +251,35 @@ export default function ReviewModal({ asPage = false }) {
     setSessionInfo(null);
     setRetryMode(false);
     setUndoStack([]);
+    setPartial(false);
+    awardedRef.current = false;
     setBuiltKey(initKey);
   }
 
+  latestRef.current = { queue, idx, ratings, promo, retryMode, currentHistoryId };
+  useEffect(
+    () => () => {
+      const st = latestRef.current;
+      if (!st || awardedRef.current || st.retryMode) return;
+      const rated = st.queue.slice(0, st.idx).filter((w) => st.ratings[w.word] != null);
+      if (!rated.length) return;
+      awardedRef.current = true;
+      awardReviewSession({ queue: rated, ratings: st.ratings, promo: st.promo, historyId: st.currentHistoryId });
+    },
+    []
+  );
+
   if (!reviewWords) return null;
 
+  const done = idx >= queue.length;
+  const ratedCount = retryMode ? 0 : Object.keys(ratings).length;
+  // ✕／オーバーレイ：途中で採点済みの語があれば成果画面へ。0語・完了後・再挑戦パスはそのまま閉じる。
+  const requestClose = () => {
+    if (!done && !partial && ratedCount > 0) setPartial(true);
+    else closeReview();
+  };
   const overlayClick = (e) => {
-    if (e.target === e.currentTarget) closeReview();
+    if (e.target === e.currentTarget) requestClose();
   };
 
   const rate = (q) => {
@@ -293,7 +322,7 @@ export default function ReviewModal({ asPage = false }) {
     setFlipped(true);
   };
 
-  const done = idx >= queue.length;
+  const showDone = done || partial;
 
   // PCのキーボード操作（オーナー要望 2026-09-29・割り当てはスワイプの左右と一致させる）。
   //   Space/Enter/Shift＝意味を確認。開いた後: →知ってた ←知らなかった ↓うろ覚え ↑/Backspace 前に戻る。
@@ -307,7 +336,7 @@ export default function ReviewModal({ asPage = false }) {
       const tag = (t?.tagName || '').toLowerCase();
       if (tag === 'input' || tag === 'textarea' || tag === 'select' || t?.isContentEditable) return;
       if (showKeys) return; // ガイド表示中は KeysHelp 側が受ける
-      if (done) return;
+      if (showDone) return;
       if (e.repeat) return; // 押しっぱなしで複数枚進まない（特に Shift／矢印）
       const k = e.key;
       // Shift 単押しも「意味を確認」にする＝右手だけで Shift→矢印 と回せる（オーナー要望 2026-10-01）
@@ -352,7 +381,7 @@ export default function ReviewModal({ asPage = false }) {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reviewWords, showKeys, done, flipped, retryMode, idx, queue, promo, ratings, undoStack]);
+  }, [reviewWords, showKeys, showDone, flipped, retryMode, idx, queue, promo, ratings, undoStack]);
   // 進捗バー：消化済み（idx）/ 全体。完了画面では満タン表示。
   const pct = queue.length ? Math.round(((done ? queue.length : idx) / queue.length) * 100) : 0;
 
@@ -376,21 +405,23 @@ export default function ReviewModal({ asPage = false }) {
             >
               ?
             </button>
-            <button className="modal-close" onClick={closeReview}>
+            <button className="modal-close" onClick={requestClose}>
             ✕
           </button>
           </span>
         </div>
         {showKeys && <KeysHelp onClose={() => setShowKeys(false)} />}
-        {!done && (
+        {!showDone && (
           <div className="review-progress" aria-hidden="true">
             <span className="review-progress-fill" style={{ width: `${pct}%` }} />
           </div>
         )}
         <div className="review-content">
-          {done ? (
+          {showDone ? (
             <ReviewDone
-              queue={queue}
+              queue={partial ? queue.slice(0, idx) : queue}
+              partial={partial}
+              awardedRef={awardedRef}
               ratings={ratings}
               promo={promo}
               currentHistoryId={currentHistoryId}
@@ -404,6 +435,8 @@ export default function ReviewModal({ asPage = false }) {
                 setRatings({});
                 setPromo({ learned: [], mastered: [] }); // 1周目の昇格を完了画面で再表示・再加算しない
                 setUndoStack([]);
+                setPartial(false);
+                awardedRef.current = false; // 再挑戦パスは別の1回（カード×2だけ・昇格ボーナス無し）
                 setRetryMode(true);
               }}
               onDone={closeReview}
@@ -585,7 +618,9 @@ function ReviewCard({ word: w, idx, total, flipped, retryMode, onFlip, onRate, o
   );
 }
 
-function ReviewDone({ queue, ratings, promo, currentHistoryId, sessionInfo, setSessionInfo, retryMode, onRetryFailed, onDone }) {
+// partial＝途中でやめた時の成果画面（queue は採点済みの語だけ）。文言はやった分だけを肯定的に
+// （「未完了」「あと○語」は出さない＝罪悪感UI禁止）。awardedRef＝親と共有する「記録済み」旗。
+function ReviewDone({ queue, partial = false, awardedRef, ratings, promo, currentHistoryId, sessionInfo, setSessionInfo, retryMode, onRetryFailed, onDone }) {
   const failed = queue.filter((w) => ratings[w.word] === 0);
   const hard = queue.filter((w) => ratings[w.word] === 3);
   const easy = queue.filter((w) => (ratings[w.word] ?? 5) === 5);
@@ -593,11 +628,11 @@ function ReviewDone({ queue, ratings, promo, currentHistoryId, sessionInfo, setS
   // EXP: カード数×2＋昇格ボーナス。加算後の総EXPからレベルを出す（表示専用の状態）。
   const [expGain, setExpGain] = useState(null); // { earned, level } 記録後にセット
 
-  // セッションを1回だけ記録（副作用なので effect 内で・StrictMode 二重実行は ref で防ぐ）
-  const recordedRef = useRef(false);
+  // セッションを1回だけ記録（副作用なので effect 内で・StrictMode 二重実行と、途中の成果画面→✕→
+  // アンマウント時の再加算は親の awardedRef で防ぐ）
   useEffect(() => {
-    if (recordedRef.current) return;
-    recordedRef.current = true;
+    if (awardedRef.current) return;
+    awardedRef.current = true;
     // 再挑戦パスは採点していないので復習セッション（今日N回目・内訳）には数えない。
     // EXPはカード×2だけ付ける（見直しの手間への報酬・昇格ボーナスは1周目で付与済み）。
     if (retryMode) {
@@ -605,14 +640,9 @@ function ReviewDone({ queue, ratings, promo, currentHistoryId, sessionInfo, setS
       setExpGain({ earned, level: levelInfo(addExp(earned)) });
       return;
     }
-    const num = recordReviewSession(currentHistoryId, easy.length, hard.length, failed.length);
-    setSessionInfo({ num, sessions: getTodaySessions(currentHistoryId) });
-    const earned = expForReviewSession({
-      cards: queue.length,
-      learned: promo.learned.length,
-      mastered: promo.mastered.length,
-    });
-    setExpGain({ earned, level: levelInfo(addExp(earned)) });
+    const r = awardReviewSession({ queue, ratings, promo, historyId: currentHistoryId });
+    setSessionInfo({ num: r.num, sessions: r.sessions });
+    setExpGain({ earned: r.earned, level: r.level });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -665,10 +695,19 @@ function ReviewDone({ queue, ratings, promo, currentHistoryId, sessionInfo, setS
       <div className="review-hero-emoji" style={{ fontSize: 48, marginBottom: 8 }}>
         {heroEmoji}
       </div>
-      <div style={{ fontSize: 19, fontWeight: 600, marginBottom: 4 }}>復習完了！（今日{sessionNum}回目）</div>
-      <div style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 8 }}>
-        {queue.length}単語を復習しました
-      </div>
+      {partial ? (
+        <>
+          <div style={{ fontSize: 19, fontWeight: 600, marginBottom: 4 }}>ここまでで {queue.length}単語 復習しました</div>
+          <div style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 8 }}>今日{sessionNum}回目の復習</div>
+        </>
+      ) : (
+        <>
+          <div style={{ fontSize: 19, fontWeight: 600, marginBottom: 4 }}>復習完了！（今日{sessionNum}回目）</div>
+          <div style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 8 }}>
+            {queue.length}単語を復習しました
+          </div>
+        </>
+      )}
       {expGain && <ExpBlock earned={expGain.earned} lv={expGain.level} />}
       {(gotLearned || gotMaster) && (
         <div className="review-promotions">
@@ -721,6 +760,11 @@ function ReviewDone({ queue, ratings, promo, currentHistoryId, sessionInfo, setS
         <button className="btn-secondary" style={{ marginBottom: 8, width: '100%' }} onClick={() => onRetryFailed(failed)}>
           😰 知らなかった {failed.length}単語をもう一度
         </button>
+      )}
+      {partial && (
+        <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 10 }}>
+          残りの単語は、また復習に出てきます
+        </div>
       )}
       <button className="btn-primary" style={{ maxWidth: '100%', width: '100%' }} onClick={onDone}>
         {/* 戻り先は入口によって変わる（単語リスト/ホーム/復習ハブ）ので行き先を名指ししない */}
