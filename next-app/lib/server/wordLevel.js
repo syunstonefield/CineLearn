@@ -11,6 +11,8 @@
 //     1. 表の作り方（変換・正規化・持つ列）を変えたら、JSON の _modified・repo 直下の THIRD_PARTY_NOTICES.md・
 //        利用規約「第三者データ」節の3か所を同時に直す（文言は ⑤ 検索・半券・設定・その他 部門）。
 //     2. 表の段階の出し方を広げる変更は事前に法務へ（2026-10-30 法務 条件4）。
+//     3. 単語帳は単語リストで付けた値の写し（my_words.level_shown / level）だけを出す。端末から送られた語を表で引かない
+//        （2026-10-30 法務 条件6・単語帳の CEFR 目安）。
 import 'server-only';
 import cefrj from '../data/cefrj-wordlist-1.6.json' with { type: 'json' };
 import octanove from '../data/octanove-c1c2-1.0.json' with { type: 'json' };
