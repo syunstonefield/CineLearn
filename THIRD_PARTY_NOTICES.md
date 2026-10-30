@@ -19,7 +19,7 @@ CineLearn は、単語の難易度判定と基礎語の除外のために、以�
 | 取得日 | 2026年10月30日 |
 | ライセンス | 独自の利用条件（適切な引用を条件に、研究教育・商用とも無償） |
 | 変更 | 本サービス向けに改変しています（形式の変換、表記と品詞名の正規化と明らかな誤記の修正、同じ語と品詞に複数の段階がある場合は易しい方への統合）。原本の内容そのものではありません。 |
-| 本サービスでの用途 | A1〜B2 の語の難易度判定 |
+| 本サービスでの用途 | A1〜B2 の語の難易度判定、単語リストの絞り込み、単語リストでの難易度の目安の表示 |
 
 **変更の詳細**（`next-app/lib/data/cefrj-wordlist-1.6.json` の `_modified` の写し）
 
@@ -58,7 +58,7 @@ CineLearn は、単語の難易度判定と基礎語の除外のために、以�
 | 取得日 | 2026年10月30日 |
 | ライセンス | Creative Commons Attribution-ShareAlike 4.0 International（CC BY-SA 4.0）<br>https://creativecommons.org/licenses/by-sa/4.0/ |
 | 変更 | 本サービス向けに改変しています（形式の変換、表記と品詞名の正規化と明らかな誤記の修正、同じ語と品詞に複数の段階がある場合は易しい方への統合）。 |
-| 本サービスでの用途 | C1/C2 の語の難易度判定 |
+| 本サービスでの用途 | C1/C2 の語の難易度判定、単語リストの絞り込み、単語リストでの難易度の目安の表示 |
 
 **変更の詳細**（`next-app/lib/data/octanove-c1c2-1.0.json` の `_modified` の写し）
 
@@ -81,7 +81,7 @@ CineLearn は、単語の難易度判定と基礎語の除外のために、以�
 
 > Neither CEFR-J nor Open Language Profiles is responsible or liable for any inaccuracies in the dataset or any damage resulting from using the dataset.
 
-ShareAlike について: 本サービスが同梱する変換後の表データ（Octanove 由来部分）は、元データと同じ CC BY-SA 4.0 の下で提供します。
+ShareAlike について: 本サービスが同梱する変換後の表データ（Octanove 由来部分）は、元データと同じ CC BY-SA 4.0 の下で提供します。単語リストに表示する段階のうち Octanove 由来のもの（利用者の学習履歴に保存されたものを含む）も、CC BY-SA 4.0 の下にあります。
 
 ---
 

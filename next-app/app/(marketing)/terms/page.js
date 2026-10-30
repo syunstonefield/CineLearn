@@ -128,7 +128,7 @@ export default function TermsPage() {
       <p>
         {/* 出典の正典は repo 直下の THIRD_PARTY_NOTICES.md（ライセンス原文・取得日つき）。文言は法務指定（2026-10-30）。
             表の作り方を変えたら lib/data/*.json の _modified・THIRD_PARTY_NOTICES.md・この節の3か所を同時に直す（法務ルール）。 */}
-        本サービスは、単語の難易度判定および基礎語の除外のために、次の第三者が公開する語彙データを利用しています。
+        本サービスは、単語の難易度判定、単語リストでの難易度の目安の表示、および基礎語の除外のために、次の第三者が公開する語彙データを利用しています。
         各データの権利は各権利者に帰属します。
       </p>
       <ul>
@@ -151,6 +151,12 @@ export default function TermsPage() {
           <a href="https://www.newgeneralservicelist.com/" style={a} target="_blank" rel="noopener noreferrer">https://www.newgeneralservicelist.com/</a>
         </li>
       </ul>
+      <p>
+        {/* 法務指定（2026-10-30）。「3. 禁止事項」の無断商用利用の禁止が Octanove 由来の値にかかると
+            CC BY-SA 4.0 §2(a)(5)(B) の追加制限に当たりうるため、同ライセンスの条件が優先することを明記する。 */}
+        単語リストに表示する CEFR の目安は、上記の語彙表に該当する語はその段階を、該当しない語は AI による推定を示します。
+        Octanove Vocabulary Profile に由来する段階は CC BY-SA 4.0 の下にあり、本規約の定めにかかわらず、同ライセンスの条件に従って利用できます。
+      </p>
 
       <h2 style={h2}>11. 準拠法・管轄</h2>
       <p>
