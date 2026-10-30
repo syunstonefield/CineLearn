@@ -18,11 +18,16 @@ CineLearn は、単語の難易度判定と基礎語の除外のために、以�
 | 入手元 | https://www.cefr-j.org/download.html（zip: https://www.cefr-j.org/data/CEFRJ_wordlist_ver1.6.zip） |
 | 取得日 | 2026年10月30日 |
 | ライセンス | 独自の利用条件（適切な引用を条件に、研究教育・商用とも無償） |
+| 変更 | 本サービス向けに改変しています（形式の変換、表記と品詞名の正規化と明らかな誤記の修正、同じ語と品詞に複数の段階がある場合は易しい方への統合）。原本の内容そのものではありません。 |
 | 本サービスでの用途 | A1〜B2 の語の難易度判定 |
+
+**変更の詳細**（`next-app/lib/data/cefrj-wordlist-1.6.json` の `_modified` の写し）
+
+> JSON 化（見出し語→品詞ごとの CEFR 段階の対応を抽出・CoreInventory/notes などの列は削除）・見出し語の正規化（Unicode NFKC・前後空白の除去・連続空白の圧縮・小文字化）・品詞名の正規化（小文字化・明らかな誤記 vern→verb を修正・空欄は unknown）・同じ見出し語と品詞で複数段階がある場合は易しい方の段階を採用（原本 ALL_sep シート 7988 行 → 7035 見出し語）
 
 **本サービスでの表示（法務指定）**
 
-> 『CEFR-J Wordlist Version 1.6』東京外国語大学投野由紀夫研究室.（URL: https://www.cefr-j.org/download.html より 2026年10月30日ダウンロード）
+> 『CEFR-J Wordlist Version 1.6』東京外国語大学投野由紀夫研究室.（URL: https://www.cefr-j.org/download.html より 2026年10月30日ダウンロード）本サービスでは、上記の語彙表を Octanove と同様の方法で改変して利用しています（原本の内容そのものではありません）。
 
 **利用条件の原文の写し**（出典: https://www.cefr-j.org/download.html ・2026-10-30 取得）
 
@@ -52,12 +57,16 @@ CineLearn は、単語の難易度判定と基礎語の除外のために、以�
 | 入手元 | https://github.com/openlanguageprofiles/olp-en-cefrj（master ブランチの `octanove-vocabulary-profile-c1c2-1.0.csv`） |
 | 取得日 | 2026年10月30日 |
 | ライセンス | Creative Commons Attribution-ShareAlike 4.0 International（CC BY-SA 4.0）<br>https://creativecommons.org/licenses/by-sa/4.0/ |
-| 変更 | 本サービス向けに形式変換と見出し語の正規化を行っています。 |
+| 変更 | 本サービス向けに改変しています（形式の変換、表記と品詞名の正規化と明らかな誤記の修正、同じ語と品詞に複数の段階がある場合は易しい方への統合）。 |
 | 本サービスでの用途 | C1/C2 の語の難易度判定 |
+
+**変更の詳細**（`next-app/lib/data/octanove-c1c2-1.0.json` の `_modified` の写し）
+
+> JSON 化（見出し語→品詞ごとの CEFR 段階の対応を抽出・CoreInventory/notes などの列は削除）・見出し語の正規化（Unicode NFKC・前後空白の除去・連続空白の圧縮・小文字化）・品詞名の正規化（小文字化・明らかな誤記 vern→verb を修正・空欄は unknown）・同じ見出し語と品詞で複数段階がある場合は易しい方の段階を採用（原本 2136 行 → 1955 見出し語）
 
 **本サービスでの表示（法務指定）**
 
-> Octanove Vocabulary Profile C1/C2 (ver 1.0), created by Octanove Labs (http://www.octanove.com/), licensed under CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/). Source: https://github.com/openlanguageprofiles/olp-en-cefrj. 本サービス向けに形式変換と見出し語の正規化を行っています。
+> Octanove Vocabulary Profile C1/C2 (ver 1.0), created by Octanove Labs (http://www.octanove.com/), licensed under CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/). Source: https://github.com/openlanguageprofiles/olp-en-cefrj. 本サービス向けに改変しています（形式の変換、表記と品詞名の正規化と明らかな誤記の修正、同じ語と品詞に複数の段階がある場合は易しい方への統合）。変更の詳細は THIRD_PARTY_NOTICES.md をご覧ください。
 
 **ライセンスの根拠の写し**
 
@@ -67,6 +76,10 @@ CineLearn は、単語の難易度判定と基礎語の除外のために、以�
 > The Octanove Vocabulary Profile for C1/C2 levels can be used under a [Creative Commons Attribution-ShareAlike 4.0 International License](https://creativecommons.org/licenses/by-sa/4.0/).
 
 > [Octanove Vocabulary Profile C1/C2 (ver 1.0)](https://github.com/openlanguageprofiles/olp-en-cefrj/blob/master/octanove-vocabulary-profile-c1c2-1.0.csv) — vocabulary list annotated with CEFR-J levels (for C1/C2 levels), created by [Octanove Labs](http://www.octanove.com/)
+
+免責事項（README の原文の写し・2026-10-30 取得）:
+
+> Neither CEFR-J nor Open Language Profiles is responsible or liable for any inaccuracies in the dataset or any damage resulting from using the dataset.
 
 ShareAlike について: 本サービスが同梱する変換後の表データ（Octanove 由来部分）は、元データと同じ CC BY-SA 4.0 の下で提供します。
 

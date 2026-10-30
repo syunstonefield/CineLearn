@@ -126,7 +126,8 @@ export default function TermsPage() {
 
       <h2 style={h2} id="third-party">10. 第三者データ</h2>
       <p>
-        {/* 出典の正典は repo 直下の THIRD_PARTY_NOTICES.md（ライセンス原文・取得日つき）。文言は法務指定（2026-10-30） */}
+        {/* 出典の正典は repo 直下の THIRD_PARTY_NOTICES.md（ライセンス原文・取得日つき）。文言は法務指定（2026-10-30）。
+            表の作り方を変えたら lib/data/*.json の _modified・THIRD_PARTY_NOTICES.md・この節の3か所を同時に直す（法務ルール）。 */}
         本サービスは、単語の難易度判定および基礎語の除外のために、次の第三者が公開する語彙データを利用しています。
         各データの権利は各権利者に帰属します。
       </p>
@@ -134,6 +135,7 @@ export default function TermsPage() {
         <li style={li}>
           『CEFR-J Wordlist Version 1.6』東京外国語大学投野由紀夫研究室.
           （URL: <a href="https://www.cefr-j.org/download.html" style={a} target="_blank" rel="noopener noreferrer">https://www.cefr-j.org/download.html</a> より 2026年10月30日ダウンロード）
+          本サービスでは、上記の語彙表を Octanove と同様の方法で改変して利用しています（原本の内容そのものではありません）。
         </li>
         <li style={li}>
           Octanove Vocabulary Profile C1/C2 (ver 1.0), created by Octanove Labs
@@ -141,7 +143,8 @@ export default function TermsPage() {
           licensed under CC BY-SA 4.0
           (<a href="https://creativecommons.org/licenses/by-sa/4.0/" style={a} target="_blank" rel="noopener noreferrer">https://creativecommons.org/licenses/by-sa/4.0/</a>).
           Source: <a href="https://github.com/openlanguageprofiles/olp-en-cefrj" style={a} target="_blank" rel="noopener noreferrer">https://github.com/openlanguageprofiles/olp-en-cefrj</a>.
-          本サービス向けに形式変換と見出し語の正規化を行っています。
+          本サービス向けに改変しています（形式の変換、表記と品詞名の正規化と明らかな誤記の修正、同じ語と品詞に複数の段階がある場合は易しい方への統合）。
+          変更の詳細は <a href="https://github.com/syunstonefield/CineLearn/blob/main/THIRD_PARTY_NOTICES.md" style={a} target="_blank" rel="noopener noreferrer">THIRD_PARTY_NOTICES.md</a> をご覧ください。
         </li>
         <li style={li}>
           New General Service List (NGSL) by Browne, Culligan &amp; Phillips, CC BY-SA 4.0,
