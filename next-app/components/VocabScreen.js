@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
 import VocabItem from './VocabItem';
+import CefrNote from './CefrNote';
+import { cefrHintOf } from '@/lib/cefrHint';
 import GenLoading from './GenLoading';
 import {
   loadSrs,
@@ -1829,6 +1831,8 @@ export default function VocabScreen() {
                 </div>
               )}
 
+              {/* CEFR の目安と出典の一行（各語の印は段階だけ・法務 条件2）。印が1語でもある時だけ */}
+              {[...mainWords, ...plusWords].some((w) => cefrHintOf(w)) && <CefrNote />}
               <div className="vocab-list" ref={mainListRef}>
                 {mainWords.map((w) => (
                   <VocabItem

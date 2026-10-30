@@ -200,10 +200,13 @@ export function makeFilterLevelOf(lookup) {
 
 // ── 単語リストの「CEFR目安」表示（2026-10-30・オーナー「単語個別の CEFR 表示は実装して欲しい。目安として」）──
 // attachDisplayLevels: 表示用の段階 levelShown を語に添える（(A) 方式＝表で品詞一致して引けた語だけ）。
+//   法務 条件1（2026-10-30）: 表の段階を付けるのは**字幕から出た語（source==='drama'）だけ**。
+//   字幕外のおすすめ語（plus）・自分で足した語には付けない（画面は AI の level を出すか、何も出さない）。
 //   語オブジェクトはコピーする（共有キャッシュへ書く元の配列は変えない）。levelOf は makeFilterLevelOf と同じ規則。
 export function attachDisplayLevels(words, levelOf) {
   if (!Array.isArray(words) || typeof levelOf !== 'function') return words;
   return words.map((w) => {
+    if (!w || w.source !== 'drama') return w;
     const lv = levelOf(w);
     return lv ? { ...w, levelShown: lv } : w;
   });

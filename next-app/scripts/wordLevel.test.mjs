@@ -284,25 +284,34 @@ test('parsePersonalize: 範囲に丸め、不正は null', () => {
 const { attachDisplayLevels } = await import('../lib/wordLevelLookup.js');
 const { cefrHintOf } = await import('../lib/cefrHint.js');
 
-test('CEFR目安の値: levelShown（表）があればそれ、無ければ AI の level。複数語・不正値は出さない', () => {
-  assert.equal(cefrHintOf({ word: 'hospital', level: 'A2' }), 'A2'); // (B)
-  assert.equal(cefrHintOf({ word: 'hospital', level: 'A2', levelShown: 'A1' }), 'A1'); // (A)
+test('CEFR の目安の値: levelShown（表）があればそれ、無ければ AI の level（ai:true）。複数語・不正値は出さない', () => {
+  assert.deepEqual(cefrHintOf({ word: 'hospital', level: 'A2' }), { level: 'A2', ai: true });
+  assert.deepEqual(cefrHintOf({ word: 'hospital', level: 'A2', levelShown: 'A1' }), { level: 'A1', ai: false });
   assert.equal(cefrHintOf({ word: 'give up', level: 'B1' }), null); // 句動詞
   assert.equal(cefrHintOf({ word: 'handshake deal', level: 'B2', tier: 'context' }), null);
-  assert.equal(cefrHintOf({ word: 'buddy', level: 'b1' }), 'B1');
+  assert.deepEqual(cefrHintOf({ word: 'buddy', level: 'b1' }), { level: 'B1', ai: true });
   assert.equal(cefrHintOf({ word: 'buddy', level: '' }), null);
   assert.equal(cefrHintOf({ word: 'buddy', level: 'N/A' }), null);
   assert.equal(cefrHintOf(null), null);
 });
 
-test('(A) の表示用段階は表で品詞一致して引けた語だけに添え、元の語は書き換えない', () => {
-  const words = [W('hospital', 'A2'), W('skirt', 'B2', '動詞'), W('give up', 'B1', '句動詞')];
+test('表の段階は字幕から出た語（drama）で品詞一致して引けた語だけに添え、元の語は書き換えない（法務 条件1）', () => {
+  const words = [
+    W('hospital', 'A2'),
+    W('skirt', 'B2', '動詞'),
+    W('give up', 'B1', '句動詞'),
+    W('teacher', 'A2', '名詞', { source: 'plus' }), // 字幕外のおすすめ語
+    W('doctor', 'A2', '名詞', { source: 'ext' }), // 自分で足した語
+  ];
   const before = JSON.stringify(words);
   const out = attachDisplayLevels(words, makeFilterLevelOf(lookup));
   assert.equal(out[0].levelShown, 'A1');
   assert.equal(out[0].level, 'A2'); // AI の level は残す
   assert.equal(out[1].levelShown, undefined); // 品詞違い → AI のまま
   assert.equal(out[2].levelShown, undefined); // 複数語
+  assert.equal(out[3].levelShown, undefined); // 字幕外には付けない
+  assert.equal(out[4].levelShown, undefined); // 自分で足した語にも付けない
   assert.equal(JSON.stringify(words), before); // 共有キャッシュへ書く元の配列は不変
-  assert.deepEqual(out.map(cefrHintOf), ['A1', 'B2', null]);
+  assert.deepEqual(out.map((w) => cefrHintOf(w)?.level ?? null), ['A1', 'B2', null, 'A2', 'A2']);
+  assert.deepEqual(out.map((w) => cefrHintOf(w)?.ai ?? null), [false, true, null, true, true]);
 });

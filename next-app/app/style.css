@@ -4146,18 +4146,21 @@ html[data-theme="light"] .rh-hero:not(.is-done) .rh-hero-sub { color: var(--text
   letter-spacing: 0.02em;
   white-space: nowrap;
 }
-/* 詳細のタグ列では「CEFR目安 B2」と文言つきで（tier-pill と同じ寸法・色は中立） */
-.cefr-pill {
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 600;
-  padding: 1px 7px;
-  border-radius: 4px;
-  line-height: 1.7;
-  color: var(--text-soft);
-  background: rgba(120, 120, 128, 0.08);
-  border: 1px solid rgba(120, 120, 128, 0.25);
-  white-space: nowrap;
+/* 表に無く AI の推定の値は淡く（法務 条件2「AI の値だけ淡く、程度」） */
+.vocab-cefr-chip.is-ai { opacity: 0.55; border-style: dashed; }
+
+/* 単語リストの一行（CEFR の目安と出典・法務 条件2）。PC は通常文・スマホは短縮形 */
+.cefr-note {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  margin: 2px 2px 8px;
+}
+.cefr-note a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.cefr-note .cefr-note-short { display: none; }
+@media (max-width: 768px) {
+  .cefr-note .cefr-note-long { display: none; }
+  .cefr-note .cefr-note-short { display: inline; }
 }
 
 /* 「追加した単語」印（本編の語と混ぜて時刻順に並べる時の目印）。控えめに、語の直後へ。 */

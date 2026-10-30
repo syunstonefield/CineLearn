@@ -4,14 +4,14 @@ import { surfaceFormInExample } from '@/lib/subtitles';
 import { useState } from 'react';
 import { statusBadge, nextReviewLabel } from '@/lib/storage';
 import { exampleFailLabel } from '@/lib/exampleBackfill';
-import { cefrHintOf, CEFR_HINT_TITLE } from '@/lib/cefrHint';
+import { cefrHintOf, cefrHintTitle } from '@/lib/cefrHint';
 
 // 1単語カード。モバイルは折りたたみ（語＋和訳＋状態ドット＋📍時刻のみ）→タップで詳細展開。
 // PCでは常時展開（display制御は style.css のメディアクエリ）。
 // 詳細は常にDOMに描画し、開閉は is-expanded クラスで切り替える（PC常時表示を両立するため）。
 // starred/onStar: ★マイ単語帳メンバーシップ（2026-09-22）。onStar(word, starred) を渡した文脈でだけ
 // 発音・Skip の横に「★ 単語帳 / ☆ 単語帳に入れる」トグルを出す（単語リスト・単語帳の両方）。
-// showCefr: 各語に「CEFR目安」を出すか（単語リストだけ true・2026-10-30）。値は lib/cefrHint.js（複数語は出さない）。
+// showCefr: 各語に CEFR の目安（段階だけ）を出すか（単語リストだけ true・2026-10-30）。値は lib/cefrHint.js（複数語は出さない）。
 export default function VocabItem({ word, srs, testTiers, ts, exampleSource, added, starred, showCefr, onSpeak, onSkip, onCopyTime, onDelete, onStar }) {
   const [expanded, setExpanded] = useState(false);
   const w = word;
@@ -84,10 +84,11 @@ export default function VocabItem({ word, srs, testTiers, ts, exampleSource, add
         >
           🔊
         </span>
-        {/* CEFR目安（折りたたみ行では段階だけ小さく。「目安」の文言は詳細のタグで出す） */}
+        {/* CEFR の目安＝段階だけ（オーナー 2026-10-30「スッキリ」）。表に無く AI の推定の値は淡く。
+            「目安」であることと出典は単語リストの一行（CefrNote）で伝える（法務 条件2） */}
         {cefr && (
-          <span className="vocab-cefr-chip" title={CEFR_HINT_TITLE} aria-label={`CEFR目安 ${cefr}`}>
-            {cefr}
+          <span className={'vocab-cefr-chip' + (cefr.ai ? ' is-ai' : '')} title={cefrHintTitle(cefr)} aria-label={cefrHintTitle(cefr)}>
+            {cefr.level}
           </span>
         )}
         {/* 本編の語と混ぜて時刻順に並べる時、どれが自分で足した語かを示す（セクション見出しの代わり） */}
@@ -120,11 +121,6 @@ export default function VocabItem({ word, srs, testTiers, ts, exampleSource, add
         <div className="vocab-detail-tags">
           {badge && <span className={`srs-badge ${badge.cls}`}>{badge.text}</span>}
           <span className={`tier-pill ${tierCls}`}>{tierText}</span>
-          {cefr && (
-            <span className="cefr-pill" title={CEFR_HINT_TITLE}>
-              CEFR目安 {cefr}
-            </span>
-          )}
           {/* 薄い表示の理由を初見でも分かるように明示（実使用フィードバック#3） */}
           {notInTest && <span className="tier-excluded-note">クイズ対象外（設定で変更可）</span>}
           {w.pos && (

@@ -2,15 +2,15 @@
 //   CEFR-J Wordlist 1.6（A1〜B2）＋ Octanove Vocabulary Profile C1/C2 1.0（CC BY-SA 4.0）。品詞ごとの段階を持つ。
 //   原本→JSON の変換は scripts/build-word-levels.py。出典ごとに別ファイル（法務 条件2）。
 //
-// ⚠ 表はユーザーに表示・配布しない（法務 条件4）。'server-only' でクライアントからの import を
-//   ビルドエラーにする。クライアントに返してよいのは「その人の語の段階」や集計結果までで、表そのものではない。
+// ⚠ 語ごとの段階は単語リストの語にだけ付けて返してよい（2026-10-30 法務 条件付きOK）。表全体・任意の語の照会・
+//   一覧の書き出しは出さない。'server-only' でクライアントからの import をビルドエラーにする（表 JSON は送らない）。
 // 使い道: ① レベル判定（firstQuality × 段階 → lib/levelEstimate.js・品詞を問わず易しい方）
 //         ② 単語リストの絞り込み（下の selectForLearner・品詞一致・原形化なし・2026-10-30 オーナー決定）
 //   vocab_cache の level（AI 判定）は書き換えない。
 // ⚠ 法務のルール（2026-10-30・82ce4c0 の回答）:
 //     1. 表の作り方（変換・正規化・持つ列）を変えたら、JSON の _modified・repo 直下の THIRD_PARTY_NOTICES.md・
 //        利用規約「第三者データ」節の3か所を同時に直す（文言は ⑤ 検索・半券・設定・その他 部門）。
-//     2. 表の段階そのものを API 応答・履歴（端末/クラウド同期）に含める変更は、事前に法務へ回す。
+//     2. 表の段階の出し方を広げる変更は事前に法務へ（2026-10-30 法務 条件4）。
 import 'server-only';
 import cefrj from '../data/cefrj-wordlist-1.6.json' with { type: 'json' };
 import octanove from '../data/octanove-c1c2-1.0.json' with { type: 'json' };
@@ -43,12 +43,13 @@ export function selectForLearner(words, personalize) {
   return selectIndices(words, { ...personalize, levelOf: filterLevelOf });
 }
 
-// ── 単語リストの「CEFR目安」表示の値（2026-10-30）──────────────────────────
-//   WORD_LEVEL_DISPLAY=table … (A) 表で品詞一致して引けた語に表の段階 levelShown を添えて返す（絞り込みと表示が一致）
-//   それ以外（既定）        … (B) 何も添えない＝画面は AI の level を出す
-// ⚠ (A) は表の段階を API 応答と履歴（端末/クラウド同期）に含める＝法務ルール2。**法務OKが出るまで既定は (B)**。
-//   共有キャッシュ（vocab_cache）にはどちらでも書かない（応答用にコピーした語にだけ添える）。
-export const WORD_LEVEL_DISPLAY = process.env.WORD_LEVEL_DISPLAY === 'table' ? 'table' : 'ai';
+// ── 単語リストの「CEFR目安」表示の値（2026-10-30 オーナー (A) で GO・法務 条件付きOK）──────────
+//   既定（table）… (A) 字幕から出た語のうち、表で品詞一致して引けた語に表の段階 levelShown を添えて返す
+//                  （絞り込みと表示が一致）。それ以外の語は画面が AI の level を淡く出す。
+//   WORD_LEVEL_DISPLAY=ai … (B) 何も添えない（戻す時。Vercel の環境変数＋再デプロイ）
+//   法務 条件1: 付けるのは単語リスト生成の応答の、字幕から出た語だけ。任意の語の照会 API・段階一覧の書き出し・
+//   単語帳の手入力語への付与は作らない（作るなら事前に法務へ）。共有キャッシュ（vocab_cache）には書かない。
+export const WORD_LEVEL_DISPLAY = process.env.WORD_LEVEL_DISPLAY === 'ai' ? 'ai' : 'table';
 export function withDisplayLevels(words) {
   if (WORD_LEVEL_DISPLAY !== 'table') return words;
   return attachDisplayLevels(words, filterLevelOf);
