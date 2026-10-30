@@ -279,3 +279,30 @@ test('parsePersonalize: 範囲に丸め、不正は null', () => {
   assert.equal(parsePersonalize('700'), null);
   assert.equal(parsePersonalize([700]), null);
 });
+
+// ── 単語リストの「CEFR目安」表示（2026-10-30）──────────────────────────
+const { attachDisplayLevels } = await import('../lib/wordLevelLookup.js');
+const { cefrHintOf } = await import('../lib/cefrHint.js');
+
+test('CEFR目安の値: levelShown（表）があればそれ、無ければ AI の level。複数語・不正値は出さない', () => {
+  assert.equal(cefrHintOf({ word: 'hospital', level: 'A2' }), 'A2'); // (B)
+  assert.equal(cefrHintOf({ word: 'hospital', level: 'A2', levelShown: 'A1' }), 'A1'); // (A)
+  assert.equal(cefrHintOf({ word: 'give up', level: 'B1' }), null); // 句動詞
+  assert.equal(cefrHintOf({ word: 'handshake deal', level: 'B2', tier: 'context' }), null);
+  assert.equal(cefrHintOf({ word: 'buddy', level: 'b1' }), 'B1');
+  assert.equal(cefrHintOf({ word: 'buddy', level: '' }), null);
+  assert.equal(cefrHintOf({ word: 'buddy', level: 'N/A' }), null);
+  assert.equal(cefrHintOf(null), null);
+});
+
+test('(A) の表示用段階は表で品詞一致して引けた語だけに添え、元の語は書き換えない', () => {
+  const words = [W('hospital', 'A2'), W('skirt', 'B2', '動詞'), W('give up', 'B1', '句動詞')];
+  const before = JSON.stringify(words);
+  const out = attachDisplayLevels(words, makeFilterLevelOf(lookup));
+  assert.equal(out[0].levelShown, 'A1');
+  assert.equal(out[0].level, 'A2'); // AI の level は残す
+  assert.equal(out[1].levelShown, undefined); // 品詞違い → AI のまま
+  assert.equal(out[2].levelShown, undefined); // 複数語
+  assert.equal(JSON.stringify(words), before); // 共有キャッシュへ書く元の配列は不変
+  assert.deepEqual(out.map(cefrHintOf), ['A1', 'B2', null]);
+});

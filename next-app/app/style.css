@@ -4133,6 +4133,33 @@ html[data-theme="light"] .rh-hero:not(.is-done) .rh-hero-sub { color: var(--text
 .vocab-word-speak:hover { opacity: 1; }
 .vocab-word-speak:active { transform: scale(0.9); }
 
+/* CEFR目安（2026-10-30）。折りたたみ行では段階だけを小さく・淡く（和訳の幅を食わない）。 */
+.vocab-cefr-chip {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 3px 5px;
+  border-radius: 4px;
+  color: var(--text-muted);
+  border: 1px solid rgba(120, 120, 128, 0.35);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+/* 詳細のタグ列では「CEFR目安 B2」と文言つきで（tier-pill と同じ寸法・色は中立） */
+.cefr-pill {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 4px;
+  line-height: 1.7;
+  color: var(--text-soft);
+  background: rgba(120, 120, 128, 0.08);
+  border: 1px solid rgba(120, 120, 128, 0.25);
+  white-space: nowrap;
+}
+
 /* 「追加した単語」印（本編の語と混ぜて時刻順に並べる時の目印）。控えめに、語の直後へ。 */
 .vocab-added-chip {
   flex-shrink: 0;

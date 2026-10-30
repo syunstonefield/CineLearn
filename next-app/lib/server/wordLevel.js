@@ -14,7 +14,7 @@
 import 'server-only';
 import cefrj from '../data/cefrj-wordlist-1.6.json' with { type: 'json' };
 import octanove from '../data/octanove-c1c2-1.0.json' with { type: 'json' };
-import { createWordLevelLookup, makeFilterLevelOf } from '../wordLevelLookup';
+import { createWordLevelLookup, makeFilterLevelOf, attachDisplayLevels } from '../wordLevelLookup';
 import { selectIndices } from '../personalize';
 export { parsePersonalize } from '../personalize';
 
@@ -41,4 +41,15 @@ const filterLevelOf = makeFilterLevelOf(wordLevel);
 export function selectForLearner(words, personalize) {
   if (!WORD_LEVEL_FILTER_ENABLED || !personalize) return null;
   return selectIndices(words, { ...personalize, levelOf: filterLevelOf });
+}
+
+// ── 単語リストの「CEFR目安」表示の値（2026-10-30）──────────────────────────
+//   WORD_LEVEL_DISPLAY=table … (A) 表で品詞一致して引けた語に表の段階 levelShown を添えて返す（絞り込みと表示が一致）
+//   それ以外（既定）        … (B) 何も添えない＝画面は AI の level を出す
+// ⚠ (A) は表の段階を API 応答と履歴（端末/クラウド同期）に含める＝法務ルール2。**法務OKが出るまで既定は (B)**。
+//   共有キャッシュ（vocab_cache）にはどちらでも書かない（応答用にコピーした語にだけ添える）。
+export const WORD_LEVEL_DISPLAY = process.env.WORD_LEVEL_DISPLAY === 'table' ? 'table' : 'ai';
+export function withDisplayLevels(words) {
+  if (WORD_LEVEL_DISPLAY !== 'table') return words;
+  return attachDisplayLevels(words, filterLevelOf);
 }

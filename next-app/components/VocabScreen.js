@@ -1356,6 +1356,7 @@ export default function VocabScreen() {
               word={w}
               srs={srs}
               testTiers={testTiers}
+              showCefr // 各語に「CEFR目安」を出す（単語リストだけ・単語帳は未定 2026-10-30）
               ts={tsFor(w)}
               exampleSource={exampleCredit}
               starred={isStarred(w)}
@@ -1835,6 +1836,7 @@ export default function VocabScreen() {
                     word={w}
                     srs={srs}
                     testTiers={testTiers}
+                    showCefr // 各語に「CEFR目安」を出す（単語リストだけ・単語帳は未定 2026-10-30）
                     ts={tsFor(w)}
                     exampleSource={exampleCredit}
                     added={w.source === 'ext'}
@@ -1860,6 +1862,7 @@ export default function VocabScreen() {
                         word={w}
                         srs={srs}
                         testTiers={testTiers}
+                        showCefr // 各語に「CEFR目安」を出す（単語リストだけ・単語帳は未定 2026-10-30）
                         ts={tsFor(w)}
                         starred={isStarred(w)}
                         onSpeak={speak}

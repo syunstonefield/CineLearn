@@ -39,7 +39,7 @@ import {
   contributedByOf,
 } from '@/lib/server/vocabCache';
 import { generateEpisodeVocab, clampVocabCount } from '@/lib/server/vocabGen';
-import { parsePersonalize, selectForLearner } from '@/lib/server/wordLevel';
+import { parsePersonalize, selectForLearner, withDisplayLevels } from '@/lib/server/wordLevel';
 import { bumpStats } from '@/lib/server/stats';
 import { resolvePlan } from '@/lib/server/plan';
 import {
@@ -115,9 +115,11 @@ export async function POST(req) {
   const vocabCount = clampVocabCount(body?.vocabCount);
   // 学習者設定（2026-10-30〜）。あれば難易度表の段階で絞った「表示する語の番号」selected を添える。
   const personalize = parsePersonalize(body?.personalize);
+  // 表示用の段階（CEFR目安・(A) の時だけ levelShown を添える＝既定は何もしない）も同時に付ける。
   const withSelected = (words) => {
     const selected = selectForLearner(words, personalize);
-    return selected ? { words, selected } : { words };
+    const shown = withDisplayLevels(words);
+    return selected ? { words: shown, selected } : { words: shown };
   };
   const cacheKey = vocabCacheKey(id, n.type, n.season, n.episode);
   if (!cacheKey) return json({ error: 'bad request' }, 400);
