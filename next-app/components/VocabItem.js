@@ -84,13 +84,6 @@ export default function VocabItem({ word, srs, testTiers, ts, exampleSource, add
         >
           🔊
         </span>
-        {/* CEFR の目安＝段階だけ（オーナー 2026-10-30「スッキリ」）。表に無く AI の推定の値は淡く。
-            「目安」であることと出典は単語リストの一行（CefrNote）で伝える（法務 条件2） */}
-        {cefr && (
-          <span className={'vocab-cefr-chip' + (cefr.ai ? ' is-ai' : '')} title={cefrHintTitle(cefr)} aria-label={cefrHintTitle(cefr)}>
-            {cefr.level}
-          </span>
-        )}
         {/* 本編の語と混ぜて時刻順に並べる時、どれが自分で足した語かを示す（セクション見出しの代わり） */}
         {added && (
           <span className="vocab-added-chip" title="自分で追加した単語">
@@ -121,6 +114,14 @@ export default function VocabItem({ word, srs, testTiers, ts, exampleSource, add
         <div className="vocab-detail-tags">
           {badge && <span className={`srs-badge ${badge.cls}`}>{badge.text}</span>}
           <span className={`tier-pill ${tierCls}`}>{tierText}</span>
+          {/* CEFR の目安＝段階だけ（オーナー 2026-10-30「スッキリ」）。Core/Advanced/Context の横に並べる
+              （オーナー 2026-10-30・見出し語のそばから移設）。表に無く AI の推定の値は淡く。
+              「目安」であることと出典は単語リストの一行（CefrNote）で伝える（法務 条件2） */}
+          {cefr && (
+            <span className={'vocab-cefr-chip' + (cefr.ai ? ' is-ai' : '')} title={cefrHintTitle(cefr)} aria-label={cefrHintTitle(cefr)}>
+              {cefr.level}
+            </span>
+          )}
           {/* 薄い表示の理由を初見でも分かるように明示（実使用フィードバック#3） */}
           {notInTest && <span className="tier-excluded-note">クイズ対象外（設定で変更可）</span>}
           {w.pos && (

@@ -4133,13 +4133,15 @@ html[data-theme="light"] .rh-hero:not(.is-done) .rh-hero-sub { color: var(--text
 .vocab-word-speak:hover { opacity: 1; }
 .vocab-word-speak:active { transform: scale(0.9); }
 
-/* CEFR目安（2026-10-30）。折りたたみ行では段階だけを小さく・淡く（和訳の幅を食わない）。 */
+/* CEFR目安（2026-10-30）。段階だけを小さく・淡く。詳細のタグ列で Core/Advanced/Context（.tier-pill）の
+   横に置く（オーナー 2026-10-30・見出し語のそばから移設）＝高さを tier-pill に揃える */
 .vocab-cefr-chip {
+  display: inline-block;
   flex-shrink: 0;
   font-size: 10px;
   font-weight: 600;
-  line-height: 1;
-  padding: 3px 5px;
+  line-height: 1.7;
+  padding: 1px 6px;
   border-radius: 4px;
   color: var(--text-muted);
   border: 1px solid rgba(120, 120, 128, 0.35);
