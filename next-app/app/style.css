@@ -4211,6 +4211,7 @@ html[data-theme="light"] .rh-hero:not(.is-done) .rh-hero-sub { color: var(--text
   cursor: pointer;
 }
 .spell-pick:disabled, .spell-none:disabled { opacity: 0.5; cursor: default; }
+.spell-pick + .spell-none { margin-top: 8px; } /* 押し間違えないよう、ボタンどうしの間を空ける */
 
 .vocab-added-chip {
   flex-shrink: 0;

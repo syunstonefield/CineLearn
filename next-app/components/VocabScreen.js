@@ -127,6 +127,7 @@ export default function VocabScreen() {
   const [addWordText, setAddWordText] = useState('');
   const [addBusy, setAddBusy] = useState(false);
   const [addMsg, setAddMsg] = useState('');
+  const addInputRef = useRef(null);
   // 綴りミスの候補（2026-10-30 案B）: { input, inList } ＝リストにある語の綴り違い／{ input, items } ＝サーバの候補
   const [spellSuggest, setSpellSuggest] = useState(null);
   const [srs, setSrs] = useState({});
@@ -1163,6 +1164,12 @@ export default function VocabScreen() {
         setSpellSuggest({ input: w, items: suggestions });
         return;
       }
+      // 字幕に見つからず候補も無い語は、すぐには保存せず確かめる（2026-10-30 オーナー決定）。
+      //   「見つからなかった」と分かっている時（no_match）だけ。ログイン前・混雑などで探せなかった時は今までどおり追加する。
+      if (!hit && reason === 'no_match') {
+        setSpellSuggest({ input: w, notFound: true });
+        return;
+      }
       await saveManualWord(w, hit, reason);
     } finally {
       setAddBusy(false);
@@ -1256,6 +1263,11 @@ export default function VocabScreen() {
     } finally {
       setAddBusy(false);
     }
+  };
+  // 「やめる」＝保存せずに入力欄へ戻す（綴りを直して入れ直せるよう、入力は残す）
+  const handleSpellCancel = () => {
+    setSpellSuggest(null);
+    addInputRef.current?.focus();
   };
   const handleSpellJump = () => {
     const cur = spellSuggest;
@@ -1839,6 +1851,7 @@ export default function VocabScreen() {
                   追加した単語の表示自体は下の「✏️ 追加した単語」セクションのまま。 */}
               <div style={{ display: 'flex', gap: 8, marginTop: 12, alignItems: 'center' }}>
                 <input
+                  ref={addInputRef}
                   // type="email"+lang="en" は「英語(ASCII)キーボードを既定表示」のための実務トリック。
                   // キーボード言語の完全な強制は Web 仕様上不可能で、email 型が iOS/Android とも
                   // 最も確実にラテン配列を出す（副作用: @ キーが見える・メール autofill 候補は
@@ -1856,6 +1869,9 @@ export default function VocabScreen() {
                     if (e.key === 'Enter') handleAddWord();
                   }}
                   placeholder="この話の単語を追加（例: retainer）"
+                  // キーボードの確定キーを「検索」の青いキーにする（2026-10-30 オーナー要望・押すと字幕を探してから追加する）。
+                  //   「入力が空なら灰色」は iOS 純正の入力欄だけの動きで Web からは指定できない＝右の追加ボタンの色で示す
+                  enterKeyHint="search"
                   autoCapitalize="none"
                   autoCorrect="off"
                   spellCheck={false}
@@ -1885,6 +1901,10 @@ export default function VocabScreen() {
                     whiteSpace: 'nowrap',
                     padding: '9px 14px',
                     borderRadius: 10,
+                    // 1文字でも入力したらアクセント色にして、押せる状態を分かりやすく（2026-10-30 オーナー要望）
+                    ...(addWordText.trim() && !addBusy
+                      ? { background: 'var(--accent)', borderColor: 'var(--accent)', color: '#fff', fontWeight: 700 }
+                      : {}),
                   }}
                 >
                   {addBusy ? '追加中…' : '＋ 追加'}
@@ -1896,12 +1916,14 @@ export default function VocabScreen() {
                 <SpellSuggestSheet
                   input={spellSuggest.input}
                   inList={spellSuggest.inList || null}
+                  notFound={!!spellSuggest.notFound}
                   items={spellSuggest.items || []}
                   credit={episodeCredit(drama.title, season, episode, isMovie)}
                   busy={addBusy}
                   onPick={handleSpellPick}
                   onNone={handleSpellNone}
                   onJump={handleSpellJump}
+                  onCancel={handleSpellCancel}
                 />
               )}
 

@@ -1,12 +1,32 @@
 'use client';
+import { SPELL_MIN_INPUT } from '@/lib/spellSuggest';
 
 // 綴りミスの候補シート（2026-10-30 オーナー決定＝案B・法務「条件付きOK」）。単語リストの「単語を追加」の下に出す。
 //   inList … リストにある語の綴り違い（画面の中だけで判定・サーバには聞いていない）。「見る」でその行へ飛ぶ。
 //   items  … サーバ（/api/example mode:'manual'）が返した候補。最大3語。例文（“ ”で囲み・📺出典）が付くのは
 //            最も近い1語だけ（法務 条件4/5）。2語目以降は語だけ＝押すと VocabScreen が別の問い合わせで1文を取る。
 //            「別の例文」は出さない。
+//   notFound … 字幕に見つからず候補も無い語（2026-10-30 オーナー決定）。保存する前に「このまま追加／やめる」を聞く。
 //   この部品は表示するだけ。保存は VocabScreen が選ばれた1語だけ行い、選ばれなかった候補の文は保存しない（法務 条件6）。
-export default function SpellSuggestSheet({ input, inList, items, credit, busy, onPick, onNone, onJump }) {
+export default function SpellSuggestSheet({ input, inList, notFound, items, credit, busy, onPick, onNone, onJump, onCancel }) {
+  if (notFound) {
+    const short = String(input || '').trim().length < SPELL_MIN_INPUT;
+    return (
+      <div className="spell-sheet" role="dialog" aria-label="字幕に見つからない語の確認">
+        <p className="spell-lead">
+          「<b>{input}</b>」はこの話の字幕に見つかりませんでした。
+          <br />
+          {short ? '3文字以下の語は、近い綴りの候補を探しません。' : '近い綴りの語も見つかりませんでした。'}綴りを確かめてください。
+        </p>
+        <button type="button" className="spell-pick is-sub" disabled={busy} onClick={onNone}>
+          このまま例文なしで追加
+        </button>
+        <button type="button" className="spell-none" disabled={busy} onClick={onCancel}>
+          やめる（入力し直す）
+        </button>
+      </div>
+    );
+  }
   if (inList) {
     return (
       <div className="spell-sheet" role="dialog" aria-label="リストにある語の確認">
