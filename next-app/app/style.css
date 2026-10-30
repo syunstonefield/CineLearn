@@ -4166,6 +4166,52 @@ html[data-theme="light"] .rh-hero:not(.is-done) .rh-hero-sub { color: var(--text
 }
 
 /* 「追加した単語」印（本編の語と混ぜて時刻順に並べる時の目印）。控えめに、語の直後へ。 */
+/* 綴りミスの候補シート（2026-10-30 オーナー決定＝案B）。「単語を追加」の下に出す。例文は最も近い1語だけ。 */
+.spell-sheet {
+  margin-top: 8px;
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+}
+.spell-lead { margin: 0 0 8px; font-size: 13px; color: var(--text-muted); line-height: 1.5; }
+.spell-lead b { color: var(--text); }
+.spell-cand { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; }
+.spell-top { display: flex; align-items: center; gap: 8px; }
+.spell-word { font-size: 17px; font-weight: 700; color: var(--accent); }
+.spell-ts { margin-left: auto; font-size: 12px; color: var(--accent); background: rgba(185, 128, 63, 0.12); border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
+.spell-hint { margin-left: auto; font-size: 11px; color: var(--text-muted); }
+.spell-ex { margin: 6px 0 2px; font-size: 13px; line-height: 1.5; }
+.spell-ex mark { background: none; color: var(--accent); font-weight: 700; }
+.spell-src { font-size: 11px; color: var(--text-muted); }
+.spell-pick {
+  margin-top: 8px;
+  width: 100%;
+  border: 0;
+  border-radius: 10px;
+  padding: 9px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.spell-pick.is-sub { background: transparent; border: 1px solid var(--accent); color: var(--accent); }
+.spell-none {
+  width: 100%;
+  border: 1px dashed var(--border);
+  background: transparent;
+  border-radius: 10px;
+  padding: 9px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.spell-pick:disabled, .spell-none:disabled { opacity: 0.5; cursor: default; }
+
 .vocab-added-chip {
   flex-shrink: 0;
   font-size: 10px;

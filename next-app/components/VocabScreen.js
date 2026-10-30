@@ -35,6 +35,8 @@ import { personalizeWords, fillMissingExampleJa } from '@/lib/vocab';
 // ★2026-09-12: 字幕本文（生SRT/整形済み）はクライアントに置かない。生成は /api/vocab-generate に
 //   1回投げて words だけを受け取り（generateEpisodeVocab）、字幕の有無は probeSubtitle で聞く。
 import { generateEpisodeVocab, probeSubtitle, authHeaders, fetchGenQuota } from '@/lib/api';
+import { suggestSpellings } from '@/lib/spellSuggest';
+import SpellSuggestSheet from './SpellSuggestSheet';
 import {
   getMyWordsForEpisode,
   countUnassignedForDrama,
@@ -125,6 +127,8 @@ export default function VocabScreen() {
   const [addWordText, setAddWordText] = useState('');
   const [addBusy, setAddBusy] = useState(false);
   const [addMsg, setAddMsg] = useState('');
+  // 綴りミスの候補（2026-10-30 案B）: { input, inList } ＝リストにある語の綴り違い／{ input, items } ＝サーバの候補
+  const [spellSuggest, setSpellSuggest] = useState(null);
   const [srs, setSrs] = useState({});
   const [mediaChoice, setMediaChoice] = useState(null); // {tv, movie}
   // タイプ（ドラマ/映画）確定・シーズン構築が済むまでエピソード選択枠を隠す
@@ -1092,6 +1096,7 @@ export default function VocabScreen() {
   //   訳: 例文があれば文脈つき語義（「この場面では」fetchCtxJa）→ 無ければ1語訳（fetchJa）。
   //   保存: ローカル（addManualWord）＋ログイン時はクラウド（pushMyWord）。
   //   表示は既存の「✏️ 追加した単語」セクション（loadExtWords 再読込）に合流する。
+  // 「単語を追加」(1/3): 入力の検査と、リストにある語との綴りの比較（2026-10-30 案B・画面の中だけ・サーバに聞かない）。
   const handleAddWord = async () => {
     if (addBusy) return;
     const w = addWordText.trim().replace(/\s+/g, ' ');
@@ -1104,22 +1109,34 @@ export default function VocabScreen() {
       return;
     }
     const lower = w.toLowerCase();
-    if (
-      sortedVocab.some((x) => x.word.toLowerCase() === lower) ||
-      extWords.some((x) => x.word.toLowerCase() === lower)
-    ) {
+    const listWords = [...sortedVocab, ...extWords];
+    if (listWords.some((x) => x.word.toLowerCase() === lower)) {
       setAddMsg('すでにこの話のリストにあります');
       return;
     }
+    // リストにある語の綴り違い（injuction → injunction）なら、追加せずに聞く。「ちがう」で通常の追加へ。
+    const near = suggestSpellings(w, listWords.map((x) => ({ word: x.word })), { max: 1 });
+    if (near.length) {
+      setAddMsg('');
+      setSpellSuggest({ input: w, inList: near[0] });
+      return;
+    }
+    await lookupAndAdd(w);
+  };
+
+  // (2/3): サーバに例文を1回聞いてから保存する。
+  //   例文は /api/example に `mode:'manual'` で1回だけ聞く（2026-09-12・A4）:
+  //     層1: 共有キャッシュ（vocab_cache）の語一致は誰でも可
+  //     層2: サーバの subtitle_raw_cache に raw があるときだけ字幕1文（ログイン必須）
+  //   見つからず、綴りの近い候補（suggestions・最大3語・例文は最も近い1語だけ）が返ったら、保存せずにシートで聞く
+  //   （2026-10-30 案B・法務「条件付きOK」）。skipSuggest＝語だけの候補を選んだ後の問い合わせ（候補を再提示しない）。
+  const lookupAndAdd = async (w, { skipSuggest = false } = {}) => {
     setAddBusy(true);
     setAddMsg('');
     try {
-      // 例文は /api/example に `mode:'manual'` で1回だけ聞く（2026-09-12・A4）:
-      //   層1: 共有キャッシュ（vocab_cache）の語一致は誰でも可
-      //   層2: サーバの subtitle_raw_cache に raw があるときだけ字幕1文（OS DL は誘発しない・ログイン必須）
-      // 端末の生SRTでの照合（旧①）は、生SRTを端末に置かなくなったので消えた。無ければ例文なしで保存。
       let hit = null;
       let reason = '';
+      let suggestions = null;
       try {
         const res = await fetch('/api/example', {
           method: 'POST',
@@ -1135,64 +1152,120 @@ export default function VocabScreen() {
         });
         const d = await res.json().catch(() => null);
         if (d?.found && d.sentence) hit = { sentence: d.sentence, sec: Number.isFinite(d.tsSec) ? d.tsSec : null };
-        else reason = d?.reason || (res.ok ? '' : 'network');
+        else {
+          reason = d?.reason || (res.ok ? '' : 'network');
+          if (Array.isArray(d?.suggestions) && d.suggestions.length) suggestions = d.suggestions.slice(0, 3);
+        }
       } catch {
         reason = 'network';
       }
-      const ja = (hit?.sentence ? await fetchCtxJa(w, hit.sentence) : null) ?? (await fetchJa(w)) ?? '';
-      const exampleJa = hit?.sentence ? (await fetchJa(hit.sentence)) || '' : '';
-      const entry = {
-        word: w,
-        sentence: hit?.sentence || '',
-        phonetic: '',
-        pos: '',
-        definition: ja, // 単語リストの意味欄（VocabItem は definition を表示する）
-        ja: ja || null, // 単語帳の文脈訳と同じ欄（WordbookScreen が優先表示）
-        example_ja: exampleJa,
-        tsSec: hit?.sec ?? null,
-        savedAt: todayStr(),
-        source: 'manual',
-        dramaTitle: drama.title,
-        season: isMovie ? null : season,
-        episode: isMovie ? null : episode,
-      };
-      const merged = await addManualWord(pid, entry);
-      pushMyWord(merged || entry); // マージ後の姿をクラウドへ（遭遇ログ・既存値保護をローカルと一致させる）
-      setAddWordText('');
-      // 例文が付かなかった理由を正直に添える（A4・文言は lib/exampleNote.js に一本化・2026-10-20 /decide E）。
-      const note = hit ? null : manualExampleNote(reason);
-      setAddMsg(hit ? `「${w}」を追加しました ✓` : `「${w}」を追加しました（${note.text}）`);
-      loadExtWords(season, episode, vocab); // ✏️セクションへ即反映
-      // 追加直後にその語だけのカードを1枚出す（2026-10-20 オーナー要望）。動画を観ながら追加する前提で、
-      // 意味・例文・発音（🔊）をその場で確かめられるように。予習の記録には触れない（PrepWalkthrough の single）。
-      const card = merged || entry;
-      openPrepWalk({
-        words: [
-          {
-            ...card,
-            word: card.word || w,
-            definition: card.definition || card.ja || ja || '',
-            example: card.sentence || card.example || hit?.sentence || '',
-            example_ja: card.example_ja || exampleJa || '',
-            source: 'ext', // 字幕由来の例文＝出典（48条）を付ける側
-            _tsLabel: Number.isFinite(card.tsSec) ? secToTimeLabel(card.tsSec) : null,
-          },
-        ],
-        meta: {
-          single: true,
-          noExampleNote: note?.text || '',
-          drama,
-          title: drama.title,
-          season,
-          episode,
-          isMovie,
-          core: null,
-          credit: episodeCredit(drama.title, season, episode, isMovie),
-        },
-      });
+      if (!hit && suggestions && !skipSuggest) {
+        setSpellSuggest({ input: w, items: suggestions });
+        return;
+      }
+      await saveManualWord(w, hit, reason);
     } finally {
       setAddBusy(false);
     }
+  };
+
+  // (3/3): 保存と、追加直後の1枚カード。hit＝{ sentence, sec } か null。reason＝例文が付かなかった理由（文言は lib/exampleNote.js）。
+  const saveManualWord = async (w, hit, reason) => {
+    const ja = (hit?.sentence ? await fetchCtxJa(w, hit.sentence) : null) ?? (await fetchJa(w)) ?? '';
+    const exampleJa = hit?.sentence ? (await fetchJa(hit.sentence)) || '' : '';
+    const entry = {
+      word: w,
+      sentence: hit?.sentence || '',
+      phonetic: '',
+      pos: '',
+      definition: ja, // 単語リストの意味欄（VocabItem は definition を表示する）
+      ja: ja || null, // 単語帳の文脈訳と同じ欄（WordbookScreen が優先表示）
+      example_ja: exampleJa,
+      tsSec: hit?.sec ?? null,
+      savedAt: todayStr(),
+      source: 'manual',
+      dramaTitle: drama.title,
+      season: isMovie ? null : season,
+      episode: isMovie ? null : episode,
+    };
+    const merged = await addManualWord(pid, entry);
+    pushMyWord(merged || entry); // マージ後の姿をクラウドへ（遭遇ログ・既存値保護をローカルと一致させる）
+    setAddWordText('');
+    // 例文が付かなかった理由を正直に添える（A4・文言は lib/exampleNote.js に一本化・2026-10-20 /decide E）。
+    const note = hit ? null : manualExampleNote(reason);
+    setAddMsg(hit ? `「${w}」を追加しました ✓` : `「${w}」を追加しました（${note.text}）`);
+    loadExtWords(season, episode, vocab); // ✏️セクションへ即反映
+    // 追加直後にその語だけのカードを1枚出す（2026-10-20 オーナー要望）。動画を観ながら追加する前提で、
+    // 意味・例文・発音（🔊）をその場で確かめられるように。予習の記録には触れない（PrepWalkthrough の single）。
+    const card = merged || entry;
+    openPrepWalk({
+      words: [
+        {
+          ...card,
+          word: card.word || w,
+          definition: card.definition || card.ja || ja || '',
+          example: card.sentence || card.example || hit?.sentence || '',
+          example_ja: card.example_ja || exampleJa || '',
+          source: 'ext', // 字幕由来の例文＝出典（48条）を付ける側
+          _tsLabel: Number.isFinite(card.tsSec) ? secToTimeLabel(card.tsSec) : null,
+        },
+      ],
+      meta: {
+        single: true,
+        noExampleNote: note?.text || '',
+        drama,
+        title: drama.title,
+        season,
+        episode,
+        isMovie,
+        core: null,
+        credit: episodeCredit(drama.title, season, episode, isMovie),
+      },
+    });
+  };
+
+  // 候補シートの操作（2026-10-30 案B）。選ばれなかった候補の文はどこにも保存しない（法務 条件6）。
+  const handleSpellPick = async (item) => {
+    const cur = spellSuggest;
+    setSpellSuggest(null);
+    if (!cur || addBusy) return;
+    if (item.sentence) {
+      // 最も近い候補＝サーバが添えた1文をそのまま使う（新しい問い合わせはしない）
+      setAddBusy(true);
+      try {
+        await saveManualWord(item.word, { sentence: item.sentence, sec: Number.isFinite(item.tsSec) ? item.tsSec : null }, '');
+      } finally {
+        setAddBusy(false);
+      }
+      return;
+    }
+    // 語だけの候補＝その語で改めて1回聞く（完全一致の1文・上限を1つ数える）。候補は再提示しない
+    await lookupAndAdd(item.word, { skipSuggest: true });
+  };
+  const handleSpellNone = async () => {
+    const cur = spellSuggest;
+    setSpellSuggest(null);
+    if (!cur || addBusy) return;
+    if (cur.inList) {
+      await lookupAndAdd(cur.input); // 「ちがう」＝通常の追加へ
+      return;
+    }
+    setAddBusy(true);
+    try {
+      await saveManualWord(cur.input, null, 'no_match'); // 入力のまま例文なしで追加（今までと同じ）
+    } finally {
+      setAddBusy(false);
+    }
+  };
+  const handleSpellJump = () => {
+    const cur = spellSuggest;
+    setSpellSuggest(null);
+    setAddWordText('');
+    const target = String(cur?.inList || '').toLowerCase();
+    const el = [...document.querySelectorAll('.vocab-item')].find((it) => (it.querySelector('.vocab-word')?.textContent || '').trim().toLowerCase() === target);
+    if (!el) return;
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    if (!el.classList.contains('is-expanded')) el.querySelector('.vocab-row')?.click(); // スマホは畳まれているので開く
   };
 
   // 追加した単語の完全削除（誤クリック保存・タイポの救済）。ローカル両キー＋ログイン時はクラウドの行も消す
@@ -1777,6 +1850,7 @@ export default function VocabScreen() {
                   onChange={(e) => {
                     setAddWordText(e.target.value);
                     if (addMsg) setAddMsg('');
+                    if (spellSuggest) setSpellSuggest(null);
                   }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleAddWord();
@@ -1817,6 +1891,19 @@ export default function VocabScreen() {
                 </button>
               </div>
               {addMsg && <div style={{ marginTop: 6, fontSize: 12, color: '#888' }}>{addMsg}</div>}
+              {/* 綴りミスの候補（2026-10-30 案B）。出典は例文と同じ 📺作品SxE（字幕：OpenSubtitles）・映画は話数なし */}
+              {spellSuggest && (
+                <SpellSuggestSheet
+                  input={spellSuggest.input}
+                  inList={spellSuggest.inList || null}
+                  items={spellSuggest.items || []}
+                  credit={episodeCredit(drama.title, season, episode, isMovie)}
+                  busy={addBusy}
+                  onPick={handleSpellPick}
+                  onNone={handleSpellNone}
+                  onJump={handleSpellJump}
+                />
+              )}
 
               {source && phase === 'vocab' && (
                 <div className="source-label" style={{ marginBottom: 8 }}>

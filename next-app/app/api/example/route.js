@@ -20,6 +20,8 @@
 //   * さらに DL 直前にだけ DL 専用バケット（IP 20話/日・failClosed）を消費する。
 //   トレードオフ: 未生成かつカタログ外の作品で、拡張のクリック保存だけしているユーザーには層2の例文補完が付かない
 //   （raw cache が残っている間・vocab_cache 行がある話は従来どおり）。
+// 2026-10-30（オーナー決定＝案B・法務「条件付きOK」）:
+//   * manual の no_match に綴りミスの候補（suggestions・最大3語）を添える（lib/server/spellSuggestManual.js・法務の7条件はそこに）。
 // 設計: docs/route-fold-in-design.md ／ 法的整合: public-launch-legal-posture。
 
 export const dynamic = 'force-dynamic';
@@ -33,6 +35,7 @@ import { refetchSubtitleForManual } from '@/lib/server/manualRefetch';
 import { rawCacheKey, readRawCache } from '@/lib/server/subtitleRawCache';
 import { vocabCacheKey, readVocabRow } from '@/lib/server/vocabCache';
 import { manualWordProblem, manualMatchIsExact } from '@/lib/server/commonWords';
+import { manualSpellSuggestions } from '@/lib/server/spellSuggestManual';
 import { parseSeasonEpisode, exampleDlEligible, exampleWordProblem } from '@/lib/server/exampleGate';
 import {
   EXAMPLE_MANUAL_LIMITS,
@@ -238,18 +241,22 @@ export async function POST(req) {
     if (!auth.uid) return json({ found: false, reason: 'login_required', tmdbId: id, type });
     const problem = manualWordProblem(word);
     if (problem) return json({ found: false, reason: problem, tmdbId: id, type });
-    const rl = await checkRateLimit(
-      req,
-      'example-manual',
-      { perMin: EXAMPLE_MANUAL_LIMITS.perMin, perHour: 0, perDay: EXAMPLE_MANUAL_LIMITS.perDay },
-      {
-        failClosed: true,
-        extra: [
-          { keyBase: `rl:example-manual:user:${auth.uid}:ep:${cacheKey}`, window: 'day', limit: EXAMPLE_MANUAL_LIMITS.perUserEpisodeDay, scope: 'user-episode' },
-          { keyBase: `rl:example-manual:ep:${cacheKey}`, window: 'day', limit: EXAMPLE_MANUAL_LIMITS.perEpisodeDay, scope: 'episode' },
-        ],
-      }
-    );
+    // 手動追加の上限（1分・1日・利用者×話・話全体）を1つ数える。綴りの候補一覧を返す時にもう1回数える
+    //   （法務 条件4「上限は見せた文の数で数え、語だけの候補一覧も1回に数える」・2026-10-30）。
+    const manualRl = () =>
+      checkRateLimit(
+        req,
+        'example-manual',
+        { perMin: EXAMPLE_MANUAL_LIMITS.perMin, perHour: 0, perDay: EXAMPLE_MANUAL_LIMITS.perDay },
+        {
+          failClosed: true,
+          extra: [
+            { keyBase: `rl:example-manual:user:${auth.uid}:ep:${cacheKey}`, window: 'day', limit: EXAMPLE_MANUAL_LIMITS.perUserEpisodeDay, scope: 'user-episode' },
+            { keyBase: `rl:example-manual:ep:${cacheKey}`, window: 'day', limit: EXAMPLE_MANUAL_LIMITS.perEpisodeDay, scope: 'episode' },
+          ],
+        }
+      );
+    const rl = await manualRl();
     if (!rl.ok) {
       if (rl.unavailable) return json({ found: false, reason: 'unavailable', tmdbId: id, type }, 503);
       return json({ found: false, reason: 'rate_limited', tmdbId: id, type }, 429);
@@ -297,8 +304,14 @@ export async function POST(req) {
       }
     }
     const hit = findExampleForWord(raw, word, undefined, undefined, { exact: exactOnly });
-    console.info('[CL:EXAMPLE] manual', { subject: `user:${auth.uid.slice(0, 8)}`, cacheKey, word, via: hit ? 'raw' : 'no_match' });
-    if (!hit) return json({ found: false, reason: 'no_match', tmdbId: id, type });
+    if (!hit) {
+      // 綴りミスの候補（最大3語・例文は最も近い1語だけ・上限をもう1回数える）。条件は lib/server/spellSuggestManual.js。
+      const suggestions = await manualSpellSuggestions(word, { cached, raw, charge: manualRl, cap: capSentence });
+      // ログは件数だけ（候補の語・文そのものは残さない＝法務 条件6）
+      console.info('[CL:EXAMPLE] manual', { subject: `user:${auth.uid.slice(0, 8)}`, cacheKey, word, via: 'no_match', suggestions: suggestions.length });
+      return json({ found: false, reason: 'no_match', tmdbId: id, type, ...(suggestions.length ? { suggestions } : {}) });
+    }
+    console.info('[CL:EXAMPLE] manual', { subject: `user:${auth.uid.slice(0, 8)}`, cacheKey, word, via: 'raw' });
     return json({
       found: true,
       sentence: capSentence(hit.sentence, word, exactOnly),
