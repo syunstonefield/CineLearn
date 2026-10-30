@@ -2,8 +2,9 @@
 
 > 目的: Chrome Web Store のデベロッパーダッシュボード各フィールドにそのまま貼れる素材。
 > 公開方針＝**無料・非商用・非提携**。非提携文は next-app/lib/legal.js の NON_AFFILIATION と同文（PP・Terms・LP・support も同じ）:
-> 「CineLearn は Netflix、Amazon、Disney、Microsoft、The Movie Database (TMDB)、OpenSubtitles その他の動画配信・データ提供・AI サービス事業者と提携・公認関係にありません。各社の名称・商標は各権利者に帰属します。」
+> 「CineLearn は Netflix、Amazon、Disney、Microsoft、The Movie Database (TMDB)、OpenSubtitles、ETS（TOEIC）その他の動画配信・データ提供・AI サービス事業者と提携・公認関係にありません。TOEIC は ETS の登録商標です。本サービスは ETS および一般財団法人 国際ビジネスコミュニケーション協会（IIBC）の承認・推奨を受けたものではありません。各社の名称・商標は各権利者に帰属します。」
 > 誇大表現・提携を匂わせる表現は禁止。
+> ※ 2026-10-30 に ETS（TOEIC）と IIBC の一文を追加（法務指定）。ストアの説明文（§3・§9.3）と拡張は TOEIC の名前を使っていないため、説明文の固有名詞なしの非提携文は変更不要。説明文に TOEIC を入れる場合だけ、この一文も入れること。
 > ⚠ **ストアの説明文にはブランド名を列挙しない**（2026-10-08 v1.2.9 が「スパムとストア掲載順位＝説明に過剰なキーワード: Netflix, Amazon, Disney, Microsoft, TMDB, OpenSubtitles」で不承認・参照 ID Yellow Argon）。非提携文は説明文内では固有名詞なしの一般形にし、ブランド名入りの正文は LP・PP・規約・アプリ内クレジットに置く。対応サービス名は「■ 対応サービス」で各1回だけ。
 > 効果の主張は研究裏付けの範囲のみ（docs/research-2026-07-future-directions.md 準拠・「効果2倍」等の未裏付け表現は禁止）。
 
