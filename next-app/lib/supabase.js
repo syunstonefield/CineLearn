@@ -267,8 +267,6 @@ export async function pullFromCloud(profileId = null) {
     // ★単語帳メンバーシップ（in_wordbook）。列がまだ無いDBでは応答に載らない（undefined）ので、
     // その間はローカルの旗を残す（全量上書きで「外した」状態が毎回 true に戻らないように）。
     const prevInWordbook = new Map();
-    // CEFR の目安の写し（level / levelShown / listSource・法務 条件1）。列が無い DB ではクラウドに載らないのでローカルを残す。
-    const prevLevel = new Map();
     try {
       JSON.parse(localStorage.getItem('cl_my_words') || '[]').forEach((p) => {
         if (!p?.word) return;
@@ -279,7 +277,6 @@ export async function pullFromCloud(profileId = null) {
         if (p.exampleFail) prevFail.set(k, { reason: p.exampleFail, at: p.exampleFailAt || '' });
         if (p.dramaTitle) prevTitle.set(k, { title: p.dramaTitle, season: p.season ?? null, episode: p.episode ?? null });
         if (p.inWordbook === false) prevInWordbook.set(k, false);
-        if (p.level || p.levelShown || p.listSource) prevLevel.set(k, { level: p.level ?? null, levelShown: p.levelShown ?? null, listSource: p.listSource ?? null });
       });
     } catch {
       /* 旧データの破損は無視（例文訳を捨てる方向に倒れるだけ） */
@@ -332,10 +329,6 @@ export async function pullFromCloud(profileId = null) {
           exampleFailAt: sentence ? '' : prevFail.get(key)?.at || '',
           // ★単語帳に入っているか。クラウドが列を持てばそれが正、無ければローカルの旗を残す。
           inWordbook: typeof w.in_wordbook === 'boolean' ? w.in_wordbook : prevInWordbook.get(key) ?? true,
-          // CEFR の目安の写し（法務 条件1・supabase_my_words_level.sql）。クラウド優先・列が無い間はローカルの値を残す。
-          level: w.level ?? prevLevel.get(key)?.level ?? null,
-          levelShown: w.level_shown ?? prevLevel.get(key)?.levelShown ?? null,
-          listSource: w.list_source ?? prevLevel.get(key)?.listSource ?? null,
         };
       })
     );
@@ -601,12 +594,6 @@ function isMissingTsSec(res) {
 // in_wordbook（★単語帳メンバーシップ・supabase_my_words_in_wordbook.sql）も同じ作法。
 // 列が無いDBでは PGRST204 で行ごと弾かれるので、一度弾かれたらセッション中は送らない。
 let _inWordbookUnsupported = false;
-// level / level_shown / list_source（CEFR の目安の写し・supabase_my_words_level.sql）も同じ作法。
-let _levelUnsupported = false;
-function isMissingLevel(res) {
-  const msg = `${res?.code || ''} ${res?.message || ''}`;
-  return /PGRST204/.test(msg) && /level|list_source/.test(msg);
-}
 function isMissingInWordbook(res) {
   const msg = `${res?.code || ''} ${res?.message || ''}`;
   return /PGRST204/.test(msg) && /in_wordbook/.test(msg);
@@ -634,12 +621,6 @@ export async function pushMyWord(w) {
   if (Array.isArray(w.encounters) && w.encounters.length) row.encounters = w.encounters; // 遭遇ログ（拡張と同じ）
   // ★単語帳に入っているか。boolean で明示された時だけ送る（省略＝据え置き・DB既定は true）。
   if (typeof w.inWordbook === 'boolean' && !_inWordbookUnsupported) row.in_wordbook = w.inWordbook;
-  // CEFR の目安の写し（法務 条件1・2026-10-30）: 保存時に単語リストが持っていた段階。値がある時だけ送る（省略＝据え置き）。
-  if (!_levelUnsupported) {
-    if (w.levelShown) row.level_shown = w.levelShown;
-    if (w.level) row.level = w.level;
-    if (w.listSource) row.list_source = w.listSource;
-  }
   if (w.dramaTitle) {
     // 場面座標（作品・S/E・📍時刻）は一組で送る（拡張 background.js と同じ規則）。
     // ts_sec も同組に入れる＝作品が変わって場面座標が消えた再保存で、古い時刻だけが
@@ -658,13 +639,7 @@ export async function pushMyWord(w) {
   // PGRST204 を返して行ごと保存されない。列を外して1回だけ再送し、以後は送らない
   // （＝migration 前後どちらの順でデプロイしても単語の同期自体は壊れない）。
   let retry = false;
-  if (isMissingLevel(res) && ('level' in row || 'level_shown' in row || 'list_source' in row)) {
-    _levelUnsupported = true;
-    delete row.level;
-    delete row.level_shown;
-    delete row.list_source;
-    retry = true;
-  } else if (isMissingInWordbook(res) && 'in_wordbook' in row) {
+  if (isMissingInWordbook(res) && 'in_wordbook' in row) {
     _inWordbookUnsupported = true;
     delete row.in_wordbook;
     retry = true;

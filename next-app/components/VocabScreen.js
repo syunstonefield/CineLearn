@@ -44,7 +44,6 @@ import {
   getActiveWords,
   starWord,
   unstarWord,
-  saveWordTranslation,
 } from '@/lib/words';
 import { pushMyWord, ensureFreshSession } from '@/lib/supabase';
 import { fetchJa } from '@/lib/jatranslate';
@@ -428,19 +427,6 @@ export default function VocabScreen() {
       const ext = await getMyWordsForEpisode(drama, se, ep, pid);
       if (myReq !== reqId.current) return; // 別エピソードへ移っていたら破棄
       const existingSet = new Set((existing || []).map((w) => w.word.toLowerCase()));
-      // CEFR の目安の写し（法務 条件1・2026-10-30）: 拡張/手入力で保存した語がこの話の単語リストにもある時は、リストの
-      // 段階（表 levelShown・AI level・元 listSource）を記録へ写す（まだ持たない語だけ・一度きり）。単語帳は保存された値だけを
-      // 出し、表を引き直さない。リストに無い語には何も写さない（条件2）。
-      const listByWord = new Map((existing || []).map((w) => [w.word.toLowerCase(), w]));
-      ext.forEach((w) => {
-        const src = listByWord.get(String(w.word || '').toLowerCase());
-        if (!src || w.levelShown || w.level) return;
-        const patch = {};
-        if (src.levelShown) patch.levelShown = src.levelShown;
-        if (src.level) patch.level = src.level;
-        if (src.source === 'drama' || src.source === 'plus') patch.listSource = src.source;
-        if (Object.keys(patch).length) saveWordTranslation(pid, w.word, patch).catch(() => {});
-      });
       const newExt = ext
         .filter((w) => !existingSet.has(w.word.toLowerCase()))
         .map((w) => ({
@@ -1250,12 +1236,6 @@ export default function VocabScreen() {
       dramaTitle: drama.title,
       season: isMovie ? null : season,
       episode: isMovie ? null : episode,
-      // CEFR の目安の写し（法務 条件1・2026-10-30）: この話の単語リストの語なら、表示していた表の段階 levelShown と
-      // AI の段階 level を記録に写す。元が字幕の語かおすすめ語か（listSource 'drama'|'plus'）も残す（source は 'star' になるため）。
-      // 拡張で拾った語（src.source==='ext'）はリストの値を持たない＝null（addManualWord は null を既存値に上書きしない）。
-      level: src.level || null,
-      levelShown: src.levelShown || null,
-      listSource: src.source === 'drama' || src.source === 'plus' ? src.source : null,
     };
     const merged = await starWord(pid, entry);
     setWordbookMap((m) => new Map(m).set(lower, merged || entry));
