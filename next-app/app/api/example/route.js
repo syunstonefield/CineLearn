@@ -22,6 +22,11 @@
 //   （raw cache が残っている間・vocab_cache 行がある話は従来どおり）。
 // 2026-10-30（オーナー決定＝案B・法務「条件付きOK」）:
 //   * manual の no_match に綴りミスの候補（suggestions・最大3語）を添える（lib/server/spellSuggestManual.js・法務の7条件はそこに）。
+// 2026-10-31（Suits S1E1 の例文欠落・オーナー決定＝方針1）:
+//   * 層2で、アンカー行（画面に出ている字幕行）が raw の**どこにも**無い時だけ、OS の別候補ファイルを上位から最大2件
+//     DL し、アンカー行が在る方を raw cache に差し替えて照合し直す（lib/server/opensubtitles.js fetchEpisodeSrtAlternative・
+//     lib/subtitles.js anchorPresentInSrt）。枠＝話ごと1日1回（当たらなくても消費）＋ IP ごと3回/日・failClosed。
+//     アンカー無しの要求（アプリの取り直し・near のみ）では発火しない＝既存の例文無しの語は Netflix で再クリックが必要。
 // 設計: docs/route-fold-in-design.md ／ 法的整合: public-launch-legal-posture。
 
 export const dynamic = 'force-dynamic';
