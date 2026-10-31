@@ -340,7 +340,7 @@ export default function TicketCollectionScreen() {
     <div className="screen active" id="screen-collection">
       <div className="tc-screen">
         <div className="tc-head">
-          <h1 className="tc-h1">🎟 半券コレクション</h1>
+          <h1 className="tc-h1">🎟 コレクション</h1>
           <p className="tc-sub">あなたが学習したドラマの記録です</p>
           {srsTotals.learned + srsTotals.mastered > 0 && (
             <p className="tc-substats">

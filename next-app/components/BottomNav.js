@@ -119,7 +119,8 @@ export default function BottomNav({ dueCount = 0, wordCount = 0 }) {
       {tab(wordbookActive, openWordbook, <IconBook />, '単語帳', wordCount, 'count')}
       {tab(reviewActive, onReview, <IconReview />, '復習', dueCount, 'urgent')}
       {!journeyLocked && tab(journeyActive, openJourney, <IconJourney />, 'あゆみ', 0)}
-      {tab(collectionActive, openCollection, <IconTicket />, '半券', 0)}
+      {/* 「半券」→「コレクション」（オーナー 2026-10-31・ポスター表示も入ったため） */}
+      {tab(collectionActive, openCollection, <IconTicket />, 'コレクション', 0)}
     </nav>
   );
 }
