@@ -3,7 +3,7 @@ import { surfaceFormInExample } from '@/lib/subtitles';
 
 import { useState } from 'react';
 import { statusBadge, nextReviewLabel } from '@/lib/storage';
-import { exampleFailLabel } from '@/lib/exampleBackfill';
+import { exampleFailLabel, aiExampleOf, isOtherSceneExample } from '@/lib/exampleBackfill';
 import { cefrHintOf, cefrHintTitle } from '@/lib/cefrHint';
 
 // 1単語カード。モバイルは折りたたみ（語＋和訳＋状態ドット＋📍時刻のみ）→タップで詳細展開。
@@ -157,6 +157,8 @@ export default function VocabItem({ word, srs, testTiers, ts, exampleSource, add
             {w.example_ja && <span className="word-example-ja">{w.example_ja}</span>}
             {/* 出所明示（著作権法48条）：例文を引いた作品・話・字幕元 */}
             {exampleSource && <span className="word-example-source">{exampleSource}</span>}
+            {/* 保存した場面では見つからず、この回の別の場面の台詞を引いた（2026-10-31）。📍は保存した場面のまま。 */}
+            {isOtherSceneExample(w) && <span className="word-example-source">この回の別の場面のセリフです</span>}
           </div>
         )}
 
@@ -165,7 +167,30 @@ export default function VocabItem({ word, srs, testTiers, ts, exampleSource, add
             作品名ごと画面から消えていた（2026-08-08 オーナー報告「単語帳でアイアンマンと
             表示されない」＝作品判定の失敗に見えるが、実際は表示側の欠落）。
             wordSource は例文が無ければ「（字幕：OpenSubtitles）」を付けないので48条の立て付けも保たれる。 */}
-        {!w.example && (exampleSource || w.exampleFail) && (
+        {/* AI 作例（2026-10-31）: 字幕から例文が取れなかった語の受け皿。字幕の引用ではないので
+            “…” で囲まず、出所（字幕：…）も付けず、AI が作った文だと明示する。字幕の例文が付けばそちらが優先。 */}
+        {!w.example && aiExampleOf(w) && (
+          <div className="word-example-wrap word-example-ai">
+            <span className="word-example-en">
+              {aiExampleOf(w).en}
+              <button
+                type="button"
+                className="word-ex-speak"
+                aria-label="例文を聞く"
+                onClick={(ev) => {
+                  ev.stopPropagation();
+                  onSpeak(aiExampleOf(w).en);
+                }}
+              >
+                🔊
+              </button>
+            </span>
+            {aiExampleOf(w).ja && <span className="word-example-ja">{aiExampleOf(w).ja}</span>}
+            <span className="word-example-source">AI 作例（ドラマのセリフではありません）</span>
+          </div>
+        )}
+
+        {!w.example && (exampleSource || (w.exampleFail && !aiExampleOf(w))) && (
           <div className="word-example-wrap">
             {/* 引用が無い＝48条の出所明示は不要なので「（字幕：…）」は落とし、作品名だけ残す */}
             {exampleSource && (
@@ -175,7 +200,7 @@ export default function VocabItem({ word, srs, testTiers, ts, exampleSource, add
             )}
             {/* 例文が取れなかった理由を明示する（③）。無言で欠けていると、ユーザーからも
                 デバッグからも「なぜ出ないのか」が全く分からない状態が続く。 */}
-            {w.exampleFail && (
+            {w.exampleFail && !aiExampleOf(w) && (
               <span className="word-example-source">例文なし — {exampleFailLabel(w.exampleFail)}</span>
             )}
           </div>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { aiExampleOf, isOtherSceneExample } from '@/lib/exampleBackfill';
 import { useApp } from './AppProvider';
 import { surfaceFormInExample } from '@/lib/subtitles';
 import { speak } from '@/lib/speak';
@@ -562,6 +563,25 @@ function ReviewCard({ word: w, idx, total, flipped, retryMode, onFlip, onRate, o
                 {w.example_ja && <div className="review-example-ja">{w.example_ja}</div>}
                 {/* 出所明示（著作権法48条）：例文を引いた作品・話・字幕元 */}
                 {subtitleCredit(w) && <div className="review-example-source">{subtitleCredit(w)}</div>}
+                {isOtherSceneExample(w) && <div className="review-example-source">この回の別の場面のセリフです</div>}
+              </div>
+            )}
+            {/* AI 作例（2026-10-31）: 字幕から例文が取れなかった語。字幕の引用ではないので “…” と出所を付けず明示する */}
+            {!w.example && aiExampleOf(w) && (
+              <div className="review-example-text">
+                <div>
+                  {aiExampleOf(w).en}
+                  <button
+                    type="button"
+                    className="review-speak review-speak-sm"
+                    aria-label="例文を聞く"
+                    onClick={() => speak(aiExampleOf(w).en)}
+                  >
+                    🔊
+                  </button>
+                </div>
+                {aiExampleOf(w).ja && <div className="review-example-ja">{aiExampleOf(w).ja}</div>}
+                <div className="review-example-source">AI 作例（ドラマのセリフではありません）</div>
               </div>
             )}
           </div>

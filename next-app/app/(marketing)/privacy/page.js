@@ -11,7 +11,7 @@
 import { NON_AFFILIATION } from '@/lib/legal';
 
 const CONTACT_EMAIL = 'cinelearn.202606@gmail.com';
-const UPDATED = '2026年10月9日';
+const UPDATED = '2026年10月31日';
 
 export const metadata = {
   title: 'プライバシーポリシー — CineLearn',
@@ -140,6 +140,7 @@ export default function PrivacyPage() {
             <li>単語リストの生成：対象話の字幕テキスト全文と作品名・話数</li>
             <li>単語の文脈訳：クリックした単語と、その時に表示されていた字幕の一文（当社サーバーは保存しません）</li>
             <li>例文の和訳：例文1文</li>
+            <li>例文の作成（AI 作例）：字幕から例文が見つからなかった単語と、その品詞・日本語の語義（字幕の文は送りません）</li>
             <li>作品のおすすめ・作品検索：英語レベル（TOEIC スコアの目安を含む）・好きなジャンル・利用している動画サービス・入力した検索語（作品名など）</li>
           </ul>
           Anthropic の商用利用規約（Commercial Terms of Service）に基づき、当社サーバーから API 経由で

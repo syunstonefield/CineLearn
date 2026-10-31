@@ -447,6 +447,7 @@ export default function VocabScreen() {
           tsSec: w.tsSec ?? null, // 📍時刻（手動追加#20はローカルに保持・tsFor のフォールバックで表示）
           tier: w.tier || 'core',
           exampleFail: w.exampleFail || '', // 例文が取れなかった理由（③・カードに出す）
+          exampleNote: w.exampleNote || null, // AI 作例／この回の別の場面（2026-10-31）
           source: 'ext',
           // 保存時の S/E を必ず写す。落とすと exampleBackfill が TV の語を映画(s0e0)として /api/example に送り、
           // 層1ミス→OS の movie 検索→nosub が my_words に永続化される（レビュー指摘）。

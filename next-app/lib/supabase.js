@@ -267,6 +267,9 @@ export async function pullFromCloud(profileId = null) {
     // ★単語帳メンバーシップ（in_wordbook）。列がまだ無いDBでは応答に載らない（undefined）ので、
     // その間はローカルの旗を残す（全量上書きで「外した」状態が毎回 true に戻らないように）。
     const prevInWordbook = new Map();
+    // 例文の注記（example_note: AI 作例／この回の別の場面・2026-10-31）。列がまだ無い DB では応答に載らない
+    // （undefined）ので、その間はローカルの注記を残す（AI 作例が pull のたびに消えないように）。
+    const prevNote = new Map();
     try {
       JSON.parse(localStorage.getItem('cl_my_words') || '[]').forEach((p) => {
         if (!p?.word) return;
@@ -277,6 +280,7 @@ export async function pullFromCloud(profileId = null) {
         if (p.exampleFail) prevFail.set(k, { reason: p.exampleFail, at: p.exampleFailAt || '' });
         if (p.dramaTitle) prevTitle.set(k, { title: p.dramaTitle, season: p.season ?? null, episode: p.episode ?? null });
         if (p.inWordbook === false) prevInWordbook.set(k, false);
+        if (p.exampleNote) prevNote.set(k, p.exampleNote);
       });
     } catch {
       /* 旧データの破損は無視（例文訳を捨てる方向に倒れるだけ） */
@@ -329,6 +333,8 @@ export async function pullFromCloud(profileId = null) {
           exampleFailAt: sentence ? '' : prevFail.get(key)?.at || '',
           // ★単語帳に入っているか。クラウドが列を持てばそれが正、無ければローカルの旗を残す。
           inWordbook: typeof w.in_wordbook === 'boolean' ? w.in_wordbook : prevInWordbook.get(key) ?? true,
+          // 例文の注記。クラウドが列を持てばそれが正（null 含む）、無ければローカルの注記を残す。
+          exampleNote: w.example_note !== undefined ? normalizeExampleNote(w.example_note) : prevNote.get(key) ?? null,
         };
       })
     );
@@ -594,6 +600,22 @@ function isMissingTsSec(res) {
 // in_wordbook（★単語帳メンバーシップ・supabase_my_words_in_wordbook.sql）も同じ作法。
 // 列が無いDBでは PGRST204 で行ごと弾かれるので、一度弾かれたらセッション中は送らない。
 let _inWordbookUnsupported = false;
+let _exampleNoteUnsupported = false;
+function isMissingExampleNote(res) {
+  const msg = `${res?.code || ''} ${res?.message || ''}`;
+  return /PGRST204/.test(msg) && /example_note/.test(msg);
+}
+// 例文の注記の形を検める（壊れた値・知らない種類は null）。
+//   { kind:'ai', en, ja }           … AI 作例（字幕の引用ではない）。例文欄が空の時だけ表示する。
+//   { kind:'other_scene', of }      … 例文がこの回の別の場面の台詞。of＝その例文の先頭40字（例文が差し替わったら無効）。
+export function normalizeExampleNote(n) {
+  if (!n || typeof n !== 'object') return null;
+  if (n.kind === 'ai' && typeof n.en === 'string' && n.en.trim() && typeof n.ja === 'string') {
+    return { kind: 'ai', en: n.en.slice(0, 200), ja: n.ja.slice(0, 200) };
+  }
+  if (n.kind === 'other_scene' && typeof n.of === 'string' && n.of) return { kind: 'other_scene', of: n.of.slice(0, 40) };
+  return null;
+}
 function isMissingInWordbook(res) {
   const msg = `${res?.code || ''} ${res?.message || ''}`;
   return /PGRST204/.test(msg) && /in_wordbook/.test(msg);
@@ -621,6 +643,14 @@ export async function pushMyWord(w) {
   if (Array.isArray(w.encounters) && w.encounters.length) row.encounters = w.encounters; // 遭遇ログ（拡張と同じ）
   // ★単語帳に入っているか。boolean で明示された時だけ送る（省略＝据え置き・DB既定は true）。
   if (typeof w.inWordbook === 'boolean' && !_inWordbookUnsupported) row.in_wordbook = w.inWordbook;
+  // 例文の注記（AI 作例／この回の別の場面）。持っている時だけ送り、消す時だけ null（送らない＝据え置き）。
+  //   AI 作例は sentence 列には入れない＝字幕の出所表示（字幕：OpenSubtitles）が付かない。列が無い DB では外して再送
+  //   ＝AI 作例はその端末だけに残る（同期は壊れない）。
+  if (!_exampleNoteUnsupported) {
+    const note = normalizeExampleNote(w.exampleNote);
+    if (note) row.example_note = note;
+    else if (w._clearExampleNote) row.example_note = null;
+  }
   if (w.dramaTitle) {
     // 場面座標（作品・S/E・📍時刻）は一組で送る（拡張 background.js と同じ規則）。
     // ts_sec も同組に入れる＝作品が変わって場面座標が消えた再保存で、古い時刻だけが
@@ -638,18 +668,25 @@ export async function pushMyWord(w) {
   // ts_sec 列がまだ無いDB（supabase_my_words_tssec.sql 未実行）では PostgREST が
   // PGRST204 を返して行ごと保存されない。列を外して1回だけ再送し、以後は送らない
   // （＝migration 前後どちらの順でデプロイしても単語の同期自体は壊れない）。
-  let retry = false;
-  if (isMissingInWordbook(res) && 'in_wordbook' in row) {
-    _inWordbookUnsupported = true;
-    delete row.in_wordbook;
-    retry = true;
-  } else if (isMissingTsSec(res) && 'ts_sec' in row) {
-    _tsSecUnsupported = true;
-    delete row.ts_sec;
-    retry = true;
-  }
-  if (retry) {
-    await sbFetch('/rest/v1/my_words', {
+  // 列が足りない時は1列ずつ外して再送する（最大3回＝in_wordbook / ts_sec / example_note）。
+  let cur = res;
+  for (let i = 0; i < 3; i++) {
+    let retry = false;
+    if (isMissingInWordbook(cur) && 'in_wordbook' in row) {
+      _inWordbookUnsupported = true;
+      delete row.in_wordbook;
+      retry = true;
+    } else if (isMissingTsSec(cur) && 'ts_sec' in row) {
+      _tsSecUnsupported = true;
+      delete row.ts_sec;
+      retry = true;
+    } else if (isMissingExampleNote(cur) && 'example_note' in row) {
+      _exampleNoteUnsupported = true;
+      delete row.example_note;
+      retry = true;
+    }
+    if (!retry) break;
+    cur = await sbFetch('/rest/v1/my_words', {
       method: 'POST',
       headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
       body: JSON.stringify([row]),

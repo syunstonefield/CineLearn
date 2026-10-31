@@ -48,6 +48,7 @@ import {
   EXAMPLE_EPISODE_DAY_LIMIT,
   EXAMPLE_DL_PER_IP_DAY,
   EXAMPLE_ALT_DL_LIMITS,
+  EXAMPLE_OTHER_SCENE_LIMITS,
   EXAMPLE_WINDOW_SEC,
   UpstreamError,
 } from '@/lib/server/constants';
@@ -378,10 +379,48 @@ export async function POST(req) {
           tsSec: farPick.tsSec ?? null,
           tsLabel: farPick.tsLabel ?? null,
           via: 'vocab_cache_far',
+          otherScene: true, // 保存位置から遠い出現＝この回の別の場面（アプリが「この回の別の場面」と表示する）
         })
       : json({ found: false, reason, tmdbId: id, type });
+
+  // 「この回の別の場面」（2026-10-31）: 待避候補も無く空振りした時、アプリの取り直し（otherScene:true）に限り
+  //   回全体から語を含む1文を返す（保存位置に最も近い出現）。条件は EXAMPLE_OTHER_SCENE_LIMITS の注記どおり。
+  //   raw は渡されたもの or raw cache の命中だけ（ここで OS から DL はしない）。どの条件で落ちても従来の応答に倒れる。
+  const wantOtherScene = !manual && body.otherScene === true;
+  const otherSceneOr = async (reason, rawText = null) => {
+    if (farPick || !wantOtherScene) return farFallback(reason);
+    if (manualWordProblem(word)) return farFallback(reason); // よく使う語・複数語・短すぎは探さない
+    const r = rawText || (await readRawCache(rawKey));
+    if (!r) return farFallback(reason);
+    const auth = await resolveUserId(req);
+    if (!auth.uid) return farFallback(reason);
+    const rl = await checkRateLimit(req, 'example-other', { perMin: 0, perHour: 0, perDay: 0 }, {
+      ipLimitsOff: true,
+      failClosed: true,
+      extra: [
+        { keyBase: `rl:example-other:user:${auth.uid}:ep:${cacheKey}`, window: 'day', limit: EXAMPLE_OTHER_SCENE_LIMITS.perUserEpisodeDay, scope: 'user-episode' },
+        { keyBase: `rl:example-other:user:${auth.uid}`, window: 'day', limit: EXAMPLE_OTHER_SCENE_LIMITS.perUserDay, scope: 'user' },
+      ],
+    });
+    if (!rl.ok) return farFallback(reason);
+    const hit = findExampleForWord(r, word, isFinite(near) ? near : undefined, undefined);
+    if (!hit) return farFallback(reason);
+    return json({
+      found: true,
+      sentence: capSentence(hit.sentence, word),
+      source: 'opensubtitles',
+      tmdbId: id,
+      season: s,
+      episode: e,
+      tsSec: hit.sec,
+      tsLabel: hit.label,
+      via: 'other_scene',
+      otherScene: true,
+    });
+  };
+
   if (!anchorLine && !isFinite(near)) {
-    return farFallback('no_anchor_no_near'); // 手がかり無し → 待避候補があればそれ、無ければ bare（OS DL せず）
+    return otherSceneOr('no_anchor_no_near'); // 手がかり無し → 待避候補／この回の別の場面、無ければ bare（OS DL せず）
   }
 
   const rawRow = await readRawCacheRow(rawKey);
@@ -435,7 +474,7 @@ export async function POST(req) {
     }
   }
   if (!hit && isFinite(near)) hit = findExampleForWord(raw, word, near, EXAMPLE_WINDOW_SEC);
-  if (!hit) return farFallback('no_match'); // アンカー不一致＋窓内該当なし → 待避候補 or bare
+  if (!hit) return otherSceneOr('no_match', raw); // アンカー不一致＋窓内該当なし → 待避候補／この回の別の場面 or bare
 
   return json({
     found: true,

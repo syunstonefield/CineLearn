@@ -22,6 +22,10 @@ import { authHeaders } from './api';
 
 // 1画面あたりの取得上限。OpenSubtitles の DL 枠とレート制限（60/分）を焼かないための保険。
 const MAX_PER_RUN = 5;
+// AI 作例（2026-10-31）を1画面で作る上限。字幕で取れなかった語の最後の受け皿。
+const AI_PER_RUN = 5;
+// 一時的な事情の失敗。AI 作例に倒さず、次に開いた時に字幕からの取り直しを待つ。
+const TRANSIENT_REASONS = new Set(['rate_limited', 'unavailable', 'network']);
 
 export const EXAMPLE_FAIL_LABEL = {
   tmdb_unresolved: '作品を特定できませんでした',
@@ -49,6 +53,37 @@ export function exampleFailLabel(reason) {
 // tsSec が「数値として有効か」の判定はここに統一する（null/undefined/NaN/文字列はすべて「無し」）。
 export function hasTsSec(w) {
   return Number.isFinite(w?.tsSec);
+}
+
+// AI 作例（/api/claude mode:'example_ai'）。字幕の行は送らない（語・品詞・語義だけ）。→ { en, ja } | null
+async function fetchAiExample(w) {
+  const sense = String(w.ja || w.definition || '')
+    .replace(/（この場面では[^）]*）/g, '')
+    .trim()
+    .slice(0, 40);
+  try {
+    const res = await fetch('/api/claude', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'example_ai', word: w.word, pos: w.pos || '', sense }),
+    });
+    const d = await res.json().catch(() => null);
+    return d?.en && d?.ja ? { en: d.en, ja: d.ja } : null;
+  } catch {
+    return null;
+  }
+}
+
+// 例文の注記の判定（lib/supabase.js normalizeExampleNote と同じ形）。
+export function aiExampleOf(w) {
+  const n = w?.exampleNote;
+  if ((w?.example || w?.sentence || '').trim()) return null; // 字幕の例文があればそちらが正
+  return n && n.kind === 'ai' && n.en ? n : null;
+}
+export function isOtherSceneExample(w) {
+  const n = w?.exampleNote;
+  const ex = String(w?.example || w?.sentence || '');
+  return !!(n && n.kind === 'other_scene' && n.of && ex.startsWith(n.of));
 }
 
 async function fetchExample(payload) {
@@ -84,6 +119,8 @@ function sameSentence(a, b) {
 //   例文が付いている語に流用すると誤表示になる。ここはメモリ上の集合で「1セッション1回」に留め、
 //   次に開いた時に改めて試す（サーバ側の raw 在庫は日をまたいで増えるため）。
 const _tsTried = new Set();
+// AI 作例の同一セッション内の再試行抑止（作れなかった語を開くたびに叩き直さない）。
+const _aiTried = new Set();
 
 // words: VocabScreen / WordbookScreen が表示している「追加した単語」。
 //   対象は「例文が無い語」または「例文はあるが tsSec が数値でない語」（A13）。
@@ -112,7 +149,30 @@ export async function backfillMissingExamples(words, { drama, season, episode, i
   const targets = words
     .filter((w) => w?.word && ((needsExample(w) && retryable(w)) || needsTs(w)))
     .slice(0, MAX_PER_RUN);
-  if (!targets.length) return false;
+  // AI 作例の受け皿（2026-10-31）: 字幕から取れないと分かっている語（一時的な失敗は除く）と、
+  //   例文なしで手動追加した語。字幕の例文が後で付けば表示はそちらが優先される。
+  const needsAi = (w) =>
+    !(w.example || '').trim() &&
+    !aiExampleOf(w) &&
+    // 手動追加は単語リストでは origin、単語帳では source に 'manual' が入る
+    (w.origin === 'manual' || w.source === 'manual' || (w.exampleFail && !TRANSIENT_REASONS.has(w.exampleFail)));
+  const giveAi = async (w) => {
+    if (_aiTried.has(String(w.word).toLowerCase())) return false;
+    _aiTried.add(String(w.word).toLowerCase());
+    const ai = await fetchAiExample(w);
+    if (!ai) return false;
+    const note = { kind: 'ai', en: ai.en, ja: ai.ja };
+    w.exampleNote = note;
+    await saveWordTranslation(profileId, w.word, { exampleNote: note });
+    return true;
+  };
+  if (!targets.length) {
+    let changedAi = false;
+    for (const w of words.filter((x) => x?.word && needsAi(x)).slice(0, AI_PER_RUN)) {
+      if (await giveAi(w)) changedAi = true;
+    }
+    return changedAi;
+  }
 
   let changed = false;
   for (const w of targets) {
@@ -132,6 +192,8 @@ export async function backfillMissingExamples(words, { drama, season, episode, i
       episode: isMovie ? null : w.episode ?? (w.season != null ? episode : null),
       // 保存時の📍があれば窓の手がかりとして渡す（サーバは near ±45秒で候補を絞る）
       currentTimeSec: hasTsSec(w) ? w.tsSec : undefined,
+      // 窓の中に無ければ「この回の別の場面」も探してよい（ログイン中のみ・サーバ側で上限・2026-10-31）
+      otherScene: tsOnly ? undefined : true,
     };
     // 例文あり・時刻なし → 例文そのものをアンカーにして同じキューの時刻をもらう（照合のみ・保存されない）。
     if (tsOnly) {
@@ -158,8 +220,12 @@ export async function backfillMissingExamples(words, { drama, season, episode, i
     if (res?.found && res.sentence) {
       const patch = { sentence: res.sentence, example_ja: '', exampleFail: '' };
       if (Number.isFinite(res.tsSec) && !hasTsSec(w)) patch.tsSec = res.tsSec;
+      // この回の別の場面の台詞なら注記を付ける（📍は保存位置のまま＝例文の場面とは別と分かるように）。
+      //   字幕の例文が入ったので、AI 作例の注記は消す。
+      const note = res.otherScene ? { kind: 'other_scene', of: String(res.sentence).slice(0, 40) } : null;
+      patch.exampleNote = note;
       Object.assign(w, patch, { example: res.sentence });
-      await saveWordTranslation(profileId, w.word, { ...patch, _clearExampleJa: true });
+      await saveWordTranslation(profileId, w.word, { ...patch, _clearExampleJa: true, ...(note ? {} : { _clearExampleNote: true }) });
       changed = true;
     } else if (res?.reason) {
       // 失敗理由を語に残す（③）。次回の再試行を止める役目も兼ねる＝同じ失敗を無限に叩かない。
@@ -170,6 +236,14 @@ export async function backfillMissingExamples(words, { drama, season, episode, i
       await saveWordTranslation(profileId, w.word, { exampleFail: res.reason, exampleFailAt: at });
       changed = true;
     }
+  }
+  // 字幕から取れなかった語に AI 作例を付ける（同じ回で失敗が確定した語を含む）。
+  let ai = 0;
+  for (const w of words) {
+    if (ai >= AI_PER_RUN) break;
+    if (!w?.word || !needsAi(w)) continue;
+    ai++;
+    if (await giveAi(w)) changed = true;
   }
   return changed;
 }
