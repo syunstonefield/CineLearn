@@ -128,3 +128,14 @@ test('aiExampleOf は字幕の例文があれば出さない／isOtherSceneExamp
   assert.equal(isOtherSceneExample({ example: 'Mergers and acquisitions are my thing.', exampleNote: os }), true);
   assert.equal(isOtherSceneExample({ example: 'A different line now.', exampleNote: os }), false);
 });
+
+// 2026-10-31 文頭の偏り: v1 の「Honestly, …」の作例は作り直す。それ以外の作例はそのまま。
+test('決まった書き出しの AI 作例は作り直し、それ以外は叩かない', async () => {
+  const calls = captureFetch({ ai: { en: 'Did the mergers actually go through?', ja: '合併って本当に通ったの？' } });
+  const stale = { word: 'mergers', example: '', origin: 'manual', exampleNote: { kind: 'ai', en: "Honestly, I'm surprised the mergers went through.", ja: '正直…' } };
+  const fine = { word: 'symmetry', example: '', origin: 'manual', exampleNote: { kind: 'ai', en: 'The symmetry of this room calms me down.', ja: '…' } };
+  await backfillMissingExamples([stale, fine], { drama, season: 1, episode: 1, isMovie: false });
+  assert.deepEqual(aiCalls(calls).map((c) => c.body.word), ['mergers']);
+  assert.equal(stale.exampleNote.en, 'Did the mergers actually go through?');
+  assert.equal(fine.exampleNote.en, 'The symmetry of this room calms me down.');
+});

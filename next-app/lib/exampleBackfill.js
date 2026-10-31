@@ -19,6 +19,7 @@
 //   には触らない（_clearExampleJa も付けない）。
 import { saveWordTranslation } from './words';
 import { authHeaders } from './api';
+import { aiExampleNeedsRedo } from './aiExample';
 
 // 1画面あたりの取得上限。OpenSubtitles の DL 枠とレート制限（60/分）を焼かないための保険。
 const MAX_PER_RUN = 5;
@@ -151,9 +152,11 @@ export async function backfillMissingExamples(words, { drama, season, episode, i
     .slice(0, MAX_PER_RUN);
   // AI 作例の受け皿（2026-10-31）: 字幕から取れないと分かっている語（一時的な失敗は除く）と、
   //   例文なしで手動追加した語。字幕の例文が後で付けば表示はそちらが優先される。
+  //   保存済みの作例が決まった書き出し（v1 の Honestly, …）や固有名詞入りなら作り直す（2026-10-31）。
+  //   作り直せなければ古い作例のまま（_aiTried でセッション内1回）。
   const needsAi = (w) =>
     !(w.example || '').trim() &&
-    !aiExampleOf(w) &&
+    (!aiExampleOf(w) || aiExampleNeedsRedo(aiExampleOf(w).en)) &&
     // 手動追加は単語リストでは origin、単語帳では source に 'manual' が入る
     (w.origin === 'manual' || w.source === 'manual' || (w.exampleFail && !TRANSIENT_REASONS.has(w.exampleFail)));
   const giveAi = async (w) => {

@@ -14,6 +14,7 @@ import { HAIKU_MODEL, TRANSLATE_MODEL, TRANSLATE_THINKING, responseText } from '
 import { vocabCacheKey } from '@/lib/server/vocabCache';
 import { isSubtitleSentence } from '@/lib/subtitleSentence';
 import { exampleContainsWord } from '@/lib/subtitles';
+import { AI_EXAMPLE_VERSION, aiExampleNeedsRedo, buildAiExamplePrompt } from '@/lib/aiExample';
 
 // ── 文脈つき語義（mode:'wordsense'）用の共有キャッシュ ──
 // translation_ctx_cache は service_role 専用（未設定ならキャッシュ無しで動く）。
@@ -398,7 +399,7 @@ export async function POST(req) {
   //   字幕から例文が取れなかった保存語に、語・品詞・語義（日本語）だけから英文1つ＋和訳を作る。
   //   ★字幕の行は入力しない（法務 R2: 画面の字幕行を言い換えると翻案になり得る）。作品名も渡さない（実在の台詞と紛らわしくしない）。
   //   アプリは結果を my_words.example_note（kind:'ai'）に入れ、例文欄（sentence）には入れない＝字幕の出所表示が付かない。
-  //   共有キャッシュ（word='__aiex__'・sense_hash=語|品詞|語義）命中は無条件配布、新規生成のみ IP で絞る。
+  //   共有キャッシュ（word='__aiex__'・sense_hash=版|語|品詞|語義）命中は無条件配布、新規生成のみ IP で絞る。
   if (body.mode === 'example_ai') {
     const word = String(body.word || '').trim();
     const pos = String(body.pos || '').trim().slice(0, 20);
@@ -406,12 +407,13 @@ export async function POST(req) {
     if (!/^[A-Za-z][A-Za-z'\- ]{1,39}$/.test(word)) return json({ en: null, error: 'bad request' }, 400);
     if (/[\n\r]/.test(pos + sense)) return json({ en: null, error: 'bad request' }, 400);
     const AIEX_KEY = '__aiex__';
-    const hash = createHash('sha256').update(`v1\n${word.toLowerCase()}\n${pos.toLowerCase()}\n${sense}`).digest('hex').slice(0, 16);
+    const hash = createHash('sha256').update(`${AI_EXAMPLE_VERSION}\n${word.toLowerCase()}\n${pos.toLowerCase()}\n${sense}`).digest('hex').slice(0, 16);
     const cached = await readCtxCache(AIEX_KEY, hash);
     if (cached) {
       try {
         const o = JSON.parse(cached);
-        if (o?.en && o?.ja) return json({ en: o.en, ja: o.ja, via: 'cache' });
+        // 検査を後から足した時に古い行を配らない（作り直して上書き＝upsert）
+        if (o?.en && o?.ja && !aiExampleNeedsRedo(o.en)) return json({ en: o.en, ja: o.ja, via: 'cache' });
       } catch {
         /* 壊れた行は作り直す */
       }
@@ -419,15 +421,8 @@ export async function POST(req) {
     if (!(await checkRateLimit(req, 'example-ai', { perMin: 20, perHour: 120, perDay: 300 })).ok) {
       return json({ en: null, error: 'rate_limited' }, 429);
     }
-    const prompt =
-      `英単語 "${word}"${pos ? `（品詞: ${pos}）` : ''}${sense ? `（意味: ${sense}）` : ''} を使った英語の例文を1つ作り、日本語訳を付けてください。\n` +
-      `規則:\n` +
-      `- 海外ドラマの会話に出てきそうな自然な口語の1文。8〜18語。\n` +
-      `- "${word}" をそのまま（または自然な活用形で）必ず1回含める。${sense ? `意味は「${sense}」として使う。` : ''}\n` +
-      `- 実在の作品・人物・台詞を引用したり真似たりしない。固有名詞は使わない。\n` +
-      `- 日本語訳は自然な話し言葉。\n` +
-      `JSON だけを1行で出力: {"en": 英文, "ja": 日本語訳}`;
-    try {
+    // 文頭の偏り対策（v2・lib/aiExample.js）: 語ごとに文の型を割り当て、決まった書き出し・固有名詞なら1回だけ作り直す。
+    const ask = async (retry) => {
       const r = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
@@ -435,10 +430,10 @@ export async function POST(req) {
           model: TRANSLATE_MODEL,
           thinking: TRANSLATE_THINKING,
           max_tokens: 200,
-          messages: [{ role: 'user', content: prompt }],
+          messages: [{ role: 'user', content: buildAiExamplePrompt({ word, pos, sense, retry }) }],
         }),
       });
-      if (!r.ok) return json({ en: null });
+      if (!r.ok) return null;
       const data = await r.json();
       let o = null;
       try {
@@ -448,8 +443,23 @@ export async function POST(req) {
       }
       const en = String(o?.en || '').trim().replace(/^["“]|["”]$/g, '');
       const ja = String(o?.ja || '').trim().replace(/^["「『]|["」』]$/g, '');
-      // 形式崩れ・語を含まない・長すぎは配らない（保存もしない）
-      if (!en || !ja || en.length > 200 || ja.length > 200 || /\n/.test(en + ja) || !exampleContainsWord(en, word)) {
+      return { en, ja };
+    };
+    try {
+      let out = await ask(false);
+      if (out && aiExampleNeedsRedo(out.en)) out = await ask(true);
+      if (!out) return json({ en: null });
+      const { en, ja } = out;
+      // 形式崩れ・語を含まない・長すぎ・決まった書き出し・固有名詞は配らない（保存もしない）
+      if (
+        !en ||
+        !ja ||
+        en.length > 200 ||
+        ja.length > 200 ||
+        /\n/.test(en + ja) ||
+        !exampleContainsWord(en, word) ||
+        aiExampleNeedsRedo(en)
+      ) {
         return json({ en: null, error: 'bad_output' });
       }
       after(() => writeCtxCache(AIEX_KEY, hash, JSON.stringify({ en, ja }), null));
