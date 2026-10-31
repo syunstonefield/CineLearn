@@ -114,13 +114,7 @@ export const EXAMPLE_DL_PER_IP_DAY = envInt('CL_EXAMPLE_DL_PER_IP_DAY', 20);
 //   2026-10-31 に一度 180 へ広げたが、窓の中の**別の台詞**が例文になる危険が上がる（/decide のエンジニア指摘）ため同日 45 に戻した。
 //   窓は「word を変えた総当りで全文復元」を防ぐ締めも兼ねる。
 export const EXAMPLE_WINDOW_SEC = envInt('CL_EXAMPLE_WINDOW_SEC', 45);
-// 「この回の別の場面」（2026-10-31・オーナー決定＝例文なしの自動補完 1→4 の 1）。アプリの取り直し（otherScene:true）
-//   だけが使う、窓の外も含めた回全体からの1文。総当りで全文を復元されないよう、ログイン必須・よく使う語は除外・
-//   ユーザー×話/日とユーザー/日の天井（failClosed）・OS からの新規 DL はしない（raw cache 命中時のみ）。
-export const EXAMPLE_OTHER_SCENE_LIMITS = {
-  perUserEpisodeDay: envInt('CL_EXAMPLE_OTHER_PER_USER_EP_DAY', 30),
-  perUserDay: envInt('CL_EXAMPLE_OTHER_PER_USER_DAY', 150),
-};
+// 「この回の別の場面」（2026-10-31）は専用の枠を持たない＝手動追加の EXAMPLE_MANUAL_LIMITS と同じ1つの枠で数える（法務 要修正2）。
 export const EXAMPLE_ALT_DL_LIMITS = {
   perEpisodeDay: envInt('CL_EXAMPLE_ALT_DL_PER_EP_DAY', 1),
   perIpDay: envInt('CL_EXAMPLE_ALT_DL_PER_IP_DAY', 3),

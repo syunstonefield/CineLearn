@@ -93,3 +93,20 @@ test('alt: 候補が1件（今のファイルだけ）なら何も DL しない'
   assert.equal(calls.search, 1);
   assert.deepEqual(calls.download, []);
 });
+
+test('alt: 別候補の DL も週次集計の OS DL 数（stat:os_dl:d）に入る（法務 事後確認の条件）', async () => {
+  const { fetchImpl: base } = fakeOs({ files: [{ id: 1, srt: SRT_WITHOUT }, { id: 2, srt: SRT_WITH }] });
+  const redisCmds = [];
+  const fetchImpl = async (url, init = {}) => {
+    if (String(url).startsWith('https://redis.example')) {
+      const body = JSON.parse(init.body || '[]');
+      redisCmds.push(...(Array.isArray(body[0]) ? body : [body]));
+      return new Response(JSON.stringify(body.map(() => ({ result: 0 }))), { status: 200 });
+    }
+    return base(url, init);
+  };
+  const env = { ...OS_ENV, UPSTASH_REDIS_REST_URL: 'https://redis.example', UPSTASH_REDIS_REST_TOKEN: 't' };
+  const r = await fetchEpisodeSrtAlternative({ ...EP, excludeFileId: 1, accept: acceptAnchor }, { env, fetchImpl, log: silentLog });
+  assert.equal(r.fileId, 2);
+  assert.ok(redisCmds.some((c) => c[0] === 'INCR' && /^stat:os_dl:d:/.test(c[1])), 'stat:os_dl:d が INCR される');
+});

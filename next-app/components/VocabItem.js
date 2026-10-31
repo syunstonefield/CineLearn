@@ -167,7 +167,23 @@ export default function VocabItem({ word, srs, testTiers, ts, exampleSource, add
             作品名ごと画面から消えていた（2026-08-08 オーナー報告「単語帳でアイアンマンと
             表示されない」＝作品判定の失敗に見えるが、実際は表示側の欠落）。
             wordSource は例文が無ければ「（字幕：OpenSubtitles）」を付けないので48条の立て付けも保たれる。 */}
-        {/* AI 作例（2026-10-31）: 字幕から例文が取れなかった語の受け皿。字幕の引用ではないので
+        {!w.example && (exampleSource || (w.exampleFail && !aiExampleOf(w))) && (
+          <div className="word-example-wrap">
+            {/* 引用が無い＝48条の出所明示は不要なので「（字幕：…）」は落とし、作品名だけ残す */}
+            {exampleSource && (
+              <span className="word-example-source">
+                {exampleSource.replace(/（字幕：[^）]*）\s*$/, '')}
+              </span>
+            )}
+            {/* 例文が取れなかった理由を明示する（③）。無言で欠けていると、ユーザーからも
+                デバッグからも「なぜ出ないのか」が全く分からない状態が続く。 */}
+            {w.exampleFail && !aiExampleOf(w) && (
+              <span className="word-example-source">例文なし — {exampleFailLabel(w.exampleFail)}</span>
+            )}
+          </div>
+        )}
+
+        {/* AI 作例（2026-10-31）: 字幕から例文が取れなかった語の受け皿。作品名（上のブロック）の下に置く（法務の推奨・保存した作品と取り違えないように）。字幕の引用ではないので
             “…” で囲まず、出所（字幕：…）も付けず、AI が作った文だと明示する。字幕の例文が付けばそちらが優先。 */}
         {!w.example && aiExampleOf(w) && (
           <div className="word-example-wrap word-example-ai">
@@ -187,22 +203,6 @@ export default function VocabItem({ word, srs, testTiers, ts, exampleSource, add
             </span>
             {aiExampleOf(w).ja && <span className="word-example-ja">{aiExampleOf(w).ja}</span>}
             <span className="word-example-source">AI 作例（ドラマのセリフではありません）</span>
-          </div>
-        )}
-
-        {!w.example && (exampleSource || (w.exampleFail && !aiExampleOf(w))) && (
-          <div className="word-example-wrap">
-            {/* 引用が無い＝48条の出所明示は不要なので「（字幕：…）」は落とし、作品名だけ残す */}
-            {exampleSource && (
-              <span className="word-example-source">
-                {exampleSource.replace(/（字幕：[^）]*）\s*$/, '')}
-              </span>
-            )}
-            {/* 例文が取れなかった理由を明示する（③）。無言で欠けていると、ユーザーからも
-                デバッグからも「なぜ出ないのか」が全く分からない状態が続く。 */}
-            {w.exampleFail && !aiExampleOf(w) && (
-              <span className="word-example-source">例文なし — {exampleFailLabel(w.exampleFail)}</span>
-            )}
           </div>
         )}
 

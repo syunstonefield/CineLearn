@@ -32,7 +32,8 @@
 export const dynamic = 'force-dynamic';
 
 import { allowedOrigin } from '@/lib/server/origin';
-import { resolveUserId } from '@/lib/server/auth';
+import { resolveUserId, bearerToken } from '@/lib/server/auth';
+import { userSavedWordInEpisode } from '@/lib/server/ownWord';
 import { checkRateLimit, clientIp } from '@/lib/ratelimit';
 import { resolveTmdbId } from '@/lib/server/tmdbResolve';
 import { fetchEpisodeSrt, fetchEpisodeSrtAlternative } from '@/lib/server/opensubtitles';
@@ -48,7 +49,6 @@ import {
   EXAMPLE_EPISODE_DAY_LIMIT,
   EXAMPLE_DL_PER_IP_DAY,
   EXAMPLE_ALT_DL_LIMITS,
-  EXAMPLE_OTHER_SCENE_LIMITS,
   EXAMPLE_WINDOW_SEC,
   UpstreamError,
 } from '@/lib/server/constants';
@@ -106,6 +106,24 @@ function anchorMatches(example, anchor) {
   let inter = 0;
   for (const t of A) if (B.has(t)) inter++;
   return inter / (A.size + B.size - inter) >= 0.5;
+}
+
+// 回全体から1文を見せる経路（手動追加・綴りの候補・この回の別の場面）が共有する1つの枠（2026-10-31 法務 要修正2）。
+//   手動追加のキーをそのまま使う＝合計で 1分・1日（rl:example-manual:<ip>）・利用者×話/日・話全体/日。
+//   failClosed＝Upstash 不調なら見せない。
+function manualBudget(req, uid, cacheKey) {
+  return checkRateLimit(
+    req,
+    'example-manual',
+    { perMin: EXAMPLE_MANUAL_LIMITS.perMin, perHour: 0, perDay: EXAMPLE_MANUAL_LIMITS.perDay },
+    {
+      failClosed: true,
+      extra: [
+        { keyBase: `rl:example-manual:user:${uid}:ep:${cacheKey}`, window: 'day', limit: EXAMPLE_MANUAL_LIMITS.perUserEpisodeDay, scope: 'user-episode' },
+        { keyBase: `rl:example-manual:ep:${cacheKey}`, window: 'day', limit: EXAMPLE_MANUAL_LIMITS.perEpisodeDay, scope: 'episode' },
+      ],
+    }
+  );
 }
 
 // アンカー行が今の字幕ファイルに無い時の代替候補（2026-10-31）。例外を外に出さない＝ { raw, fileId } | null。
@@ -279,19 +297,7 @@ export async function POST(req) {
     if (problem) return json({ found: false, reason: problem, tmdbId: id, type });
     // 手動追加の上限（1分・1日・利用者×話・話全体）を1つ数える。綴りの候補一覧を返す時にもう1回数える
     //   （法務 条件4「上限は見せた文の数で数え、語だけの候補一覧も1回に数える」・2026-10-30）。
-    const manualRl = () =>
-      checkRateLimit(
-        req,
-        'example-manual',
-        { perMin: EXAMPLE_MANUAL_LIMITS.perMin, perHour: 0, perDay: EXAMPLE_MANUAL_LIMITS.perDay },
-        {
-          failClosed: true,
-          extra: [
-            { keyBase: `rl:example-manual:user:${auth.uid}:ep:${cacheKey}`, window: 'day', limit: EXAMPLE_MANUAL_LIMITS.perUserEpisodeDay, scope: 'user-episode' },
-            { keyBase: `rl:example-manual:ep:${cacheKey}`, window: 'day', limit: EXAMPLE_MANUAL_LIMITS.perEpisodeDay, scope: 'episode' },
-          ],
-        }
-      );
+    const manualRl = () => manualBudget(req, auth.uid, cacheKey);
     const rl = await manualRl();
     if (!rl.ok) {
       if (rl.unavailable) return json({ found: false, reason: 'unavailable', tmdbId: id, type }, 503);
@@ -384,8 +390,10 @@ export async function POST(req) {
       : json({ found: false, reason, tmdbId: id, type });
 
   // 「この回の別の場面」（2026-10-31）: 待避候補も無く空振りした時、アプリの取り直し（otherScene:true）に限り
-  //   回全体から語を含む1文を返す（保存位置に最も近い出現）。条件は EXAMPLE_OTHER_SCENE_LIMITS の注記どおり。
-  //   raw は渡されたもの or raw cache の命中だけ（ここで OS から DL はしない）。どの条件で落ちても従来の応答に倒れる。
+  //   回全体から語を含む1文を返す（保存位置に最も近い出現）。法務（2026-10-31）の条件:
+  //   ログイン必須／よく使う語・短い語・複数語は除外／本人の my_words に同じ作品・同じ話のその語があること（要修正1）／
+  //   手動追加・綴り候補と同じ1つの枠で数える（manualBudget・要修正2）／failClosed／OS から新規 DL しない／
+  //   最寄りの1文・200字で切る／ログに文を残さない。どの条件で落ちても従来の応答（farFallback）に倒れる。
   const wantOtherScene = !manual && body.otherScene === true;
   const otherSceneOr = async (reason, rawText = null) => {
     if (farPick || !wantOtherScene) return farFallback(reason);
@@ -394,14 +402,12 @@ export async function POST(req) {
     if (!r) return farFallback(reason);
     const auth = await resolveUserId(req);
     if (!auth.uid) return farFallback(reason);
-    const rl = await checkRateLimit(req, 'example-other', { perMin: 0, perHour: 0, perDay: 0 }, {
-      ipLimitsOff: true,
-      failClosed: true,
-      extra: [
-        { keyBase: `rl:example-other:user:${auth.uid}:ep:${cacheKey}`, window: 'day', limit: EXAMPLE_OTHER_SCENE_LIMITS.perUserEpisodeDay, scope: 'user-episode' },
-        { keyBase: `rl:example-other:user:${auth.uid}`, window: 'day', limit: EXAMPLE_OTHER_SCENE_LIMITS.perUserDay, scope: 'user' },
-      ],
-    });
+    const owns = await userSavedWordInEpisode(
+      { token: bearerToken(req), uid: auth.uid, word, tmdbId: id, isMovie, season: s, episode: e, title },
+      { resolve: resolveTmdbId }
+    );
+    if (!owns) return farFallback(reason);
+    const rl = await manualBudget(req, auth.uid, cacheKey);
     if (!rl.ok) return farFallback(reason);
     const hit = findExampleForWord(r, word, isFinite(near) ? near : undefined, undefined);
     if (!hit) return farFallback(reason);
