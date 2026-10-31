@@ -48,6 +48,7 @@ import {
   EXAMPLE_EPISODE_DAY_LIMIT,
   EXAMPLE_DL_PER_IP_DAY,
   EXAMPLE_ALT_DL_LIMITS,
+  EXAMPLE_WINDOW_SEC,
   UpstreamError,
 } from '@/lib/server/constants';
 import {
@@ -65,8 +66,8 @@ import {
 // 層2（生 SRT＝全文がある経路）の例文は「観ている位置 ±N秒の窓内」の1文に限定する。
 // near（currentTimeSec）を必須化し窓で足切りすることで、word を変えた総当りで字幕全文を
 // 1文ずつ復元される穴を構造的に塞ぐ（非配信＝30条の4の内部運用線を配信層で担保）。
-// サーバー側は VOD アンカーが無く補正は無いため、±45秒は VOD/OS の素のオフセット吸収も兼ねる。
-const EXAMPLE_WINDOW_SEC = 45;
+// サーバー側は VOD アンカーが無く補正は無いため、窓は VOD/OS の素のオフセット（再生速度差）吸収も兼ねる。
+//   幅は lib/server/constants.js EXAMPLE_WINDOW_SEC（既定 ±180・env CL_EXAMPLE_WINDOW_SEC・2026-10-31 に 45 から拡大）。
 
 function json(obj, status = 200) {
   return new Response(JSON.stringify(obj), {
