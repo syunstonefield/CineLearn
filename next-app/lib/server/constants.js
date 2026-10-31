@@ -110,9 +110,10 @@ export const EXAMPLE_DL_PER_IP_DAY = envInt('CL_EXAMPLE_DL_PER_IP_DAY', 20);
 // アンカー行（画面に出ている字幕行）が raw のどこにも無い時に、OS の別候補ファイルを試す枠（2026-10-31・
 //   Suits S1E1 で「配信版と字幕ファイルの編集が違い、その場面の台詞が字幕に無い」例文欠落が実データで確定）。
 //   話ごとに1日1回だけ（当たらなくても消費＝同じ不一致で DL を重ねない）＋ IP ごとの天井。failClosed で張る。
-// 層2（生 SRT）の near 窓（±秒）。2026-10-31 オーナー指示で 45→180。配信版と字幕の再生速度差（4%差で30分≈72秒・
-//   60分≈144秒）を吸収するため。窓は「word を変えた総当りで全文復元」を防ぐ締めでもあるので、広げすぎない（env で調整可）。
-export const EXAMPLE_WINDOW_SEC = envInt('CL_EXAMPLE_WINDOW_SEC', 180);
+// 層2（生 SRT）の near 窓（±秒）。既定 45（env CL_EXAMPLE_WINDOW_SEC で調整可）。
+//   2026-10-31 に一度 180 へ広げたが、窓の中の**別の台詞**が例文になる危険が上がる（/decide のエンジニア指摘）ため同日 45 に戻した。
+//   窓は「word を変えた総当りで全文復元」を防ぐ締めも兼ねる。
+export const EXAMPLE_WINDOW_SEC = envInt('CL_EXAMPLE_WINDOW_SEC', 45);
 export const EXAMPLE_ALT_DL_LIMITS = {
   perEpisodeDay: envInt('CL_EXAMPLE_ALT_DL_PER_EP_DAY', 1),
   perIpDay: envInt('CL_EXAMPLE_ALT_DL_PER_IP_DAY', 3),

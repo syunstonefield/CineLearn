@@ -67,7 +67,7 @@ import {
 // near（currentTimeSec）を必須化し窓で足切りすることで、word を変えた総当りで字幕全文を
 // 1文ずつ復元される穴を構造的に塞ぐ（非配信＝30条の4の内部運用線を配信層で担保）。
 // サーバー側は VOD アンカーが無く補正は無いため、窓は VOD/OS の素のオフセット（再生速度差）吸収も兼ねる。
-//   幅は lib/server/constants.js EXAMPLE_WINDOW_SEC（既定 ±180・env CL_EXAMPLE_WINDOW_SEC・2026-10-31 に 45 から拡大）。
+//   幅は lib/server/constants.js EXAMPLE_WINDOW_SEC（既定 ±45・env CL_EXAMPLE_WINDOW_SEC・2026-10-31 に一度 180 にして同日戻した）。
 
 function json(obj, status = 200) {
   return new Response(JSON.stringify(obj), {
