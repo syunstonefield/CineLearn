@@ -5743,6 +5743,9 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
   margin: 0 auto;
   padding: 16px 16px 24px;
 }
+@media (max-width: 768px) {
+  .tc-screen { padding-left: 12px; padding-right: 12px; } /* 半券を画面幅いっぱいに（2026-10-31） */
+}
 .tc-head { margin-bottom: 14px; }
 .tc-h1 { font-size: 22px; font-weight: 800; margin: 4px 0; }
 .tc-sub { font-size: 13px; color: var(--text-muted); }
@@ -5788,7 +5791,7 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
 .tcimg-card {
   position: relative;
   width: 100%;
-  max-width: 300px; /* 1枚を小さめに（大きすぎ対策） */
+  max-width: 420px; /* 2026-10-31 オーナー「スマホで半券を大きく」→ 300px から拡大。スマホは画面幅いっぱい */
   aspect-ratio: 1300 / 556; /* 透過切り抜きテンプレの実寸 */
   background: url('/collection-ticket.webp') no-repeat center / 100% 100%;
   cursor: pointer;
@@ -5851,6 +5854,92 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
 .tcimg-fav:not(.is-on) {
   color: #b9a48f;
   background: radial-gradient(circle at center, #f3e8da 52%, transparent 56%);
+}
+
+/* 表示の切り替え（半券／ポスター壁）と、ソート行の左に置く */
+.tc-sortrow { justify-content: space-between; align-items: center; gap: 8px; }
+.tc-view { display: inline-flex; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 2px; }
+.tc-view-btn {
+  font: inherit; font-size: 12px; font-weight: 600; color: var(--text-muted);
+  background: none; border: none; border-radius: 999px; padding: 5px 12px; cursor: pointer;
+}
+.tc-view-btn.is-active { background: var(--accent); color: #fff; }
+
+/* 額縁の凡例 */
+.tc-frame-legend {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px;
+  font-size: 11px; color: var(--text-muted); margin: -2px 0 2px;
+}
+.tc-frame-legend-label { font-weight: 700; color: var(--text); }
+.tc-frame-chip { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.tc-frame-chip::before {
+  content: ''; width: 10px; height: 10px; border-radius: 2px; display: inline-block;
+}
+.tc-frame-chip.frame-black::before { background: #141414; }
+.tc-frame-chip.frame-silver::before { background: linear-gradient(135deg, #f4f4f4, #9a9a9a 45%, #e2e2e2 60%, #8a8a8a); }
+.tc-frame-chip.frame-gold::before { background: linear-gradient(135deg, #fff1b8, #c9962b 45%, #f3d374 60%, #a8741a); }
+.tc-frame-note { font-size: 11px; color: var(--text-muted); margin: 0 0 14px; }
+
+/* 半券の額縁：ポスタースロットの外側に一回り大きく敷く（標準は描かない） */
+.tcimg-ring {
+  position: absolute;
+  left: calc(3.3% - 1.1cqw); top: calc(10.5% - 1.1cqw);
+  width: calc(23.5% + 2.2cqw); height: calc(81% + 2.2cqw);
+  border-radius: 2.4cqw;
+  display: none;
+}
+.tcimg-card.frame-black .tcimg-ring { display: block; background: #141414; }
+.tcimg-card.frame-silver .tcimg-ring {
+  display: block;
+  background: linear-gradient(135deg, #f7f7f7, #a3a3a3 30%, #ececec 50%, #8a8a8a 75%, #d9d9d9);
+}
+.tcimg-card.frame-gold .tcimg-ring {
+  display: block;
+  background: linear-gradient(135deg, #fff3c4, #c9962b 30%, #f5d77a 50%, #a8741a 75%, #ecc96a);
+}
+.tcimg-card.frame-gold { filter: drop-shadow(0 3px 10px rgba(201, 150, 43, 0.35)); }
+
+/* ポスター壁：映画好きがポスターを額に入れて飾るイメージ。スマホは横3列 */
+.tcp-wall { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px 12px; }
+@media (min-width: 640px) { .tcp-wall { grid-template-columns: repeat(4, 1fr); gap: 20px 16px; } }
+.tcp-item {
+  position: relative; display: block; width: 100%; padding: 0;
+  background: none; border: none; cursor: pointer;
+  -webkit-appearance: none; appearance: none;
+  transition: transform 0.12s ease;
+}
+.tcp-item:active { transform: scale(0.98); }
+.tcp-frame { display: block; border-radius: 3px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18); }
+.tcp-mat { display: block; }
+.tcp-poster {
+  position: relative; display: block; width: 100%; aspect-ratio: 2 / 3; overflow: hidden;
+  container-type: inline-size;
+}
+.tcp-poster .tcimg-poster-fallback { flex-direction: column; gap: 4px; font-size: 30cqw; }
+.tcimg-poster-fallback-title {
+  font-size: 9cqw; font-weight: 700; line-height: 1.25; text-align: center; padding: 0 8%;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+/* 標準：紙のマットだけ */
+.tcp-item.frame-plain .tcp-frame { padding: 3px; background: #fbf7f0; border: 1px solid #e3d8c8; }
+/* 黒縁：黒い額＋白いマット */
+.tcp-item.frame-black .tcp-frame { padding: 5px; background: #141414; }
+.tcp-item.frame-black .tcp-mat { padding: 3px; background: #f7f2ea; }
+/* 銀縁 */
+.tcp-item.frame-silver .tcp-frame {
+  padding: 5px; background: linear-gradient(135deg, #f7f7f7, #a3a3a3 30%, #ececec 50%, #8a8a8a 75%, #d9d9d9);
+}
+.tcp-item.frame-silver .tcp-mat { padding: 3px; background: #f7f2ea; }
+/* 金縁：太めの金の額＋アイボリーのマット＋ほのかな光 */
+.tcp-item.frame-gold .tcp-frame {
+  padding: 6px; background: linear-gradient(135deg, #fff3c4, #c9962b 30%, #f5d77a 50%, #a8741a 75%, #ecc96a);
+  box-shadow: 0 3px 12px rgba(201, 150, 43, 0.45);
+}
+.tcp-item.frame-gold .tcp-mat { padding: 3px; background: #fffaf0; }
+.tcp-fav {
+  position: absolute; top: -6px; right: -6px; width: 22px; height: 22px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; color: #f5b301; background: var(--surface); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }
 
 /* 空状態 */
