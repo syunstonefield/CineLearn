@@ -26,6 +26,9 @@ import PlusNote from './PlusNote';
 import { trackUsage } from '@/lib/usage';
 import { rememberHubScroll, takeHubScroll } from '@/lib/hubScroll';
 
+// 復習一覧の一番上の「覚えた・マスター」全体バー。2026-10-31 オーナー判断で一旦非表示（true で復活）。
+const SHOW_HUB_OVERALL = false;
+
 // 復習ハブ（ボトムナビ「復習」の着地点）。
 // それまでは復習/クイズに入るのに単語リストの最下部までスクロールする必要があった
 // （単語が増えるほど遠い・2026-08-07 実使用フィードバック）。ここで
@@ -337,8 +340,10 @@ export default function ReviewHubScreen() {
   const epLabel = (g, entry) => (g.isMovie ? '' : `S${entry.season}E${entry.episode}`);
   const hasAnything = groups.length > 0 || (myWords || []).length > 0;
   // 一番上の「覚えた・マスター」（ホームの2タイルと同じ数え方＝同じ数字）＝オーナー 2026-10-08
+  // 2026-10-31 オーナー「余計だったかも。一旦消して大丈夫」→ 表示だけ止める（SHOW_HUB_OVERALL）。
+  // 戻す時は SHOW_HUB_OVERALL を true にするだけ。SRS の記録・各話ゲージ・マスター手前カードは対象外。
   const overall = useMemo(
-    () => (mounted ? overallVocabStats(history, myWords, srs, activeKeys) : null),
+    () => (mounted && SHOW_HUB_OVERALL ? overallVocabStats(history, myWords, srs, activeKeys) : null),
     [mounted, history, myWords, srs, activeKeys]
   );
 
