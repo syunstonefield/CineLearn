@@ -107,6 +107,13 @@ export const EXAMPLE_EPISODE_DAY_LIMIT = envInt('CL_EXAMPLE_PER_EP_DAY', 100);
 // 既存 anchor/near 経路（拡張バックフィル）で raw が無く OS から DL する時の専用枠（rl:example-dl:<ip>:d:<day>・監査 H2）。
 //   1話ぶん取れば以降はその話の raw キャッシュに当たる＝IP あたり「新しく温める話数/日」。failClosed で張る。
 export const EXAMPLE_DL_PER_IP_DAY = envInt('CL_EXAMPLE_DL_PER_IP_DAY', 20);
+// アンカー行（画面に出ている字幕行）が raw のどこにも無い時に、OS の別候補ファイルを試す枠（2026-10-31・
+//   Suits S1E1 で「配信版と字幕ファイルの編集が違い、その場面の台詞が字幕に無い」例文欠落が実データで確定）。
+//   話ごとに1日1回だけ（当たらなくても消費＝同じ不一致で DL を重ねない）＋ IP ごとの天井。failClosed で張る。
+export const EXAMPLE_ALT_DL_LIMITS = {
+  perEpisodeDay: envInt('CL_EXAMPLE_ALT_DL_PER_EP_DAY', 1),
+  perIpDay: envInt('CL_EXAMPLE_ALT_DL_PER_IP_DAY', 3),
+};
 
 // ── 生成の時間予算・ロック・否定キャッシュ（A1）──
 export const GENERATE_DEADLINE_MS = 240_000; // route が deadlineAt = now + これ を配る
@@ -122,6 +129,7 @@ export const RAW_CACHE_TTL_DAYS = 30; // 30条の4 の内部解析キャッシ�
 export const OS_DL_DAILY_CAP = envInt('CL_OS_DL_DAILY_CAP', 700); // 生成用 DL の日次上限（共有枠の保護・A5）
 export const OS_DL_WARN_REMAINING = 50; // 残枠がこれ未満で console.warn
 export const OS_CANDIDATES_MAX = 3; // 上位何候補まで DL を試すか（musicRatio / 短すぎ のときだけ次へ）
+export const OS_ALT_CANDIDATES_MAX = 2; // 代替候補（アンカー不在時）で DL を試す上限（今のファイルは除く）
 export const OS_MUSIC_RATIO_MAX = 5; // ♪ が100字あたりこれ超＝歌詞字幕として除外
 export const MIN_SRT_CHARS = 200; // parseSrt(text).length がこれ未満＝字幕として短すぎ
 export const NOSUB_TTL_SEC = 86400; // nosub:<key>（OS 検索が空）

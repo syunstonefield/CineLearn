@@ -30,9 +30,9 @@ import { allowedOrigin } from '@/lib/server/origin';
 import { resolveUserId } from '@/lib/server/auth';
 import { checkRateLimit, clientIp } from '@/lib/ratelimit';
 import { resolveTmdbId } from '@/lib/server/tmdbResolve';
-import { fetchEpisodeSrt } from '@/lib/server/opensubtitles';
+import { fetchEpisodeSrt, fetchEpisodeSrtAlternative } from '@/lib/server/opensubtitles';
 import { refetchSubtitleForManual } from '@/lib/server/manualRefetch';
-import { rawCacheKey, readRawCache } from '@/lib/server/subtitleRawCache';
+import { rawCacheKey, readRawCache, readRawCacheRow } from '@/lib/server/subtitleRawCache';
 import { vocabCacheKey, readVocabRow } from '@/lib/server/vocabCache';
 import { manualWordProblem, manualMatchIsExact } from '@/lib/server/commonWords';
 import { manualSpellSuggestions } from '@/lib/server/spellSuggestManual';
@@ -42,6 +42,7 @@ import {
   EXAMPLE_MANUAL_DL_LIMITS,
   EXAMPLE_EPISODE_DAY_LIMIT,
   EXAMPLE_DL_PER_IP_DAY,
+  EXAMPLE_ALT_DL_LIMITS,
   UpstreamError,
 } from '@/lib/server/constants';
 import {
@@ -51,6 +52,7 @@ import {
   normApostrophes,
   findExampleForWord,
   findExampleByAnchor,
+  anchorPresentInSrt,
   trimExampleToSentence,
   EXAMPLE_MAX_CHARS,
 } from '@/lib/subtitles';
@@ -97,6 +99,33 @@ function anchorMatches(example, anchor) {
   let inter = 0;
   for (const t of A) if (B.has(t)) inter++;
   return inter / (A.size + B.size - inter) >= 0.5;
+}
+
+// アンカー行が今の字幕ファイルに無い時の代替候補（2026-10-31）。例外を外に出さない＝ { raw, fileId } | null。
+//   順序: 適格性 → 専用枠（failClosed）→ OS 検索＋DL（fetchEpisodeSrtAlternative が raw cache を差し替える）。
+//   ログは cacheKey・file_id・結果だけ（字幕本文・アンカー行は出さない＝A20）。
+async function tryAlternativeSubtitle(req, { cacheKey, id, type, s, e, anchorLine, excludeFileId, hasVocabRow }) {
+  try {
+    if (!(await exampleDlEligible({ hasVocabRow, tmdbId: id }))) return null;
+    const rl = await checkRateLimit(req, 'example-alt-dl', { perMin: 0, perHour: 0, perDay: EXAMPLE_ALT_DL_LIMITS.perIpDay }, {
+      failClosed: true,
+      extra: [{ keyBase: `rl:example-alt:ep:${cacheKey}`, window: 'day', limit: EXAMPLE_ALT_DL_LIMITS.perEpisodeDay, scope: 'episode' }],
+    });
+    if (!rl.ok) {
+      console.info('[CL:EXAMPLE] alt subtitle skipped', { cacheKey, reason: rl.unavailable ? 'unavailable' : 'rate_limited', scope: rl.scope ?? null });
+      return null;
+    }
+    const alt = await fetchEpisodeSrtAlternative({
+      tmdbId: id, type, season: s, episode: e, excludeFileId,
+      accept: (srt) => anchorPresentInSrt(srt, anchorLine),
+    });
+    console.info('[CL:EXAMPLE] alt subtitle', { cacheKey, from: excludeFileId ?? null, to: alt?.fileId ?? null, matched: !!alt, tried: alt?.tried ?? null });
+    return alt;
+  } catch (err) {
+    if (err instanceof UpstreamError) console.warn('[CL:EXAMPLE] alt subtitle failed', { cacheKey, reason: err.reason, status: err.status ?? null });
+    else console.error('[CL:EXAMPLE] alt subtitle internal', String(err?.message || err));
+    return null;
+  }
 }
 
 // 例文が付かない時に「どこで落ちたか」を拡張の console から追えるよう、found:false には
@@ -349,7 +378,9 @@ export async function POST(req) {
     return farFallback('no_anchor_no_near'); // 手がかり無し → 待避候補があればそれ、無ければ bare（OS DL せず）
   }
 
-  let raw = await readRawCache(rawKey);
+  const rawRow = await readRawCacheRow(rawKey);
+  let raw = rawRow?.raw || null;
+  let rawFileId = rawRow?.fileId ?? null; // 代替候補を探す時に「今のファイル」を除くため
   if (!raw) {
     // ── OS DL の前の締め（監査 H2）──
     //   ① 適格性: その話の vocab_cache 行がある（層1で読んだ cachedRow を再利用・再クエリしない）か、作品がカタログ内
@@ -367,6 +398,7 @@ export async function POST(req) {
       const sub = await fetchEpisodeSrt({ tmdbId: id, type, season: s, episode: e });
       if (!sub?.raw) return farFallback('no_subtitle_file');
       raw = sub.raw;
+      rawFileId = sub.fileId ?? null;
     } catch (err) {
       if (err instanceof UpstreamError) {
         console.warn('[CL:EXAMPLE] subtitle fetch failed', { cacheKey, reason: err.reason, status: err.status ?? null });
@@ -382,7 +414,20 @@ export async function POST(req) {
   let hit = anchorLine
     ? findExampleByAnchor(raw, word, anchorLine, isFinite(near) ? near : undefined)
     : null;
-  const via = hit ? 'anchor' : 'raw';
+  let via = hit ? 'anchor' : 'raw';
+  // ── 代替候補（2026-10-31）: アンカー行が raw の**どこにも**無い＝字幕ファイルが配信版と別の編集・書き起こし
+  //   （Suits S1E1 の 31:50〜32:01 の台詞が OS 字幕に無く、4語が no_match になった実データ）。
+  //   OS の別候補を上位から最大2件 DL し、アンカー行が在る方を raw cache に差し替えて照合し直す。
+  //   枠: 話ごと1日1回（当たらなくても消費）＋ IP ごと/日・failClosed。適格性（vocab 行 or カタログ）は通常 DL と同じ。
+  //   失敗・枠切れ・上流不調は今の raw のまま続行（near 窓フォールバック→ no_match）＝従来と同じ結果に倒れる。
+  if (!hit && anchorLine && !anchorPresentInSrt(raw, anchorLine)) {
+    const alt = await tryAlternativeSubtitle(req, { cacheKey, id, type, s, e, anchorLine, excludeFileId: rawFileId, hasVocabRow: !!(cachedRow.ok && cachedRow.row) });
+    if (alt?.raw) {
+      raw = alt.raw;
+      hit = findExampleByAnchor(raw, word, anchorLine, isFinite(near) ? near : undefined);
+      if (hit) via = 'anchor_alt';
+    }
+  }
   if (!hit && isFinite(near)) hit = findExampleForWord(raw, word, near, EXAMPLE_WINDOW_SEC);
   if (!hit) return farFallback('no_match'); // アンカー不一致＋窓内該当なし → 待避候補 or bare
 

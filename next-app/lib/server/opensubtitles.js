@@ -19,6 +19,7 @@ import {
   OS_DL_DAILY_CAP,
   OS_DL_WARN_REMAINING,
   OS_CANDIDATES_MAX,
+  OS_ALT_CANDIDATES_MAX,
   OS_MUSIC_RATIO_MAX,
   MIN_SRT_CHARS,
   NOSUB_TTL_SEC,
@@ -333,6 +334,50 @@ export async function fetchSrtByFileId({ tmdbId, type = 'tv', season = 0, episod
   }
   await writeRawCache({ key: rawKey, tmdbId: id, season: s, episode: e, raw: srt, fileId: fid }, { fetchImpl, log });
   return { raw: srt, fileId: fid, via: 'file_id' };
+}
+
+// ── 代替候補の取得（アンカー行が今の字幕ファイルに無い時・2026-10-31）───────────
+// { tmdbId, type, season, episode, excludeFileId, accept } → { raw, fileId, via:'opensubtitles_alt', tried } | null
+//   OS を検索し直し、今のファイル（excludeFileId）を除いた候補を上位から最大 OS_ALT_CANDIDATES_MAX 件 DL。
+//   歌詞字幕・短すぎは従来どおり除外し、accept(srt)（＝アンカー行がその字幕に在るか）を満たした最初の1件を
+//   raw cache に上書きして返す。満たす候補が無ければ raw cache は触らず null（今のファイルを残す）。
+//   否定キャッシュ（nosub）は書かない（字幕が無いのではなく「合う版が無い」だけ）。
+//   投げる: UpstreamError（os_search/os_download/os_quota/misconfigured）＝呼び出し側で握る。
+export async function fetchEpisodeSrtAlternative({ tmdbId, type = 'tv', season = 0, episode = 0, excludeFileId = null, accept }, deps = {}) {
+  const { env = process.env, fetchImpl = fetch, log = console, now = Date.now } = deps;
+  const id = positiveInt(tmdbId);
+  if (!id) throw new TypeError('fetchEpisodeSrtAlternative: tmdbId は正の整数');
+  if (typeof accept !== 'function') throw new TypeError('fetchEpisodeSrtAlternative: accept は関数');
+  const isMovie = type === 'movie';
+  const s = isMovie ? 0 : Number(season) || 1;
+  const e = isMovie ? 0 : Number(episode) || 1;
+  const rawKey = rawCacheKey(id, s, e);
+  const exclude = positiveInt(excludeFileId);
+
+  const subs = await osSearch({ tmdbId: id, type: isMovie ? 'movie' : 'tv', season: s, episode: e }, { env, fetchImpl, log });
+  const sorted = selectSubtitleCandidates(subs, isMovie, s, e);
+  let tried = 0;
+  for (const cand of sorted) {
+    if (tried >= OS_ALT_CANDIDATES_MAX) break;
+    const fid = positiveInt(cand?.attributes?.files?.[0]?.file_id);
+    if (!fid || fid === exclude) continue;
+    tried++;
+    const { srt } = await osDownload(fid, { enforceDailyCap: true, env, fetchImpl, log, now });
+    if (!srt) continue;
+    if (musicRatioOf(srt) > OS_MUSIC_RATIO_MAX || parseSrt(srt).length < MIN_SRT_CHARS) {
+      log.info?.(`[CL:OS] alt file_id=${fid} skipped: unusable`);
+      continue;
+    }
+    if (!accept(srt)) {
+      log.info?.(`[CL:OS] alt file_id=${fid} skipped: anchor not found`);
+      continue;
+    }
+    await writeRawCache({ key: rawKey, tmdbId: id, season: s, episode: e, raw: srt, fileId: fid }, { fetchImpl, log });
+    log.info?.(`[CL:OS] alt subtitle adopted ${rawKey} file_id=${fid} (was ${exclude ?? '-'}, tried ${tried})`);
+    return { raw: srt, fileId: fid, via: 'opensubtitles_alt', tried };
+  }
+  log.info?.(`[CL:OS] no alt subtitle for ${rawKey} (tried ${tried})`);
+  return null;
 }
 
 // ── 字幕の有無だけを返す（/api/subtitles action:'probe' 用・A5）─────────

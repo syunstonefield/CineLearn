@@ -724,6 +724,23 @@ export function findExampleByAnchor(rawSrt, word, anchorLine, nearSec) {
   return { sentence: expandToFullSentence(cues, best), sec: best.sec, label: secToTimeLabel(best.sec) };
 }
 
+// アンカー行（画面に出ている字幕行）が生SRTのどこかに「同じ文として」在るか（語は問わない）。
+//   findExampleByAnchor と同じ尺度（共有語2以上・Jaccard 0.4 以上）。false＝その場面の台詞がこの字幕
+//   ファイルに無い＝配信版と字幕ファイルの編集・書き起こしが違う疑い（/api/example が別候補を試す判定に使う）。
+export function anchorPresentInSrt(rawSrt, anchorLine) {
+  if (!rawSrt || !anchorLine) return false;
+  const aSet = tokenSet(anchorLine);
+  if (aSet.size < 2) return true; // 1語のアンカーは判定不能＝「無い」とは言わない（別候補を取りに行かせない）
+  for (const c of parseServeCues(rawSrt)) {
+    const cSet = tokenSet(c.text);
+    let inter = 0;
+    for (const t of aSet) if (cSet.has(t)) inter++;
+    if (inter < 2) continue;
+    if (inter / (aSet.size + cSet.size - inter) >= 0.4) return true;
+  }
+  return false;
+}
+
 // 生SRTを {sec, text} のキュー配列にして時刻昇順で返す（同一署名はキャッシュ）。生成の📍用。
 //   分割・除外（歌詞・クレジット）は splitSrtCues に一本化＝配信経路 parseServeCues と必ず同じ。
 //   ここでは照合用に小文字化・アポストロフィ統一だけを足す。
