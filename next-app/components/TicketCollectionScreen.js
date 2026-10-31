@@ -8,15 +8,23 @@ import { loadFavorites, toggleFavorite } from '@/lib/favorites';
 import { fetchSeasons, getCachedSeasons, fullRangeLabel } from '@/lib/collection';
 import TicketDetailView from './TicketDetailView';
 import TicketPoster from './TicketPoster';
+import { FRAME_TIERS, frameTierOf, raiseFrameBest, loadFrameBest, saveFrameBest } from '@/lib/ticketFrame';
 
 // 半券コレクション（Phase 1：一覧画面）。
 // 学習履歴を作品単位に集約し、チケット型カードで「学習したドラマの記録」を見せる。
 // 総話数・進捗% は TMDB（cl_total_eps_* キャッシュ）から非同期取得。学習時間は前景計測（今から）。
+// 「視聴中／完了」は廃止（2026-10-31 オーナー「くくりが謎」）。完了の基準が「単語リストを作った話数 ≥ 総話数」で、
+// 映画は1回で完了・総話数が取れない作品は永遠に視聴中、と学習の実感と噛み合わなかった。
 const FILTERS = [
   ['all', 'すべて'],
-  ['watching', '視聴中'],
-  ['done', '完了'],
   ['fav', 'お気に入り'],
+];
+
+// 表示の切り替え（半券／ポスター壁）。端末ごとの好みなので localStorage に置く（同期しない）。
+const VIEW_KEY = 'cl_ticket_view';
+const VIEWS = [
+  ['ticket', '🎟 半券'],
+  ['poster', '🖼 ポスター'],
 ];
 
 const POSTER_COLORS = ['#E50914', '#1A73E8', '#2E7D32', '#7B1FA2', '#E65100', '#00695C', '#AD1457'];
@@ -29,13 +37,33 @@ export default function TicketCollectionScreen() {
   const [seasonsMap, setSeasonsMap] = useState({}); // tmdbId → { total, seasons }
   const [filter, setFilter] = useState('all');
   const [sort, setSort] = useState('added');
+  const [view, setView] = useState('ticket');
+  const [frameBest, setFrameBest] = useState({}); // 作品タイトル → 届いた額縁の段階（上がるだけ）
   const [detailTitle, setDetailTitle] = useState(null); // 開いている作品詳細（タイトル）
   const attemptedPosters = useRef(new Set()); // 重複fetch防止
   const [posterOverrides, setPosterOverrides] = useState({}); // title → posterPath（表示補完）
 
   useEffect(() => {
     setFavs(loadFavorites(profile?.id));
+    setFrameBest(loadFrameBest(profile?.id));
   }, [profile]);
+
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem(VIEW_KEY);
+      if (v === 'ticket' || v === 'poster') setView(v);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const changeView = (v) => {
+    setView(v);
+    try {
+      localStorage.setItem(VIEW_KEY, v);
+    } catch {
+      /* ignore */
+    }
+  };
 
   // 作品エントリ（学習履歴ベース）＋単語数＋追加日。
   const entries = useMemo(() => {
@@ -233,21 +261,32 @@ export default function TicketCollectionScreen() {
         const progress = e.wordCount ? Math.round((e.learnedWords / e.wordCount) * 100) : null;
         const range = fullRangeLabel(sj?.seasons, e.episodes);
         const isFav = favs.includes(e.title);
-        const status = total != null ? (e.studiedEps >= total ? 'done' : 'watching') : 'watching';
         // ポスター優先順位：解決済み override(w342縦) → myDramas → tmdb キャッシュ(w780)。
         // override はホームと同じ TMDB 検索結果＝表示を home と一致させる。
         const posterPath = posterOverrides[e.title] || e.posterPath || sj?.posterPath || null;
-        return { ...e, posterPath, total, progress, range, isFav, status };
+        const frame = FRAME_TIERS[frameTierOf(frameBest, e.title, progress)];
+        return { ...e, posterPath, total, progress, range, isFav, frame };
       }),
-    [entries, seasonsMap, favs, posterOverrides]
+    [entries, seasonsMap, favs, posterOverrides, frameBest]
   );
+
+  // 今の達成度で新しい額縁に届いた作品があれば記録する（下げない）。
+  useEffect(() => {
+    if (!mounted || !entries.length) return;
+    const stats = entries.map((e) => ({
+      title: e.title,
+      progress: e.wordCount ? Math.round((e.learnedWords / e.wordCount) * 100) : null,
+    }));
+    const { best, changed } = raiseFrameBest(loadFrameBest(profile?.id), stats);
+    if (!changed) return;
+    saveFrameBest(profile?.id, best);
+    setFrameBest(best);
+  }, [mounted, entries, profile]);
 
   // フィルタ→ソート。
   const list = useMemo(() => {
     let l = decorated;
-    if (filter === 'watching') l = l.filter((e) => e.status === 'watching');
-    else if (filter === 'done') l = l.filter((e) => e.status === 'done');
-    else if (filter === 'fav') l = l.filter((e) => e.isFav);
+    if (filter === 'fav') l = l.filter((e) => e.isFav);
     return [...l].sort((a, b) => {
       if (sort === 'progress') return (b.progress || 0) - (a.progress || 0);
       if (sort === 'name') return a.enTitle.localeCompare(b.enTitle);
@@ -342,15 +381,38 @@ export default function TicketCollectionScreen() {
         </div>
 
         <div className="tc-sortrow">
+          <div className="tc-view" role="group" aria-label="表示の切り替え">
+            {VIEWS.map(([k, label]) => (
+              <button
+                key={k}
+                type="button"
+                className={'tc-view-btn' + (view === k ? ' is-active' : '')}
+                aria-pressed={view === k}
+                onClick={() => changeView(k)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <label className="tc-sort">
             並び替え：
             <select value={sort} onChange={(e) => setSort(e.target.value)}>
               <option value="added">追加日</option>
-              <option value="progress">進捗</option>
+              <option value="progress">達成度</option>
               <option value="name">名前</option>
             </select>
           </label>
         </div>
+
+        <p className="tc-frame-legend">
+          <span className="tc-frame-legend-label">額縁</span>
+          {FRAME_TIERS.slice(1).map((t) => (
+            <span key={t.key} className={'tc-frame-chip frame-' + t.key}>
+              {t.label} {t.min}%
+            </span>
+          ))}
+        </p>
+        <p className="tc-frame-note">覚えた語の割合で変わります。一度届いた額縁は戻りません。</p>
 
         {list.length === 0 ? (
           <div className="tc-empty">
@@ -362,12 +424,43 @@ export default function TicketCollectionScreen() {
               作品を予習・学習すると、ここに「観たドラマの記録」が半券として貯まります。
             </div>
           </div>
+        ) : view === 'poster' ? (
+          <div className="tcp-wall">
+            {list.map((e, i) => (
+              <button
+                key={e.title}
+                type="button"
+                className={'tcp-item frame-' + e.frame.key}
+                onClick={() => setDetailTitle(e.title)}
+                aria-label={`${e.enTitle}（${e.frame.label}の額縁${e.progress != null ? `・覚えた ${e.progress}%` : ''}）`}
+                title={e.enTitle}
+              >
+                <span className="tcp-frame">
+                  <span className="tcp-mat">
+                    <TicketPoster
+                      src={e.posterPath}
+                      label={e.enTitle}
+                      color={POSTER_COLORS[i % POSTER_COLORS.length]}
+                      eager={i < 9}
+                      className="tcp-poster"
+                      showTitle
+                    />
+                  </span>
+                </span>
+                {e.isFav && (
+                  <span className="tcp-fav" aria-hidden="true">
+                    ★
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
         ) : (
           <div className="tc-list">
             {list.map((e, i) => (
               <div
                 key={e.title}
-                className="tcimg-card"
+                className={'tcimg-card frame-' + e.frame.key}
                 role="button"
                 tabIndex={0}
                 onClick={() => setDetailTitle(e.title)}
@@ -378,6 +471,8 @@ export default function TicketCollectionScreen() {
                   }
                 }}
               >
+                {/* 額縁（達成度で黒縁→銀縁→金縁。標準は描かない）。ポスタースロットの外側に一回り大きく敷く */}
+                <span className="tcimg-ring" aria-hidden="true" />
                 {/* 左の暗部にポスターを重ねる（無ければ頭文字・読み込み失敗もフォールバック） */}
                 <TicketPoster
                   src={e.posterPath}
@@ -420,6 +515,7 @@ export default function TicketCollectionScreen() {
             ))}
           </div>
         )}
+
       </div>
     </div>
   );

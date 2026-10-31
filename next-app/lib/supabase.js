@@ -381,7 +381,7 @@ function toIsoDateLite(v) {
 
 // 同期対象の localStorage キー（user_state 1行=1キー）。
 const STATE_KEY_RE =
-  /^(cl_tickets|cl_fav_dramas|cl_study_sec|cl_study_drama|cl_watch_log)(_|$)|^cl_prepped$|^cl_seat_counter$|^cl_exp_ledger$|^cl_archived$|^cl_stats_daily$/;
+  /^(cl_tickets|cl_fav_dramas|cl_study_sec|cl_study_drama|cl_watch_log|cl_frame_best)(_|$)|^cl_prepped$|^cl_seat_counter$|^cl_exp_ledger$|^cl_archived$|^cl_stats_daily$/;
 
 function localStateKeys() {
   try {
@@ -446,7 +446,8 @@ function mergeStateValue(key, localV, cloudV) {
     // 積算カウンタは max（合算だと同期のたびに二重計上する）
     return Math.max(Number(localV) || 0, Number(cloudV) || 0);
   }
-  if (key.startsWith('cl_study_drama') || key === 'cl_exp_ledger') {
+  if (key.startsWith('cl_study_drama') || key.startsWith('cl_frame_best') || key === 'cl_exp_ledger') {
+    // 半券の額縁（cl_frame_best・作品→届いた段階）も上がるだけなのでキー別 max（2026-10-31）。
     // キー別 max。EXP台帳は「日付|端末キー」ごとに単調増加なので max が正しい
     // （合算だと同期のたびに二重計上・スカラーmaxだと別端末の増分が消える）。
     const out = { ...(cloudV || {}) };
