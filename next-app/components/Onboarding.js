@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useApp } from './AppProvider';
 import { getToeicLevel, getVocabCount } from '@/lib/vocab';
 import { GENRES } from '@/lib/recommend';
+import { trackUsage } from '@/lib/usage';
 
 // 初回ログイン時の6問オンボーディング（→「作成中」演出→プラン提示→予習へ）。
 // Duolingo参照：上部に戻る＋進捗バー、画面高さ固定（内容スクロール）、下部固定の「次へ」。
@@ -37,6 +38,8 @@ const REFERRALS = [
   { v: 'other', label: 'その他' },
 ];
 const TOTAL = 5; // 学習スタイル設問は未配線のため削除（2026-07-03・実使用フィードバック#5）
+// 必須は1問目（レベル）だけ。2〜5問目はスキップ可（オーナー 2026-11-01・アンケートでの離脱対策）。
+// 進み具合は利用データで数える（ob_q1〜5＝表示・ob_skip_q2〜5・ob_plan・ob_done。回答の中身は送らない）。
 
 export default function Onboarding() {
   const { finishOnboarding } = useApp();
@@ -61,19 +64,44 @@ export default function Onboarding() {
   const toggleGoal = toggle(setGoals);
 
   useEffect(() => {
+    if (phase === 'survey') trackUsage(`ob_q${step}`);
+    if (phase === 'plan') trackUsage('ob_plan');
+  }, [phase, step]);
+
+  useEffect(() => {
     if (phase !== 'building') return;
     const t = setTimeout(() => setPhase('plan'), 2300);
     return () => clearTimeout(t);
   }, [phase]);
 
+  // 1問目は点数か A2〜C1 の行（行を押すと代表点が入る）で次へ。2〜5問目は選ぶと「次へ」、選ばないなら「スキップ」。
   const canNext =
-    step === 2 ? services.length > 0 : step === 4 ? goals.length > 0 : step === 5 ? !!referral : true;
+    step === 1
+      ? scoreValid
+      : step === 2
+        ? services.length > 0
+        : step === 3
+          ? genres.length > 0
+          : step === 4
+            ? goals.length > 0
+            : !!referral;
   const back = () => step > 1 && setStep(step - 1);
   const next = () => (step < TOTAL ? setStep(step + 1) : setPhase('building'));
+  // スキップ＝その問いは未回答（選びかけていても消す）。
+  const skip = () => {
+    trackUsage(`ob_skip_q${step}`);
+    if (step === 2) setServices([]);
+    if (step === 3) setGenres([]);
+    if (step === 4) setGoals([]);
+    if (step === 5) setReferral(null);
+    next();
+  };
 
   const done = () => {
+    trackUsage('ob_done');
     const patch = {
-      selectedServices: services,
+      // スキップ時は対応サービスすべて（空だとホームのおすすめが0件になる・設定でいつでも絞れる）
+      selectedServices: services.length ? services : SERVICES,
       selectedGenres: genres.length ? genres : ['Crime Thriller'],
       learningGoal: goals,
       referralSource: referral,
@@ -159,7 +187,9 @@ export default function Onboarding() {
         {step === 1 && (
           <div>
             <h2 className="onboarding-title">いまの英語レベルは？</h2>
-            <p className="onboarding-desc">TOEICの目安を入れると、あなたに最適な単語が選ばれます（スキップ可）</p>
+            <p className="onboarding-desc">
+              TOEICの点数を入れるか、近いレベルを選んでください。受けたことがなくても、だいたいで大丈夫です
+            </p>
             <div className="toeic-wrap">
               <div className="toeic-input-row">
                 <input
@@ -175,7 +205,11 @@ export default function Onboarding() {
               </div>
               <div className="toeic-levels">
                 {TOEIC_ROWS.map((r) => (
-                  <div key={r.score} className="toeic-level-row" onClick={() => setScoreText(String(r.score))}>
+                  <div
+                    key={r.score}
+                    className={'toeic-level-row' + (scoreValid && userLevel === r.level ? ' selected' : '')}
+                    onClick={() => setScoreText(String(r.score))}
+                  >
                     <div className="toeic-range">{r.range}</div>
                     <div className="toeic-level-info">
                       <span className={`level-pill level-${r.level}`}>{r.name}</span>
@@ -209,7 +243,7 @@ export default function Onboarding() {
         {step === 2 && (
           <div>
             <h2 className="onboarding-title">使っている動画サービスは？</h2>
-            <p className="onboarding-desc">複数選べます</p>
+            <p className="onboarding-desc">複数選べます（スキップ可）</p>
             <div className="service-grid" style={{ marginTop: 18 }}>
               {SERVICES.map((name) => (
                 <div
@@ -248,7 +282,7 @@ export default function Onboarding() {
         {step === 4 && (
           <div>
             <h2 className="onboarding-title">英語を学ぶ目的は？</h2>
-            <p className="onboarding-desc">近いものを選んでください（複数可）</p>
+            <p className="onboarding-desc">近いものを選んでください（複数可・スキップ可）</p>
             <div className="ob-rows">
               {PURPOSES.map((p) => (
                 <button
@@ -269,7 +303,7 @@ export default function Onboarding() {
         {step === 5 && (
           <div>
             <h2 className="onboarding-title">CineLearnをどこで知りましたか？</h2>
-            <p className="onboarding-desc">今後の参考にさせてください</p>
+            <p className="onboarding-desc">今後の参考にさせてください（スキップ可）</p>
             <div className="ob-rows">
               {REFERRALS.map((r) => (
                 <button
@@ -293,13 +327,15 @@ export default function Onboarding() {
         </p>
       </div>
 
-      {/* 下部固定：次へ（戻るは上部バー、スキップは任意ステップのみ） */}
+      {/* 下部固定：次へ（戻るは上部バー、スキップは2〜5問目） */}
       <div className="ob-footer">
         <button className="btn-primary" style={{ width: '100%' }} disabled={!canNext} onClick={next}>
           {step === TOTAL ? 'プランを作成 →' : '次へ →'}
         </button>
-        {(step === 1 || step === 3 || step === 6) && (
-          <button className="ob-skip" onClick={next}>スキップ</button>
+        {step > 1 && (
+          <button className="ob-skip" onClick={skip}>
+            スキップ
+          </button>
         )}
       </div>
     </div>

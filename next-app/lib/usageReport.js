@@ -20,6 +20,16 @@ export const FUNNEL = [
   ['walk_rest', '⑤残りも見た'],
   ['walk_done', '⑥予習完了'],
 ];
+// 初回アンケート（components/Onboarding.js・2026-11-01〜）。表示された人数を1問目に対する%で。
+export const ONBOARDING = [
+  ['ob_q1', '1問目 レベル'],
+  ['ob_q2', '2問目 サービス'],
+  ['ob_q3', '3問目 ジャンル'],
+  ['ob_q4', '4問目 目的'],
+  ['ob_q5', '5問目 知った所'],
+  ['ob_plan', 'プラン提示'],
+  ['ob_done', '完了'],
+];
 // 初めて復習する語の無料の上限（lib/storage.js NEW_WORDS_DAILY_FREE と同値。判断の目安の表示用）
 export const NEW_WORDS_FREE = 20;
 
@@ -62,6 +72,7 @@ export function buildUsageReport(rows, { today, weeks = 8 } = {}) {
   const plus = [];
   const funnel = [];
   const review = [];
+  const onboarding = [];
   for (const win of wins) {
     const rs = weekRows(rows, win);
     const label = `${win.from.slice(5)}〜${win.to.slice(5)}`;
@@ -101,6 +112,16 @@ export function buildUsageReport(rows, { today, weeks = 8 } = {}) {
     for (const [, l] of LEFT_EDGES) rv[`残り${l}`] = 0;
     for (const n of lefts) rv[`残り${bucket(n, LEFT_EDGES)}`]++;
     review.push(rv);
+
+    // ⑥ 初回アンケートの進み具合（人数（1問目に対する%）／スキップした人数）
+    const q1 = usersOf('ob_q1').size;
+    const ob = { 週: label };
+    for (const [k, name] of ONBOARDING) {
+      const u = usersOf(k).size;
+      ob[name] = k === 'ob_q1' ? `${u}人` : `${u}人 ${pct(u, q1)}`;
+    }
+    for (let q = 2; q <= 5; q++) ob[`スキップ${q}`] = usersOf(`ob_skip_q${q}`).size;
+    onboarding.push(ob);
   }
 
   // ③の下: 抜けた場所（表示した全期間の合計）。段階×（何割まで／抜け方）
@@ -130,7 +151,7 @@ export function buildUsageReport(rows, { today, weeks = 8 } = {}) {
       o[HOW[e.how]] += n;
     }
   }
-  return { plus, funnel, exits, review };
+  return { plus, funnel, exits, review, onboarding };
 }
 
 // ⑤ 月の新規生成（genMonth＝[{ month, counts:[1人ごとの話数] }]）

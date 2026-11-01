@@ -5,6 +5,7 @@
 //   数え始めは 2026-10-08 のデプロイ以降（それ以前の日は 0）。
 //   2026-10-09: ベータの利用データ（docs/design-usage-stats-2026-10-09.md）の表②〜⑤を追加。
 //     ② 利用者とプラスの機能 ③ 予習の流れ（＋抜けた場所） ④ 毎日の復習の語数 ⑤ 月の新規生成
+//   2026-11-01: ⑥ 初回アンケートの進み具合（ob_q1〜5・スキップ・完了）を追加。
 //     --csv[=パス] で 1人＋端末×1日の生データを書き出す（既定 ~/cinelearn-usage-<日付>.csv）。
 //     ★CSV はリポジトリに置かない・共有しない・暗号化ディスク（FileVault）上だけ・120日以内に消す。
 
@@ -85,6 +86,8 @@ console.log('\n④ 毎日の復習の語数（1人＋端末×1日の延べ日数
 console.table(rep.review);
 console.log('\n⑤ 月の新規生成（ログイン利用者・共有済みの話は数えない）');
 console.table(genMonthTable(genMonth));
+console.log('\n⑥ 初回アンケートの進み具合（人数 1問目に対する% ／ スキップした人数・2026-11-01〜）');
+console.table(rep.onboarding);
 for (const line of usageHints(rep, usageRows, { today })) console.log(`判断の目安: ${line}`);
 console.log(`利用データの行数: ${usageRows.length}（数え始めは利用データのデプロイ以降）`);
 

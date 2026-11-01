@@ -143,6 +143,27 @@ test('週次の表: 人数・割合・予習の流れ・抜けた場所・復習
   assert.match(hints[1], /1\/1（100%）/);
 });
 
+test('週次の表: 初回アンケートの進み具合', () => {
+  const today = '2026-11-07';
+  const rows = [
+    row('2026-11-01', 'a', { open: 1, ob_q1: 1 }, null, 0),
+    row('2026-11-02', 'b', { open: 1, ob_q1: 1, ob_q2: 2, ob_skip_q2: 1, ob_q3: 1, ob_q4: 1, ob_q5: 1, ob_skip_q5: 1, ob_plan: 1, ob_done: 1 }, null, 0),
+    row('2026-11-03', 'c', { open: 1 }, null, 0),
+  ];
+  const ob = buildUsageReport(rows, { today, weeks: 1 }).onboarding[0];
+  assert.equal(ob['1問目 レベル'], '2人');
+  assert.equal(ob['2問目 サービス'], '1人 50%');
+  assert.equal(ob.完了, '1人 50%');
+  assert.equal(ob.スキップ2, 1);
+  assert.equal(ob.スキップ3, 0);
+  assert.equal(ob.スキップ5, 1);
+});
+
+test('初回アンケートの項目は数えてよい名前・それ以外の ob_ は捨てる', () => {
+  for (const k of ['ob_q1', 'ob_q5', 'ob_skip_q2', 'ob_skip_q5', 'ob_plan', 'ob_done']) assert.ok(isUsageEvent(k), k);
+  for (const k of ['ob_q6', 'ob_skip_q1', 'ob_answer_netflix']) assert.ok(!isUsageEvent(k), k);
+});
+
 test('月の新規生成の分布と CSV', () => {
   const t = genMonthTable([{ month: '202610', counts: [40, 8, 5, 1, 1] }]);
   assert.equal(t[0].生成した人, 5);

@@ -961,6 +961,7 @@ header {
 }
 
 .toeic-level-row:hover { border-color: var(--accent); background: rgba(193,127,59,0.03); }
+.toeic-level-row.selected { border-color: var(--accent); background: rgba(193,127,59,0.08); }
 
 .toeic-range { font-size: 13px; color: var(--text-muted); min-width: 100px; }
 
