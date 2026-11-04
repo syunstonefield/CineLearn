@@ -34,8 +34,8 @@ const mk = (word, extra = {}) => ({
 const suits = TRIAL_TITLES.find((t) => t.id === 'suits');
 const lowWords = suits.bands.low.words;
 
-test('確定の語: 4作×2帯とも5語・クイズ3語はその5語の中', () => {
-  for (const t of TRIAL_TITLES) {
+test('確定の語: 6作×2帯とも5語・クイズ3語はその5語の中', () => {
+  for (const t of [...TRIAL_TITLES, ...TRIAL_MORE_TITLES]) {
     for (const band of ['low', 'high']) {
       const b = t.bands[band];
       assert.equal(new Set(b.words).size, 5, `${t.id} ${band}`);

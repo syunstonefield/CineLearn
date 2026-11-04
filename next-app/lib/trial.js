@@ -88,10 +88,39 @@ export const TRIAL_TITLES = [
 ];
 
 // 文字リンクの2作（法務: 「プラダを着た悪魔」は全部書く・ポスターを出すなら 64px まで＝第一版は出さない）。
-//   bands は語の確定（オーナー確認）まで null＝機械の選び方で出す。
 export const TRIAL_MORE_TITLES = [
-  { id: 'emily', tmdbId: 82596, type: 'tv', season: 1, episode: 1, title: 'Emily in Paris', label: 'Emily in Paris', posterPath: null, watchService: 'Netflix', reason: '', bands: null },
-  { id: 'prada', tmdbId: 350, type: 'movie', season: 0, episode: 0, title: 'The Devil Wears Prada', label: 'プラダを着た悪魔', posterPath: null, watchService: 'Disney+', reason: '', bands: null },
+  {
+    id: 'emily',
+    tmdbId: 82596,
+    type: 'tv',
+    season: 1,
+    episode: 1,
+    title: 'Emily in Paris',
+    label: 'Emily in Paris',
+    posterPath: null,
+    watchService: 'Netflix',
+    reason: '',
+    bands: {
+      low: { words: ['promotion', 'adventure', 'weird', 'bonus', 'manager'], quiz: ['promotion', 'adventure', 'weird'] },
+      high: { words: ['asset', 'arrogant', 'pitch', 'translation', 'refinement'], quiz: ['asset', 'arrogant', 'pitch'] },
+    },
+  },
+  {
+    id: 'prada',
+    tmdbId: 350,
+    type: 'movie',
+    season: 0,
+    episode: 0,
+    title: 'The Devil Wears Prada',
+    label: 'プラダを着た悪魔',
+    posterPath: null,
+    watchService: 'Disney+',
+    reason: '',
+    bands: {
+      low: { words: ['appointment', 'unpredictable', 'journalist', 'graduate', 'errand'], quiz: ['appointment', 'unpredictable', 'journalist'] },
+      high: { words: ['crucial', 'sack', 'legend', 'incompetence', 'guard'], quiz: ['crucial', 'sack', 'legend'] },
+    },
+  },
 ];
 
 export const bandOf = (score) => (Number(score) >= 600 ? 'high' : 'low');
