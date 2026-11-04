@@ -62,6 +62,8 @@ export default function PrepWalkthrough() {
   const words = useMemo(() => prepWalk?.words || [], [prepWalk]);
   const meta = prepWalk?.meta || null;
   const single = !!meta?.single;
+  // 初回体験（lib/trial.js）: 5語だけ渡される。予習済み・EXP・予習の利用データを書かず、終えたら onTrialDone へ。
+  const trial = !!meta?.trial;
   const epId = single ? '' : meta?.epId || ''; // 1枚モードは位置を保存しない（posKey が空になる）
   const posKey = posKeyOf(epId);
   const total = words.length;
@@ -84,7 +86,7 @@ export default function PrepWalkthrough() {
   const posRef = useRef({ idx, extended });
   posRef.current = { idx, extended };
   const recordExit = (how) => {
-    if (single) return; // 1枚モードは予習の利用データに数えない
+    if (single || trial) return; // 1枚モード・初回体験は予習の利用データに数えない
     if (track.current.ended) return;
     track.current.ended = true;
     const { idx: i, extended: ext } = posRef.current;
@@ -106,7 +108,7 @@ export default function PrepWalkthrough() {
     // 開発時の二重実行（付けて→外して→付け直す）でも1回だけ数える
     if (!track.current.started) {
       track.current.started = true;
-      if (!single) trackUsage('walk_start');
+      if (!single && !trial) trackUsage('walk_start');
     }
     const onHide = () => {
       exitRef.current('close');
@@ -121,7 +123,7 @@ export default function PrepWalkthrough() {
     };
   }, []);
   useEffect(() => {
-    if (single) return;
+    if (single || trial) return;
     if (!track.current.core && coreCount > 0 && idx >= coreCount - 1) {
       track.current.core = true;
       trackUsage('walk_core');
@@ -143,6 +145,12 @@ export default function PrepWalkthrough() {
   const finish = () => {
     if (single) {
       closePrepWalk(); // 1枚モード：予習完了の扱い（予習済み・EXP）にしない
+      return;
+    }
+    if (trial) {
+      track.current.ended = true;
+      closePrepWalk();
+      meta.onTrialDone?.();
       return;
     }
     const existing = getPrepped(epId);
@@ -211,7 +219,7 @@ export default function PrepWalkthrough() {
     <div className="pw-overlay">
       <div className="pw-panel">
         <div className="pw-head">
-          <span className="pw-title">{single ? '✏️ 追加した単語' : '🎬 今夜の予習'}</span>
+          <span className="pw-title">{single ? '✏️ 追加した単語' : trial ? '🎬 予習' : '🎬 今夜の予習'}</span>
           <button className="pw-close" onClick={() => leave('x')} aria-label="閉じる">
             ✕
           </button>
@@ -326,7 +334,7 @@ export default function PrepWalkthrough() {
               ← 戻る
             </button>
             <button className="pw-next" onClick={next}>
-              {atCoreEnd || last ? '予習完了 ✓' : '次へ →'}
+              {trial && last ? 'クイズへ →' : atCoreEnd || last ? '予習完了 ✓' : '次へ →'}
             </button>
           </div>
           {atCoreEnd ? (
@@ -335,7 +343,7 @@ export default function PrepWalkthrough() {
             </button>
           ) : (
             <button className="pw-skip" onClick={() => leave('later')}>
-              あとで予習する（一覧で見る）
+              {trial ? '5語の画面に戻る' : 'あとで予習する（一覧で見る）'}
             </button>
           )}
         </div>

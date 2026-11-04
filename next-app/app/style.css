@@ -7397,3 +7397,42 @@ button.vj-cell { cursor: pointer; }
   border-radius: 8px;
   padding: 6px 10px;
 }
+
+/* 初回体験（components/TrialFlow.js・2026-11-05）。ポスターは法務の条件で幅 40vw・PC 160px まで・2:3 のまま切らない・上に重ねない。 */
+.trial-flow { max-width: 560px; margin: 0 auto; padding: 24px 16px 32px; display: flex; flex-direction: column; gap: 12px; }
+.trial-center { align-items: center; text-align: center; }
+.trial-h { font-size: 22px; line-height: 1.35; margin: 0; color: var(--text); }
+.trial-sub { font-size: 13px; color: var(--text-muted); margin: 0; line-height: 1.6; }
+.trial-back { align-self: flex-start; background: none; border: 0; padding: 0; font: inherit; font-size: 13px; color: var(--text-muted); cursor: pointer; }
+.trial-error { font-size: 13px; color: var(--accent); margin: 0; }
+.trial-levels { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.trial-level { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--card-bg, #fff); color: var(--text); font: inherit; cursor: pointer; }
+.trial-level-name { font-size: 16px; font-weight: 700; }
+.trial-level-range { font-size: 13px; color: var(--text-muted); }
+.trial-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 12px; }
+.trial-card { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px; }
+.trial-poster { padding: 0; border: 0; background: none; cursor: pointer; width: 40vw; max-width: 160px; line-height: 0; }
+.trial-poster img { width: 100%; aspect-ratio: 2 / 3; object-fit: contain; display: block; border-radius: 6px; background: var(--border); }
+.trial-poster:disabled { opacity: 0.6; cursor: default; }
+.trial-card-name { font-size: 15px; font-weight: 700; color: var(--text); }
+.trial-card-reason { font-size: 12px; line-height: 1.5; color: var(--text-muted); }
+.trial-more { font-size: 13px; color: var(--text-muted); margin: 4px 0 0; text-align: center; }
+.trial-note { font-size: 11px; line-height: 1.6; color: var(--text-muted); margin: 0; }
+.trial-text-link { background: none; border: 0; padding: 0; font: inherit; color: var(--accent); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.trial-quit { align-self: center; font-size: 13px; color: var(--text-muted); }
+.trial-auth-links { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 16px; font-size: 13px; }
+.trial-legal-links { display: flex; gap: 12px; font-size: 12px; }
+.trial-legal-links a { color: var(--text-muted); }
+.trial-words { display: flex; flex-direction: column; gap: 10px; }
+.trial-word { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; background: var(--card-bg, #fff); }
+.trial-word-top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.trial-word-w { font-size: 17px; font-weight: 700; color: var(--accent); }
+.trial-word-def { font-size: 13px; color: var(--text); }
+.trial-word-ex { font-size: 13px; line-height: 1.5; margin-top: 6px; color: var(--text); }
+.trial-word-ja { font-size: 12px; line-height: 1.5; margin-top: 2px; color: var(--text-muted); }
+.trial-word-src { font-size: 11px; margin-top: 2px; color: var(--text-muted); }
+.trial-count { font-size: 13px; text-align: center; color: var(--text-muted); margin: 4px 0 0; }
+.trial-cta { width: 100%; max-width: 360px; align-self: center; }
+.trial-done-poster { width: 40vw; max-width: 160px; line-height: 0; }
+.trial-done-poster img { width: 100%; aspect-ratio: 2 / 3; object-fit: contain; display: block; border-radius: 6px; background: var(--border); }
+.trial-watch { font-size: 13px; color: var(--text); text-decoration: underline; text-underline-offset: 2px; margin-top: 8px; }

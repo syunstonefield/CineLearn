@@ -53,6 +53,12 @@ export default function PrepQuiz() {
   };
 
   const next = () => {
+    if (last && meta?.trial) {
+      // 初回体験は PrepLaunch（入場・今夜）を通らず、体験の完了画面へ（SRS は元から書かない）
+      closePrepQuiz();
+      meta.onTrialDone?.();
+      return;
+    }
     if (last) {
       // クイズ完了 → quiz バリエの launch ramp へ（半券は出さない・2026-10-18）。出題3語を渡す。
       closePrepQuiz();
@@ -78,15 +84,19 @@ export default function PrepQuiz() {
   };
 
   // 前向きの一言（やさしく開示・誤答も厳しく罰しない）。
-  const verdict = isCorrect
-    ? '正解。今夜、これを聞きに行く。'
-    : 'これが正解。今夜、耳が拾えたら勝ち。';
+  const verdict = meta?.trial
+    ? isCorrect
+      ? '正解です。'
+      : 'これが正解です。'
+    : isCorrect
+      ? '正解。今夜、これを聞きに行く。'
+      : 'これが正解。今夜、耳が拾えたら勝ち。';
 
   return (
     <div className="modal-overlay prep-overlay" style={{ display: 'flex' }} onClick={closePrepQuiz}>
       <div className="modal-panel prep-panel" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <span className="modal-title">🎧 今夜のリハーサル</span>
+          <span className="modal-title">{meta?.trial ? '🎧 クイズ' : '🎧 今夜のリハーサル'}</span>
           <button className="modal-close" onClick={closePrepQuiz}>✕</button>
         </div>
 

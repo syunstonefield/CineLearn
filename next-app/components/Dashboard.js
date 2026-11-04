@@ -14,6 +14,8 @@ import AddDramaModal from './AddDramaModal';
 import RecommendGrid from './RecommendGrid';
 import { getRecommendations } from '@/lib/recommended';
 import { isMobileDevice } from '@/lib/device';
+import { shouldShowTrialLaterBand, markTrialLaterBandShown } from '@/lib/trialState';
+import { trackUsage } from '@/lib/usage';
 import { clearExtInstallEntry, isExtInstallEntry } from '@/lib/extEntry';
 import { tmdb } from '@/lib/api';
 import { computeRecap, computeWatchGroup } from '@/lib/reunion';
@@ -105,6 +107,14 @@ export default function Dashboard() {
   const [isMobile, setIsMobile] = useState(false);
   // 拡張を入れた直後のタブ（lib/extEntry.js）。導入の案内は出さず、次にすることだけ伝える。
   const [extEntry, setExtEntry] = useState(false);
+  // 初回体験で「あとで」を選んだ人に、次に開いた時に1回だけ出す帯（モーダルにしない・設計の決定5）。
+  const [trialBand, setTrialBand] = useState(false);
+  useEffect(() => {
+    if (loggedIn || !shouldShowTrialLaterBand()) return;
+    markTrialLaterBandShown();
+    trackUsage('trial_later_band');
+    setTrialBand(true);
+  }, [loggedIn]);
   useEffect(() => {
     setIsMobile(isMobileDevice());
     const fromExt = isExtInstallEntry();
@@ -721,6 +731,17 @@ export default function Dashboard() {
             </button>
           )}
           <button className="ext-banner-close" onClick={closeExtEntry} aria-label="バナーを閉じる">
+            ✕
+          </button>
+        </div>
+      )}
+      {trialBand && !loggedIn && (
+        <div className="ext-banner ext-banner-info">
+          <span className="ext-banner-text">学習記録はこの端末に保存されています。登録すると、ほかの端末でも見られます。</span>
+          <button className="ext-banner-btn" onClick={() => openAuth({ mode: 'signup' })}>
+            登録して学習記録を残す
+          </button>
+          <button className="ext-banner-close" onClick={() => setTrialBand(false)} aria-label="閉じる">
             ✕
           </button>
         </div>

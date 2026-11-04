@@ -25,6 +25,11 @@ function write(key) {
 
 export const hasFinishedTrial = () => read(TRIAL_DONE_KEY);
 export const markTrialFinished = () => write(TRIAL_DONE_KEY);
-export const markTrialLater = () => write(TRIAL_LATER_KEY);
-export const shouldShowTrialLaterBand = () => read(TRIAL_LATER_KEY) && !read(TRIAL_LATER_SHOWN_KEY);
+// 「あとで」の直後のホームには帯を出さない＝次に開いた時に1回だけ（設計の決定5）。ページを読み直すと false に戻る。
+let laterThisLoad = false;
+export const markTrialLater = () => {
+  laterThisLoad = true;
+  write(TRIAL_LATER_KEY);
+};
+export const shouldShowTrialLaterBand = () => !laterThisLoad && read(TRIAL_LATER_KEY) && !read(TRIAL_LATER_SHOWN_KEY);
 export const markTrialLaterBandShown = () => write(TRIAL_LATER_SHOWN_KEY);
