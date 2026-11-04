@@ -233,7 +233,7 @@ test('週次の表: 新規の人（初めて開いた週）と再訪・入口と
 });
 
 test('初回体験の項目は数えてよい名前（2026-11-05・作品・予習部門の画面と同じ）', () => {
-  for (const k of ['trial_start', 'trial_level', 'trial_pick', 'trial_list', 'trial_walk_done', 'trial_quiz_done', 'trial_done', 'trial_signup_click', 'trial_later', 'trial_next', 'trial_later_band']) assert.ok(isUsageEvent(k), k);
+  for (const k of ['trial_start', 'trial_welcome', 'trial_intro', 'trial_level', 'trial_pick', 'trial_list', 'trial_walk_done', 'trial_quiz_done', 'trial_done', 'trial_signup_click', 'trial_later', 'trial_next', 'trial_later_band']) assert.ok(isUsageEvent(k), k);
   for (const k of ['trial_work_37680', 'trial_level_b1', 'trial_exit']) assert.ok(!isUsageEvent(k), k);
 });
 

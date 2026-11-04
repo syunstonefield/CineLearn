@@ -18,6 +18,7 @@ import { markTrialLater } from '@/lib/trialState';
 import {
   TRIAL_LEVELS,
   TRIAL_MORE_TITLES,
+  TRIAL_STAGES,
   buildTrialSession,
   filterEnabled,
   orderTrialTitles,
@@ -26,7 +27,9 @@ import {
 } from '@/lib/trial';
 
 // 初回体験（登録前に試す流れ・docs/design-first-run-trial-2026-11-05.md）。
-//   レベル → 作品 → 5語 → 予習5枚 → クイズ3問 → 完了（登録／あとで）→ 次の一歩。
+//   ようこそ → レベル → チュートリアルの案内 → 作品 → 5語 → 予習5枚 → クイズ3問 → 完了（登録／あとで）→ 次の一歩。
+//   画面に出す呼び名は「チュートリアル」に統一（オーナー決定 2026-11-05）。作品から先は各画面に「ステップ○/4」と一行の説明を出す。
+//   案内の「3〜5分」は各画面の実際の文字量からの見積もり（読み飛ばして約2分半・全部読んで約5分・2026-11-05）。語数や画面を変えたら測り直す。
 //   VocabScreen を通さない＝サービス選択・TMDB の検索し直し・ロビーの待ち・★・手入力が最初から無い。
 //   予習とクイズは既存の PrepWalkthrough / PrepQuiz を meta.trial で使う（SRS・予習済み・EXP を書かない）。
 //   途中で閉じたら5語の画面に戻る。途中でやめる人はホームへ（再訪時の続きは第一版では作らない）。
@@ -47,7 +50,7 @@ const TEST_TIERS = ['core', 'advanced', 'context'];
 
 export default function TrialFlow() {
   const { settings, updateSettings, trialSource, finishTrial, markFirstRunDone, openAuth, loggedIn, openGuide, openPrepWalk, openPrepQuiz } = useApp();
-  const [step, setStep] = useState('level');
+  const [step, setStep] = useState('welcome');
   const [score, setScore] = useState(0);
   const [title, setTitle] = useState(null);
   const [session, setSession] = useState(null);
@@ -99,7 +102,7 @@ export default function TrialFlow() {
     trackUsage('trial_level');
     setScore(lv.score);
     updateSettings({ toeicScore: lv.score, userLevel: lv.level });
-    setStep('pick');
+    setStep('intro');
   };
 
   const chooseTitle = async (t) => {
@@ -148,6 +151,7 @@ export default function TrialFlow() {
       questions: s.questions,
       meta: {
         ...s.meta,
+        stage: TRIAL_STAGES[3],
         onTrialDone: () => {
           trackUsage('trial_quiz_done');
           setStep('done');
@@ -161,6 +165,7 @@ export default function TrialFlow() {
       words: s.words.map((w) => ({ ...w, _tsLabel: w.tsLabel || null })),
       meta: {
         ...s.meta,
+        stage: TRIAL_STAGES[2],
         onTrialDone: () => {
           trackUsage('trial_walk_done');
           setWalkDone(true);
@@ -191,11 +196,37 @@ export default function TrialFlow() {
   const titles = useMemo(() => filterEnabled(orderTrialTitles(score), enabled), [score, enabled]);
   const moreTitles = useMemo(() => filterEnabled(TRIAL_MORE_TITLES, enabled), [enabled]);
 
+  if (step === 'welcome') {
+    return (
+      <div className="trial-flow trial-center trial-welcome">
+        <img className="trial-logo" src="/icon-192.png" alt="" />
+        <h1 className="trial-h">CineLearn へようこそ</h1>
+        <p className="trial-sub">観たいドラマや映画の字幕から、英単語を学べるアプリです。観る前に予習して、観たあとに復習できます。</p>
+        {loggedIn && <p className="trial-sub">登録は済んでいます。このまま進めてください。</p>}
+        <button
+          type="button"
+          className="btn-primary trial-cta"
+          onClick={() => {
+            trackUsage('trial_welcome');
+            setStep('level');
+          }}
+        >
+          はじめる
+        </button>
+        <TrialAuthLinks />
+      </div>
+    );
+  }
+
   if (step === 'level') {
     return (
       <div className="trial-flow">
-        <h1 className="trial-h">いまの英語レベルは？</h1>
-        <p className="trial-sub">TOEIC の目安です。あとから変えられます。</p>
+        <button type="button" className="trial-back" onClick={() => setStep('welcome')}>
+          ← 戻る
+        </button>
+        <h1 className="trial-h">あなたについて教えてください</h1>
+        <p className="trial-lead">いまの英語レベルは？</p>
+        <p className="trial-sub">レベルに合わせて、出す単語を変えます。点数は TOEIC の目安で、受けたことがなくても近いものを選べば大丈夫です。あとから変えられます。</p>
         <div className="trial-levels">
           {TRIAL_LEVELS.map((lv) => (
             <button key={lv.score} type="button" className="trial-level" onClick={() => chooseLevel(lv)}>
@@ -204,7 +235,46 @@ export default function TrialFlow() {
             </button>
           ))}
         </div>
-        <TrialAuthLinks />
+      </div>
+    );
+  }
+
+  if (step === 'intro') {
+    return (
+      <div className="trial-flow">
+        <button type="button" className="trial-back" onClick={() => setStep('level')}>
+          ← 戻る
+        </button>
+        <h1 className="trial-h">
+          ここからは<span className="trial-nowrap">チュートリアルに進みます</span>
+        </h1>
+        <p className="trial-sub">実際の作品の単語で、CineLearn の使い方を試します。</p>
+        <ol className="trial-stages">
+          {TRIAL_STAGES.map((s) => (
+            <li key={s.label} className="trial-stage">
+              <span className="trial-stage-label">{s.label}</span>
+              <span className="trial-stage-summary">{s.summary}</span>
+            </li>
+          ))}
+        </ol>
+        <ul className="trial-facts">
+          <li>3〜5分ほどで終わります</li>
+          <li>動画は再生されません</li>
+          {!loggedIn && <li>登録は最後で大丈夫です</li>}
+        </ul>
+        <button
+          type="button"
+          className="btn-primary trial-cta"
+          onClick={() => {
+            trackUsage('trial_intro');
+            setStep('pick');
+          }}
+        >
+          チュートリアルをはじめる
+        </button>
+        <button type="button" className="trial-text-link trial-quit" onClick={finishTrial}>
+          チュートリアルをやめてホームへ
+        </button>
       </div>
     );
   }
@@ -212,10 +282,12 @@ export default function TrialFlow() {
   if (step === 'pick') {
     return (
       <div className="trial-flow">
-        <button type="button" className="trial-back" onClick={() => setStep('level')} disabled={!!loadingId}>
+        <button type="button" className="trial-back" onClick={() => setStep('intro')} disabled={!!loadingId}>
           ← 戻る
         </button>
+        <div className="trial-step">{TRIAL_STAGES[0].title}</div>
         <h1 className="trial-h">迷ったらこの4作から</h1>
+        <p className="trial-sub">{TRIAL_STAGES[0].why}</p>
         {error && <p className="trial-error">{error}</p>}
         <div className="trial-grid">
           {titles.map((t) => (
@@ -249,7 +321,7 @@ export default function TrialFlow() {
         )}
         <p className="trial-note">{PICK_NOTE}</p>
         <button type="button" className="trial-text-link trial-quit" onClick={finishTrial} disabled={!!loadingId}>
-          体験をやめてホームへ
+          チュートリアルをやめてホームへ
         </button>
       </div>
     );
@@ -261,6 +333,7 @@ export default function TrialFlow() {
         <button type="button" className="trial-back" onClick={() => setStep('pick')}>
           ← 作品を選び直す
         </button>
+        <div className="trial-step">{TRIAL_STAGES[1].title}</div>
         {/* 登録後の本番の単語リストと同じ見出しと語のカード（オーナー指摘）。進捗バーと下部のバーは体験では出さない */}
         <div className="srs-progress-wrap">
           <div className="srs-progress-header">
@@ -281,7 +354,7 @@ export default function TrialFlow() {
             </div>
           </div>
         </div>
-        <p className="trial-sub">字幕から5語を選びました。</p>
+        <p className="trial-sub">{TRIAL_STAGES[1].why}</p>
         {session.words.some((w) => cefrHintOf(w)) && <CefrNote />}
         <div className="vocab-list">
           {session.words.map((w, i) => (
@@ -311,7 +384,7 @@ export default function TrialFlow() {
           </button>
         )}
         <button type="button" className="trial-text-link trial-quit" onClick={finishTrial}>
-          体験をやめてホームへ
+          チュートリアルをやめてホームへ
         </button>
       </div>
     );
@@ -322,6 +395,7 @@ export default function TrialFlow() {
     const canSignup = !loggedIn && trialSource !== 'extension';
     return (
       <div className="trial-flow trial-center">
+        <div className="trial-step">チュートリアルはここまでです</div>
         {posterUrl(title) && (
           <div className="trial-done-poster">
             <img src={posterUrl(title)} alt="" />

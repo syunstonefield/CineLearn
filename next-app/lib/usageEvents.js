@@ -42,8 +42,10 @@ export const USAGE_EVENTS = [
   'ext_install_open', // 拡張の導入直後の案内タブ（/app?from=ext_install・Chrome 拡張部門と合わせた形）が開いた。URL から外してから数える
   // 初回体験（登録前に試す流れ・2026-11-05・docs/design-first-run-trial-2026-11-05.md）。名前は作品・予習部門の画面と合わせた。
   //   固定の名前と回数だけ（作品 ID・作品名・レベルの値は入れない＝法務）。ポリシー「初めての方向けの体験をどこまで進めたか、登録を後回しにしたか」。
-  'trial_start', // 最初の画面が出た
+  'trial_start', // 最初の画面（ようこそ）が出た
+  'trial_welcome', // ようこその画面から進んだ
   'trial_level', // レベルを選んだ
+  'trial_intro', // チュートリアルの案内の画面から進んだ
   'trial_pick', // 作品を選んだ
   'trial_list', // 5語の画面が出た
   'trial_walk_done', // 予習5枚を終えた

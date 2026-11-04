@@ -7,6 +7,7 @@ import {
   TRIAL_LEVELS,
   TRIAL_TITLES,
   TRIAL_MORE_TITLES,
+  TRIAL_STAGES,
   bandOf,
   buildTrialSession,
   filterEnabled,
@@ -184,6 +185,43 @@ test('ポスター: w342 固定・上に文字を重ねない作り（CSS は 40
   const rule = (name) => css.slice(css.indexOf(name), css.indexOf('}', css.indexOf(name)));
   assert.match(rule('.trial-poster {'), /width: 40vw; max-width: 160px/);
   assert.match(rule('.trial-poster img {'), /aspect-ratio: 2 \/ 3; object-fit: contain/);
+});
+
+test('流れ: ようこそ→レベル→案内→作品の順・ログインと規約はようこその画面に', () => {
+  const flow = source('TrialFlow.js');
+  assert.match(flow, /useState\('welcome'\)/, '最初はようこそ');
+  assert.match(flow, /setStep\('intro'\);\n/, 'レベルの次は案内');
+  const at = (s) => flow.indexOf(`if (step === '${s}') {`);
+  assert.ok(at('welcome') < at('level') && at('level') < at('intro') && at('intro') < at('pick'));
+  const welcome = flow.slice(at('welcome'), at('level'));
+  assert.match(welcome, /CineLearn へようこそ/);
+  assert.match(welcome, /<TrialAuthLinks \/>/);
+  assert.ok(!flow.slice(at('level')).includes('<TrialAuthLinks'), 'ようこそ以外には出さない');
+  assert.match(flow.slice(at('level'), at('intro')), /あなたについて教えてください/);
+  const intro = flow.slice(at('intro'), at('pick'));
+  assert.match(intro, /ここからは<span className="trial-nowrap">チュートリアルに進みます/);
+  assert.match(intro, /動画は再生されません/);
+  assert.match(intro, /\{!loggedIn && <li>登録は最後で大丈夫です<\/li>\}/, '登録済みの人には出さない');
+  assert.match(source('TrialAuthLinks.js'), /\{!loggedIn && \(/, '登録済みの人にログインを出さない');
+});
+
+test('呼び名はチュートリアルに統一・効果をうたう言葉を書かない', () => {
+  const ui = source('TrialFlow.js').replace(/\{\/\*.*?\*\/\}/g, '').replace(/\/\/.*$/gm, '');
+  assert.ok(!ui.includes('体験'), '画面に「体験」');
+  assert.ok(!ui.includes('身につく'));
+  for (const s of TRIAL_STAGES) assert.ok(!s.why.includes('体験') && !s.why.includes('身につく'), s.label);
+});
+
+test('ステップ: 4段階を各画面に出す（作品・5語・予習・クイズ）', () => {
+  assert.deepEqual(TRIAL_STAGES.map((s) => s.title), ['ステップ1/4 作品を選ぶ', 'ステップ2/4 単語を見る', 'ステップ3/4 予習', 'ステップ4/4 クイズ']);
+  const flow = source('TrialFlow.js');
+  for (const i of [0, 1]) assert.ok(flow.includes(`{TRIAL_STAGES[${i}].title}`) && flow.includes(`{TRIAL_STAGES[${i}].why}`), `段階${i + 1}`);
+  assert.match(flow, /stage: TRIAL_STAGES\[2\]/);
+  assert.match(flow, /stage: TRIAL_STAGES\[3\]/);
+  for (const m of ['PrepWalkthrough.js', 'PrepQuiz.js']) {
+    assert.match(source(m), /meta\.stage\.title/, m);
+    assert.match(source(m), /meta\.stage\.why/, m);
+  }
 });
 
 test('ホームから開く時にサービス選択を出さず、ドラマ版/映画版の選択も出さない形', () => {

@@ -219,7 +219,7 @@ export default function PrepWalkthrough() {
     <div className="pw-overlay">
       <div className="pw-panel">
         <div className="pw-head">
-          <span className="pw-title">{single ? '✏️ 追加した単語' : trial ? '🎬 予習' : '🎬 今夜の予習'}</span>
+          <span className="pw-title">{single ? '✏️ 追加した単語' : trial ? meta.stage.title : '🎬 今夜の予習'}</span>
           <button className="pw-close" onClick={() => leave('x')} aria-label="閉じる">
             ✕
           </button>
@@ -232,6 +232,7 @@ export default function PrepWalkthrough() {
         )}
 
         <div className="pw-body" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+          {trial && <div className="pw-trial-why">{meta.stage.why}</div>}
           {!single && (
           <div className="pw-counter">
             {idx + 1} / {effectiveTotal}

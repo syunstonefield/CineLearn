@@ -20,6 +20,14 @@ export const TRIAL_LEVELS = [
   { score: 900, level: 'C1', range: '800点〜', label: '上級' },
 ];
 
+// チュートリアルの4段階（オーナー決定 2026-11-05）。案内の画面の一覧と、各画面の「ステップ○/4」と一行の説明はここから出す。
+export const TRIAL_STAGES = [
+  { label: '作品を選ぶ', summary: '単語を学ぶ作品を1つ選びます', why: '単語は選んだ作品の字幕から出します。気になるものを1つ選んでください。' },
+  { label: '単語を見る', summary: '字幕から選んだ5語を見ます', why: '作品の字幕から5語を選びました。次の予習で使います。' },
+  { label: '予習', summary: '5語をカードで1枚ずつ確かめます', why: '5語を1枚ずつ、意味とセリフで確かめます。' },
+  { label: 'クイズ', summary: 'セリフの空欄を埋める問題を3問解きます', why: 'いま見た5語から3問です。間違えても大丈夫です。' },
+].map((s, i, all) => ({ ...s, title: `ステップ${i + 1}/${all.length} ${s.label}` }));
+
 const POSTER_BASE = 'https://image.tmdb.org/t/p/w342';
 export const posterUrl = (title) => (title?.posterPath ? `${POSTER_BASE}${title.posterPath}` : null);
 

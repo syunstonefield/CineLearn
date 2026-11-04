@@ -96,7 +96,7 @@ export default function PrepQuiz() {
     <div className="modal-overlay prep-overlay" style={{ display: 'flex' }} onClick={closePrepQuiz}>
       <div className="modal-panel prep-panel" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <span className="modal-title">{meta?.trial ? '🎧 クイズ' : '🎧 今夜のリハーサル'}</span>
+          <span className="modal-title">{meta?.trial ? meta.stage.title : '🎧 今夜のリハーサル'}</span>
           <button className="modal-close" onClick={closePrepQuiz}>✕</button>
         </div>
 
@@ -108,6 +108,7 @@ export default function PrepQuiz() {
         </div>
 
         <div className="prep-content">
+          {meta?.trial && <div className="prep-trial-why">{meta.stage.why}</div>}
           <div className="prep-counter">問 {idx + 1} / {questions.length}</div>
           <div className="prep-q-lead">セリフの空欄に入る単語は？</div>
 
@@ -162,7 +163,7 @@ export default function PrepQuiz() {
               {q.word.definition && <div className="prep-answer-def">{q.word.definition}</div>}
               {q.example_ja && <div className="prep-answer-ja">{q.example_ja}</div>}
               <button className="btn-primary prep-next" onClick={next}>
-                {last ? '結果を見る →' : '次へ →'}
+                {last ? (meta?.trial ? 'クイズを終える →' : '結果を見る →') : '次へ →'}
               </button>
             </div>
           )}

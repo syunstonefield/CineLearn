@@ -44,7 +44,9 @@ export const NEW_USER_STEPS = [
 // ⑨ 初回体験の流れ（2026-11-05〜・名前は作品・予習部門の画面と同じ）。人数は trial_start に対する%。
 export const TRIAL_STEPS = [
   ['trial_start', '最初の画面'],
+  ['trial_welcome', 'ようこそ'],
   ['trial_level', 'レベル'],
+  ['trial_intro', '案内'],
   ['trial_pick', '作品'],
   ['trial_list', '5語'],
   ['trial_walk_done', '予習5枚'],
