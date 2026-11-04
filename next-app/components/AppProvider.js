@@ -419,6 +419,14 @@ export default function AppProvider({ children }) {
     setScreen('main');
   }, []);
 
+  // 完了画面が出た時点で呼ぶ（画面は動かさない）。ここで既読にするので、完了画面から新規登録しても旧アンケートと使い方が戻らない。
+  const markFirstRunDone = useCallback((patch) => {
+    markTrialFinished();
+    markOnboardedSeen();
+    markTutorialSeen();
+    setSettings((prev) => ({ ...prev, ...(patch || {}), onboarded: true }));
+  }, []);
+
   const updateSettings = useCallback((patch) => {
     setSettings((prev) => ({ ...prev, ...patch }));
   }, []);
@@ -723,6 +731,7 @@ export default function AppProvider({ children }) {
     trialSource,
     startTrial,
     finishTrial,
+    markFirstRunDone,
     pendingAddDrama,
     setPendingAddDrama,
     settingsOpen: screen === 'settings',

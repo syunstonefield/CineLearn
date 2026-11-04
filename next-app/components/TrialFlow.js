@@ -35,7 +35,7 @@ const PICK_NOTE = '作品はご自身が契約する配信サービスでご覧�
 const DONE_NOTE = 'ポスター画像は作品を見分けるための表示です（画像：TMDB）。作品の権利者・配信サービスとは提携していません。';
 
 export default function TrialFlow() {
-  const { settings, updateSettings, trialSource, finishTrial, openAuth, loggedIn, openGuide, openPrepWalk, openPrepQuiz } = useApp();
+  const { settings, updateSettings, trialSource, finishTrial, markFirstRunDone, openAuth, loggedIn, openGuide, openPrepWalk, openPrepQuiz } = useApp();
   const [step, setStep] = useState('level');
   const [score, setScore] = useState(0);
   const [title, setTitle] = useState(null);
@@ -58,12 +58,10 @@ export default function TrialFlow() {
       .catch(() => {});
   }, []);
 
-  // 体験の途中でログインした＝既にアカウントがある人。完了画面より前ならホームへ、完了画面なら次の一歩へ。
+  // 完了画面から登録・ログインしたら次の一歩へ。最初の画面からのログインは起動の処理が画面を切り替える（ここでは何もしない）。
   useEffect(() => {
-    if (!loggedIn || startedLoggedIn.current) return;
-    if (step === 'done') setStep('next');
-    else if (step !== 'next') finishTrial();
-  }, [loggedIn, step, finishTrial]);
+    if (loggedIn && !startedLoggedIn.current && step === 'done') setStep('next');
+  }, [loggedIn, step]);
 
   useEffect(() => {
     if (step === 'list') trackUsage('trial_list');
@@ -79,8 +77,8 @@ export default function TrialFlow() {
     trackUsage('trial_done');
     const d = trialDrama(title);
     saveHistoryEntry({ drama: d, season: 1, episode: 1, userLevel: settings.userLevel, targetLevel: null, words: session.list });
-    updateSettings({ myDramas: [...(settings.myDramas || []).filter((x) => x.title !== d.title), d] });
-  }, [step, session, title, settings, updateSettings]);
+    markFirstRunDone({ myDramas: [...(settings.myDramas || []).filter((x) => x.title !== d.title), d] });
+  }, [step, session, title, settings, markFirstRunDone]);
 
   const chooseLevel = (lv) => {
     trackUsage('trial_level');
@@ -164,7 +162,7 @@ export default function TrialFlow() {
   };
   const signup = () => {
     trackUsage('trial_signup_click');
-    openAuth({ mode: 'signup' });
+    openAuth({ mode: 'signup', source: 'trial_end' });
   };
   const copyLink = async () => {
     try {

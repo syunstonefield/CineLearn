@@ -738,7 +738,7 @@ export default function Dashboard() {
       {trialBand && !loggedIn && (
         <div className="ext-banner ext-banner-info">
           <span className="ext-banner-text">学習記録はこの端末に保存されています。登録すると、ほかの端末でも見られます。</span>
-          <button className="ext-banner-btn" onClick={() => openAuth({ mode: 'signup' })}>
+          <button className="ext-banner-btn" onClick={() => openAuth({ mode: 'signup', source: 'trial_band' })}>
             登録して学習記録を残す
           </button>
           <button className="ext-banner-close" onClick={() => setTrialBand(false)} aria-label="閉じる">
