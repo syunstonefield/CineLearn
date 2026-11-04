@@ -57,8 +57,10 @@ user-voice / legal / marketing の3部署 R1独立→R2的絞り検証で収束�
 基準: 学習メディア言及頻度×JP配信可能性×SRT入手性×B1-B2帯×話数×感情強度。
 - **必須トップ**: Suits（既存シード）/ Stranger Things / Breaking Bad / The Crown / Emily in Paris /
   Cobra Kai / プラダを着た悪魔（Disney+・**2026年5月続編公開の便乗**）/ Modern Family / The Good Place。
-- **フレンズは初期除外**（Netflix日本から2022年配信終了→U-NEXT/Hulu対応フェーズまで保留。
+- **フレンズは初期除外**（当初の判断。当時の理由: Netflix日本から2022年配信終了→U-NEXT/Hulu対応フェーズまで保留。
   user-voiceの「Suits またはフレンズ」条件は Suits で充足）。
+  ※2026-11-05 更新: この配信の記述は古い。TMDB（JustWatch）の日本の定額配信は Netflix・Hulu・U-NEXT（各サービスの実画面は未確認）。
+  初回体験の4作に採用（オーナー決定・docs/design-first-run-trial-2026-11-05.md）。カタログ登録は S1E1 のリスト生成の後。
 - 11位以下の軸: Virgin River / The Lincoln Lawyer / SHOGUN（S2便乗）/ ONE PIECE実写（S2便乗）等。
 - オンボーディングでカタログ内作品への導線を一本引く（初日の成功体験＝リテンション最大因子）。
 
