@@ -126,6 +126,20 @@ export async function fetchSharedVocab({ tmdbId, season, episode, type }) {
   return r;
 }
 
+// 初回体験の作品のうち、いま出せるもの（`GET /api/trial-catalog`・2026-11-05・作品・予習部門と合わせた形）。
+//   戻り値: { ok:true, enabled:[tmdbId, …] }（catalog で enabled=true の体験の作品）／失敗は { ok:false, enabled:[] }
+//   画面は ok の時だけ enabled に無い作品を隠す。失敗時は全部出す（vocab-generate 側で blocked になる）。
+export async function fetchTrialCatalog() {
+  try {
+    const res = await fetch(`${API_BASE}/api/trial-catalog`, { headers: apiHeaders(), cache: 'no-store' });
+    const data = (await readJson(res)) || {};
+    if (res.ok && data.ok && Array.isArray(data.enabled)) return { ok: true, enabled: data.enabled.map(Number) };
+  } catch {
+    /* 下へ */
+  }
+  return { ok: false, enabled: [] };
+}
+
 // 応答本文を JSON として読む（非 JSON・空本文は null）。
 async function readJson(res) {
   try {

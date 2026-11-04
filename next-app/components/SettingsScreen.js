@@ -482,7 +482,7 @@ export default function SettingsScreen() {
                   <div>
                     <div className="tier-toggle-name">利用統計を送る</div>
                     <div className="tier-toggle-desc">
-                      機能の使われ方・どこから開いたか・登録やログインの状況・初回アンケートと予習の進み方・復習した語数を、アカウントを元に戻せない番号に変えて集計し、機能と料金の検討に使います（作品名・単語は送りません。
+                      機能の使われ方・どこから開いたか・登録やログインの状況・初回の体験・アンケートと予習の進み方・復習した語数を、アカウントを元に戻せない番号に変えて集計し、機能と料金の検討に使います（作品名・単語は送りません。
                       <a href="/privacy" target="_blank" rel="noopener noreferrer">
                         プライバシーポリシー
                       </a>
