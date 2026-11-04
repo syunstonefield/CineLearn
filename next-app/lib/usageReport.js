@@ -41,6 +41,36 @@ export const NEW_USER_STEPS = [
   ['ext_install_open', '拡張から来た'],
   ['ext_first_save', '拡張で初保存'],
 ];
+// ⑨ 初回体験の流れ（2026-11-05〜・名前は作品・予習部門の画面と同じ）。人数は trial_start に対する%。
+export const TRIAL_STEPS = [
+  ['trial_start', '最初の画面'],
+  ['trial_level', 'レベル'],
+  ['trial_pick', '作品'],
+  ['trial_list', '5語'],
+  ['trial_walk_done', '予習5枚'],
+  ['trial_quiz_done', 'クイズ'],
+  ['trial_done', '完了画面'],
+  ['trial_signup_click', '登録へ'],
+  ['trial_later', 'あとで'],
+  ['trial_next', '次の一歩'],
+  ['trial_later_band', '次回の帯'],
+];
+
+// ゲスト→登録を同じ人として数える（集計側だけ・2026-11-05）。
+//   行の名前は「人の番号.端末の番号」で、端末の番号はゲスト行（人＝端末）にもログイン行にも入っている。
+//   同じ端末で後からログインした人の番号が分かれば、その端末のゲスト行をその人に寄せる。
+//   * サーバー・アプリ・保存の形は変えない（/api/stats の行をそのまま読み替える）。
+//   * 同じ端末に複数のアカウント → 最初に現れた（日付の早い）人に寄せる。
+//   * ゲストのまま（ログイン行が無い端末）は寄せない＝「このデバイスのみ」で居続ける人は別の人のまま（正しい）。
+//   * ポリシー: 「登録・ログインの前後の利用を一人分として集計するため、両方の番号を結び付けることがあります。」
+export function joinGuestRows(rows) {
+  const owner = new Map(); // 端末の番号 → その端末で最初にログインした人の番号
+  for (const r of [...rows].sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0))) {
+    if (r.p !== r.d && !owner.has(r.d)) owner.set(r.d, r.p);
+  }
+  return rows.map((r) => (r.p === r.d && owner.has(r.d) ? { ...r, p: owner.get(r.d), joined: true } : r));
+}
+
 // 初めて復習する語の無料の上限（lib/storage.js NEW_WORDS_DAILY_FREE と同値。判断の目安の表示用）
 export const NEW_WORDS_FREE = 20;
 
@@ -78,13 +108,15 @@ function weekRows(rows, win) {
   return rows.filter((r) => r.day >= win.from && r.day <= win.to);
 }
 
-export function buildUsageReport(rows, { today, weeks = 8 } = {}) {
+export function buildUsageReport(rawRows, { today, weeks = 8 } = {}) {
+  const rows = joinGuestRows(rawRows); // ゲスト→登録を同じ人に（⑦の「2人に数える」誤差の解消）
   const wins = weekWindows(today, weeks);
   const plus = [];
   const funnel = [];
   const review = [];
   const onboarding = [];
   const entry = [];
+  const trial = [];
   for (const win of wins) {
     const rs = weekRows(rows, win);
     const label = `${win.from.slice(5)}〜${win.to.slice(5)}`;
@@ -139,6 +171,15 @@ export function buildUsageReport(rows, { today, weeks = 8 } = {}) {
     const en = { 週: label, 開いた人: people.size };
     for (const [k, name] of NEW_USER_STEPS) en[name] = `${usersOf(k).size}人 ${pct(usersOf(k).size, people.size)} / ${timesOf(k)}回`;
     entry.push(en);
+
+    // ⑨ 初回体験の流れ（人数（最初の画面に対する%）／回数）
+    const t0 = usersOf('trial_start').size;
+    const tr = { 週: label };
+    for (const [k, name] of TRIAL_STEPS) {
+      const u = usersOf(k).size;
+      tr[name] = k === 'trial_start' ? `${u}人 / ${timesOf(k)}回` : `${u}人 ${pct(u, t0)} / ${timesOf(k)}回`;
+    }
+    trial.push(tr);
   }
 
   // ③の下: 抜けた場所（表示した全期間の合計）。段階×（何割まで／抜け方）
@@ -168,13 +209,15 @@ export function buildUsageReport(rows, { today, weeks = 8 } = {}) {
       o[HOW[e.how]] += n;
     }
   }
-  return { plus, funnel, exits, review, onboarding, entry, newUsers: buildNewUsers(rows, wins, today) };
+  const joined = rows.filter((r) => r.joined).length;
+  return { plus, funnel, exits, review, onboarding, entry, trial, newUsers: buildNewUsers(rows, wins, today), joinedRows: joined };
 }
 
 // ⑦ 新規の人（初めて開いた週ごと）。rows の中で最初に現れた日＝初めて開いた日。
 //   ★rows は表の期間より1週前から渡す（seed/weekly-stats.mjs）＝表の一番古い週の人が「前の週から使っていた人」
 //     でないことを確かめるため（それより前は見えない＝120日より前から使っていた人は新規に混ざり得る）。
-//   ★「このデバイスのみ」で始めて後日ログインした人は番号が変わる＝別の新規の人として2回数える（設計上の誤差）。
+//   ★「このデバイスのみ」で始めて後日ログインした人は、同じ端末なら joinGuestRows で同じ人に寄せる（2026-11-05〜）。
+//     別の端末でログインした場合は寄せられない（別の新規の人として数える）。
 //   各段階は「その人がいつかやったか」（初めての週の中に限らない）。翌日再訪＝初めての日の翌日に行がある、
 //   7日内再訪＝翌日〜7日後のどこかに行がある。まだ日が来ていない週は（集計中）。
 export function buildNewUsers(rows, wins, today) {
@@ -234,7 +277,8 @@ export function genMonthTable(genMonth, { free = 5, plus = 30 } = {}) {
 }
 
 // 判断の目安（直近の週＝表の先頭）
-export function usageHints(report, rows, { today } = {}) {
+export function usageHints(report, rawRows, { today } = {}) {
+  const rows = joinGuestRows(rawRows);
   const [w0] = weekWindows(today, 1);
   const rs = weekRows(rows, w0);
   const people = new Set(rs.map((r) => r.p)).size;
@@ -255,6 +299,14 @@ export function usageHints(report, rows, { today } = {}) {
       `直近の週に初めて開いた人 ${n}: ログイン画面を見た ${pick('ログイン画面')}・新規登録 ${pick('新規登録')}・このデバイスのみ ${pick('このデバイスのみ')}・作品を選んだ ${pick('作品を選んだ')}・拡張で初保存 ${pick('拡張で初保存')}（翌日・7日内の再訪は⑦）`
     );
   }
+  const tw = report.trial?.[0];
+  if (tw) {
+    const num = (name) => Number(String(tw[name] ?? '0').split('人')[0]) || 0;
+    lines.push(
+      `直近の週の初回体験: 最初の画面 ${num('最初の画面')}人 → 作品 ${num('作品')} → 予習5枚 ${num('予習5枚')} → 完了画面 ${num('完了画面')} → 登録へ ${num('登録へ')}／あとで ${num('あとで')}`
+    );
+  }
+  if (report.joinedRows) lines.push(`ゲスト→登録を同じ人に寄せた行: ${report.joinedRows}（同じ端末でログインした人のゲスト時代の行）`);
   return lines;
 }
 

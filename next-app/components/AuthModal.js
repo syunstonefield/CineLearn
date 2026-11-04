@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useApp } from './AppProvider';
-import { supaSignIn, supaSignUp, pullFromCloud } from '@/lib/supabase';
+import { supaSignIn, supaSignUp, pullFromCloud, migrateLocalToCloudAfterLogin } from '@/lib/supabase';
 import { isExtInstallEntry } from '@/lib/extEntry';
 import { trackUsage } from '@/lib/usage';
 
@@ -49,6 +49,7 @@ export default function AuthModal() {
           }
         });
       }
+      await migrateLocalToCloudAfterLogin(); // クラウドが空なら端末の履歴・プロフィールを先に送る（初回体験 A・pull より前・この1行は残す）
       await pullFromCloud(); // 読み取り専用：クラウド → localStorage
       onLoggedIn();
     } else {

@@ -14,6 +14,8 @@
 //   200 { hit:false, generated:true, words, meta }        … 生成した（meta.contributed=false は共有されなかった）
 //   200 { hit:false, generated:false, reason }            … 否定キャッシュ（直近の失敗・品質不通過・連続失敗）
 //   200 { blocked:true, loginHint:true }                  … カタログ外（ゲート有効時・**未ログインのみ**。ログインすればどの作品でも生成可）
+//   200 { hit:false, generated:false, reason:'cache_only_miss' } … body.cacheOnly=true で未生成（初回体験・生成も枠消費もしない・2026-11-05）
+//     ★cacheOnly のときはカタログ照合を**ログイン中・admin でも**掛ける＝catalog の enabled を false にすればデプロイなしで体験から外れる（法務 F）
 //   200 { nosub:true }                                    … 字幕なし（枠は消費する＝存在しない tmdbId で OS 検索を回させない）
 //   409 { busy:true, retryAfterSec, ttlSec }              … 同じ話を他の人が生成中
 //   429 { error:'rate_limited', scope, window, resetAtUtc, limit, loginHint }
@@ -75,7 +77,7 @@ const EPISODE_MAX = 400;
 // クライアントへ返してよい失敗理由。misconfigured（鍵の欠落）や write-*（DB/鍵の状態）は偵察材料になるので
 // 'internal' に丸める（ログには元の値を残す）。
 const PUBLIC_REASONS = new Set([
-  'nosub', 'gate', 'coverage', 'os_quota', 'os_search', 'os_download', 'tmdb', 'llm', 'timeout', 'generation', 'repeated_failure',
+  'nosub', 'gate', 'coverage', 'os_quota', 'os_search', 'os_download', 'tmdb', 'llm', 'timeout', 'generation', 'repeated_failure', 'cache_only_miss',
 ]);
 const publicReason = (r) => (PUBLIC_REASONS.has(r) ? r : 'internal');
 
@@ -136,7 +138,9 @@ export async function POST(req) {
   //   2026-09-21 オーナー判断: ゲートは**未ログインだけ**に掛ける。費用と OS 枠の暴走は user/IP の日次天井と
   //   DL キャップで塞がったので、登録してくれた人には「観たい作品が教材になる」を約束どおり出す。
   //   匿名（通りすがり）はカタログ内のみ＝ドライブバイのコストを抑える。応答に loginHint を添える。
-  if (!privileged && !uid && !(await isInCatalog(id))) return json({ blocked: true, loginHint: true });
+  // 初回体験（cacheOnly）はログイン有無・admin に関係なくカタログ内だけ＝権利者の要請で enabled:false にすれば体験から外れる。
+  const cacheOnly = body?.cacheOnly === true;
+  if ((cacheOnly || (!privileged && !uid)) && !(await isInCatalog(id))) return json({ blocked: true, loginHint: !uid });
 
   // ── 4) cache-first（命中は計数しない・/api/vocab と同形）──
   const cached = await readVocabRow(cacheKey);
@@ -151,6 +155,8 @@ export async function POST(req) {
     await stat('gen_hit');
     return json({ hit: true, ...withSelected(wordsForServe(cached.row.words, cached.row.episode_match)), meta: vocabRowMeta(cached.row) });
   }
+  // cacheOnly: 未生成なら何もしない（否定キャッシュ・ロック・レート制限・生成の計数に触れない）。
+  if (cacheOnly) return json({ hit: false, generated: false, reason: 'cache_only_miss' });
 
   // ── 5) 否定キャッシュ（直近の失敗・品質不通過・連続失敗）──
   const nogen = await tryRedis(() => redisGet(nogenKey(cacheKey)), null);

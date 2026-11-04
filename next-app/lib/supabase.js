@@ -746,6 +746,59 @@ export async function deleteProfileRow(id) {
   });
 }
 
+// ── 登録・ログイン直後の引き継ぎ（初回体験 A・2026-11-05 docs/design-first-run-trial-2026-11-05.md）──
+// pullFromCloud は history をクラウドに行がある時だけ上書きし、ローカルの履歴は送らない。profiles もクラウドに
+// 行がある時だけマージして差分を送る。＝新規アカウントでは、登録前に端末で作った単語リストの履歴とプロフィール
+// （レベル・マイリスト）がクラウドに乗らず、別の端末や再ログインで消える。
+// そこで AuthModal のログイン／登録成功時に pullFromCloud の**前**に1回呼ぶ（体験で端末に書いた分を先に乗せる）:
+//   * クラウドの history が0件の時だけ、ローカルの history（最大50件・drama/season/episode が揃う行だけ）を送る。
+//     既存アカウントへの再ログインで無条件に送ると、他端末で消した履歴が復活し得るため「0件の時だけ」。
+//   * クラウドの profiles が0件の時だけ、ローカルの profiles を一度送る（更新時刻はローカルの値）。
+// 冪等（クラウドに行ができた後は何もしない）。失敗は握りつぶす（学習体験を壊さない）。
+export async function migrateLocalToCloudAfterLogin() {
+  if (!isLoggedIn()) return { history: 0, profiles: 0 };
+  const uid = getCurrentUser()?.id;
+  if (!uid) return { history: 0, profiles: 0 };
+  const out = { history: 0, profiles: 0 };
+  const read = (key, fallback) => {
+    try {
+      const v = JSON.parse(localStorage.getItem(key) || 'null');
+      return v ?? fallback;
+    } catch {
+      return fallback;
+    }
+  };
+  try {
+    const cloudHistory = await sbFetch(`/rest/v1/history?user_id=eq.${uid}&select=id&limit=1`);
+    if (Array.isArray(cloudHistory) && cloudHistory.length === 0) {
+      const local = read('cl_history', []);
+      const rows = (Array.isArray(local) ? local : [])
+        .filter((h) => h && h.id && h.drama && h.drama.title && h.season != null && h.episode != null)
+        .slice(0, 50);
+      for (const h of rows) {
+        // eslint-disable-next-line no-await-in-loop
+        await pushHistoryEntry(h);
+        out.history++;
+      }
+    }
+  } catch {
+    /* 次のログインで（まだ0件なら）やり直す */
+  }
+  try {
+    const cloudProfiles = await sbFetch(`/rest/v1/profiles?user_id=eq.${uid}&select=id&limit=1`);
+    if (Array.isArray(cloudProfiles) && cloudProfiles.length === 0) {
+      const local = read('cl_profiles', []);
+      if (Array.isArray(local) && local.length) {
+        await pushProfiles(local, localStorage.getItem(PROFILES_AT_KEY) || undefined);
+        out.profiles = local.length;
+      }
+    }
+  } catch {
+    /* 同上 */
+  }
+  return out;
+}
+
 // ── history のみ双方向（★書き込み★）─────────────────────────────
 // 学習履歴の作成/更新をクラウド history テーブルへ upsert（主キー id で衝突解決）。
 // ログイン時のみ・fire-and-forget（失敗は握りつぶす＝学習体験を壊さない）。

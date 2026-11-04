@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { sanitizeUsage, exitEventName, parseExitEvent, toDecile, isUsageEvent, isExtSavedWord, hasExtSavedWord } from '../lib/usageEvents.js';
-import { buildUsageReport, genMonthTable, usageCsv, weekWindows, usageHints } from '../lib/usageReport.js';
+import { buildUsageReport, genMonthTable, usageCsv, weekWindows, usageHints, joinGuestRows } from '../lib/usageReport.js';
 import { writeUsage, readUsageRows, usageIds, usageDayAllowed, deleteUsageFor } from '../lib/server/usage.js';
 import { genMonthKey } from '../lib/server/constants.js';
 
@@ -230,4 +230,52 @@ test('週次の表: 新規の人（初めて開いた週）と再訪・入口と
   assert.equal(rep.entry[1]['ログイン画面'], '2人 100% / 3回');
   const hint = usageHints(rep, rows, { today }).find((l) => l.includes('初めて開いた人'));
   assert.match(hint, /初めて開いた人 1: ログイン画面を見た 1・新規登録 0・このデバイスのみ 1・作品を選んだ 1・拡張で初保存 0/);
+});
+
+test('初回体験の項目は数えてよい名前（2026-11-05・作品・予習部門の画面と同じ）', () => {
+  for (const k of ['trial_start', 'trial_level', 'trial_pick', 'trial_list', 'trial_walk_done', 'trial_quiz_done', 'trial_done', 'trial_signup_click', 'trial_later', 'trial_next', 'trial_later_band']) assert.ok(isUsageEvent(k), k);
+  for (const k of ['trial_work_37680', 'trial_level_b1', 'trial_exit']) assert.ok(!isUsageEvent(k), k);
+});
+
+test('ゲスト→登録の結合: 同じ端末でログインした人のゲスト行をその人に寄せる（集計側だけ）', () => {
+  const rows = [
+    { day: '2026-11-03', p: 'dev1', d: 'dev1', L: 0, c: { open: 1, trial_start: 1 }, r: null }, // ゲスト
+    { day: '2026-11-04', p: 'u1', d: 'dev1', L: 1, c: { open: 1, auth_signup: 1 }, r: null }, // 同じ端末で登録
+    { day: '2026-11-02', p: 'dev2', d: 'dev2', L: 0, c: { open: 1 }, r: null }, // ゲストのまま
+    { day: '2026-11-04', p: 'u2', d: 'dev3', L: 1, c: { open: 1 }, r: null }, // 最初からログイン
+    { day: '2026-11-05', p: 'u9', d: 'dev1', L: 1, c: { open: 1 }, r: null }, // 同じ端末の2人目（寄せる先は最初の u1）
+  ];
+  const j = joinGuestRows(rows);
+  assert.equal(j[0].p, 'u1');
+  assert.equal(j[0].joined, true);
+  assert.equal(j[2].p, 'dev2');
+  assert.equal(j[2].joined, undefined);
+  assert.equal(j[4].p, 'u9');
+  assert.deepEqual(rows[0].p, 'dev1'); // 元の行は変えない
+  // ⑦ では 1 人（11-03 に初めて開いた人＝u1）になり、登録もその人に付く
+  const rep = buildUsageReport(rows, { today: '2026-11-05', weeks: 1 });
+  assert.equal(rep.newUsers[0].新規の人, 4); // u1(dev1・11-03 から)・dev2・u2・u9
+  assert.equal(rep.newUsers[0]['新規登録'], '1 25%');
+  assert.equal(rep.plus[0].開いた人, 4); // u1・dev2・u2・u9
+  assert.equal(rep.joinedRows, 1);
+  assert.ok(usageHints(rep, rows, { today: '2026-11-05' }).some((l) => l.includes('寄せた行: 1')));
+});
+
+test('週次の表: 初回体験の流れ（⑨）', () => {
+  const today = '2026-11-07';
+  const rows = [
+    row('2026-11-05', 'a', { open: 1, trial_start: 1, trial_level: 1, trial_pick: 1, trial_list: 1, trial_walk_done: 1, trial_quiz_done: 1, trial_done: 1, trial_signup_click: 1 }, null, 0),
+    row('2026-11-06', 'b', { open: 1, trial_start: 2, trial_level: 1, trial_pick: 1, trial_list: 1, trial_later: 1 }, null, 0),
+    row('2026-11-06', 'c', { open: 1, trial_start: 1 }, null, 0),
+  ];
+  const rep = buildUsageReport(rows, { today, weeks: 1 });
+  const t = rep.trial[0];
+  assert.equal(t['最初の画面'], '3人 / 4回');
+  assert.equal(t['作品'], '2人 67% / 2回');
+  assert.equal(t['完了画面'], '1人 33% / 1回');
+  assert.equal(t['登録へ'], '1人 33% / 1回');
+  assert.equal(t['あとで'], '1人 33% / 1回');
+  assert.equal(t['次回の帯'], '0人 0% / 0回');
+  const hint = usageHints(rep, rows, { today }).find((l) => l.includes('初回体験'));
+  assert.match(hint, /最初の画面 3人 → 作品 2 → 予習5枚 1 → 完了画面 1 → 登録へ 1／あとで 1/);
 });

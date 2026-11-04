@@ -11,6 +11,7 @@
 //   2026-11-04: ⑦ 新規の人（初めて開いた週ごと: ログイン画面→登録/ログイン/このデバイスのみ→作品を選んだ→
 //     拡張で初保存→翌日・7日内の再訪）と ⑧ 入口とログイン画面（全員）を追加。⑦の「初めて」を確かめるため
 //     利用データは表より1週ぶん前から読む（docs/research-2026-11-new-user-dropoff.md）。
+//   2026-11-05: ⑨ 初回体験の流れを追加。ゲスト→登録を同じ端末なら同じ人に寄せる（lib/usageReport.js joinGuestRows・集計側のみ）。
 
 import { writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -91,10 +92,12 @@ console.log('\n⑤ 月の新規生成（ログイン利用者・共有済みの�
 console.table(genMonthTable(genMonth));
 console.log('\n⑥ 初回アンケートの進み具合（人数 1問目に対する% ／ スキップした人数・2026-11-01〜）');
 console.table(rep.onboarding);
-console.log('\n⑦ 新規の人（初めて開いた週ごと・各段階は人数 新規の人に対する%・2026-11-04〜。番号が変わる「このデバイスのみ→後日ログイン」は2人に数える）');
+console.log('\n⑦ 新規の人（初めて開いた週ごと・各段階は人数 新規の人に対する%・2026-11-04〜。同じ端末でゲスト→ログインした人は1人に寄せる）');
 console.table(rep.newUsers);
 console.log('\n⑧ 入口とログイン画面（全員・人数 開いた人の% / 回数・2026-11-04〜）');
 console.table(rep.entry);
+console.log('\n⑨ 初回体験の流れ（人数 最初の画面に対する% / 回数・2026-11-05〜）');
+console.table(rep.trial);
 for (const line of usageHints(rep, usageRows, { today })) console.log(`判断の目安: ${line}`);
 console.log(`利用データの行数: ${usageRows.length}（数え始めは利用データのデプロイ以降）`);
 

@@ -40,6 +40,19 @@ export const USAGE_EVENTS = [
   'work_select', // 作品を選んだ（ライブラリ・検索・おすすめ・コレクション・復習一覧 → サービス選択／単語リスト）
   'ext_first_save', // 拡張で保存した語がこの端末に初めて届いた（クラウド取込の後に単語帳を見て判定・端末ごとに1回）
   'ext_install_open', // 拡張の導入直後の案内タブ（/app?from=ext_install・Chrome 拡張部門と合わせた形）が開いた。URL から外してから数える
+  // 初回体験（登録前に試す流れ・2026-11-05・docs/design-first-run-trial-2026-11-05.md）。名前は作品・予習部門の画面と合わせた。
+  //   固定の名前と回数だけ（作品 ID・作品名・レベルの値は入れない＝法務）。ポリシー「初めての方向けの体験をどこまで進めたか、登録を後回しにしたか」。
+  'trial_start', // 最初の画面が出た
+  'trial_level', // レベルを選んだ
+  'trial_pick', // 作品を選んだ
+  'trial_list', // 5語の画面が出た
+  'trial_walk_done', // 予習5枚を終えた
+  'trial_quiz_done', // クイズ3問を終えた
+  'trial_done', // 完了画面が出た
+  'trial_signup_click', // 「登録して学習記録を残す」を押した（登録の成功は auth_signup）
+  'trial_later', // 「あとで」を選んだ
+  'trial_next', // 次の一歩の画面が出た
+  'trial_later_band', // 「あとで」の人への帯が出た
 ];
 
 // 拡張で保存した語か。拡張は source に配信サイトの画面タイトル（Netflix 等）を入れ、アプリの保存は
