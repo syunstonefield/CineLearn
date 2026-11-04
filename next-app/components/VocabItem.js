@@ -11,10 +11,11 @@ import { cefrHintOf, cefrHintTitle } from '@/lib/cefrHint';
 // 詳細は常にDOMに描画し、開閉は is-expanded クラスで切り替える（PC常時表示を両立するため）。
 // starred/onStar: ★マイ単語帳メンバーシップ（2026-09-22）。onStar(word, starred) を渡した文脈でだけ
 // 発音・Skip の横に「★ 単語帳 / ☆ 単語帳に入れる」トグルを出す（単語リスト・単語帳の両方）。
+// defaultExpanded: 最初から開いておく（スマホの初回体験の1語目・PC は CSS で常に開いている）。
 // readOnly: 初回体験の5語（components/TrialFlow.js）。SRS を持たない人に状態の印と Skip を出さない＝書き込む操作なし。
 // showCefr: 各語に CEFR の目安（段階だけ）を出すか（単語リストだけ true・2026-10-30）。値は lib/cefrHint.js（複数語は出さない）。
-export default function VocabItem({ word, srs, testTiers, ts, exampleSource, added, starred, showCefr, readOnly, onSpeak, onSkip, onCopyTime, onDelete, onStar }) {
-  const [expanded, setExpanded] = useState(false);
+export default function VocabItem({ word, srs, testTiers, ts, exampleSource, added, starred, showCefr, readOnly, defaultExpanded, onSpeak, onSkip, onCopyTime, onDelete, onStar }) {
+  const [expanded, setExpanded] = useState(!!defaultExpanded);
   const w = word;
   const e = srs[w.word.toLowerCase()];
   const status = (() => {

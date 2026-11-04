@@ -31,7 +31,7 @@ export const TRIAL_TITLES = [
     season: 1,
     episode: 1,
     title: 'Suits',
-    label: 'SUITS',
+    label: 'Suits', // 表記は本番の単語リストと同じ（オーナー決定・catalog の display_title には合わせない）
     posterPath: '/vQiryp6LioFxQThywxbC6TuoDjy.jpg',
     watchService: 'Netflix',
     reason: '法律事務所の会話。交渉や昇進など、仕事の語が出てきます',

@@ -39,6 +39,7 @@ import {
 //   - 計測は固定の名前と回数だけ（作品・レベルの値を入れない）。
 const PICK_NOTE = '作品はご自身が契約する配信サービスでご覧ください。本サービスは作品の権利者・配信サービスと提携していません。';
 const DONE_NOTE = 'ポスター画像は作品を見分けるための表示です（画像：TMDB）。作品の権利者・配信サービスとは提携していません。';
+const DONE_NOTE_NO_POSTER = '作品の権利者・配信サービスとは提携していません。'; // ポスターを出さない文字リンクの2作
 
 // 体験の語は VocabItem を読み取り専用で使う（SRS を渡さない＝未学習のまま・★と削除は渡さないので出ない）。
 const NO_SRS = {};
@@ -283,10 +284,11 @@ export default function TrialFlow() {
         <p className="trial-sub">字幕から5語を選びました。</p>
         {session.words.some((w) => cefrHintOf(w)) && <CefrNote />}
         <div className="vocab-list">
-          {session.words.map((w) => (
+          {session.words.map((w, i) => (
             <VocabItem
               key={w.word}
               word={w}
+              defaultExpanded={i === 0} // スマホは最初の1語だけ開いて始める（オーナー決定）
               srs={NO_SRS}
               testTiers={TEST_TIERS}
               showCefr
@@ -325,8 +327,8 @@ export default function TrialFlow() {
             <img src={posterUrl(title)} alt="" />
           </div>
         )}
-        <h1 className="trial-h">「{title.label}」の学習記録をコレクションに追加しました</h1>
-        <p className="trial-note">{DONE_NOTE}</p>
+        <h1 className="trial-h">「{title.title}」の学習記録をコレクションに追加しました</h1>
+        <p className="trial-note">{posterUrl(title) ? DONE_NOTE : DONE_NOTE_NO_POSTER}</p>
         {canSignup ? (
           <>
             <button type="button" className="btn-primary trial-cta" onClick={signup}>

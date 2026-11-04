@@ -49,6 +49,13 @@ test('帯: 〜600点と600点〜（4段階のレベルと一致）', () => {
   assert.deepEqual(TRIAL_LEVELS.map((l) => bandOf(l.score)), ['low', 'low', 'high', 'high']);
 });
 
+test('作品名は本番の表記（title）にそろえる。文字リンクのプラダだけ法務の指定で日本語の題', () => {
+  for (const t of TRIAL_TITLES) assert.equal(t.label, t.title, t.id);
+  assert.equal(TRIAL_MORE_TITLES.find((t) => t.id === 'emily').label, 'Emily in Paris');
+  assert.equal(TRIAL_MORE_TITLES.find((t) => t.id === 'prada').label, 'プラダを着た悪魔');
+  assert.match(source('TrialFlow.js'), /「\{title\.title\}」の学習記録/, '完了画面は本番の表記');
+});
+
 test('並び: 4作は同じ顔ぶれで先頭だけレベルで変わる', () => {
   assert.equal(orderTrialTitles(300)[0].id, 'stranger');
   assert.equal(orderTrialTitles(900)[0].id, 'suits');
@@ -131,6 +138,7 @@ test('5語は本番の VocabItem を読み取り専用で使う（SRS・単語�
   const item = flow.slice(flow.indexOf('<VocabItem'), flow.indexOf('/>', flow.indexOf('<VocabItem')));
   assert.match(item, /readOnly/);
   assert.match(item, /showCefr/);
+  assert.match(item, /defaultExpanded=\{i === 0\}/, '最初の1語だけ開く');
   for (const ng of ['onSkip', 'onStar', 'onDelete', 'added', 'starred']) assert.ok(!item.includes(ng), `${ng} を渡さない`);
   assert.match(flow, /<CefrNote \/>/, 'CEFR 目安の一行を同じ画面に');
   const vi = source('VocabItem.js');
@@ -165,6 +173,7 @@ test('法務の文言がそのまま入っている', () => {
   assert.ok(ui.includes('の学習記録をコレクションに追加しました'));
   assert.ok(ui.includes('ポスター画像は作品を見分けるための表示です（画像：TMDB）。作品の権利者・配信サービスとは提携していません。'));
   assert.ok(ui.includes('登録して学習記録を残す'));
+  assert.match(ui, /posterUrl\(title\) \? DONE_NOTE : DONE_NOTE_NO_POSTER/, 'ポスターの無い作品にポスターの文を出さない');
   assert.ok(ui.includes('配信状況は変わることがあります。本サービスは {service} と提携していません。'));
   assert.ok(ui.includes('迷ったらこの4作から'));
 });
