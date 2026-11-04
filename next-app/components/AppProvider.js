@@ -21,6 +21,7 @@ import {
 } from '@/lib/supabase';
 import { recommendedToDrama } from '@/lib/recommended';
 import { forgetHubScroll } from '@/lib/hubScroll';
+import { markTrialFinished } from '@/lib/trialState';
 
 // app.js のグローバル状態（selectedDrama / selectedSeason 等）に相当する共有状態。
 // 画面間（ダッシュボード / サービス選択 / 単語リスト）で参照・更新する。
@@ -402,6 +403,22 @@ export default function AppProvider({ children }) {
   }, [profile, settings]);
 
   // 設定の部分更新（純粋に state を更新するだけ・永続化は上の effect が担当）
+  // 初回体験（登録前に試す流れ・docs/design-first-run-trial-2026-11-05.md）の入口と出口。
+  //   startTrial: プロフィールがある状態で呼ぶ。source は 'new'（新規）| 'extension'（拡張から来た人・登録先行）。
+  //   finishTrial: 体験を終えてホームへ。旧アンケートと使い方の自動表示を出さないよう既読にする。
+  const [trialSource, setTrialSource] = useState('new');
+  const startTrial = useCallback(({ source = 'new' } = {}) => {
+    setTrialSource(source);
+    setScreen('trial');
+  }, []);
+  const finishTrial = useCallback(() => {
+    markTrialFinished();
+    markOnboardedSeen();
+    markTutorialSeen();
+    setSettings((prev) => ({ ...prev, onboarded: true }));
+    setScreen('main');
+  }, []);
+
   const updateSettings = useCallback((patch) => {
     setSettings((prev) => ({ ...prev, ...patch }));
   }, []);
@@ -703,6 +720,9 @@ export default function AppProvider({ children }) {
     deleteProfile,
     switchProfile,
     finishOnboarding,
+    trialSource,
+    startTrial,
+    finishTrial,
     pendingAddDrama,
     setPendingAddDrama,
     settingsOpen: screen === 'settings',

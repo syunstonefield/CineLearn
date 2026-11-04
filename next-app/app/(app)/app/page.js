@@ -19,6 +19,7 @@ import VocabJourneyScreen from '@/components/VocabJourneyScreen';
 import TicketCollectionScreen from '@/components/TicketCollectionScreen';
 import AuthModal from '@/components/AuthModal';
 import Onboarding from '@/components/Onboarding';
+import TrialFlow from '@/components/TrialFlow';
 import RecommendScreen from '@/components/RecommendScreen';
 import SearchScreen from '@/components/SearchScreen';
 import BottomNav from '@/components/BottomNav';
@@ -92,7 +93,7 @@ function AppShell() {
   );
   // ボトムナビはアプリ内（プロフィール選択済み）でのみ表示。
   // プロフィール選択・オンボーディング中は出さない。
-  const showBottomNav = !!profile && screen !== 'profile-select' && screen !== 'onboarding';
+  const showBottomNav = !!profile && screen !== 'profile-select' && screen !== 'onboarding' && screen !== 'trial';
   // プロフィール選択画面ではヘッダーのプロフィールチップを隠す（既存挙動）
   const headerProfile = screen === 'profile-select' ? null : profile;
 
@@ -102,7 +103,7 @@ function AppShell() {
   return (
     <>
       {/* オンボーディング中は全画面ウィザード（Duolingo風）にするためヘッダーを隠す */}
-      {screen !== 'onboarding' && (
+      {screen !== 'onboarding' && screen !== 'trial' && (
         <Header
           profile={headerProfile}
           wordCount={wordCount}
@@ -128,6 +129,7 @@ function AppShell() {
                 AppProvider の自動遷移エフェクトが既定プロフィールへ入れるまでの一瞬だけ空になる。 */}
             {screen === 'profile-select' && PROFILE_SELECT_ENABLED && <ProfileSelect />}
             {screen === 'onboarding' && <Onboarding />}
+            {screen === 'trial' && <TrialFlow />}
             {screen === 'main' && <Dashboard />}
             {screen === 'recommend' && <RecommendScreen />}
             {screen === 'search' && <SearchScreen />}
