@@ -13,8 +13,11 @@ chrome.action.onClicked.addListener(() => {
   chrome.tabs.create({ url: `${CINELEARN_NEXT_URL}/app` });
 });
 
-chrome.runtime.onInstalled.addListener(() => {
-  console.log('CineLearn Word Saver がインストールされました');
+// 新規インストールの時だけアプリを開く（v1.2.11）。更新・Chrome 本体の更新では開かない。
+//   ログインしないと単語がアプリに届かないため、最初に登録へ案内する（lib/extEntry.js が印を読む）。
+chrome.runtime.onInstalled.addListener((details) => {
+  if (details.reason !== 'install') return;
+  chrome.tabs.create({ url: `${CINELEARN_NEXT_URL}/app?from=ext_install` });
 });
 
 // content.js からの単語保存メッセージを受け取って Supabase に同期

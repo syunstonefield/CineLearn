@@ -14,6 +14,7 @@ import AddDramaModal from './AddDramaModal';
 import RecommendGrid from './RecommendGrid';
 import { getRecommendations } from '@/lib/recommended';
 import { isMobileDevice } from '@/lib/device';
+import { clearExtInstallEntry, isExtInstallEntry } from '@/lib/extEntry';
 import { tmdb } from '@/lib/api';
 import { computeRecap, computeWatchGroup } from '@/lib/reunion';
 import { settleRingValues } from '@/lib/rings';
@@ -81,6 +82,7 @@ export default function Dashboard() {
     bumpWordbook,
     wordbookVersion,
     loggedIn,
+    openAuth,
   } = useApp();
   // 今日の復習1回の語数＝復習タブ・ボトムナビのバッジと同じ（設定の語数・既定20語・無料）
   const plan = usePlan(loggedIn);
@@ -101,14 +103,23 @@ export default function Dashboard() {
   // モバイル（iOS/Android）では Chrome 拡張を入れられないため、インストール導線ではなく
   // 「予習・復習用」の説明に切り替える。SSR/初回は false（デスクトップ扱い）で統一。
   const [isMobile, setIsMobile] = useState(false);
+  // 拡張を入れた直後のタブ（lib/extEntry.js）。導入の案内は出さず、次にすることだけ伝える。
+  const [extEntry, setExtEntry] = useState(false);
   useEffect(() => {
     setIsMobile(isMobileDevice());
+    const fromExt = isExtInstallEntry();
+    setExtEntry(fromExt);
     try {
+      if (fromExt) localStorage.setItem('cl_ext_banner_dismissed', '1'); // もう入れた人に導入の案内を出さない
       setExtBannerDismissed(localStorage.getItem('cl_ext_banner_dismissed') === '1');
     } catch {
       setExtBannerDismissed(false);
     }
   }, []);
+  const closeExtEntry = () => {
+    clearExtInstallEntry();
+    setExtEntry(false);
+  };
   const dismissExtBanner = () => {
     try {
       localStorage.setItem('cl_ext_banner_dismissed', '1');
@@ -696,6 +707,24 @@ export default function Dashboard() {
 
   return (
     <div className="screen active" id="screen-main">
+      {extEntry && (
+        <div className="ext-banner">
+          <span className="ext-banner-icon" aria-hidden="true">🧩</span>
+          <span className="ext-banner-text">
+            {loggedIn
+              ? '拡張機能を追加しました。動画の字幕の単語をクリックすると保存でき、ここに届きます'
+              : '拡張機能を追加しました。保存した単語をアプリに届けるにはログインが必要です'}
+          </span>
+          {!loggedIn && (
+            <button className="ext-banner-btn" onClick={openAuth}>
+              登録・ログイン →
+            </button>
+          )}
+          <button className="ext-banner-close" onClick={closeExtEntry} aria-label="バナーを閉じる">
+            ✕
+          </button>
+        </div>
+      )}
       {/* 拡張機能の案内は ✕ で閉じるまで一番上に出す（オーナー 2026-10-08） */}
       {!extBannerDismissed &&
         (isMobile ? (

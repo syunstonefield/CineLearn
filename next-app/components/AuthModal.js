@@ -3,13 +3,17 @@
 import { useState } from 'react';
 import { useApp } from './AppProvider';
 import { supaSignIn, supaSignUp, pullFromCloud } from '@/lib/supabase';
+import { isExtInstallEntry } from '@/lib/extEntry';
 
 // ログイン／新規登録モーダル。リード文は「同期される」ことだけを伝える（旧「試作版・読み取り専用」文言は
 // 公開ターゲットが本番に確定した時点で実態と合わなくなったため撤去・A24(2)）。
 // ログイン成功時は pullFromCloud のみ（pushLocalToCloud は本番書き込みになるため移植しない）。
 export default function AuthModal() {
   const { closeAuth, onLoggedIn } = useApp();
-  const [mode, setMode] = useState('login'); // 'login' | 'signup'
+  // 拡張を入れた直後に開いたタブは「新規登録」から始める（ほとんどの人はまだアカウントが無い）。
+  //   このモーダルはクライアントでだけ描画されるので、初期値で印を読める。
+  const [extEntry] = useState(isExtInstallEntry);
+  const [mode, setMode] = useState(extEntry ? 'signup' : 'login'); // 'login' | 'signup'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -61,9 +65,17 @@ export default function AuthModal() {
           </button>
         </div>
         <div className="auth-body">
-          <p className="auth-lead">
-            ログインすると単語・履歴がスマホ / PC / 拡張機能で同期されます。
-          </p>
+          {extEntry ? (
+            <p className="auth-lead">
+              拡張機能を追加しました。次はアプリへの登録（ログイン）です。そのあと、動画の字幕の単語をクリックすると保存できます。
+              <br />
+              <b>ログインしていないと、拡張機能で保存した単語はアプリに届きません。</b>
+            </p>
+          ) : (
+            <p className="auth-lead">
+              ログインすると単語・履歴がスマホ / PC / 拡張機能で同期されます。
+            </p>
+          )}
           <div className="auth-tabs">
             <button className={'auth-tab' + (mode === 'login' ? ' active' : '')} onClick={() => setMode('login')}>
               ログイン

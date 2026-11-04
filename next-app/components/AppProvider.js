@@ -11,6 +11,7 @@ import {
 import { addStudySeconds, addDramaStudySeconds } from '@/lib/studytime';
 import { applyTheme, getThemePref } from '@/lib/theme';
 import { initUsage, trackUsage } from '@/lib/usage';
+import { isExtInstallEntry } from '@/lib/extEntry';
 import {
   ensureFreshSession,
   pullFromCloud,
@@ -174,6 +175,7 @@ export default function AppProvider({ children }) {
 
   useEffect(() => {
     setMounted(true);
+    isExtInstallEntry(); // 拡張の初回タブの印を URL から sessionStorage へ移す（ログイン中でも URL に残さない）
     // SW 登録（push 通知の受信路。fetch ハンドラ無しなので配信には干渉しない）。
     // 購読済みユーザーがアプリを開くだけで SW が最新化される。
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
