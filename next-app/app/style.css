@@ -7401,37 +7401,45 @@ button.vj-cell { cursor: pointer; }
 }
 
 /* 初回体験（components/TrialFlow.js・2026-11-05）。ポスターは法務の条件で幅 40vw・PC 160px まで・2:3 のまま切らない・上に重ねない。 */
-.trial-flow { width: 100%; max-width: 560px; margin: 0 auto; padding: 24px 16px 32px; display: flex; flex-direction: column; gap: 12px; }
+.trial-flow { flex: 1 0 auto; width: 100%; max-width: 560px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
 .trial-center { align-items: center; text-align: center; }
-.trial-h { font-size: 22px; line-height: 1.35; margin: 0; color: var(--text); }
+.trial-h { font-size: 20px; line-height: 1.35; margin: 0; color: var(--text); }
 .trial-nowrap { display: inline-block; }
 .trial-sub { font-size: 13px; color: var(--text-muted); margin: 0; line-height: 1.6; }
 .trial-back { align-self: flex-start; background: none; border: 0; padding: 0; font: inherit; font-size: 13px; color: var(--text-muted); cursor: pointer; }
-/* 体験の画面は TMDB の表示を画面の下に置き、内容の少ない画面（trial-fill）を残りの高さの中央へ。
-   高さは min-height だけ＝内容が長ければ伸びて、上が切れない。 */
-body:has(.trial-flow) { display: flex; flex-direction: column; min-height: 100dvh; }
-body:has(.trial-flow) #mainContent { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.trial-fill { flex: 1; position: relative; justify-content: center; padding-top: 56px; padding-bottom: 56px; }
-.trial-fill > .trial-back { position: absolute; top: 24px; left: 16px; }
+/* 体験の間はページ全体を動かさない。iPhone Safari はスクロールでアドレスバーが出入りして 100dvh が変わり、中央寄せの中身がずれる。
+   body を画面の高さに固定し、スクロールは #mainContent の中だけにする（アドレスバーが動かない・引っ張りでページが動かない）。
+   登録の画面はキーボードで表示位置を動かす必要があるので、入力欄が出ている間は固定を外す。 */
+html:has(.trial-flow):not(:has(.auth-input)) { height: 100%; overflow: hidden; overscroll-behavior: none; }
+body:has(.trial-flow):not(:has(.auth-input)) { position: fixed; top: 0; left: 0; right: 0; height: 100vh; height: 100dvh; min-height: 0; overflow: hidden; overscroll-behavior: none; display: flex; flex-direction: column; }
+body:has(.trial-flow):not(:has(.auth-input)) #mainContent { flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; }
+/* 内容の少ない画面は残りの高さの中央へ。高さは min-height の扱い（flex-shrink: 0）なので、収まらなければ #mainContent がスクロールして上は切れない */
+.trial-fill { justify-content: center; }
+/* レベルと案内の見出しの塊を同じ高さにして、← 戻る・見出し・説明・カードの開始位置をそろえる */
+.trial-head { display: flex; flex-direction: column; gap: 8px; min-height: 136px; }
 .trial-logo { width: 72px; height: 72px; border-radius: 16px; }
 .trial-lead { font-size: 15px; font-weight: 700; color: var(--text); margin: 4px 0 0; }
 .trial-step { font-size: 13px; font-weight: 700; color: var(--accent); }
-.trial-stages { list-style: none; counter-reset: trial-stage; display: flex; flex-direction: column; gap: 8px; margin: 4px 0; padding: 0; }
+.trial-stages { list-style: none; counter-reset: trial-stage; display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; }
 .trial-stage { counter-increment: trial-stage; display: grid; grid-template-columns: 24px 1fr; column-gap: 8px; align-items: baseline; padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); }
 .trial-stage::before { content: counter(trial-stage); grid-row: span 2; font-size: 15px; font-weight: 700; color: var(--accent); }
 .trial-stage-label { font-size: 15px; font-weight: 700; }
 .trial-stage-summary { font-size: 12px; line-height: 1.5; color: var(--text-muted); }
 .trial-facts { list-style: none; display: flex; flex-direction: column; gap: 2px; margin: 0 0 4px; padding: 0; font-size: 13px; line-height: 1.6; color: var(--text); }
 .trial-error { font-size: 13px; color: var(--accent); margin: 0; }
-.trial-levels { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.trial-levels { display: flex; flex-direction: column; gap: 8px; }
 .trial-level { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--card-bg, #fff); color: var(--text); font: inherit; cursor: pointer; }
 .trial-level-name { font-size: 16px; font-weight: 700; }
 .trial-level-range { font-size: 13px; color: var(--text-muted); }
-.trial-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 12px; }
-.trial-card { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px; }
-.trial-poster { padding: 0; border: 0; background: none; cursor: pointer; width: 40vw; max-width: 160px; line-height: 0; }
-.trial-poster img { width: 100%; aspect-ratio: 2 / 3; object-fit: contain; display: block; border-radius: 6px; }
-.trial-poster:disabled { opacity: 0.6; cursor: default; }
+.trial-grid { display: flex; flex-direction: column; gap: 8px; }
+/* 作品は4行で1画面に収める。ポスターは行の高さで決める（幅は法務の上限 40vw/160px 以下・切らない・上に文字を重ねない）。
+   374px＝作品の行以外の高さの合計。文言や部品を変えたら見直す */
+.trial-card { display: flex; align-items: center; gap: 12px; width: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.trial-card:disabled { opacity: 0.6; cursor: default; }
+.trial-poster { flex: none; display: block; line-height: 0; }
+.trial-poster img { height: clamp(56px, calc((100dvh - 374px) / 4), 120px); width: auto; max-width: min(40vw, 160px); aspect-ratio: 2 / 3; object-fit: contain; display: block; border-radius: 6px; }
+.trial-card-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.trial-card-arrow { flex: none; font-size: 18px; color: var(--text-muted); }
 .trial-card-name { font-size: 15px; font-weight: 700; color: var(--text); }
 .trial-card-reason { font-size: 12px; line-height: 1.5; color: var(--text-muted); }
 .trial-more { font-size: 13px; color: var(--text-muted); margin: 4px 0 0; text-align: center; }
@@ -7441,22 +7449,37 @@ body:has(.trial-flow) #mainContent { flex: 1; min-height: 0; display: flex; flex
 .trial-auth-links { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 16px; font-size: 13px; }
 .trial-legal-links { display: flex; gap: 12px; font-size: 12px; }
 .trial-legal-links a { color: var(--text-muted); }
-.trial-count { font-size: 13px; text-align: center; color: var(--text-muted); margin: 4px 0 0; }
+.trial-count { font-size: 13px; color: var(--text-muted); margin: 0; }
 .trial-cta { width: 100%; max-width: 360px; align-self: center; }
-.trial-done-poster { width: 40vw; max-width: 160px; line-height: 0; }
-.trial-done-poster img { width: 100%; aspect-ratio: 2 / 3; object-fit: contain; display: block; border-radius: 6px; }
-/* 5語の画面の下部バー。体験にはボトムナビが無いので、その分を引いて画面の下に置く */
-.vocab-action-bar.trial-bar { bottom: calc(env(safe-area-inset-bottom) + 10px); margin-top: 4px; }
+.trial-done-poster { line-height: 0; }
+/* 584px＝完了画面のポスター以外の高さの合計 */
+.trial-done-poster img { height: clamp(56px, calc(100dvh - 584px), 240px); width: auto; max-width: min(40vw, 160px); aspect-ratio: 2 / 3; object-fit: contain; display: block; border-radius: 6px; }
+/* 5語の画面の下部バー。体験にはボトムナビが無く、スクロールは #mainContent の中なので、TMDB の表示のすぐ上に置く */
+.vocab-action-bar.trial-bar { bottom: 10px; margin-top: 4px; }
 .trial-bar .vab-btn { padding: 13px 4px; }
 .trial-bar .vab-main { font-size: 14px; }
 /* TMDB の表示が画面の下に来るので、iPhone のホームバーと重ならないようにする（インラインの padding を上書き） */
 body:has(.trial-flow) .app-tmdb-footer { padding-bottom: calc(12px + env(safe-area-inset-bottom)) !important; }
-.trial-frames { display: flex; justify-content: center; align-items: flex-end; gap: 20px; margin-top: 4px; }
-.trial-frame { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.trial-frame .tcp-item { width: 52px; cursor: default; }
+.trial-frames { display: flex; justify-content: center; align-items: flex-end; gap: 20px; }
+.trial-frame { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.trial-frame .tcp-item { width: 40px; cursor: default; }
 .trial-frame .tcp-item:active { transform: none; }
 .trial-frame-blank { display: block; aspect-ratio: 2 / 3; background: var(--surface2); }
 .trial-frame-label { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+/* 背の低い iPhone（Safari の見える高さが約 640px 未満）: 余白と文字を詰める */
+@media (max-height: 640px) {
+  .trial-flow { padding: 10px 16px; gap: 6px; }
+  .trial-h { font-size: 18px; }
+  .trial-head { min-height: 126px; gap: 6px; }
+  .trial-grid { gap: 6px; }
+  .trial-poster img { height: clamp(50px, calc((100dvh - 322px) / 4), 120px); }
+  .trial-done-poster img { height: clamp(50px, calc(100dvh - 512px), 240px); }
+  .trial-frame .tcp-item { width: 28px; }
+  .trial-stage { padding: 8px 12px; }
+  .trial-level { padding: 10px 16px; }
+  .trial-cta { padding-top: 10px; padding-bottom: 10px; }
+  .app-tmdb-footer { font-size: 10px !important; padding-top: 6px !important; }
+}
 .trial-watch { font-size: 13px; color: var(--text); text-decoration: underline; text-underline-offset: 2px; margin-top: 8px; }
 
 /* 新規登録の同意の一文（AuthModal） */

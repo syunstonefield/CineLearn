@@ -185,8 +185,10 @@ test('ポスター: w342 固定・上に文字を重ねない作り（CSS は 40
   for (const t of TRIAL_TITLES) assert.match(posterUrl(t), /^https:\/\/image\.tmdb\.org\/t\/p\/w342\/[A-Za-z0-9]+\.jpg$/);
   const css = fs.readFileSync(new URL('../app/style.css', import.meta.url), 'utf8');
   const rule = (name) => css.slice(css.indexOf(name), css.indexOf('}', css.indexOf(name)));
-  assert.match(rule('.trial-poster {'), /width: 40vw; max-width: 160px/);
-  assert.match(rule('.trial-poster img {'), /aspect-ratio: 2 \/ 3; object-fit: contain/);
+  for (const name of ['.trial-poster img {', '.trial-done-poster img {']) {
+    assert.match(rule(name), /max-width: min\(40vw, 160px\)/, name);
+    assert.match(rule(name), /aspect-ratio: 2 \/ 3; object-fit: contain/, name);
+  }
 });
 
 test('流れ: ようこそ→レベル→案内→作品の順・ログインと規約はようこその画面に', () => {
@@ -209,10 +211,10 @@ test('流れ: ようこそ→レベル→案内→作品の順・ログインと
   assert.match(source('TrialAuthLinks.js'), /\{!loggedIn && \(/, '登録済みの人にログインを出さない');
 });
 
-test('内容の少ない画面は縦の中央・長い画面は上から・高さは min-height だけ（上が切れない）', () => {
+test('内容の少ない画面は縦の中央・ほかは上から・固定の高さを持たない（上が切れない）', () => {
   const flow = source('TrialFlow.js');
-  assert.equal(flow.match(/className="trial-flow[^"]*trial-fill"/g).length, 6, 'ようこそ・レベル・案内・完了・次の一歩2種');
-  assert.equal(flow.match(/className="trial-flow"/g).length, 2, '作品・5語');
+  assert.equal(flow.match(/className="trial-flow[^"]*trial-fill"/g).length, 4, 'ようこそ・完了・次の一歩2種');
+  assert.equal(flow.match(/className="trial-flow"/g).length, 4, 'レベル・案内・作品・5語は上から');
   const css = fs.readFileSync(new URL('../app/style.css', import.meta.url), 'utf8');
   const rule = (name) => css.slice(css.indexOf(name), css.indexOf('}', css.indexOf(name)));
   assert.match(rule('.trial-fill {'), /justify-content: center/);
@@ -243,11 +245,32 @@ test('5語の画面: 本番の下部バーの作りで下に固定・ボタン�
   assert.ok(!bar.includes('vab-close'), '✕を出さない');
   for (const ng of ['復習', '腕試し', '📖']) assert.ok(!bar.includes(ng), ng);
   const before = flow.slice(flow.indexOf("if (step === 'list')"), at);
-  assert.ok(before.includes('全部で{session.list.length}語あります'), '語数の行はバーより前');
+  assert.ok(before.indexOf('全部で{session.list.length}語あります') < before.indexOf('<VocabItem'), '語数の行は語の一覧より前（アドレスバーに隠れない）');
   const css = fs.readFileSync(new URL('../app/style.css', import.meta.url), 'utf8');
   const rule = (name) => css.slice(css.indexOf(name), css.indexOf('}', css.indexOf(name)));
-  assert.match(rule('.vocab-action-bar.trial-bar {'), /env\(safe-area-inset-bottom\)/);
+  assert.match(rule('body:has(.trial-flow) .app-tmdb-footer {'), /env\(safe-area-inset-bottom\)/);
   assert.ok(!rule('.vocab-action-bar.trial-bar {').includes('56px'), 'ボトムナビの分を引かない');
+});
+
+test('ページ全体を固定し、スクロールは #mainContent の中だけ（iPhone のアドレスバーでずれない）・入力欄の間は固定を外す', () => {
+  const css = fs.readFileSync(new URL('../app/style.css', import.meta.url), 'utf8');
+  const rule = (name) => css.slice(css.indexOf(name), css.indexOf('}', css.indexOf(name)));
+  const lock = rule('body:has(.trial-flow):not(:has(.auth-input)) {');
+  assert.match(lock, /position: fixed/);
+  assert.match(lock, /height: 100dvh/);
+  assert.match(lock, /overscroll-behavior: none/);
+  assert.match(rule('body:has(.trial-flow):not(:has(.auth-input)) #mainContent {'), /overflow-y: auto/);
+  assert.match(source('AuthModal.js'), /className="auth-input"/, '固定を外す目印');
+  assert.match(source('TrialFlow.js'), /getElementById\('mainContent'\)\?\.scrollTo/, '画面が変わったら先頭へ');
+});
+
+test('レベルと案内は同じ塊の高さで始める・作品の行全体が選ぶボタン', () => {
+  const flow = source('TrialFlow.js');
+  const at = (s) => flow.indexOf(`if (step === '${s}') {`);
+  for (const [a, b] of [['level', 'intro'], ['intro', 'pick']]) assert.match(flow.slice(at(a), at(b)), /<div className="trial-head">/, a);
+  const card = flow.slice(flow.indexOf('className="trial-card"'), flow.indexOf('</button>', flow.indexOf('className="trial-card"')));
+  assert.match(card, /<img src=\{posterUrl\(t\)\}/);
+  assert.ok(flow.indexOf('{PICK_NOTE}') < flow.indexOf('className="trial-card"'));
 });
 
 test('呼び名はチュートリアルに統一・効果をうたう言葉を書かない', () => {

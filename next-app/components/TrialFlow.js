@@ -30,7 +30,8 @@ import {
 // 初回体験（登録前に試す流れ・docs/design-first-run-trial-2026-11-05.md）。
 //   ようこそ → レベル → チュートリアルの案内 → 作品 → 5語 → 予習5枚 → クイズ3問 → 完了（登録／あとで）→ 次の一歩。
 //   画面に出す呼び名は「チュートリアル」に統一（オーナー決定 2026-11-05）。作品から先は各画面に「ステップ○/4」と一行の説明を出す。
-//   内容の少ない画面（trial-fill）は画面の縦の中央に置く。作品と5語は長いので上から並べる。
+//   ページ全体は動かさない（iPhone のアドレスバーの出入りで高さが変わると中身がずれる）。スクロールが要る時は #mainContent の中だけ。
+//   内容の少ない画面（trial-fill）は縦の中央、レベルと案内は上から同じ位置に並べる。作品選択と完了はポスターの高さで1画面に収める。
 //   案内の「3〜5分」はオーナーの実測で確定（ゆっくり通して5分未満・2026-11-05）。語数や画面を変えたら測り直す。
 //   VocabScreen を通さない＝サービス選択・TMDB の検索し直し・ロビーの待ち・★・手入力が最初から無い。
 //   予習とクイズは既存の PrepWalkthrough / PrepQuiz を meta.trial で使う（SRS・予習済み・EXP を書かない）。
@@ -89,7 +90,7 @@ export default function TrialFlow() {
   useEffect(() => {
     if (step === 'list') trackUsage('trial_list');
     if (step === 'next') trackUsage('trial_next');
-    window.scrollTo?.(0, 0);
+    document.getElementById('mainContent')?.scrollTo?.(0, 0); // 体験のスクロールは #mainContent の中（style.css）
   }, [step]);
 
   // 完了画面が出た時点で端末に保存する（登録はこのあと。SRS と予習済みは書かない）。
@@ -225,13 +226,15 @@ export default function TrialFlow() {
 
   if (step === 'level') {
     return (
-      <div className="trial-flow trial-fill">
+      <div className="trial-flow">
         <button type="button" className="trial-back" onClick={() => setStep('welcome')}>
           ← 戻る
         </button>
-        <h1 className="trial-h">あなたについて教えてください</h1>
-        <p className="trial-lead">いまの英語レベルは？</p>
-        <p className="trial-sub">レベルに合わせて、出す単語を変えます。点数は TOEIC の目安で、受けたことがなくても近いものを選べば大丈夫です。あとから変えられます。</p>
+        <div className="trial-head">
+          <h1 className="trial-h">あなたについて教えてください</h1>
+          <p className="trial-lead">いまの英語レベルは？</p>
+          <p className="trial-sub">レベルに合わせて、出す単語を変えます。点数は TOEIC の目安で、受けたことがなくても近いものを選べば大丈夫です。あとから変えられます。</p>
+        </div>
         <div className="trial-levels">
           {TRIAL_LEVELS.map((lv) => (
             <button key={lv.score} type="button" className="trial-level" onClick={() => chooseLevel(lv)}>
@@ -246,14 +249,21 @@ export default function TrialFlow() {
 
   if (step === 'intro') {
     return (
-      <div className="trial-flow trial-fill">
+      <div className="trial-flow">
         <button type="button" className="trial-back" onClick={() => setStep('level')}>
           ← 戻る
         </button>
-        <h1 className="trial-h">
-          ここからは<span className="trial-nowrap">チュートリアルに進みます</span>
-        </h1>
-        <p className="trial-sub">実際の作品の単語で、CineLearn の使い方を試します。</p>
+        <div className="trial-head">
+          <h1 className="trial-h">
+            ここからは<span className="trial-nowrap">チュートリアルに進みます</span>
+          </h1>
+          <p className="trial-sub">実際の作品の単語で、CineLearn の使い方を試します。</p>
+          <ul className="trial-facts">
+            <li>3〜5分ほどで終わります</li>
+            <li>動画は再生されません</li>
+            {!loggedIn && <li>登録するかは最後に選べます</li>}
+          </ul>
+        </div>
         <ol className="trial-stages">
           {TRIAL_STAGES.map((s) => (
             <li key={s.label} className="trial-stage">
@@ -262,11 +272,6 @@ export default function TrialFlow() {
             </li>
           ))}
         </ol>
-        <ul className="trial-facts">
-          <li>3〜5分ほどで終わります</li>
-          <li>動画は再生されません</li>
-          {!loggedIn && <li>登録するかは最後に選べます</li>}
-        </ul>
         <button
           type="button"
           className="btn-primary trial-cta"
@@ -298,19 +303,18 @@ export default function TrialFlow() {
         {error && <p className="trial-error">{error}</p>}
         <div className="trial-grid">
           {titles.map((t) => (
-            <div key={t.id} className="trial-card">
-              <button
-                type="button"
-                className="trial-poster"
-                onClick={() => chooseTitle(t)}
-                disabled={!!loadingId}
-                aria-label={`${t.label} を選ぶ`}
-              >
+            <button key={t.id} type="button" className="trial-card" onClick={() => chooseTitle(t)} disabled={!!loadingId}>
+              <span className="trial-poster">
                 <img src={posterUrl(t)} alt="" loading="lazy" />
-              </button>
-              <div className="trial-card-name">{loadingId === t.id ? '読み込み中…' : t.label}</div>
-              <div className="trial-card-reason">{t.reason}</div>
-            </div>
+              </span>
+              <span className="trial-card-text">
+                <span className="trial-card-name">{loadingId === t.id ? '読み込み中…' : t.label}</span>
+                <span className="trial-card-reason">{t.reason}</span>
+              </span>
+              <span className="trial-card-arrow" aria-hidden="true">
+                ›
+              </span>
+            </button>
           ))}
         </div>
         {moreTitles.length > 0 && (
@@ -361,6 +365,7 @@ export default function TrialFlow() {
           </div>
         </div>
         <p className="trial-sub">{TRIAL_STAGES[1].why}</p>
+        <p className="trial-count">全部で{session.list.length}語あります</p>
         {session.words.some((w) => cefrHintOf(w)) && <CefrNote />}
         <div className="vocab-list">
           {session.words.map((w, i) => (
@@ -379,7 +384,6 @@ export default function TrialFlow() {
             />
           ))}
         </div>
-        <p className="trial-count">全部で{session.list.length}語あります</p>
         {/* 本番の単語リストの下部バーと同じ作り（オーナー指摘）。下までスクロールしなくても押せる。✕と復習・クイズ・カードは出さない */}
         <div className="vocab-action-bar trial-bar">
           {walkDone ? (
