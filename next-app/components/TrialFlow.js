@@ -260,7 +260,7 @@ export default function TrialFlow() {
         <ul className="trial-facts">
           <li>3〜5分ほどで終わります</li>
           <li>動画は再生されません</li>
-          {!loggedIn && <li>登録は最後で大丈夫です</li>}
+          {!loggedIn && <li>登録するかは最後に選べます</li>}
         </ul>
         <button
           type="button"
@@ -288,6 +288,8 @@ export default function TrialFlow() {
         <div className="trial-step">{TRIAL_STAGES[0].title}</div>
         <h1 className="trial-h">迷ったらこの4作から</h1>
         <p className="trial-sub">{TRIAL_STAGES[0].why}</p>
+        {/* 法務の推奨: ポスターを押す前に見える位置（説明の直後） */}
+        <p className="trial-note">{PICK_NOTE}</p>
         {error && <p className="trial-error">{error}</p>}
         <div className="trial-grid">
           {titles.map((t) => (
@@ -319,7 +321,6 @@ export default function TrialFlow() {
             ))}
           </p>
         )}
-        <p className="trial-note">{PICK_NOTE}</p>
         <button type="button" className="trial-text-link trial-quit" onClick={finishTrial} disabled={!!loadingId}>
           チュートリアルをやめてホームへ
         </button>

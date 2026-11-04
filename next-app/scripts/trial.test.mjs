@@ -201,7 +201,9 @@ test('流れ: ようこそ→レベル→案内→作品の順・ログインと
   const intro = flow.slice(at('intro'), at('pick'));
   assert.match(intro, /ここからは<span className="trial-nowrap">チュートリアルに進みます/);
   assert.match(intro, /動画は再生されません/);
-  assert.match(intro, /\{!loggedIn && <li>登録は最後で大丈夫です<\/li>\}/, '登録済みの人には出さない');
+  assert.match(intro, /\{!loggedIn && <li>登録するかは最後に選べます<\/li>\}/, '登録済みの人には出さない（法務の文言）');
+  const pick = flow.slice(at('pick'));
+  assert.ok(pick.indexOf('{PICK_NOTE}') < pick.indexOf('trial-grid'), '提携していない旨はポスターより前（法務の推奨）');
   assert.match(source('TrialAuthLinks.js'), /\{!loggedIn && \(/, '登録済みの人にログインを出さない');
 });
 
