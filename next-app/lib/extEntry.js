@@ -1,44 +1,47 @@
-// 拡張の新規インストールで開いたタブの印（2026-11-04・docs/research-2026-11-new-user-dropoff.md）。
-//   extension/background.js が /app?from=ext_install を開く。印はタブの間だけ sessionStorage に移し、
-//   URL からは消す（再読み込みや URL の共有で別の人・別の機会に効かないように）。
-//   作品名・アカウントなどは含まない。この端末のこのタブの中だけで使う。
-const PARAM = 'from';
-const VALUE = 'ext_install';
-const KEY = 'cl_ext_install_entry';
+'use client';
 
-let memo = false; // sessionStorage が使えない時の控え
+// 拡張の導入直後に開く案内タブの印（2026-11-04・Chrome 拡張部門と合わせた形）。
+//   拡張は新規インストール時に https://cinelearn-next.vercel.app/app?from=ext_install を開く。
+//   アプリは起動時に1回だけ URL の印を読み、sessionStorage（このタブの間だけ）へ移してから
+//   history.replaceState で URL から消す（再読み込み・共有・ブックマークで二重に数えない）。
+//   * 読んで消すのは lib/usage.js initUsage（利用データ ext_install_open を1回数える）。
+//   * 画面側は isExtInstallEntry() で「拡張から来たタブか」を読める（利用統計を送らない設定でも印は残す）。
 
-function capture() {
-  const url = new URL(window.location.href);
-  if (url.searchParams.get(PARAM) !== VALUE) return;
-  memo = true;
-  try {
-    sessionStorage.setItem(KEY, '1');
-  } catch {
-    /* ignore */
-  }
-  url.searchParams.delete(PARAM);
-  window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
-}
+export const EXT_INSTALL_PARAM = 'from';
+export const EXT_INSTALL_VALUE = 'ext_install';
+export const EXT_INSTALL_SESSION_KEY = 'cl_ext_install_entry';
 
-// このタブは拡張のインストール直後に開かれたものか。何度呼んでもよい（SSR では false）。
-export function isExtInstallEntry() {
+// URL に印があれば sessionStorage へ移して URL から消す。印があった（＝今回初めて読んだ）時だけ true。
+export function takeExtInstallEntry() {
   if (typeof window === 'undefined') return false;
-  capture();
-  if (memo) return true;
   try {
-    return sessionStorage.getItem(KEY) === '1';
+    const url = new URL(window.location.href);
+    if (url.searchParams.get(EXT_INSTALL_PARAM) !== EXT_INSTALL_VALUE) return false;
+    url.searchParams.delete(EXT_INSTALL_PARAM);
+    try {
+      sessionStorage.setItem(EXT_INSTALL_SESSION_KEY, '1');
+    } catch {}
+    window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+    return true;
   } catch {
     return false;
   }
 }
 
-// 案内を閉じた時に呼ぶ。以後このタブでも通常の表示に戻る。
-export function clearExtInstallEntry() {
-  memo = false;
+// このタブは拡張の案内から開いたか（takeExtInstallEntry の後・再読み込みしても同じタブなら true）。
+export function isExtInstallEntry() {
+  if (typeof window === 'undefined') return false;
   try {
-    sessionStorage.removeItem(KEY);
+    return sessionStorage.getItem(EXT_INSTALL_SESSION_KEY) === '1';
   } catch {
-    /* ignore */
+    return false;
   }
+}
+
+// 案内を閉じた時に呼ぶ（components/Dashboard.js）。以後このタブでも通常の表示に戻る。
+export function clearExtInstallEntry() {
+  if (typeof window === 'undefined') return;
+  try {
+    sessionStorage.removeItem(EXT_INSTALL_SESSION_KEY);
+  } catch {}
 }

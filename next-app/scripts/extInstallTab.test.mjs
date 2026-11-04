@@ -6,7 +6,7 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
-import { clearExtInstallEntry, isExtInstallEntry } from '../lib/extEntry.js';
+import { clearExtInstallEntry, isExtInstallEntry, takeExtInstallEntry } from '../lib/extEntry.js';
 
 function loadBackground() {
   const opened = [];
@@ -66,28 +66,35 @@ beforeEach(() => {
   clearExtInstallEntry();
 });
 
-test('印つきで開くと true になり、URL から印だけ消える', () => {
+test('印つきで開くと1回だけ読めて、URL から印だけ消える', () => {
   const win = fakeBrowser('https://example.test/app?x=1&from=ext_install#top');
-  assert.equal(isExtInstallEntry(), true);
+  assert.equal(isExtInstallEntry(), false, '読む前はまだ false');
+  assert.equal(takeExtInstallEntry(), true);
   assert.equal(win.location.href, 'https://example.test/app?x=1#top');
+  assert.equal(takeExtInstallEntry(), false, '再読み込み相当では数え直さない');
   assert.equal(isExtInstallEntry(), true, 'URL から消えた後もタブの間は覚えている');
 });
 
 test('印なし・別の値では false。閉じたら戻る', () => {
   fakeBrowser('https://example.test/app?from=other');
+  assert.equal(takeExtInstallEntry(), false);
   assert.equal(isExtInstallEntry(), false);
   fakeBrowser('https://example.test/app?from=ext_install');
+  takeExtInstallEntry();
   assert.equal(isExtInstallEntry(), true);
   clearExtInstallEntry();
   assert.equal(isExtInstallEntry(), false);
 });
 
-test('sessionStorage が使えなくても、そのページの間は効く', () => {
-  fakeBrowser('https://example.test/app?from=ext_install');
+test('sessionStorage が使えなくても落ちず、通常の画面に戻る', () => {
+  const win = fakeBrowser('https://example.test/app?from=ext_install');
   globalThis.sessionStorage = {
     getItem() { throw new Error('blocked'); },
     setItem() { throw new Error('blocked'); },
     removeItem() { throw new Error('blocked'); },
   };
-  assert.equal(isExtInstallEntry(), true);
+  assert.equal(takeExtInstallEntry(), true);
+  assert.equal(win.location.href, 'https://example.test/app');
+  assert.equal(isExtInstallEntry(), false);
+  clearExtInstallEntry();
 });
