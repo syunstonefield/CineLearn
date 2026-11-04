@@ -4,17 +4,21 @@ import { useEffect, useState } from 'react';
 import { useApp } from './AppProvider';
 import { supaSignIn, supaSignUp, pullFromCloud } from '@/lib/supabase';
 import { isExtInstallEntry } from '@/lib/extEntry';
+import { shouldClearSeenFlagsOnSignup } from '@/lib/firstRun';
+import { loadProfiles } from '@/lib/storage';
 import { trackUsage } from '@/lib/usage';
 
 // ログイン／新規登録モーダル。リード文は「同期される」ことだけを伝える（旧「試作版・読み取り専用」文言は
 // 公開ターゲットが本番に確定した時点で実態と合わなくなったため撤去・A24(2)）。
 // ログイン成功時は pullFromCloud のみ（pushLocalToCloud は本番書き込みになるため移植しない）。
 export default function AuthModal() {
-  const { closeAuth, onLoggedIn } = useApp();
+  const { closeAuth, onLoggedIn, authMode, screen, settings, leaveTrialForAccount } = useApp();
+  const inTrial = screen === 'trial';
   // 拡張を入れた直後に開いたタブは「新規登録」から始める（ほとんどの人はまだアカウントが無い）。
   //   このモーダルはクライアントでだけ描画されるので、初期値で印を読める。
   const [extEntry] = useState(isExtInstallEntry);
-  const [mode, setMode] = useState(extEntry ? 'signup' : 'login'); // 'login' | 'signup'
+  //   openAuth({ mode }) で指定があればそのタブから（初回体験など）。
+  const [mode, setMode] = useState(authMode || (extEntry ? 'signup' : 'login')); // 'login' | 'signup'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -37,11 +41,15 @@ export default function AuthModal() {
 
     if (result?.access_token) {
       trackUsage(mode === 'signup' ? 'auth_signup' : 'auth_login');
-      // 新規登録＝まっさらなアカウント。「一度見た」系フラグを消して初回体験
-      // （アンケート・チュートリアル・拡張バナー）を必ず出す。前アカウントの
-      // 残留フラグでスキップされる事故の防止（signOut と同じリセット）。
+      // 新規登録＝まっさらなアカウント。「一度見た」系フラグを消して初回の流れを必ず出す。
+      // 前アカウントの残留フラグでスキップされる事故の防止（signOut と同じリセット）。
+      // ただし体験中・体験後・利用中のゲストは消さない＝旧アンケートと使い方を復活させない（lib/firstRun.js）。
       if (mode === 'signup') {
-        ['cl_onboarded', 'cl_tutorial_seen', 'cl_ext_banner_dismissed'].forEach((k) => {
+        const onboarded = !!settings?.onboarded || loadProfiles().some((p) => p?.settings?.onboarded);
+        const keys = shouldClearSeenFlagsOnSignup({ inTrial, onboarded })
+          ? ['cl_onboarded', 'cl_tutorial_seen', 'cl_ext_banner_dismissed']
+          : ['cl_ext_banner_dismissed'];
+        keys.forEach((k) => {
           try {
             localStorage.removeItem(k);
           } catch {
@@ -49,7 +57,9 @@ export default function AuthModal() {
           }
         });
       }
-      await pullFromCloud(); // 読み取り専用：クラウド → localStorage
+      // 読み取り専用：クラウド → localStorage。体験中に既存アカウントへ入る時は、そのアカウントのプロフィールで入り直す。
+      if (mode === 'login' && inTrial) await leaveTrialForAccount(() => pullFromCloud());
+      else await pullFromCloud();
       onLoggedIn();
     } else {
       setError(result?.error_description || result?.msg || 'エラーが発生しました');
@@ -72,7 +82,9 @@ export default function AuthModal() {
           </button>
         </div>
         <div className="auth-body">
-          {extEntry ? (
+          {inTrial && authMode === 'signup' ? (
+            <p className="auth-lead">登録して学習記録を残す</p>
+          ) : extEntry ? (
             <p className="auth-lead">
               拡張機能を追加しました。次はアプリへの登録（ログイン）です。そのあと、動画の字幕の単語をクリックすると保存できます。
               <br />
@@ -117,6 +129,20 @@ export default function AuthModal() {
           <button className="btn-primary" disabled={busy} onClick={submit}>
             {busy ? '処理中...' : mode === 'login' ? 'ログイン' : 'アカウントを作成'}
           </button>
+          {/* 法務指定の一文（2026-11-05・docs/design-first-run-trial-2026-11-05.md）。文言を変える時は法務へ。 */}
+          {mode === 'signup' && (
+            <p className="auth-consent">
+              登録すると、
+              <a href="/terms" target="_blank" rel="noopener">
+                利用規約
+              </a>
+              と
+              <a href="/privacy" target="_blank" rel="noopener">
+                プライバシーポリシー
+              </a>
+              に同意したものとみなします。
+            </p>
+          )}
           <div className="auth-divider">または</div>
           <button
             className="btn-secondary"

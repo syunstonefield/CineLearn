@@ -85,6 +85,7 @@ export default function Dashboard() {
     wordbookVersion,
     loggedIn,
     openAuth,
+    sessionExpired,
   } = useApp();
   // 今日の復習1回の語数＝復習タブ・ボトムナビのバッジと同じ（設定の語数・既定20語・無料）
   const plan = usePlan(loggedIn);
@@ -99,6 +100,7 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mounted, plan, reviewVersion, cloudVersion]);
   const [tick, setTick] = useState(0); // 再読込トリガ
+  const [expiredBandClosed, setExpiredBandClosed] = useState(false); // 期限切れの帯を閉じた（次に開くとまた出る）
   // 拡張機能の導入バナー（最初の関門対策で常設）。拡張未検出の判定はできないため、
   // インストール済みの人向けに×で消せる（消去は端末ローカルに記憶）。
   const [extBannerDismissed, setExtBannerDismissed] = useState(true); // SSR/初回は隠す
@@ -717,6 +719,18 @@ export default function Dashboard() {
 
   return (
     <div className="screen active" id="screen-main">
+      {/* ログインの期限切れ（起動時にログイン画面を出さない代わりの案内・初回体験の修正 D） */}
+      {sessionExpired && !loggedIn && !expiredBandClosed && (
+        <div className="ext-banner">
+          <span className="ext-banner-text">ログインの期限が切れました。ログインし直すと、単語や履歴の同期を再開できます</span>
+          <button className="ext-banner-btn" onClick={() => openAuth({ mode: 'login' })}>
+            ログイン →
+          </button>
+          <button className="ext-banner-close" onClick={() => setExpiredBandClosed(true)} aria-label="バナーを閉じる">
+            ✕
+          </button>
+        </div>
+      )}
       {extEntry && (
         <div className="ext-banner">
           <span className="ext-banner-icon" aria-hidden="true">🧩</span>

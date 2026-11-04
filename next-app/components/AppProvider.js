@@ -15,13 +15,17 @@ import {
   ensureFreshSession,
   pullFromCloud,
   isLoggedIn,
+  getSession,
   supaSignOut,
   clearSession,
   deleteProfileRow,
 } from '@/lib/supabase';
 import { recommendedToDrama } from '@/lib/recommended';
 import { forgetHubScroll } from '@/lib/hubScroll';
-import { markTrialFinished } from '@/lib/trialState';
+import { PROFILES_AT_KEY } from '@/lib/profileMerge';
+import { markTrialFinished, hasFinishedTrial, TRIAL_KEYS } from '@/lib/trialState';
+import { firstRunScreen, startupAuth, trialSourceOf } from '@/lib/firstRun';
+import { isExtInstallEntry } from '@/lib/extEntry';
 
 // app.js のグローバル状態（selectedDrama / selectedSeason 等）に相当する共有状態。
 // 画面間（ダッシュボード / サービス選択 / 単語リスト）で参照・更新する。
@@ -105,6 +109,8 @@ export default function AppProvider({ children }) {
   const [wordbookVersion, setWordbookVersion] = useState(0); // 削除後のバッジ/一覧再集計
   // Supabase（読み取り専用）
   const [authOpen, setAuthOpen] = useState(false);
+  const [authMode, setAuthMode] = useState(null); // 開くタブ（'login' | 'signup'）。null は AuthModal の既定
+  const [sessionExpired, setSessionExpired] = useState(false); // ログインの期限切れ（ホームの帯で案内）
   const [loggedIn, setLoggedIn] = useState(false);
   const [cloudVersion, setCloudVersion] = useState(0); // pull 後のプロフィール再読込
   const [drama, setDrama] = useState(null); // selectedDrama
@@ -192,11 +198,19 @@ export default function AppProvider({ children }) {
         } else if (isLoggedIn()) {
           setLoggedIn(true);
         } else {
-          // 未ログイン（新規ユーザー＋セッション期限切れで実質ログアウトの人）には、
-          // 起動時にまずログイン/ようこそ画面を出す（方針: ログイン状態でない人にはログインを促す）。
-          // isLoggedIn() は期限切れで false を返すため、期限切れユーザーもここに入る。
-          // ※このモーダルはプロフィール選択に重なる。進む導線＝ログイン or「このデバイスのみで使う」。
-          setAuthOpen(true);
+          // 未ログイン：起動時にログイン画面は出さない（初回体験の修正 D・lib/firstRun.js）。
+          //   新規は体験へ、既存ゲストはホームへ（下の自動遷移エフェクトと selectProfile）。
+          //   期限切れはホームの帯、拡張から来た人は登録を先に。
+          const start = startupAuth({
+            hadSession: !!getSession()?.access_token,
+            extEntry: isExtInstallEntry(),
+            hasProfiles: loadProfiles().length > 0,
+          });
+          setSessionExpired(start.expired);
+          if (start.openAuth) {
+            setAuthMode(start.mode);
+            setAuthOpen(true);
+          }
         }
       } catch {
         /* オートログイン失敗は無視 */
@@ -213,9 +227,29 @@ export default function AppProvider({ children }) {
   }, []);
 
   // ログイン成功時（AuthModal から呼ぶ）：pull 済みデータを反映
+  // 体験中に既存アカウントへログインした時（AuthModal）。体験用の既定プロフィールを外してから取り込み、
+  //   クラウドにプロフィールがあれば、そちらで入り直す（自動遷移エフェクトが selectProfile する）。
+  //   残すと体験用のプロフィールが先頭に居座り、アカウントの設定と作品が見えなくなる。
+  //   クラウドに何も無ければ元に戻して体験を続ける。
+  const leaveTrialForAccount = useCallback(async (pull) => {
+    const before = localStorage.getItem('cl_profiles');
+    const beforeAt = localStorage.getItem(PROFILES_AT_KEY);
+    localStorage.removeItem('cl_profiles');
+    localStorage.removeItem(PROFILES_AT_KEY);
+    await pull();
+    if (loadProfiles().length > 0) {
+      setProfile(null);
+      return;
+    }
+    if (before) localStorage.setItem('cl_profiles', before);
+    if (beforeAt) localStorage.setItem(PROFILES_AT_KEY, beforeAt);
+  }, []);
+
   const onLoggedIn = useCallback(() => {
     setLoggedIn(true);
+    setSessionExpired(false);
     setAuthOpen(false);
+    setAuthMode(null);
     setCloudVersion((v) => v + 1);
   }, []);
 
@@ -264,8 +298,15 @@ export default function AppProvider({ children }) {
     };
   }, [refreshFromCloud]);
 
-  const openAuth = useCallback(() => setAuthOpen(true), []);
-  const closeAuth = useCallback(() => setAuthOpen(false), []);
+  // openAuth({ mode:'signup'|'login' }) でタブを指定できる。引数なし・onClick に直接渡す形は既定のまま。
+  const openAuth = useCallback((opts) => {
+    setAuthMode(opts?.mode === 'signup' || opts?.mode === 'login' ? opts.mode : null);
+    setAuthOpen(true);
+  }, []);
+  const closeAuth = useCallback(() => {
+    setAuthOpen(false);
+    setAuthMode(null);
+  }, []);
 
   const signOut = useCallback(async () => {
     // ログアウトはログイン中のみ可能（Header）。保存済みの単語・履歴はクラウドに残り、
@@ -296,8 +337,10 @@ export default function AppProvider({ children }) {
       'cl_onboarded',
       'cl_tutorial_seen',
       'cl_ext_banner_dismissed',
+      ...TRIAL_KEYS,
     ].forEach((k) => localStorage.removeItem(k));
     setLoggedIn(false);
+    setSessionExpired(false);
     setProfile(null);
     setScreen('profile-select');
     setCloudVersion((v) => v + 1);
@@ -325,10 +368,19 @@ export default function AppProvider({ children }) {
     // 初回オンボーディング未完了なら、ログイン状態に関わらず1回だけアンケートへ。
     // 既読は端末ローカル(cl_onboarded)でも判定する＝クラウド pull で settings.onboarded が
     // 消えても、この端末で一度完了していれば二度と出さない（毎回出るバグの修正）。
-    if (!s.onboarded && !hasOnboardedSeen()) {
-      setScreen('onboarding');
-      return;
-    }
+    // これから始める人は初回体験へ（新規アカウントの印 firstRunTrial・lib/firstRun.js）。
+    const loggedInNow = isLoggedIn();
+    const next = firstRunScreen({
+      onboarded: s.onboarded,
+      onboardedSeen: hasOnboardedSeen(),
+      trialDone: hasFinishedTrial(),
+      loggedIn: loggedInNow,
+      trialPending: s.firstRunTrial,
+      expired: !loggedInNow && !!getSession()?.access_token,
+    });
+    if (next === 'trial') startTrial({ source: trialSourceOf({ extEntry: isExtInstallEntry(), loggedIn: loggedInNow }) });
+    else setScreen(next);
+    if (next !== 'main') return;
     // ここに来るのはオンボーディング済みの人だけ。以前あった「TOEIC/サービス未入力なら設定ページを開く」は
     // 前の版で1問目をスキップした人を毎回設定へ飛ばしていたので外した（2026-11-01）。
     // 未入力でもレベルは既定の B1、おすすめはサービスで絞らない（lib/recommended.js）。
@@ -341,12 +393,20 @@ export default function AppProvider({ children }) {
     if (!trimmed) return;
     const profiles = loadProfiles();
     const color = AVATAR_COLORS[profiles.length % AVATAR_COLORS.length];
-    const p = { id: 'p_' + Date.now(), name: trimmed, color, settings: {} };
+    const p = { id: 'p_' + Date.now(), name: trimmed, color, settings: { firstRunTrial: true } };
     saveProfiles([...profiles, p]);
     setProfile(p);
-    setSettings({ ...DEFAULT_SETTINGS });
-    // 端末で既にオンボーディング済みなら（cl_profiles だけ消えた等）アンケートを出さない。
-    setScreen(hasOnboardedSeen() ? 'main' : 'onboarding');
+    setSettings({ ...DEFAULT_SETTINGS, firstRunTrial: true });
+    // 端末で既にオンボーディング済みなら（cl_profiles だけ消えた等）体験を出さない。
+    const loggedInNow = isLoggedIn();
+    const next = firstRunScreen({
+      onboardedSeen: hasOnboardedSeen(),
+      trialDone: hasFinishedTrial(),
+      loggedIn: loggedInNow,
+      trialPending: true,
+    });
+    if (next === 'trial') startTrial({ source: trialSourceOf({ extEntry: isExtInstallEntry(), loggedIn: loggedInNow }) });
+    else setScreen(next);
   }, []);
 
   // オンボーディング完了（既存 finishOnboarding 相当）：
@@ -739,6 +799,9 @@ export default function AppProvider({ children }) {
     wordbookVersion,
     bumpWordbook,
     authOpen,
+    authMode,
+    sessionExpired,
+    leaveTrialForAccount,
     openAuth,
     closeAuth,
     onLoggedIn,
