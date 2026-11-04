@@ -7412,7 +7412,7 @@ button.vj-cell { cursor: pointer; }
 .trial-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 12px; }
 .trial-card { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px; }
 .trial-poster { padding: 0; border: 0; background: none; cursor: pointer; width: 40vw; max-width: 160px; line-height: 0; }
-.trial-poster img { width: 100%; aspect-ratio: 2 / 3; object-fit: contain; display: block; border-radius: 6px; background: var(--border); }
+.trial-poster img { width: 100%; aspect-ratio: 2 / 3; object-fit: contain; display: block; border-radius: 6px; }
 .trial-poster:disabled { opacity: 0.6; cursor: default; }
 .trial-card-name { font-size: 15px; font-weight: 700; color: var(--text); }
 .trial-card-reason { font-size: 12px; line-height: 1.5; color: var(--text-muted); }
@@ -7434,5 +7434,5 @@ button.vj-cell { cursor: pointer; }
 .trial-count { font-size: 13px; text-align: center; color: var(--text-muted); margin: 4px 0 0; }
 .trial-cta { width: 100%; max-width: 360px; align-self: center; }
 .trial-done-poster { width: 40vw; max-width: 160px; line-height: 0; }
-.trial-done-poster img { width: 100%; aspect-ratio: 2 / 3; object-fit: contain; display: block; border-radius: 6px; background: var(--border); }
+.trial-done-poster img { width: 100%; aspect-ratio: 2 / 3; object-fit: contain; display: block; border-radius: 6px; }
 .trial-watch { font-size: 13px; color: var(--text); text-decoration: underline; text-underline-offset: 2px; margin-top: 8px; }

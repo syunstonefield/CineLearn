@@ -199,7 +199,7 @@ export default function TrialFlow() {
   if (step === 'pick') {
     return (
       <div className="trial-flow">
-        <button type="button" className="trial-back" onClick={() => setStep('level')}>
+        <button type="button" className="trial-back" onClick={() => setStep('level')} disabled={!!loadingId}>
           ← 戻る
         </button>
         <h1 className="trial-h">迷ったらこの4作から</h1>
@@ -235,7 +235,7 @@ export default function TrialFlow() {
           </p>
         )}
         <p className="trial-note">{PICK_NOTE}</p>
-        <button type="button" className="trial-text-link trial-quit" onClick={finishTrial}>
+        <button type="button" className="trial-text-link trial-quit" onClick={finishTrial} disabled={!!loadingId}>
           体験をやめてホームへ
         </button>
       </div>
