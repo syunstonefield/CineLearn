@@ -7,7 +7,7 @@
 import { NON_AFFILIATION } from '@/lib/legal';
 
 const CONTACT_EMAIL = 'cinelearn.202606@gmail.com';
-const UPDATED = '2026年10月30日';
+const UPDATED = '2026年11月5日'; // ⚠ 本番に出す日に合わせて直す（法務 2026-11-05・告知は不要）
 
 export const metadata = {
   title: '利用規約 — CineLearn',
@@ -128,7 +128,7 @@ export default function TermsPage() {
       <p>
         {/* 出典の正典は repo 直下の THIRD_PARTY_NOTICES.md（ライセンス原文・取得日つき）。文言は法務指定（2026-10-30）。
             表の作り方を変えたら lib/data/*.json の _modified・THIRD_PARTY_NOTICES.md・この節の3か所を同時に直す（法務ルール）。 */}
-        本サービスは、単語の難易度判定、単語リストと単語帳での難易度の目安の表示、および基礎語の除外のために、次の第三者が公開する語彙データを利用しています。
+        本サービスは、単語の難易度判定、単語リストと単語帳での難易度の目安の表示、学習の記録（あゆみ）での段階ごとの語数の表示、および基礎語の除外のために、次の第三者が公開する語彙データを利用しています。
         各データの権利は各権利者に帰属します。
       </p>
       <ul>
@@ -155,6 +155,7 @@ export default function TermsPage() {
         {/* 法務指定（2026-10-30）。「3. 禁止事項」の無断商用利用の禁止が Octanove 由来の値にかかると
             CC BY-SA 4.0 §2(a)(5)(B) の追加制限に当たりうるため、同ライセンスの条件が優先することを明記する。 */}
         単語リストと単語帳に表示する CEFR の目安は、上記の語彙表に該当する語はその段階を、該当しない語は AI による推定を示します。
+        学習の記録（あゆみ）に表示する段階ごとの語数も、この目安で数えています。
         Octanove Vocabulary Profile に由来する段階は CC BY-SA 4.0 の下にあり、本規約の定めにかかわらず、同ライセンスの条件に従って利用できます。
       </p>
 
