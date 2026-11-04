@@ -7436,3 +7436,7 @@ button.vj-cell { cursor: pointer; }
 .trial-done-poster { width: 40vw; max-width: 160px; line-height: 0; }
 .trial-done-poster img { width: 100%; aspect-ratio: 2 / 3; object-fit: contain; display: block; border-radius: 6px; }
 .trial-watch { font-size: 13px; color: var(--text); text-decoration: underline; text-underline-offset: 2px; margin-top: 8px; }
+
+/* 新規登録の同意の一文（AuthModal） */
+.auth-consent { margin-top: 8px; font-size: 11.5px; line-height: 1.6; color: var(--text-muted); text-align: center; }
+.auth-consent a { color: inherit; text-decoration: underline; }

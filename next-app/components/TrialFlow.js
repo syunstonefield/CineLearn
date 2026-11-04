@@ -46,7 +46,6 @@ export default function TrialFlow() {
   const [enabled, setEnabled] = useState(null);
   const [isMobile, setIsMobile] = useState(false);
   const [copied, setCopied] = useState(false);
-  const startedLoggedIn = useRef(loggedIn);
 
   useEffect(() => {
     trackUsage('trial_start');
@@ -58,9 +57,14 @@ export default function TrialFlow() {
       .catch(() => {});
   }, []);
 
-  // 完了画面から登録・ログインしたら次の一歩へ。最初の画面からのログインは起動の処理が画面を切り替える（ここでは何もしない）。
+  // 完了画面で新規登録したら次の一歩へ。完了画面に着いた時点で登録済みの人（最初の画面で登録した人・拡張から来た人）は
+  //   ここで飛ばさない＝完了画面を見せる。既存アカウントへのログインは起動の処理が画面を切り替える（ここでは何もしない）。
+  const loggedInOnDone = useRef(false);
+  const prevStep = useRef(step);
   useEffect(() => {
-    if (loggedIn && !startedLoggedIn.current && step === 'done') setStep('next');
+    if (step === 'done' && prevStep.current !== 'done') loggedInOnDone.current = loggedIn;
+    prevStep.current = step;
+    if (step === 'done' && loggedIn && !loggedInOnDone.current) setStep('next');
   }, [loggedIn, step]);
 
   useEffect(() => {
