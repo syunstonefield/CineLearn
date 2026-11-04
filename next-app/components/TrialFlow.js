@@ -8,6 +8,7 @@ import { saveHistoryEntry } from '@/lib/storage';
 import { watchSearchUrl } from '@/lib/prep';
 import { trackUsage } from '@/lib/usage';
 import { isMobileDevice } from '@/lib/device';
+import { isExtInstallEntry } from '@/lib/extEntry';
 import { markTrialLater } from '@/lib/trialState';
 import {
   TRIAL_LEVELS,
@@ -317,6 +318,28 @@ export default function TrialFlow() {
           {service} で探す
         </a>
         <p className="trial-note">配信状況は変わることがあります。本サービスは {service} と提携していません。</p>
+      </div>
+    );
+  }
+
+  // 拡張を入れた直後のタブ＝導入の案内は出さず、次にすることだけ伝える（ホームの帯と同じ文言・Dashboard）。
+  if (isExtInstallEntry()) {
+    return (
+      <div className="trial-flow trial-center">
+        <h1 className="trial-h">次は、観ながら単語を集めましょう</h1>
+        <p className="trial-sub">
+          {loggedIn
+            ? '動画の字幕の単語をクリックして「✓ 保存」を押すと、単語帳に入ります。'
+            : '保存した単語をアプリに届けるにはログインが必要です。'}
+        </p>
+        {!loggedIn && (
+          <button type="button" className="btn-primary trial-cta" onClick={signup}>
+            登録して学習記録を残す
+          </button>
+        )}
+        <button type="button" className={loggedIn ? 'btn-primary trial-cta' : 'trial-text-link trial-quit'} onClick={finishTrial}>
+          ホームへ
+        </button>
       </div>
     );
   }
