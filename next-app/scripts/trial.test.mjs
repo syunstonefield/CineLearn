@@ -207,6 +207,16 @@ test('流れ: ようこそ→レベル→案内→作品の順・ログインと
   assert.match(source('TrialAuthLinks.js'), /\{!loggedIn && \(/, '登録済みの人にログインを出さない');
 });
 
+test('内容の少ない画面は縦の中央・長い画面は上から・高さは min-height だけ（上が切れない）', () => {
+  const flow = source('TrialFlow.js');
+  assert.equal(flow.match(/className="trial-flow[^"]*trial-fill"/g).length, 6, 'ようこそ・レベル・案内・完了・次の一歩2種');
+  assert.equal(flow.match(/className="trial-flow"/g).length, 2, '作品・5語');
+  const css = fs.readFileSync(new URL('../app/style.css', import.meta.url), 'utf8');
+  const rule = (name) => css.slice(css.indexOf(name), css.indexOf('}', css.indexOf(name)));
+  assert.match(rule('.trial-fill {'), /justify-content: center/);
+  assert.ok(!/(^|[\s;{])height:/.test(rule('.trial-fill {')), '固定の高さを持たない');
+});
+
 test('呼び名はチュートリアルに統一・効果をうたう言葉を書かない', () => {
   const ui = source('TrialFlow.js').replace(/\{\/\*.*?\*\/\}/g, '').replace(/\/\/.*$/gm, '');
   assert.ok(!ui.includes('体験'), '画面に「体験」');

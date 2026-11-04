@@ -7401,13 +7401,18 @@ button.vj-cell { cursor: pointer; }
 }
 
 /* 初回体験（components/TrialFlow.js・2026-11-05）。ポスターは法務の条件で幅 40vw・PC 160px まで・2:3 のまま切らない・上に重ねない。 */
-.trial-flow { max-width: 560px; margin: 0 auto; padding: 24px 16px 32px; display: flex; flex-direction: column; gap: 12px; }
+.trial-flow { width: 100%; max-width: 560px; margin: 0 auto; padding: 24px 16px 32px; display: flex; flex-direction: column; gap: 12px; }
 .trial-center { align-items: center; text-align: center; }
 .trial-h { font-size: 22px; line-height: 1.35; margin: 0; color: var(--text); }
 .trial-nowrap { display: inline-block; }
 .trial-sub { font-size: 13px; color: var(--text-muted); margin: 0; line-height: 1.6; }
 .trial-back { align-self: flex-start; background: none; border: 0; padding: 0; font: inherit; font-size: 13px; color: var(--text-muted); cursor: pointer; }
-.trial-welcome { padding-top: 56px; gap: 16px; }
+/* 体験の画面は TMDB の表示を画面の下に置き、内容の少ない画面（trial-fill）を残りの高さの中央へ。
+   高さは min-height だけ＝内容が長ければ伸びて、上が切れない。 */
+body:has(.trial-flow) { display: flex; flex-direction: column; min-height: 100dvh; }
+body:has(.trial-flow) #mainContent { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.trial-fill { flex: 1; position: relative; justify-content: center; padding-top: 56px; padding-bottom: 56px; }
+.trial-fill > .trial-back { position: absolute; top: 24px; left: 16px; }
 .trial-logo { width: 72px; height: 72px; border-radius: 16px; }
 .trial-lead { font-size: 15px; font-weight: 700; color: var(--text); margin: 4px 0 0; }
 .trial-step { font-size: 13px; font-weight: 700; color: var(--accent); }

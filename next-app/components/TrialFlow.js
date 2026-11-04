@@ -29,6 +29,7 @@ import {
 // 初回体験（登録前に試す流れ・docs/design-first-run-trial-2026-11-05.md）。
 //   ようこそ → レベル → チュートリアルの案内 → 作品 → 5語 → 予習5枚 → クイズ3問 → 完了（登録／あとで）→ 次の一歩。
 //   画面に出す呼び名は「チュートリアル」に統一（オーナー決定 2026-11-05）。作品から先は各画面に「ステップ○/4」と一行の説明を出す。
+//   内容の少ない画面（trial-fill）は画面の縦の中央に置く。作品と5語は長いので上から並べる。
 //   案内の「3〜5分」は各画面の実際の文字量からの見積もり（読み飛ばして約2分半・全部読んで約5分・2026-11-05）。語数や画面を変えたら測り直す。
 //   VocabScreen を通さない＝サービス選択・TMDB の検索し直し・ロビーの待ち・★・手入力が最初から無い。
 //   予習とクイズは既存の PrepWalkthrough / PrepQuiz を meta.trial で使う（SRS・予習済み・EXP を書かない）。
@@ -198,7 +199,7 @@ export default function TrialFlow() {
 
   if (step === 'welcome') {
     return (
-      <div className="trial-flow trial-center trial-welcome">
+      <div className="trial-flow trial-center trial-fill">
         <img className="trial-logo" src="/icon-192.png" alt="" />
         <h1 className="trial-h">CineLearn へようこそ</h1>
         <p className="trial-sub">観たいドラマや映画の字幕から、英単語を学べるアプリです。観る前に予習して、観たあとに復習できます。</p>
@@ -220,7 +221,7 @@ export default function TrialFlow() {
 
   if (step === 'level') {
     return (
-      <div className="trial-flow">
+      <div className="trial-flow trial-fill">
         <button type="button" className="trial-back" onClick={() => setStep('welcome')}>
           ← 戻る
         </button>
@@ -241,7 +242,7 @@ export default function TrialFlow() {
 
   if (step === 'intro') {
     return (
-      <div className="trial-flow">
+      <div className="trial-flow trial-fill">
         <button type="button" className="trial-back" onClick={() => setStep('level')}>
           ← 戻る
         </button>
@@ -395,7 +396,7 @@ export default function TrialFlow() {
     const service = title.watchService;
     const canSignup = !loggedIn && trialSource !== 'extension';
     return (
-      <div className="trial-flow trial-center">
+      <div className="trial-flow trial-center trial-fill">
         <div className="trial-step">チュートリアルはここまでです</div>
         {posterUrl(title) && (
           <div className="trial-done-poster">
@@ -429,8 +430,8 @@ export default function TrialFlow() {
   // 拡張を入れた直後のタブ＝導入の案内は出さず、次にすることだけ伝える（ホームの帯と同じ文言・Dashboard）。
   if (isExtInstallEntry()) {
     return (
-      <div className="trial-flow trial-center">
-        <h1 className="trial-h">次は、観ながら単語を集めましょう</h1>
+      <div className="trial-flow trial-center trial-fill">
+        <h1 className="trial-h">次は、<span className="trial-nowrap">観ながら単語を集めましょう</span></h1>
         <p className="trial-sub">
           {loggedIn
             ? '動画の字幕の単語をクリックして「✓ 保存」を押すと、単語帳に入ります。'
@@ -450,8 +451,8 @@ export default function TrialFlow() {
 
   // 次の一歩（PC=拡張の案内、スマホ=PC で続ける）
   return (
-    <div className="trial-flow trial-center">
-      <h1 className="trial-h">次は、観ながら単語を集めましょう</h1>
+    <div className="trial-flow trial-center trial-fill">
+      <h1 className="trial-h">次は、<span className="trial-nowrap">観ながら単語を集めましょう</span></h1>
       {isMobile ? (
         <>
           <p className="trial-sub">字幕の単語をクリックして保存するのは、PC の Chrome 拡張機能で行います。スマホでは予習と復習ができます。</p>
