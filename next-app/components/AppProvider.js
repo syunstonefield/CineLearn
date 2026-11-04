@@ -328,9 +328,10 @@ export default function AppProvider({ children }) {
       setScreen('onboarding');
       return;
     }
+    // ここに来るのはオンボーディング済みの人だけ。以前あった「TOEIC/サービス未入力なら設定ページを開く」は
+    // 前の版で1問目をスキップした人を毎回設定へ飛ばしていたので外した（2026-11-01）。
+    // 未入力でもレベルは既定の B1、おすすめはサービスで絞らない（lib/recommended.js）。
     setScreen('main');
-    // 未設定（TOEIC/サービス未入力）なら設定ページを開く（オンボーディング代替）
-    if (!s.toeicScore || !(s.selectedServices || []).length) setScreen('settings');
   }, []);
 
   // 新規プロフィール作成 → オンボーディングへ（既存 startOnboarding 相当）
