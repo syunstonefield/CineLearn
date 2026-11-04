@@ -2,6 +2,9 @@
 // アプリ（lib/usage.js）とサーバー（lib/server/usage.js）・週次の表（seed/weekly-stats.mjs）で共有する
 // 「数えてよい項目の名前」と、送られてきた値の検査。依存なしの純関数（node のテストと seed から読む）。
 //   * 作品名・話の番号・単語・時刻は送らない（名前の一覧に無いものは捨てる）。
+//   * ★新しい種類の項目を足す時は、プライバシーポリシー（app/(marketing)/privacy/page.js「利用状況の統計」）と
+//     設定画面の説明（components/SettingsScreen.js「利用統計を送る」）の文言で読めるかを確認する。読めなければ
+//     足す前に法務部へ（2026-11-04 法務回答・受付経由）。
 
 export const USAGE_EVENTS = [
   'open', // アプリを開いた（ページの読み込みごと）

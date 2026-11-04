@@ -120,6 +120,10 @@ export default function AuthModal() {
           <p style={{ marginTop: 6, fontSize: 11.5, color: 'var(--text-muted)', textAlign: 'center' }}>
             ※ Chrome 拡張で保存した単語は同期されません
           </p>
+          {/* 法務指定の注記（2026-11-04・オーナー承認）。文言を変える時は法務へ。拡張部門の変更と合流する時に消さないこと。 */}
+          <p style={{ marginTop: 4, fontSize: 11.5, color: 'var(--text-muted)', textAlign: 'center' }}>
+            学習データはこの端末に保存します。利用統計は設定でオフにできます。
+          </p>
         </div>
       </div>
     </div>
