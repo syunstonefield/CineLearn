@@ -7054,6 +7054,19 @@ button.vj-cell { cursor: pointer; }
 .vj-lock { border: 1px solid var(--vj-warm-border); background: var(--vj-warm); border-radius: 14px; padding: 14px 16px; color: var(--vj-warm-ink); font-size: 13px; display: grid; gap: 6px; }
 .vj-lock b { color: var(--vj-ink); }
 
+/* 段階ごとの覚えた語（CEFR 目安別・案A 横棒・分母なし・2026-11-05） */
+.vj-cefr-rows { display: grid; gap: 8px; }
+.vj-cefr-row { display: grid; grid-template-columns: 34px 1fr 52px; align-items: center; gap: 10px; }
+.vj-cefr-lv { font-size: 13px; font-weight: 700; letter-spacing: .02em; color: var(--vj-soft); font-variant-numeric: tabular-nums; }
+.vj-cefr-bar { position: relative; height: 12px; border-radius: 999px; background: var(--vj-grid); overflow: hidden; }
+.vj-cefr-bar > i, .vj-cefr-bar > b { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 999px; transition: width .6s cubic-bezier(.2,.7,.2,1); }
+.vj-cefr-bar > i { background: var(--vj-learned); }
+.vj-cefr-bar > b { background: var(--vj-mastered); }
+.vj-cefr-n { font-size: 14px; text-align: right; color: var(--vj-ink); font-variant-numeric: tabular-nums; }
+.vj-cefr-row.is-empty .vj-cefr-lv, .vj-cefr-row.is-empty .vj-cefr-n { color: var(--vj-muted); } /* 0 の段階は薄く（赤や警告色にしない） */
+.vj-cefr .cefr-note { margin-top: 2px; }
+@media (prefers-reduced-motion: reduce) { .vj-cefr-bar > i, .vj-cefr-bar > b { transition: none; } }
+
 @media (max-width: 640px) {
   .vj-screen { padding: 12px 16px 24px; }
   .vj-card { padding: 16px 14px; }

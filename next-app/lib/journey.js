@@ -32,6 +32,12 @@ export const JOURNEY = {
       if (mastered > 0) parts.push(`マスターは ${mastered}語`);
       return parts.length ? `この${weeks}週で、${parts.join('、')}ふえました。` : '';
     },
+    // 段階ごとの覚えた語（CEFR 目安別・案A 横棒・オーナー 2026-11-05）。本人の段階は言わない・割合/残りは出さない。
+    cefrTitle: '段階ごとの覚えた語',
+    cefrSub: 'CEFR目安',
+    cefrLearned: '覚えた',
+    cefrMastered: 'うち マスター',
+    cefrNone: '目安の付かない語（句動詞など）は含みません', // 法務承認文（2026-11-05）。語数は添えない（添えるなら法務へ）
     trendLocked:
       '覚えた語・マスターした語が週ごとにどう増えたかと、その週に思い出せた数をグラフで見られます。学習の記録はこれまで通り残り続けます。',
   },

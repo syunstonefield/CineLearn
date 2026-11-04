@@ -1135,6 +1135,7 @@ export function collectRingWords(
       season: src?.season ?? null,
       episode: src?.episode ?? null,
       level: w.level || null,
+      levelShown: w.levelShown || null, // 表の段階（字幕由来の語・10/30 以降のリスト）。あゆみの段階別集計（lib/journeyCefr.js）用
       pos: w.pos || null,
       isPhrase: /\s/.test(String(w.word).trim()),
       state,

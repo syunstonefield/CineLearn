@@ -14,6 +14,7 @@ export const USAGE_EVENTS = [
   'journey_tab', // あゆみを下のタブ（など）から開いた
   'journey_grass', // ホームの「学習した日」からあゆみを開いた
   'trend_seen', // 週ごとの推移が画面に表示された
+  'journey_cefr_seen', // 段階ごとの覚えた語（CEFR 目安別）のカードが画面に表示された（半分以上・開くたび1回・2026-11-05・ポリシー文言は法務④の回答待ち）
   'list_open', // 話の単語リストが画面に出た
   'walk_start', // 予習カードを始めた
   'walk_core', // 重要語（最初の最大15枚）を見終えた
