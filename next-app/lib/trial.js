@@ -4,7 +4,10 @@
 //   - ポスターは作品ごとに固定（posterPath・オーナー確認済み）。1人の顔のアップが主役のものを避ける。俳優名を出さない。
 //   - reason は学習面の事実だけ。「人気」「いま話題」「おすすめ No.1」「公式」「配信中」「Netflix」「独占」「オリジナル」は書かない。
 //     作品選択の画面に出るので、ここに配信サービスの名前を入れない（配信先は watchService に分ける）。
-//   - watchService は月1回とカタログ更新時に確認する（TMDB/JustWatch の値・2026-11-05 確認）。
+//   - watchService の確認は作品・予習部門の担当。月1回とカタログ更新時に確認する（TMDB/JustWatch の値・最終確認 2026-11-05）。
+//     表示は作品ごとの watchService から「○○ で探す」の文字ボタンと「本サービスは ○○ と提携していません」を出す（ロゴとブランドの色なし）。
+//   - Stranger Things の「第1話は4作の中で易しい語の割合が高め」は vocab_cache の第1話の実測に基づく比較（2026-11-05）。
+//     リストを作り直して順位が変わったら、この文を見直す。
 // 語はオーナー確定（2026-11-05）。quiz は words の中の3語。語を変える時はオーナーに確認する。
 import { exampleContainsWord } from './subtitles';
 import { buildQuizQuestions } from './prep';
@@ -47,7 +50,7 @@ export const TRIAL_TITLES = [
     label: 'Friends',
     posterPath: '/x8W8I6J8HxPwuYqkMUFuqhWdpUm.jpg',
     watchService: 'Netflix',
-    reason: '友人どうしの日常の会話。1話が約20分の短い作品です',
+    reason: '友人どうしの日常の会話。1話が約23分の短い作品です',
     bands: {
       low: { words: ['flavor', 'crush', 'calm', 'cancel', 'furniture'], quiz: ['flavor', 'crush', 'calm'] },
       high: { words: ['upbeat', 'metaphor', 'fixate', 'symbolic', 'vulnerability'], quiz: ['upbeat', 'metaphor', 'fixate'] },
@@ -63,7 +66,7 @@ export const TRIAL_TITLES = [
     label: 'Stranger Things',
     posterPath: '/uOOtwVbSr4QDjAGIifLDwpb2Pdl.jpg',
     watchService: 'Netflix',
-    reason: '子どもたちと町の人の会話。4作の中で易しい語の割合が高めです',
+    reason: '子どもたちと町の人の会話。第1話は4作の中で易しい語の割合が高めです',
     bands: {
       low: { words: ['trust', 'appreciate', 'interrupt', 'ruin', 'flashlight'], quiz: ['trust', 'appreciate', 'interrupt'] },
       high: { words: ['sensitive', 'shift', 'nightmare', 'volunteer', 'campaign'], quiz: ['sensitive', 'shift', 'nightmare'] },
