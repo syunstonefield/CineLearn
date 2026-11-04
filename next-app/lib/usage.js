@@ -12,10 +12,11 @@ import { authHeaders } from './api';
 import { getDeviceKey } from './device';
 import { loadSrs, todayStr, isDue } from './storage';
 import { isUsageEvent, hasExtSavedWord } from './usageEvents';
-import { takeExtInstallEntry } from './extEntry';
+import { takeExtInstallEntry, isExtInstallEntry } from './extEntry';
 
 const TALLY_KEY = 'cl_usage_tally';
 const EXT_SEEN_KEY = 'cl_usage_ext_seen'; // 拡張で保存した語を一度でも見た端末（ext_first_save を1回だけにする）
+const EXT_ENTRY_COUNTED_KEY = 'cl_usage_ext_entry_counted'; // このタブで ext_install_open を数えた印（sessionStorage）
 export const USAGE_OPTOUT_KEY = 'cl_usage_optout';
 const FLUSH_EVERY_MS = 60 * 60 * 1000;
 
@@ -130,10 +131,21 @@ export function noteExtWordsOnce() {
   return true;
 }
 
-// 入口の印（/app?from=ext_install・lib/extEntry.js）。URL から外せた時だけ数える＝再読み込み・ブックマークでは数えない。
+// 入口の印（/app?from=ext_install・lib/extEntry.js）。タブごとに1回だけ数える。
+//   印は URL から読む（takeExtInstallEntry）か、先に別の処理（AppProvider の起動 effect）が sessionStorage へ移して
+//   いればそこから読む＝どちらが先に URL を読んでも数え漏れない。数えた印も sessionStorage に置く＝同じタブの
+//   再読み込み・別のクエリ付きの開き直しでは数えない（ブックマークは URL の印が消えているので元々数えない）。
 //   利用統計を送らない設定でも印は sessionStorage へ移す（画面側が使う）。
 function noteEntryParam() {
-  if (takeExtInstallEntry()) trackUsage('ext_install_open');
+  const fresh = takeExtInstallEntry();
+  if (!fresh && !isExtInstallEntry()) return;
+  try {
+    if (sessionStorage.getItem(EXT_ENTRY_COUNTED_KEY) === '1') return;
+    sessionStorage.setItem(EXT_ENTRY_COUNTED_KEY, '1');
+  } catch {
+    if (!fresh) return; // sessionStorage が使えない環境では URL から読めた時だけ
+  }
+  trackUsage('ext_install_open');
 }
 
 // アプリの起動時に1回（AppProvider）。開いた回数を数え、送るきっかけを仕掛ける。戻り値＝後片付け。
