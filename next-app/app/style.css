@@ -7445,6 +7445,12 @@ body:has(.trial-flow) #mainContent { flex: 1; min-height: 0; display: flex; flex
 .trial-cta { width: 100%; max-width: 360px; align-self: center; }
 .trial-done-poster { width: 40vw; max-width: 160px; line-height: 0; }
 .trial-done-poster img { width: 100%; aspect-ratio: 2 / 3; object-fit: contain; display: block; border-radius: 6px; }
+.trial-frames { display: flex; justify-content: center; align-items: flex-end; gap: 20px; margin-top: 4px; }
+.trial-frame { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.trial-frame .tcp-item { width: 52px; cursor: default; }
+.trial-frame .tcp-item:active { transform: none; }
+.trial-frame-blank { display: block; aspect-ratio: 2 / 3; background: var(--surface2); }
+.trial-frame-label { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
 .trial-watch { font-size: 13px; color: var(--text); text-decoration: underline; text-underline-offset: 2px; margin-top: 8px; }
 
 /* 新規登録の同意の一文（AuthModal） */

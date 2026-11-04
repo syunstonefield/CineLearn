@@ -15,6 +15,7 @@ import { trackUsage } from '@/lib/usage';
 import { isMobileDevice } from '@/lib/device';
 import { isExtInstallEntry } from '@/lib/extEntry';
 import { markTrialLater } from '@/lib/trialState';
+import { FRAME_TIERS } from '@/lib/ticketFrame';
 import {
   TRIAL_LEVELS,
   TRIAL_MORE_TITLES,
@@ -30,7 +31,7 @@ import {
 //   ようこそ → レベル → チュートリアルの案内 → 作品 → 5語 → 予習5枚 → クイズ3問 → 完了（登録／あとで）→ 次の一歩。
 //   画面に出す呼び名は「チュートリアル」に統一（オーナー決定 2026-11-05）。作品から先は各画面に「ステップ○/4」と一行の説明を出す。
 //   内容の少ない画面（trial-fill）は画面の縦の中央に置く。作品と5語は長いので上から並べる。
-//   案内の「3〜5分」は各画面の実際の文字量からの見積もり（読み飛ばして約2分半・全部読んで約5分・2026-11-05）。語数や画面を変えたら測り直す。
+//   案内の「3〜5分」はオーナーの実測で確定（ゆっくり通して5分未満・2026-11-05）。語数や画面を変えたら測り直す。
 //   VocabScreen を通さない＝サービス選択・TMDB の検索し直し・ロビーの待ち・★・手入力が最初から無い。
 //   予習とクイズは既存の PrepWalkthrough / PrepQuiz を meta.trial で使う（SRS・予習済み・EXP を書かない）。
 //   途中で閉じたら5語の画面に戻る。途中でやめる人はホームへ（再訪時の続きは第一版では作らない）。
@@ -44,6 +45,9 @@ import {
 const PICK_NOTE = '作品はご自身が契約する配信サービスでご覧ください。本サービスは作品の権利者・配信サービスと提携していません。';
 const DONE_NOTE = 'ポスター画像は作品を見分けるための表示です（画像：TMDB）。作品の権利者・配信サービスとは提携していません。';
 const DONE_NOTE_NO_POSTER = '作品の権利者・配信サービスとは提携していません。'; // ポスターを出さない文字リンクの2作
+// 完了画面のコレクションの説明（法務確定 2026-11-05）。枠の見本は無地のカードだけ＝ポスターを見本に使わない・枠を付けない。
+const COLLECTION_NOTE = '単語リストを開くと、コレクションに学習記録が追加されます。学習が進むと、記録の枠が豪華になります。';
+const FRAME_NOTE = '覚えた語の割合で変わります。';
 
 // 体験の語は VocabItem を読み取り専用で使う（SRS を渡さない＝未学習のまま・★と削除は渡さないので出ない）。
 const NO_SRS = {};
@@ -405,6 +409,24 @@ export default function TrialFlow() {
         )}
         <h1 className="trial-h">「{title.title}」の学習記録をコレクションに追加しました</h1>
         <p className="trial-note">{posterUrl(title) ? DONE_NOTE : DONE_NOTE_NO_POSTER}</p>
+        <p className="trial-sub">{COLLECTION_NOTE}</p>
+        <div className="trial-frames">
+          {FRAME_TIERS.slice(1).map((t) => (
+            <div key={t.key} className="trial-frame">
+              <div className={'tcp-item frame-' + t.key}>
+                <span className="tcp-frame">
+                  <span className="tcp-mat">
+                    <span className="trial-frame-blank" />
+                  </span>
+                </span>
+              </div>
+              <span className="trial-frame-label">
+                {t.label} {t.min}%
+              </span>
+            </div>
+          ))}
+        </div>
+        <p className="trial-note">{FRAME_NOTE}</p>
         {canSignup ? (
           <>
             <button type="button" className="btn-primary trial-cta" onClick={signup}>

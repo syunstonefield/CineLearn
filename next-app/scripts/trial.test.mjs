@@ -145,7 +145,9 @@ test('5語は本番の VocabItem を読み取り専用で使う（SRS・単語�
   const vi = source('VocabItem.js');
   assert.match(vi, /\{!readOnly && \(\s*<button\s+className=\{'btn-srs-skip'/, 'readOnly では Skip を出さない');
   assert.match(vi, /badge && !readOnly/, 'readOnly では状態の印を出さない');
-  for (const ng of ['Skip', 'srs-bar', '覚えた', 'マスター']) assert.ok(!flow.replace(/^\s*\/\/.*$/gm, '').includes(ng), `体験に「${ng}」を出さない`);
+  // 「覚えた語の割合で変わります。」は枠の基準の説明（法務確定の文言）。語の状態としては出さない
+  const noFrameNote = flow.replace(/^\s*\/\/.*$/gm, '').replace('覚えた語の割合で変わります。', '');
+  for (const ng of ['Skip', 'srs-bar', '覚えた', 'マスター']) assert.ok(!noFrameNote.includes(ng), `体験に「${ng}」を出さない`);
 });
 
 test('体験では予習済み・EXP・PrepLaunch を通らない', () => {
@@ -159,7 +161,7 @@ test('体験では予習済み・EXP・PrepLaunch を通らない', () => {
 
 test('書かない言葉（法務）: 作品データと体験の画面', () => {
   const ui = source('TrialFlow.js').replace(/^\s*\/\/.*$/gm, '');
-  for (const ng of ['獲得', 'もらえる', '限定', 'コンプリート', '公式', '配信中', 'いま話題', '独占', 'オリジナル', 'おすすめ', '人気']) {
+  for (const ng of ['獲得', 'もらえる', '限定', 'コンプリート', 'レア', '公式', '配信中', 'いま話題', '独占', 'オリジナル', 'おすすめ', '人気']) {
     assert.ok(!ui.includes(ng), `画面に「${ng}」`);
     for (const t of [...TRIAL_TITLES, ...TRIAL_MORE_TITLES]) assert.ok(!t.reason.includes(ng), `${t.id} の理由に「${ng}」`);
   }
@@ -215,6 +217,21 @@ test('内容の少ない画面は縦の中央・長い画面は上から・高�
   const rule = (name) => css.slice(css.indexOf(name), css.indexOf('}', css.indexOf(name)));
   assert.match(rule('.trial-fill {'), /justify-content: center/);
   assert.ok(!/(^|[\s;{])height:/.test(rule('.trial-fill {')), '固定の高さを持たない');
+});
+
+test('完了画面: コレクションの説明は法務の文言・枠の見本にポスターを使わない・基準は lib/ticketFrame と同じ', async () => {
+  const flow = source('TrialFlow.js');
+  assert.ok(flow.includes('単語リストを開くと、コレクションに学習記録が追加されます。学習が進むと、記録の枠が豪華になります。'));
+  assert.ok(flow.includes("'覚えた語の割合で変わります。'"));
+  const at = flow.indexOf('<div className="trial-frames">');
+  const sample = flow.slice(at, flow.indexOf('{FRAME_NOTE}', at));
+  assert.ok(at > 0);
+  assert.ok(!/posterUrl|<img/.test(sample), '見本にポスターを使わない');
+  assert.match(sample, /FRAME_TIERS\.slice\(1\)/, '黒縁・銀縁・金縁の3つ');
+  assert.match(flow, /posterUrl\(title\) \? DONE_NOTE : DONE_NOTE_NO_POSTER/, '法務指定の1行は残す');
+  const tiers = fs.readFileSync(new URL('../lib/ticketFrame.js', import.meta.url), 'utf8');
+  for (const m of [`label: '黒縁', min: 30`, `label: '銀縁', min: 60`, `label: '金縁', min: 90`]) assert.ok(tiers.includes(m), m);
+  assert.ok(flow.includes('3〜5分ほどで終わります'), 'オーナーの実測で確定');
 });
 
 test('呼び名はチュートリアルに統一・効果をうたう言葉を書かない', () => {
