@@ -30,6 +30,17 @@ export const ONBOARDING = [
   ['ob_plan', 'プラン提示'],
   ['ob_done', '完了'],
 ];
+// 新規の人がどこで離れるか（2026-11-04〜）。⑦は「初めて開いた週」の人だけ、⑧は全員。
+export const NEW_USER_STEPS = [
+  ['auth_shown', 'ログイン画面'],
+  ['auth_signup', '新規登録'],
+  ['auth_login', 'ログイン'],
+  ['auth_local', 'このデバイスのみ'],
+  ['work_select', '作品を選んだ'],
+  ['list_open', 'リストを開いた'],
+  ['ext_install_open', '拡張から来た'],
+  ['ext_first_save', '拡張で初保存'],
+];
 // 初めて復習する語の無料の上限（lib/storage.js NEW_WORDS_DAILY_FREE と同値。判断の目安の表示用）
 export const NEW_WORDS_FREE = 20;
 
@@ -73,6 +84,7 @@ export function buildUsageReport(rows, { today, weeks = 8 } = {}) {
   const funnel = [];
   const review = [];
   const onboarding = [];
+  const entry = [];
   for (const win of wins) {
     const rs = weekRows(rows, win);
     const label = `${win.from.slice(5)}〜${win.to.slice(5)}`;
@@ -122,6 +134,11 @@ export function buildUsageReport(rows, { today, weeks = 8 } = {}) {
     }
     for (let q = 2; q <= 5; q++) ob[`スキップ${q}`] = usersOf(`ob_skip_q${q}`).size;
     onboarding.push(ob);
+
+    // ⑧ 入口とログイン画面（全員・人数（開いた人の%）／回数）
+    const en = { 週: label, 開いた人: people.size };
+    for (const [k, name] of NEW_USER_STEPS) en[name] = `${usersOf(k).size}人 ${pct(usersOf(k).size, people.size)} / ${timesOf(k)}回`;
+    entry.push(en);
   }
 
   // ③の下: 抜けた場所（表示した全期間の合計）。段階×（何割まで／抜け方）
@@ -151,7 +168,47 @@ export function buildUsageReport(rows, { today, weeks = 8 } = {}) {
       o[HOW[e.how]] += n;
     }
   }
-  return { plus, funnel, exits, review, onboarding };
+  return { plus, funnel, exits, review, onboarding, entry, newUsers: buildNewUsers(rows, wins, today) };
+}
+
+// ⑦ 新規の人（初めて開いた週ごと）。rows の中で最初に現れた日＝初めて開いた日。
+//   ★rows は表の期間より1週前から渡す（seed/weekly-stats.mjs）＝表の一番古い週の人が「前の週から使っていた人」
+//     でないことを確かめるため（それより前は見えない＝120日より前から使っていた人は新規に混ざり得る）。
+//   ★「このデバイスのみ」で始めて後日ログインした人は番号が変わる＝別の新規の人として2回数える（設計上の誤差）。
+//   各段階は「その人がいつかやったか」（初めての週の中に限らない）。翌日再訪＝初めての日の翌日に行がある、
+//   7日内再訪＝翌日〜7日後のどこかに行がある。まだ日が来ていない週は（集計中）。
+export function buildNewUsers(rows, wins, today) {
+  const first = new Map(); // p → 初めての日
+  const days = new Map(); // p → Set(日)
+  const did = new Map(); // p → Set(項目)
+  for (const r of rows) {
+    if (!first.has(r.p) || r.day < first.get(r.p)) first.set(r.p, r.day);
+    if (!days.has(r.p)) days.set(r.p, new Set());
+    days.get(r.p).add(r.day);
+    if (!did.has(r.p)) did.set(r.p, new Set());
+    for (const [k, n] of Object.entries(r.c)) if (n > 0) did.get(r.p).add(k);
+  }
+  return wins.map((win) => {
+    const label = `${win.from.slice(5)}〜${win.to.slice(5)}`;
+    const ps = [...first.entries()].filter(([, d]) => d >= win.from && d <= win.to).map(([p]) => p);
+    const n = ps.length;
+    const o = { 週: label, 新規の人: n };
+    for (const [k, name] of NEW_USER_STEPS) {
+      const u = ps.filter((p) => did.get(p).has(k)).length;
+      o[name] = `${u} ${pct(u, n)}`;
+    }
+    const back = (p, from, to) => {
+      const f = first.get(p);
+      const ds = days.get(p);
+      for (let i = from; i <= to; i++) if (ds.has(addDays(f, i))) return true;
+      return false;
+    };
+    const d1 = ps.filter((p) => back(p, 1, 1)).length;
+    const d7 = ps.filter((p) => back(p, 1, 7)).length;
+    o['翌日再訪'] = addDays(win.to, 1) <= today ? `${d1} ${pct(d1, n)}` : `${d1}（集計中）`;
+    o['7日内再訪'] = addDays(win.to, 7) <= today ? `${d7} ${pct(d7, n)}` : `${d7}（集計中）`;
+    return o;
+  });
 }
 
 // ⑤ 月の新規生成（genMonth＝[{ month, counts:[1人ごとの話数] }]）
@@ -186,10 +243,19 @@ export function usageHints(report, rows, { today } = {}) {
   for (const r of rs) if (r.r && r.r.n > NEW_WORDS_FREE) over.set(r.p, (over.get(r.p) || 0) + 1);
   const heavy = [...over.values()].filter((n) => n >= 4).length;
   const reviewers = new Set(rs.filter((r) => r.r && r.r.n + r.r.c > 0).map((r) => r.p)).size;
-  return [
+  const nu = report.newUsers?.[0];
+  const pick = (name) => Number(String(nu?.[name] ?? '0').split(' ')[0]) || 0;
+  const n = nu?.新規の人 || 0;
+  const lines = [
     `直近の週: プラスの機能を1つでも使った人 ${anyPlus}/${people}（${pct(anyPlus, people)}）＝払う割合の上限の目安`,
     `直近の週: 初めて復習する語が${NEW_WORDS_FREE}語を超えた日が4日以上ある人 ${heavy}/${reviewers}（${pct(heavy, reviewers)}）＝正式版で上限をよく感じる人`,
   ];
+  if (nu) {
+    lines.push(
+      `直近の週に初めて開いた人 ${n}: ログイン画面を見た ${pick('ログイン画面')}・新規登録 ${pick('新規登録')}・このデバイスのみ ${pick('このデバイスのみ')}・作品を選んだ ${pick('作品を選んだ')}・拡張で初保存 ${pick('拡張で初保存')}（翌日・7日内の再訪は⑦）`
+    );
+  }
+  return lines;
 }
 
 // --csv 用（1行＝1人＋端末×1日）。項目は列に展開（無い項目は 0）。

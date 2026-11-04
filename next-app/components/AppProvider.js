@@ -10,8 +10,7 @@ import {
 } from '@/lib/storage';
 import { addStudySeconds, addDramaStudySeconds } from '@/lib/studytime';
 import { applyTheme, getThemePref } from '@/lib/theme';
-import { initUsage, trackUsage } from '@/lib/usage';
-import { takeExtInstallEntry } from '@/lib/extEntry';
+import { initUsage, trackUsage, noteExtWordsOnce } from '@/lib/usage';
 import {
   ensureFreshSession,
   pullFromCloud,
@@ -172,10 +171,13 @@ export default function AppProvider({ children }) {
 
   // ベータの利用データ（lib/usage.js・設定で止められる）。開いた回数を数え、送るきっかけを仕掛ける。
   useEffect(() => initUsage(), []);
+  // 拡張で保存した語がこの端末に初めて届いたか（クラウド取込＝cloudVersion が進むたびに単語帳を見る・1回だけ数える）。
+  useEffect(() => {
+    if (cloudVersion > 0) noteExtWordsOnce();
+  }, [cloudVersion]);
 
   useEffect(() => {
     setMounted(true);
-    takeExtInstallEntry(); // 拡張の初回タブの印を URL から sessionStorage へ移す（ログイン中でも URL に残さない）
     // SW 登録（push 通知の受信路。fetch ハンドラ無しなので配信には干渉しない）。
     // 購読済みユーザーがアプリを開くだけで SW が最新化される。
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
@@ -326,9 +328,10 @@ export default function AppProvider({ children }) {
       setScreen('onboarding');
       return;
     }
+    // ここに来るのはオンボーディング済みの人だけ。以前あった「TOEIC/サービス未入力なら設定ページを開く」は
+    // 前の版で1問目をスキップした人を毎回設定へ飛ばしていたので外した（2026-11-01）。
+    // 未入力でもレベルは既定の B1、おすすめはサービスで絞らない（lib/recommended.js）。
     setScreen('main');
-    // 未設定（TOEIC/サービス未入力）なら設定ページを開く（オンボーディング代替）
-    if (!s.toeicScore || !(s.selectedServices || []).length) setScreen('settings');
   }, []);
 
   // 新規プロフィール作成 → オンボーディングへ（既存 startOnboarding 相当）
@@ -412,6 +415,7 @@ export default function AppProvider({ children }) {
   // clearService=true（新規追加時）は前回の視聴サービスをクリアする（既存 selectDrama 準拠）。
   // opts.returnTo: 戻るボタンの行き先（検索経由なら 'search'・省略時 'main'）。
   const openDrama = useCallback((d, clearService = false, opts) => {
+    trackUsage('work_select'); // 利用データ: 作品を選んだ（入口はここに一本化されている）
     setVocabReturn(opts?.returnTo || 'main');
     setDrama(d);
     // #18: この作品で最後に開いていた S/E を復元（無ければ従来どおり S1E1）。

@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useApp } from './AppProvider';
 import { supaSignIn, supaSignUp, pullFromCloud } from '@/lib/supabase';
 import { isExtInstallEntry } from '@/lib/extEntry';
+import { trackUsage } from '@/lib/usage';
 
 // ログイン／新規登録モーダル。リード文は「同期される」ことだけを伝える（旧「試作版・読み取り専用」文言は
 // 公開ターゲットが本番に確定した時点で実態と合わなくなったため撤去・A24(2)）。
@@ -19,6 +20,11 @@ export default function AuthModal() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
+  // 利用データ（lib/usage.js）: 表示された回数。どう抜けたかは下の auth_signup／auth_login／auth_local。
+  useEffect(() => {
+    trackUsage('auth_shown');
+  }, []);
+
   const submit = async () => {
     if (!email.trim() || !password) {
       setError('メールアドレスとパスワードを入力してください');
@@ -30,6 +36,7 @@ export default function AuthModal() {
     setBusy(false);
 
     if (result?.access_token) {
+      trackUsage(mode === 'signup' ? 'auth_signup' : 'auth_login');
       // 新規登録＝まっさらなアカウント。「一度見た」系フラグを消して初回体験
       // （アンケート・チュートリアル・拡張バナー）を必ず出す。前アカウントの
       // 残留フラグでスキップされる事故の防止（signOut と同じリセット）。
@@ -111,13 +118,23 @@ export default function AuthModal() {
             {busy ? '処理中...' : mode === 'login' ? 'ログイン' : 'アカウントを作成'}
           </button>
           <div className="auth-divider">または</div>
-          <button className="btn-secondary" onClick={closeAuth}>
+          <button
+            className="btn-secondary"
+            onClick={() => {
+              trackUsage('auth_local');
+              closeAuth();
+            }}
+          >
             このデバイスのみで使う
           </button>
           {/* 拡張の保存先はログイン済みアカウント。未ログインで拡張を使うと単語が届かないため、
               「このデバイスのみ」を選ぶ前にその制約を明示する（A24(2)） */}
           <p style={{ marginTop: 6, fontSize: 11.5, color: 'var(--text-muted)', textAlign: 'center' }}>
             ※ Chrome 拡張で保存した単語は同期されません
+          </p>
+          {/* 法務指定の注記（2026-11-04・オーナー承認）。文言を変える時は法務へ。拡張部門の変更と合流する時に消さないこと。 */}
+          <p style={{ marginTop: 4, fontSize: 11.5, color: 'var(--text-muted)', textAlign: 'center' }}>
+            学習データはこの端末に保存します。利用統計は設定でオフにできます。
           </p>
         </div>
       </div>

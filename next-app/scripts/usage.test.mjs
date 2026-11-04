@@ -1,7 +1,7 @@
 // ベータの利用データ（lib/usageEvents.js・lib/usageReport.js・lib/server/usage.js）の単体テスト。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sanitizeUsage, exitEventName, parseExitEvent, toDecile, isUsageEvent } from '../lib/usageEvents.js';
+import { sanitizeUsage, exitEventName, parseExitEvent, toDecile, isUsageEvent, isExtSavedWord, hasExtSavedWord } from '../lib/usageEvents.js';
 import { buildUsageReport, genMonthTable, usageCsv, weekWindows, usageHints } from '../lib/usageReport.js';
 import { writeUsage, readUsageRows, usageIds, usageDayAllowed, deleteUsageFor } from '../lib/server/usage.js';
 import { genMonthKey } from '../lib/server/constants.js';
@@ -173,4 +173,61 @@ test('月の新規生成の分布と CSV', () => {
   assert.equal(t[0]['30話超'], '20%');
   const csv = usageCsv([row('2026-10-02', 'x', { open: 1 }, { n: 2, c: 1, l: 0 })]);
   assert.equal(csv, 'day,person,device,logged_in,new_words,continued_words,due_left,open\n2026-10-02,x,x,1,2,1,0,1\n');
+});
+
+test('新規の人の項目は数えてよい名前（2026-11-04）', () => {
+  for (const k of ['auth_shown', 'auth_signup', 'auth_login', 'auth_local', 'work_select', 'ext_first_save', 'ext_install_open']) assert.ok(isUsageEvent(k), k);
+  for (const k of ['auth_close', 'ext_entry', 'from_ext']) assert.ok(!isUsageEvent(k), k);
+});
+
+test('拡張で保存した語の判定: source が配信サイト名なら拡張・star/manual/無しはアプリ', () => {
+  assert.ok(isExtSavedWord({ word: 'hustle', source: 'Netflix' }));
+  assert.ok(isExtSavedWord({ word: 'hustle', source: 'Prime Video' }));
+  assert.ok(!isExtSavedWord({ word: 'hustle', source: 'star' }));
+  assert.ok(!isExtSavedWord({ word: 'hustle', source: 'manual' }));
+  assert.ok(!isExtSavedWord({ word: 'hustle' }));
+  assert.ok(!isExtSavedWord({ word: 'hustle', source: '' }));
+  assert.ok(!isExtSavedWord(null));
+  assert.ok(hasExtSavedWord([{ source: 'star' }, { source: 'Disney+' }]));
+  assert.ok(!hasExtSavedWord([{ source: 'star' }, {}]));
+  assert.ok(!hasExtSavedWord('not an array'));
+});
+
+test('週次の表: 新規の人（初めて開いた週）と再訪・入口とログイン画面', () => {
+  const today = '2026-11-14';
+  const rows = [
+    // a: 表より前の週（11-01〜07 のさらに前）から使っている人＝新規に数えない
+    row('2026-10-30', 'a', { open: 1, auth_shown: 1, auth_login: 1 }),
+    row('2026-11-10', 'a', { open: 1, work_select: 1 }),
+    // b: 11-09 に初めて開いた（直近の週）。ログイン画面→このデバイスのみ→作品を選んだ→翌日も来た
+    row('2026-11-09', 'b', { open: 2, auth_shown: 1, auth_local: 1, work_select: 1, list_open: 1 }, null, 0),
+    row('2026-11-10', 'b', { open: 1 }, null, 0),
+    // c: 11-02 に初めて開いた（前の週）。拡張から来て新規登録→5日後に戻って拡張の語が届いた
+    row('2026-11-02', 'c', { open: 1, ext_install_open: 1, auth_shown: 2, auth_signup: 1 }),
+    row('2026-11-07', 'c', { open: 1, ext_first_save: 1 }),
+    // d: 11-03 に初めて開いた。ログイン画面を見ただけ
+    row('2026-11-03', 'd', { open: 1, auth_shown: 1 }, null, 0),
+  ];
+  const rep = buildUsageReport(rows, { today, weeks: 2 });
+  const [w0, w1] = rep.newUsers;
+  assert.equal(w0.週, '11-08〜11-14');
+  assert.equal(w0.新規の人, 1);
+  assert.equal(w0['ログイン画面'], '1 100%');
+  assert.equal(w0['このデバイスのみ'], '1 100%');
+  assert.equal(w0['新規登録'], '0 0%');
+  assert.equal(w0['作品を選んだ'], '1 100%');
+  assert.equal(w0['翌日再訪'], '1（集計中）'); // 週末の翌日がまだ来ていない
+  assert.equal(w0['7日内再訪'], '1（集計中）');
+  assert.equal(w1.新規の人, 2); // c と d（a は前から使っている）
+  assert.equal(w1['拡張から来た'], '1 50%');
+  assert.equal(w1['新規登録'], '1 50%');
+  assert.equal(w1['拡張で初保存'], '1 50%');
+  assert.equal(w1['翌日再訪'], '0 0%');
+  assert.equal(w1['7日内再訪'], '1 50%');
+  // ⑧ 全員（a も含む）
+  assert.equal(rep.entry[0].開いた人, 2);
+  assert.equal(rep.entry[0]['作品を選んだ'], '2人 100% / 2回');
+  assert.equal(rep.entry[1]['ログイン画面'], '2人 100% / 3回');
+  const hint = usageHints(rep, rows, { today }).find((l) => l.includes('初めて開いた人'));
+  assert.match(hint, /初めて開いた人 1: ログイン画面を見た 1・新規登録 0・このデバイスのみ 1・作品を選んだ 1・拡張で初保存 0/);
 });

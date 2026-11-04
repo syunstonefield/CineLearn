@@ -28,16 +28,18 @@ export const RECOMMENDED = [
 ];
 
 // ユーザーのレベルと契約サービスで絞り込み、最大6件返す。
+// サービス未設定（空）なら絞り込まない（設定画面へ飛ばす分岐を外したため・2026-11-01）。
 export function getRecommendations(userLevel, userServices) {
+  const onService = (d) => !userServices?.length || d.services.some((s) => userServices.includes(s));
   let list = RECOMMENDED
     .filter((d) => d.level.includes(userLevel))
-    .filter((d) => d.services.some((s) => userServices.includes(s)));
+    .filter(onService);
   // 6件未満なら隣接レベルまで緩める
   if (list.length < 6) {
     const adjacent = { A2: ['B1'], B1: ['A2', 'B2'], B2: ['B1', 'C1'], C1: ['B2'] };
     const extra = RECOMMENDED
       .filter((d) => adjacent[userLevel]?.some((lv) => d.level.includes(lv)))
-      .filter((d) => d.services.some((s) => userServices.includes(s)))
+      .filter(onService)
       .filter((d) => !list.includes(d));
     list = [...list, ...extra];
   }

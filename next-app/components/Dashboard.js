@@ -712,7 +712,7 @@ export default function Dashboard() {
           <span className="ext-banner-icon" aria-hidden="true">🧩</span>
           <span className="ext-banner-text">
             {loggedIn
-              ? '拡張機能を追加しました。動画の字幕の単語をクリックすると保存でき、ここに届きます'
+              ? '拡張機能を追加しました。動画の字幕の単語をクリックすると、単語帳に保存されます'
               : '拡張機能を追加しました。保存した単語をアプリに届けるにはログインが必要です'}
           </span>
           {!loggedIn && (
