@@ -234,6 +234,22 @@ test('完了画面: コレクションの説明は法務の文言・枠の見本
   assert.ok(flow.includes('3〜5分ほどで終わります'), 'オーナーの実測で確定');
 });
 
+test('5語の画面: 本番の下部バーの作りで下に固定・ボタンは1つ・✕を出さない・安全領域に配慮', () => {
+  const flow = source('TrialFlow.js');
+  const at = flow.indexOf('<div className="vocab-action-bar trial-bar">');
+  assert.ok(at > 0);
+  const bar = flow.slice(at, flow.indexOf('チュートリアルをやめてホームへ', at));
+  assert.ok(bar.includes('予習をはじめる（5枚）'));
+  assert.ok(!bar.includes('vab-close'), '✕を出さない');
+  for (const ng of ['復習', '腕試し', '📖']) assert.ok(!bar.includes(ng), ng);
+  const before = flow.slice(flow.indexOf("if (step === 'list')"), at);
+  assert.ok(before.includes('全部で{session.list.length}語あります'), '語数の行はバーより前');
+  const css = fs.readFileSync(new URL('../app/style.css', import.meta.url), 'utf8');
+  const rule = (name) => css.slice(css.indexOf(name), css.indexOf('}', css.indexOf(name)));
+  assert.match(rule('.vocab-action-bar.trial-bar {'), /env\(safe-area-inset-bottom\)/);
+  assert.ok(!rule('.vocab-action-bar.trial-bar {').includes('56px'), 'ボトムナビの分を引かない');
+});
+
 test('呼び名はチュートリアルに統一・効果をうたう言葉を書かない', () => {
   const ui = source('TrialFlow.js').replace(/\{\/\*.*?\*\/\}/g, '').replace(/\/\/.*$/gm, '');
   assert.ok(!ui.includes('体験'), '画面に「体験」');

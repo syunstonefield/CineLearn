@@ -380,15 +380,18 @@ export default function TrialFlow() {
           ))}
         </div>
         <p className="trial-count">全部で{session.list.length}語あります</p>
-        {walkDone ? (
-          <button type="button" className="btn-primary trial-cta" onClick={() => startQuiz()}>
-            クイズ3問へ →
-          </button>
-        ) : (
-          <button type="button" className="btn-primary trial-cta" onClick={startWalk}>
-            予習をはじめる（5枚）
-          </button>
-        )}
+        {/* 本番の単語リストの下部バーと同じ作り（オーナー指摘）。下までスクロールしなくても押せる。✕と復習・クイズ・カードは出さない */}
+        <div className="vocab-action-bar trial-bar">
+          {walkDone ? (
+            <button type="button" className="vab-btn is-primary" onClick={() => startQuiz()}>
+              <span className="vab-main">クイズ3問へ →</span>
+            </button>
+          ) : (
+            <button type="button" className="vab-btn is-primary" onClick={startWalk}>
+              <span className="vab-main">予習をはじめる（5枚）</span>
+            </button>
+          )}
+        </div>
         <button type="button" className="trial-text-link trial-quit" onClick={finishTrial}>
           チュートリアルをやめてホームへ
         </button>
