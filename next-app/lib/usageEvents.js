@@ -28,7 +28,28 @@ export const USAGE_EVENTS = [
   'ob_skip_q5',
   'ob_plan', // 「準備ができました」（プラン提示）が表示された
   'ob_done', // 「おすすめから始める」を押した＝アンケート完了
+  // 新規の人がどこで離れるか（2026-11-04・docs/research-2026-11-new-user-dropoff.md）。
+  //   ログイン画面（components/AuthModal.js）: 表示された／どう抜けたか。✕・外側クリックは数えない（表示−3つの差）。
+  'auth_shown', // ログイン画面が表示された（起動時・ヘッダーから）
+  'auth_signup', // 新規登録に成功した
+  'auth_login', // ログインに成功した
+  'auth_local', // 「このデバイスのみで使う」を選んだ
+  'work_select', // 作品を選んだ（ライブラリ・検索・おすすめ・コレクション・復習一覧 → サービス選択／単語リスト）
+  'ext_first_save', // 拡張で保存した語がこの端末に初めて届いた（クラウド取込の後に単語帳を見て判定・端末ごとに1回）
+  'ext_install_open', // 拡張の導入直後の案内タブ（/app?from=ext_install・Chrome 拡張部門と合わせた形）が開いた。URL から外してから数える
 ];
+
+// 拡張で保存した語か。拡張は source に配信サイトの画面タイトル（Netflix 等）を入れ、アプリの保存は
+// 'star'（★）／'manual'（手入力）だけ（lib/words.js・components/VocabScreen.js）。source が無い語は判定しない。
+const APP_WORD_SOURCES = ['star', 'manual'];
+export function isExtSavedWord(w) {
+  const src = w && typeof w === 'object' ? w.source : null;
+  return typeof src === 'string' && src.trim() !== '' && !APP_WORD_SOURCES.includes(src);
+}
+export function hasExtSavedWord(words) {
+  return Array.isArray(words) && words.some(isExtSavedWord);
+}
+
 
 // 途中で抜けた: exit_<段階>_<何割まで 0〜10>_<抜け方>
 //   段階  list＝単語リスト（一覧のスクロール位置）／core＝重要語のカード／rest＝残りの語のカード

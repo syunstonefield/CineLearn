@@ -11,9 +11,11 @@
 import { authHeaders } from './api';
 import { getDeviceKey } from './device';
 import { loadSrs, todayStr, isDue } from './storage';
-import { isUsageEvent } from './usageEvents';
+import { isUsageEvent, hasExtSavedWord } from './usageEvents';
+import { takeExtInstallEntry } from './extEntry';
 
 const TALLY_KEY = 'cl_usage_tally';
+const EXT_SEEN_KEY = 'cl_usage_ext_seen'; // 拡張で保存した語を一度でも見た端末（ext_first_save を1回だけにする）
 export const USAGE_OPTOUT_KEY = 'cl_usage_optout';
 const FLUSH_EVERY_MS = 60 * 60 * 1000;
 
@@ -110,10 +112,35 @@ export async function flushUsage({ keepalive = false } = {}) {
   }
 }
 
+// 拡張で保存した語がこの端末に初めて届いたら ext_first_save を1回（AppProvider がクラウド取込のたびに呼ぶ）。
+//   単語帳（cl_my_words）に拡張由来の語があるかだけを見る（語そのものは送らない）。
+//   ★既存の利用者が新しい端末でログインした時も1回数える（端末ごとの印のため）＝新規の人の表では
+//     「初めて開いた週」で絞るので、この誤差は新規の人の数字には乗りにくい。
+export function noteExtWordsOnce() {
+  if (typeof window === 'undefined' || usageOptedOut()) return false;
+  try {
+    if (localStorage.getItem(EXT_SEEN_KEY) === '1') return false;
+    const words = JSON.parse(localStorage.getItem('cl_my_words') || '[]');
+    if (!hasExtSavedWord(words)) return false;
+    localStorage.setItem(EXT_SEEN_KEY, '1');
+  } catch {
+    return false;
+  }
+  trackUsage('ext_first_save');
+  return true;
+}
+
+// 入口の印（/app?from=ext_install・lib/extEntry.js）。URL から外せた時だけ数える＝再読み込み・ブックマークでは数えない。
+//   利用統計を送らない設定でも印は sessionStorage へ移す（画面側が使う）。
+function noteEntryParam() {
+  if (takeExtInstallEntry()) trackUsage('ext_install_open');
+}
+
 // アプリの起動時に1回（AppProvider）。開いた回数を数え、送るきっかけを仕掛ける。戻り値＝後片付け。
 export function initUsage() {
   if (typeof window === 'undefined') return () => {};
   trackUsage('open');
+  noteEntryParam();
   const onVis = () => {
     if (document.visibilityState === 'hidden') flushUsage({ keepalive: true });
   };

@@ -8,6 +8,9 @@
 //   2026-11-01: ⑥ 初回アンケートの進み具合（ob_q1〜5・スキップ・完了）を追加。
 //     --csv[=パス] で 1人＋端末×1日の生データを書き出す（既定 ~/cinelearn-usage-<日付>.csv）。
 //     ★CSV はリポジトリに置かない・共有しない・暗号化ディスク（FileVault）上だけ・120日以内に消す。
+//   2026-11-04: ⑦ 新規の人（初めて開いた週ごと: ログイン画面→登録/ログイン/このデバイスのみ→作品を選んだ→
+//     拡張で初保存→翌日・7日内の再訪）と ⑧ 入口とログイン画面（全員）を追加。⑦の「初めて」を確かめるため
+//     利用データは表より1週ぶん前から読む（docs/research-2026-11-new-user-dropoff.md）。
 
 import { writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -32,7 +35,7 @@ if (new URL(API_BASE).hostname !== SEED_HOST) {
   process.exit(1);
 }
 
-const res = await fetch(`${API_BASE}/api/stats?days=${weeks * 7}`, { headers: { 'x-cinelearn-stats': secret } });
+const res = await fetch(`${API_BASE}/api/stats?days=${weeks * 7 + 7}`, { headers: { 'x-cinelearn-stats': secret } });
 if (!res.ok) {
   console.error(`/api/stats ${res.status}`, (await res.text()).slice(0, 200));
   process.exit(1);
@@ -88,6 +91,10 @@ console.log('\n⑤ 月の新規生成（ログイン利用者・共有済みの�
 console.table(genMonthTable(genMonth));
 console.log('\n⑥ 初回アンケートの進み具合（人数 1問目に対する% ／ スキップした人数・2026-11-01〜）');
 console.table(rep.onboarding);
+console.log('\n⑦ 新規の人（初めて開いた週ごと・各段階は人数 新規の人に対する%・2026-11-04〜。番号が変わる「このデバイスのみ→後日ログイン」は2人に数える）');
+console.table(rep.newUsers);
+console.log('\n⑧ 入口とログイン画面（全員・人数 開いた人の% / 回数・2026-11-04〜）');
+console.table(rep.entry);
 for (const line of usageHints(rep, usageRows, { today })) console.log(`判断の目安: ${line}`);
 console.log(`利用データの行数: ${usageRows.length}（数え始めは利用データのデプロイ以降）`);
 
