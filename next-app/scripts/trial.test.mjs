@@ -126,6 +126,19 @@ test('出典が3か所に出る: 単語リスト・カード・クイズ（法�
   assert.match(source('PrepQuiz.js'), /meta\?\.credit/);
 });
 
+test('5語は本番の VocabItem を読み取り専用で使う（SRS・単語帳へ書く操作を渡さない）', () => {
+  const flow = source('TrialFlow.js');
+  const item = flow.slice(flow.indexOf('<VocabItem'), flow.indexOf('/>', flow.indexOf('<VocabItem')));
+  assert.match(item, /readOnly/);
+  assert.match(item, /showCefr/);
+  for (const ng of ['onSkip', 'onStar', 'onDelete', 'added', 'starred']) assert.ok(!item.includes(ng), `${ng} を渡さない`);
+  assert.match(flow, /<CefrNote \/>/, 'CEFR 目安の一行を同じ画面に');
+  const vi = source('VocabItem.js');
+  assert.match(vi, /\{!readOnly && \(\s*<button\s+className=\{'btn-srs-skip'/, 'readOnly では Skip を出さない');
+  assert.match(vi, /badge && !readOnly/, 'readOnly では状態の印を出さない');
+  for (const ng of ['Skip', 'srs-bar', '覚えた', 'マスター']) assert.ok(!flow.replace(/^\s*\/\/.*$/gm, '').includes(ng), `体験に「${ng}」を出さない`);
+});
+
 test('体験では予習済み・EXP・PrepLaunch を通らない', () => {
   const walk = source('PrepWalkthrough.js');
   const finish = walk.slice(walk.indexOf('const finish = () =>'), walk.indexOf('const next = () =>'));

@@ -7423,14 +7423,6 @@ button.vj-cell { cursor: pointer; }
 .trial-auth-links { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 16px; font-size: 13px; }
 .trial-legal-links { display: flex; gap: 12px; font-size: 12px; }
 .trial-legal-links a { color: var(--text-muted); }
-.trial-words { display: flex; flex-direction: column; gap: 10px; }
-.trial-word { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; background: var(--card-bg, #fff); }
-.trial-word-top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
-.trial-word-w { font-size: 17px; font-weight: 700; color: var(--accent); }
-.trial-word-def { font-size: 13px; color: var(--text); }
-.trial-word-ex { font-size: 13px; line-height: 1.5; margin-top: 6px; color: var(--text); }
-.trial-word-ja { font-size: 12px; line-height: 1.5; margin-top: 2px; color: var(--text-muted); }
-.trial-word-src { font-size: 11px; margin-top: 2px; color: var(--text-muted); }
 .trial-count { font-size: 13px; text-align: center; color: var(--text-muted); margin: 4px 0 0; }
 .trial-cta { width: 100%; max-width: 360px; align-self: center; }
 .trial-done-poster { width: 40vw; max-width: 160px; line-height: 0; }

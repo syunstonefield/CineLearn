@@ -11,8 +11,9 @@ import { cefrHintOf, cefrHintTitle } from '@/lib/cefrHint';
 // 詳細は常にDOMに描画し、開閉は is-expanded クラスで切り替える（PC常時表示を両立するため）。
 // starred/onStar: ★マイ単語帳メンバーシップ（2026-09-22）。onStar(word, starred) を渡した文脈でだけ
 // 発音・Skip の横に「★ 単語帳 / ☆ 単語帳に入れる」トグルを出す（単語リスト・単語帳の両方）。
+// readOnly: 初回体験の5語（components/TrialFlow.js）。SRS を持たない人に状態の印と Skip を出さない＝書き込む操作なし。
 // showCefr: 各語に CEFR の目安（段階だけ）を出すか（単語リストだけ true・2026-10-30）。値は lib/cefrHint.js（複数語は出さない）。
-export default function VocabItem({ word, srs, testTiers, ts, exampleSource, added, starred, showCefr, onSpeak, onSkip, onCopyTime, onDelete, onStar }) {
+export default function VocabItem({ word, srs, testTiers, ts, exampleSource, added, starred, showCefr, readOnly, onSpeak, onSkip, onCopyTime, onDelete, onStar }) {
   const [expanded, setExpanded] = useState(false);
   const w = word;
   const e = srs[w.word.toLowerCase()];
@@ -112,7 +113,7 @@ export default function VocabItem({ word, srs, testTiers, ts, exampleSource, add
 
       <div className="vocab-detail">
         <div className="vocab-detail-tags">
-          {badge && <span className={`srs-badge ${badge.cls}`}>{badge.text}</span>}
+          {badge && !readOnly && <span className={`srs-badge ${badge.cls}`}>{badge.text}</span>}
           <span className={`tier-pill ${tierCls}`}>{tierText}</span>
           {/* CEFR の目安＝段階だけ（オーナー 2026-10-30「スッキリ」）。Core/Advanced/Context の横に並べる
               （オーナー 2026-10-30・見出し語のそばから移設）。表に無く AI の推定の値は淡く。
@@ -210,12 +211,14 @@ export default function VocabItem({ word, srs, testTiers, ts, exampleSource, add
           <button className="btn-speak" title="発音を聞く" onClick={() => onSpeak(w.word)}>
             🔊 発音
           </button>
-          <button
-            className={'btn-srs-skip' + (isSkip ? ' btn-srs-resume' : '')}
-            onClick={() => onSkip(w.word, isSkip)}
-          >
-            {isSkip ? 'Resume' : 'Skip'}
-          </button>
+          {!readOnly && (
+            <button
+              className={'btn-srs-skip' + (isSkip ? ' btn-srs-resume' : '')}
+              onClick={() => onSkip(w.word, isSkip)}
+            >
+              {isSkip ? 'Resume' : 'Skip'}
+            </button>
+          )}
           {/* ★マイ単語帳に入れる/外す（紙の単語帳に付箋を貼る感覚・オーナー判断 2026-09-22） */}
           {onStar && (
             <button

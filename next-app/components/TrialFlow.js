@@ -2,10 +2,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
 import TrialAuthLinks from './TrialAuthLinks';
+import VocabItem from './VocabItem';
+import CefrNote from './CefrNote';
 import { generateEpisodeVocab } from '@/lib/api';
 import { personalizeWords } from '@/lib/personalize';
 import { saveHistoryEntry } from '@/lib/storage';
 import { watchSearchUrl } from '@/lib/prep';
+import { speak } from '@/lib/speak';
+import { secToTimeLabel } from '@/lib/subtitles';
+import { cefrHintOf } from '@/lib/cefrHint';
 import { trackUsage } from '@/lib/usage';
 import { isMobileDevice } from '@/lib/device';
 import { isExtInstallEntry } from '@/lib/extEntry';
@@ -34,6 +39,10 @@ import {
 //   - 計測は固定の名前と回数だけ（作品・レベルの値を入れない）。
 const PICK_NOTE = '作品はご自身が契約する配信サービスでご覧ください。本サービスは作品の権利者・配信サービスと提携していません。';
 const DONE_NOTE = 'ポスター画像は作品を見分けるための表示です（画像：TMDB）。作品の権利者・配信サービスとは提携していません。';
+
+// 体験の語は VocabItem を読み取り専用で使う（SRS を渡さない＝未学習のまま・★と削除は渡さないので出ない）。
+const NO_SRS = {};
+const TEST_TIERS = ['core', 'advanced', 'context'];
 
 export default function TrialFlow() {
   const { settings, updateSettings, trialSource, finishTrial, markFirstRunDone, openAuth, loggedIn, openGuide, openPrepWalk, openPrepQuiz } = useApp();
@@ -251,24 +260,42 @@ export default function TrialFlow() {
         <button type="button" className="trial-back" onClick={() => setStep('pick')}>
           ← 作品を選び直す
         </button>
-        <h1 className="trial-h">{title.label} の5語</h1>
-        <p className="trial-sub">{title.type === 'movie' ? '映画の字幕から選びました。' : '1話目の字幕から選びました。'}</p>
-        <div className="trial-words">
-          {session.words.map((w) => (
-            <div key={w.word} className="trial-word">
-              <div className="trial-word-top">
-                <span className="trial-word-w">{w.word}</span>
-                <span className="trial-word-def">{w.definition}</span>
+        {/* 登録後の本番の単語リストと同じ見出しと語のカード（オーナー指摘）。進捗バーと下部のバーは体験では出さない */}
+        <div className="srs-progress-wrap">
+          <div className="srs-progress-header">
+            <div className="srs-heading">
+              <div className="srs-work-title">
+                <span className="work-title-text">{title.title}</span>
               </div>
-              {w.example && (
-                <>
-                  {/* 字幕の逐語引用＝“ ”で明瞭区分（32条）・出典（48条） */}
-                  <div className="trial-word-ex">“{w.example}”</div>
-                  {w.example_ja && <div className="trial-word-ja">{w.example_ja}</div>}
-                  {session.meta.credit && <div className="trial-word-src">{session.meta.credit}</div>}
-                </>
-              )}
+              <div className="srs-heading-sub">
+                {session.meta.isMovie ? (
+                  <span className="srs-media-chip">🎬 映画</span>
+                ) : (
+                  <span className="ep-inline-badge">
+                    S{title.season}E{title.episode}
+                  </span>
+                )}
+                <span className="srs-ep-title">単語リスト</span>
+              </div>
             </div>
+          </div>
+        </div>
+        <p className="trial-sub">字幕から5語を選びました。</p>
+        {session.words.some((w) => cefrHintOf(w)) && <CefrNote />}
+        <div className="vocab-list">
+          {session.words.map((w) => (
+            <VocabItem
+              key={w.word}
+              word={w}
+              srs={NO_SRS}
+              testTiers={TEST_TIERS}
+              showCefr
+              readOnly
+              ts={w.tsLabel ? { label: w.tsLabel } : Number.isFinite(w.tsSec) ? { label: secToTimeLabel(w.tsSec) } : null}
+              exampleSource={session.meta.credit}
+              onSpeak={speak}
+              onCopyTime={(t) => navigator.clipboard?.writeText(t).catch(() => {})}
+            />
           ))}
         </div>
         <p className="trial-count">全部で{session.list.length}語あります</p>
