@@ -17,7 +17,15 @@ export const LAST_UID_KEY = 'cl_last_uid';
 
 // 学習データ（アカウントに属するもの）。プロフィール別キー（cl_my_words_<pid> など）も接頭辞で拾う。
 export const LEARNING_KEY_RE =
-  /^cl_(profiles|history|srs|my_words|deleted_words|tickets|fav_dramas|study_sec|study_drama|watch_log|frame_best|prepped|seat_counter|exp_ledger|archived|stats_daily|activity_dates|review_log|quiz_exp_awarded|predom_fix|recent_searches|prep_pos|ring_seen|plan_cache|trial_done|trial_later|trial_later_shown)(_|$)/;
+  /^cl_(profiles|history|srs|my_words|deleted_words|tickets|fav_dramas|study_sec|study_drama|watch_log|frame_best|prepped|seat_counter|exp_ledger|archived|stats_daily|activity_dates|review_log|quiz_exp_awarded|recent_searches|prep_pos|ring_seen|plan_cache|trial_done|trial_later|trial_later_shown)(_|$)/;
+// 消すキーとクラウドの写し（2026-11-05 受付レビューで一覧化。写しがある＝同じアカウントの入り直しで戻る）:
+//   profiles(+_updated_at)→profiles表／history→history表／srs→srs_data／my_words(_pid)→my_words／
+//   tickets・fav_dramas・study_sec・study_drama・watch_log・frame_best・prepped・seat_counter・exp_ledger・archived・stats_daily→user_state／
+//   activity_dates・review_log・quiz_exp_awarded→user_state（2026-11-05 に同期対象へ追加・lib/stateMergeRules.js）
+//   写しが無く消えるもの（アカウントの記録ではない・戻らなくてよい）: deleted_words(_pid)＝削除語の目印（クラウドの削除が正）／
+//   srs_origin_backfill_v1＝一度きりの埋め戻しの印（入り直しで再実行・通信なし）／recent_searches＝検索欄の履歴／prep_pos＝カードの途中位置／
+//   ring_seen＝リングの前回値／plan_cache＝プランの前回値（uid 付き）／trial_*＝体験の印（従来から消していた）／sessionStorage の後回し。
+//   消さないもの: predom_fix(_pid)＝切り替え前の例文の取り直しの済み印（プロフィール ID 付き・消すと通信を伴う取り直しが再実行される）。
 
 // 「一度見た」系の印。ログアウトと別アカウントへの切り替えでは消す（残すと次の人が初回の流れを見られない・従来の signOut と同じ）。
 export const SEEN_FLAG_KEYS = ['cl_onboarded', 'cl_tutorial_seen', 'cl_ext_banner_dismissed'];

@@ -323,10 +323,21 @@ export default function AppProvider({ children }) {
     )
       return;
     // 待ちになっている同期（user_state のトロットル）をセッションが生きているうちに送ってから抜ける。
+    // 送れなかった（オフライン・通信失敗）なら、この端末だけにある分が消えることを伝えて止められるようにする。
+    let unsent = [];
     try {
-      await flushStatePushQueue();
+      unsent = (await flushStatePushQueue()).failed;
     } catch {
-      /* ignore */
+      unsent = ['?'];
+    }
+    const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+    if (unsent.length || offline) {
+      if (
+        !confirm(
+          'まだ同期できていない学習データがあります（通信を確認してください）。\n\nこのままログアウトすると、この端末だけにある分は消えます。\nログアウトしますか？'
+        )
+      )
+        return; // 送れなかった分は待ちに戻してあるので、次の契機で再送される
     }
     try {
       await supaSignOut();

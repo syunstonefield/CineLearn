@@ -20,12 +20,13 @@ const STATE_KEYS = [
   'cl_tickets', 'cl_tickets_p_1', 'cl_fav_dramas', 'cl_fav_dramas_p_1', 'cl_study_sec', 'cl_study_sec_p_1',
   'cl_study_drama', 'cl_study_drama_p_1', 'cl_watch_log', 'cl_watch_log_p_1', 'cl_frame_best', 'cl_frame_best_p_1',
   'cl_prepped', 'cl_seat_counter', 'cl_exp_ledger', 'cl_archived', 'cl_stats_daily',
+  'cl_activity_dates', 'cl_review_log', 'cl_quiz_exp_awarded', // 2026-11-05 に同期対象へ（写しがあるので消しても戻る）
 ];
 // signOut が従来から消していたもの＋アプリの他の学習データ・プロフィール別キー
 const OTHER_LEARNING = [
   'cl_profiles', 'cl_profiles_updated_at', 'cl_history', 'cl_srs', 'cl_srs_origin_backfill_v1', 'cl_my_words', 'cl_my_words_p_1',
-  'cl_deleted_words', 'cl_deleted_words_p_1', 'cl_activity_dates', 'cl_review_log', 'cl_quiz_exp_awarded', 'cl_predom_fix',
-  'cl_predom_fix_p_1', 'cl_recent_searches', 'cl_prep_pos_tt123_s1e1', 'cl_ring_seen', 'cl_plan_cache',
+  'cl_deleted_words', 'cl_deleted_words_p_1',
+  'cl_recent_searches', 'cl_prep_pos_tt123_s1e1', 'cl_ring_seen', 'cl_plan_cache',
   'cl_trial_done', 'cl_trial_later', 'cl_trial_later_shown',
 ];
 // 端末の設定・キャッシュ・セッション＝残す
@@ -33,6 +34,7 @@ const DEVICE_KEYS = [
   'cl_sb_session', 'cl_device_key', 'cl_last_uid', 'cl_usage_tally', 'cl_usage_optout', 'cl_usage_ext_seen', 'cl_theme',
   'cl_title_media2', 'cl_title_alias2', 'cl_total_eps_123', 'cl_sub_lru', 'cl_sub_raw_x', 'cl_ja_sentence_cache_v2',
   'cl_ctx_ja_cache_v3', 'cl_subcache_cleanup_v1', 'cl_ticket_view', 'cl_review_keys_seen', 'cl_sync_recover_v1',
+  'cl_predom_fix', 'cl_predom_fix_p_1', // 取り直しの済み印は消さない（消すと通信を伴う取り直しが再実行される）
 ];
 
 test('学習データのキー: user_state の項目・従来の消去対象・プロフィール別キーを全部拾い、端末の設定とセッションは拾わない', () => {
@@ -115,4 +117,25 @@ test('ログイン直後の判定: ゲスト→登録は残す／同じ人の入
   assert.deepEqual(prepareDeviceForAccount('u1', { local: null, session: null }), { wiped: false, prevUid: null });
   rememberAccount('u1', null);
   forgetAccount(null);
+});
+
+test('同じアカウントで入り直しても、学習した日・連続日数の元・日ごとの記録は端末から消えない（合算に回る）', () => {
+  const local = fakeStorage({
+    cl_last_uid: 'u1',
+    cl_activity_dates: '["2026-11-03","2026-11-04","2026-11-05"]',
+    cl_stats_daily: '{"2026-11-05|d_1":{"ok":3}}',
+    cl_exp_ledger: '{"2026-11-05|d_1":12}',
+    cl_review_log: '[{"date":"2026-11-05","historyId":"h1","sessionNum":1}]',
+  });
+  // 期限切れ → 同じ人（セッションの持ち主も同じ）
+  const r = prepareDeviceForAccount('u1', { prevSessionUid: 'u1', local, session: fakeStorage() });
+  assert.equal(r.wiped, false);
+  assert.equal(local.getItem('cl_activity_dates'), '["2026-11-03","2026-11-04","2026-11-05"]');
+  assert.equal(local.getItem('cl_stats_daily'), '{"2026-11-05|d_1":{"ok":3}}');
+  assert.equal(local.getItem('cl_exp_ledger'), '{"2026-11-05|d_1":12}');
+  assert.equal(local.getItem('cl_review_log'), '[{"date":"2026-11-05","historyId":"h1","sessionNum":1}]');
+  // 前回の記憶が無い（ログアウト後・古い端末でセッションも無い）→ 残す
+  const local2 = fakeStorage({ cl_activity_dates: '["2026-11-01"]' });
+  assert.equal(prepareDeviceForAccount('u1', { local: local2, session: fakeStorage() }).wiped, false);
+  assert.equal(local2.getItem('cl_activity_dates'), '["2026-11-01"]');
 });

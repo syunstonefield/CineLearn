@@ -698,7 +698,7 @@ export function markActivityToday() {
   const d = todayStr();
   if (!arr.includes(d)) {
     arr.push(d);
-    safeSet(ACTIVITY_KEY, JSON.stringify(arr));
+    if (safeSet(ACTIVITY_KEY, JSON.stringify(arr))) queueStatePush(ACTIVITY_KEY, 500); // クラウドへ（未ログイン時は no-op・2026-11-05 同期対象に）
   }
 }
 
@@ -722,7 +722,7 @@ export function recordReviewSession(historyId, easy, hard, fail) {
   const today = todayStr();
   const todayCount = log.filter((s) => s.date === today && s.historyId === historyId).length;
   log.push({ date: today, historyId, sessionNum: todayCount + 1, easy, hard, fail, total: easy + hard + fail });
-  safeSet(REVIEW_LOG_KEY, JSON.stringify(log));
+  if (safeSet(REVIEW_LOG_KEY, JSON.stringify(log))) queueStatePush(REVIEW_LOG_KEY, 500); // クラウドへ（2026-11-05 同期対象に）
   markActivityToday();
   return todayCount + 1;
 }

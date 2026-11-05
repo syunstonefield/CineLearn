@@ -13,6 +13,7 @@
 // - my_words: pull のみ（書込は拡張が直接 Supabase へ）。
 import { PROFILES_AT_KEY, mergeProfileArrays, cloudWins } from './profileMerge';
 import { ticketEpKey, trimTickets } from './ticketRules';
+import { mergeActivityDates, mergeReviewLog, mergeQuizAwarded } from './stateMergeRules';
 
 const SUPABASE_URL = 'https://mndyexwdevkpdssglwpl.supabase.co';
 const SUPABASE_ANON_KEY =
@@ -386,8 +387,10 @@ function toIsoDateLite(v) {
 // ── 学習データ同期のヘルパ ──────────────────────────────────────
 
 // 同期対象の localStorage キー（user_state 1行=1キー）。★足したら lib/deviceAccount.js LEARNING_KEY_RE にも足す（ログアウトで消す対象）。
+//   2026-11-05: cl_activity_dates（学習した日）・cl_review_log（復習の記録）・cl_quiz_exp_awarded（クイズ EXP の台帳）を追加
+//   （ログアウトで端末から消すようにしたため、写しが無いと同じアカウントの入り直しで戻らない。規則は lib/stateMergeRules.js）。
 export const STATE_KEY_RE =
-  /^(cl_tickets|cl_fav_dramas|cl_study_sec|cl_study_drama|cl_watch_log|cl_frame_best)(_|$)|^cl_prepped$|^cl_seat_counter$|^cl_exp_ledger$|^cl_archived$|^cl_stats_daily$/;
+  /^(cl_tickets|cl_fav_dramas|cl_study_sec|cl_study_drama|cl_watch_log|cl_frame_best)(_|$)|^cl_prepped$|^cl_seat_counter$|^cl_exp_ledger$|^cl_archived$|^cl_stats_daily$|^cl_activity_dates$|^cl_review_log$|^cl_quiz_exp_awarded$/;
 
 function localStateKeys() {
   try {
@@ -462,6 +465,9 @@ function mergeStateValue(key, localV, cloudV) {
     });
     return out;
   }
+  if (key === 'cl_activity_dates') return mergeActivityDates(localV, cloudV);
+  if (key === 'cl_review_log') return mergeReviewLog(localV, cloudV);
+  if (key === 'cl_quiz_exp_awarded') return mergeQuizAwarded(localV, cloudV);
   if (key === 'cl_stats_daily') {
     // 日ごとの学習記録（storage.js STATS_DAILY_KEY）: 「日付|端末キー」の行ごと・フィールドごとの max。
     // 行はその端末だけが書き、各フィールドは単調増加＝max で正しい（cl_exp_ledger の数値 max は入れ子に効かない）。
@@ -506,15 +512,21 @@ function mergeStateValue(key, localV, cloudV) {
 // デバウンスだと学習時間ティックのような定期書込で永久に飢餓するため、
 // 既にタイマーが走っていれば延長しない）。値は flush 時点の localStorage を読む。
 const stateTimers = {};
-function sendStateKey(key) {
+// 戻り値＝送れたか（送るものが無い時も true）。sbFetch は 204 と失敗をどちらも null で返すので、ここだけ HTTP の結果を見る。
+async function sendStateKey(key) {
   const uid = getCurrentUser()?.id;
   const v = readStateLocal(key);
-  if (!uid || v == null) return Promise.resolve(null);
-  return sbFetch('/rest/v1/user_state', {
-    method: 'POST',
-    headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-    body: JSON.stringify([{ user_id: uid, key, value: v, updated_at: new Date().toISOString() }]),
-  });
+  if (!uid || v == null) return true;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/user_state`, {
+      method: 'POST',
+      headers: sbHeaders({ Prefer: 'resolution=merge-duplicates,return=minimal' }),
+      body: JSON.stringify([{ user_id: uid, key, value: v, updated_at: new Date().toISOString() }]),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 export function queueStatePush(key, delayMs = 3000) {
   if (typeof window === 'undefined' || !isLoggedIn()) return;
@@ -526,15 +538,23 @@ export function queueStatePush(key, delayMs = 3000) {
 }
 // 待ちになっている同期を今すぐ送る（ログアウトの直前に呼ぶ＝消す前に失わない・2026-11-05 lib/deviceAccount.js）。
 //   セッションが有効なうちに送る必要があるので、supaSignOut / clearSession より前に await する。
+//   戻り値 { sent:[送れたキー], failed:[送れなかったキー] }。送れなかったキーは待ちに戻す（ログアウトを止めた時に次の契機で再送できる）。
 export async function flushStatePushQueue() {
   const keys = Object.keys(stateTimers);
   for (const k of keys) {
     clearTimeout(stateTimers[k]);
     delete stateTimers[k];
   }
-  if (!keys.length) return 0;
-  await Promise.all(keys.map((k) => sendStateKey(k).catch(() => null)));
-  return keys.length;
+  const sent = [];
+  const failed = [];
+  await Promise.all(
+    keys.map(async (k) => {
+      if (await sendStateKey(k)) sent.push(k);
+      else failed.push(k);
+    })
+  );
+  for (const k of failed) queueStatePush(k, 3000);
+  return { sent, failed };
 }
 
 // SRS を語単位でクラウドへ upsert（entries = { word: srsEntry }）。
