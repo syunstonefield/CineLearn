@@ -42,7 +42,8 @@ test('棒の長さは最多の段階を 1 とした相対値（分母なし）',
   assert.equal(by.B1.fracMastered, 1 / 3);
   assert.equal(by.C2.frac, 0);
   assert.equal(r.rows.length, 6);
-  assert.deepEqual(r.rows.map((x) => x.level), ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']);
+  // 並びは上から C2→A1（オーナー 2026-11-05）。相対値は並びに依存しない
+  assert.deepEqual(r.rows.map((x) => x.level), ['C2', 'C1', 'B2', 'B1', 'A2', 'A1']);
 });
 
 test('句動詞・言い回しや段階の無い語は「目安なし」に数える（覚えたの合計には入る）', () => {
