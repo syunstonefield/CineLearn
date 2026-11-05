@@ -7401,7 +7401,9 @@ button.vj-cell { cursor: pointer; }
 }
 
 /* 初回体験（components/TrialFlow.js・2026-11-05）。ポスターは法務の条件で幅 40vw・PC 160px まで・2:3 のまま切らない・上に重ねない。 */
-.trial-flow { flex: 1 0 auto; width: 100%; max-width: 560px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.trial-flow { --trial-gap: 10px; --trial-foot: 39px; --trial-stack: 526px; --trial-pads: 80px; flex: 1 0 auto; width: 100%; max-width: 560px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: var(--trial-gap); }
+/* TMDB の表示は幅 400px 以下で2行になる（--trial-foot はその高さ） */
+@media (max-width: 400px) { .trial-flow { --trial-foot: 53px; } }
 .trial-center { align-items: center; text-align: center; }
 .trial-h { font-size: 20px; line-height: 1.35; margin: 0; color: var(--text); }
 .trial-nowrap { display: inline-block; }
@@ -7417,9 +7419,13 @@ body:has(.trial-flow):not(:has(.auth-input)) #mainContent { flex: 1; min-height:
 .trial-fill { position: relative; justify-content: center; }
 .trial-fill:has(> .trial-back) { padding-top: 40px; padding-bottom: 40px; }
 .trial-fill > .trial-back { position: absolute; top: 16px; left: 16px; }
+/* 中央の基準を TMDB の表示も含めた画面全体にする（残りの高さの中央だと、帯の半分だけ上に見える）。上に帯と同じ高さの余白を足す。
+   レベルと案内は高さに余裕がない機種があるので、はみ出さない分だけ足す */
+.trial-vcenter::before { content: ''; flex: none; height: var(--trial-foot); margin-bottom: calc(-1 * var(--trial-gap)); }
+.trial-vcenter:has(> .trial-stack)::before { height: clamp(0px, calc(100dvh - var(--trial-foot) - var(--trial-stack) - var(--trial-pads) - 2px), var(--trial-foot)); }
 /* レベルと案内の塊を同じ高さにする＝中央に置いても見出しとカードの開始位置がそろい、レベルの下も空かない（行が伸びる）。
    526px＝案内の塊の高さ。文言や部品を変えたら見直す */
-.trial-stack { display: flex; flex-direction: column; gap: 10px; min-height: 526px; }
+.trial-stack { display: flex; flex-direction: column; gap: 10px; min-height: var(--trial-stack); }
 .trial-stack .trial-levels { flex: 1; }
 .trial-stack .trial-level { flex: 1; }
 /* レベルと案内の見出しの塊を同じ高さにして、← 戻る・見出し・説明・カードの開始位置をそろえる */
@@ -7474,9 +7480,9 @@ body:has(.trial-flow) .app-tmdb-footer { padding-bottom: calc(12px + env(safe-ar
 .trial-frame .tcp-item:active { transform: none; }
 .trial-frame-blank { display: block; aspect-ratio: 2 / 3; background: var(--surface2); }
 .trial-frame-label { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
-/* 背の低い iPhone（Safari の見える高さが約 640px 未満）: 余白と文字を詰める */
-@media (max-height: 640px) {
-  .trial-flow { padding: 10px 16px; gap: 6px; }
+/* 背の低い iPhone（Safari の見える高さが約 680px 未満）: 余白と文字を詰める */
+@media (max-height: 680px) {
+  .trial-flow { --trial-gap: 6px; --trial-foot: 32px; --trial-stack: 474px; --trial-pads: 68px; padding: 10px 16px; }
   .trial-h { font-size: 18px; }
   .trial-head { min-height: 134px; gap: 6px; }
   .trial-grid { gap: 6px; }
@@ -7486,13 +7492,14 @@ body:has(.trial-flow) .app-tmdb-footer { padding-bottom: calc(12px + env(safe-ar
   .trial-collection { font-size: 13px; }
   .trial-fill:has(> .trial-back) { padding-top: 34px; padding-bottom: 34px; }
   .trial-fill > .trial-back { top: 10px; }
-  .trial-stack { gap: 6px; min-height: 474px; }
+  .trial-stack { gap: 6px; }
   .trial-stage { padding: 8px 12px; }
   .trial-level { padding: 10px 16px; }
   .trial-cta { padding-top: 10px; padding-bottom: 10px; }
   .app-tmdb-footer { font-size: 10px !important; padding-top: 6px !important; }
 }
 @media (max-height: 580px) {
+  .trial-flow { --trial-pads: 44px; }
   .trial-fill:has(> .trial-back) { padding-bottom: 10px; }
 }
 

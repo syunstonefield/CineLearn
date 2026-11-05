@@ -30,7 +30,8 @@ import {
 //   ようこそ → レベル → チュートリアルの案内 → 作品 → 5語 → 予習5枚 → クイズ3問 → 完了（登録／あとで）→ 次の一歩。
 //   画面に出す呼び名は「チュートリアル」に統一（オーナー決定 2026-11-05）。作品から先は各画面に「ステップ○/4」と一行の説明を出す。
 //   ページ全体は動かさない（iPhone のアドレスバーの出入りで高さが変わると中身がずれる）。スクロールが要る時は #mainContent の中だけ。
-//   内容の少ない画面（trial-fill）は縦の中央。レベルと案内は trial-stack を同じ高さにして、中央に置いても見出しとカードの位置がそろう。
+//   内容の少ない画面（trial-fill）は縦の中央。ようこそ・レベル・案内・次の一歩（trial-vcenter）は TMDB の表示も含めた画面の中央を基準にする。
+//   レベルと案内は trial-stack を同じ高さにして、中央に置いても見出しとカードの位置がそろう。
 //   作品選択と完了はポスターの高さで1画面に収める。
 //   案内の「3〜5分」はオーナーの実測で確定（ゆっくり通して5分未満・2026-11-05）。語数や画面を変えたら測り直す。
 //   VocabScreen を通さない＝サービス選択・TMDB の検索し直し・ロビーの待ち・★・手入力が最初から無い。
@@ -204,7 +205,7 @@ export default function TrialFlow() {
 
   if (step === 'welcome') {
     return (
-      <div className="trial-flow trial-center trial-fill">
+      <div className="trial-flow trial-center trial-vcenter trial-fill">
         <img className="trial-logo" src="/icon-192.png" alt="" />
         <h1 className="trial-h">CineLearn へようこそ</h1>
         <p className="trial-sub">観たいドラマや映画の字幕から、英単語を学べるアプリです。観る前に予習して、観たあとに復習できます。</p>
@@ -226,7 +227,7 @@ export default function TrialFlow() {
 
   if (step === 'level') {
     return (
-      <div className="trial-flow trial-fill">
+      <div className="trial-flow trial-vcenter trial-fill">
         <button type="button" className="trial-back" onClick={() => setStep('welcome')}>
           ← 戻る
         </button>
@@ -251,7 +252,7 @@ export default function TrialFlow() {
 
   if (step === 'intro') {
     return (
-      <div className="trial-flow trial-fill">
+      <div className="trial-flow trial-vcenter trial-fill">
         <button type="button" className="trial-back" onClick={() => setStep('level')}>
           ← 戻る
         </button>
@@ -300,7 +301,7 @@ export default function TrialFlow() {
           ← 戻る
         </button>
         <div className="trial-step">{TRIAL_STAGES[0].title}</div>
-        <h1 className="trial-h">迷ったらこの4作から</h1>
+        <h1 className="trial-h">チュートリアルで使う作品を選ぶ</h1>
         <p className="trial-sub">{TRIAL_STAGES[0].why}</p>
         {/* 法務の推奨: ポスターを押す前に見える位置（説明の直後） */}
         <p className="trial-note">{PICK_NOTE}</p>
@@ -458,7 +459,7 @@ export default function TrialFlow() {
   // 拡張を入れた直後のタブ＝導入の案内は出さず、次にすることだけ伝える（ホームの帯と同じ文言・Dashboard）。
   if (isExtInstallEntry()) {
     return (
-      <div className="trial-flow trial-center trial-fill">
+      <div className="trial-flow trial-center trial-vcenter trial-fill">
         <h1 className="trial-h">次は、<span className="trial-nowrap">観ながら単語を集めましょう</span></h1>
         <p className="trial-sub">
           {loggedIn
@@ -479,7 +480,7 @@ export default function TrialFlow() {
 
   // 次の一歩（PC=拡張の案内、スマホ=PC で続ける）
   return (
-    <div className="trial-flow trial-center trial-fill">
+    <div className="trial-flow trial-center trial-vcenter trial-fill">
       <h1 className="trial-h">次は、<span className="trial-nowrap">観ながら単語を集めましょう</span></h1>
       {isMobile ? (
         <>

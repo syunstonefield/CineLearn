@@ -178,7 +178,8 @@ test('法務の文言がそのまま入っている', () => {
   assert.ok(ui.includes('登録して学習記録を残す'));
   assert.match(ui, /posterUrl\(title\) \? DONE_NOTE : DONE_NOTE_NO_POSTER/, 'ポスターの無い作品にポスターの文を出さない');
   assert.ok(!ui.includes('配信状況は変わることがあります') && !ui.includes('で探す') && !ui.includes('watchSearchUrl'), '配信サービスのリンクと注記は出さない（オーナー決定）');
-  assert.ok(ui.includes('迷ったらこの4作から'));
+  assert.ok(ui.includes('チュートリアルで使う作品を選ぶ'));
+  assert.ok(!ui.includes('迷ったら'), '実際には4作から選ぶので「迷ったら」と書かない（オーナー決定）');
 });
 
 test('ポスター: w342 固定・上に文字を重ねない作り（CSS は 40vw/160px・切らない）', () => {
@@ -264,12 +265,21 @@ test('ページ全体を固定し、スクロールは #mainContent の中だけ
   assert.match(source('TrialFlow.js'), /getElementById\('mainContent'\)\?\.scrollTo/, '画面が変わったら先頭へ');
 });
 
+test('中央の基準: ようこそ・レベル・案内・次の一歩は画面全体の中央、完了は残りの高さの中央', () => {
+  const flow = source('TrialFlow.js');
+  assert.equal(flow.match(/trial-vcenter trial-fill"/g).length, 5);
+  const done = flow.slice(flow.indexOf("if (step === 'done') {"));
+  assert.match(done, /className="trial-flow trial-center trial-fill">\s*<div className="trial-step">チュートリアルはここまでです/);
+  const css = fs.readFileSync(new URL('../app/style.css', import.meta.url), 'utf8');
+  assert.match(css, /\.trial-vcenter:has\(> \.trial-stack\)::before \{ height: clamp\(0px,/, 'はみ出さない');
+});
+
 test('レベルと案内は同じ高さの塊を中央に置く・作品の行全体が選ぶボタン', () => {
   const flow = source('TrialFlow.js');
   const at = (s) => flow.indexOf(`if (step === '${s}') {`);
   for (const [a, b] of [['level', 'intro'], ['intro', 'pick']]) {
     assert.match(flow.slice(at(a), at(b)), /<div className="trial-stack">\s*<div className="trial-head">/, a);
-    assert.match(flow.slice(at(a), at(b)), /className="trial-flow trial-fill"/, a);
+    assert.match(flow.slice(at(a), at(b)), /className="trial-flow trial-vcenter trial-fill"/, a);
   }
   const card = flow.slice(flow.indexOf('className="trial-card"'), flow.indexOf('</button>', flow.indexOf('className="trial-card"')));
   assert.match(card, /<img src=\{posterUrl\(t\)\}/);
