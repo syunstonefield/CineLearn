@@ -7486,7 +7486,7 @@ body:has(.trial-flow) .app-tmdb-footer { padding-bottom: calc(12px + env(safe-ar
   .trial-collection { font-size: 13px; }
   .trial-fill:has(> .trial-back) { padding-top: 34px; padding-bottom: 34px; }
   .trial-fill > .trial-back { top: 10px; }
-  .trial-stack { gap: 6px; min-height: 472px; }
+  .trial-stack { gap: 6px; min-height: 474px; }
   .trial-stage { padding: 8px 12px; }
   .trial-level { padding: 10px 16px; }
   .trial-cta { padding-top: 10px; padding-bottom: 10px; }
