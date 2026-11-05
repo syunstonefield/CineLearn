@@ -19,11 +19,14 @@ import {
   supaSignOut,
   clearSession,
   deleteProfileRow,
+  flushStatePushQueue,
+  getCurrentUser,
 } from '@/lib/supabase';
 import { recommendedToDrama } from '@/lib/recommended';
 import { forgetHubScroll } from '@/lib/hubScroll';
 import { PROFILES_AT_KEY } from '@/lib/profileMerge';
-import { markTrialFinished, hasFinishedTrial, TRIAL_KEYS } from '@/lib/trialState';
+import { markTrialFinished, hasFinishedTrial } from '@/lib/trialState';
+import { wipeLearningData, forgetAccount, rememberAccount } from '@/lib/deviceAccount';
 import { firstRunScreen, startupAuth, trialSourceOf } from '@/lib/firstRun';
 import { isExtInstallEntry } from '@/lib/extEntry';
 
@@ -192,10 +195,12 @@ export default function AppProvider({ children }) {
     (async () => {
       try {
         if (await ensureFreshSession()) {
+          rememberAccount(getCurrentUser()?.id); // この端末で使っているアカウント（別のアカウントで入った時に見分ける）
           await pullFromCloud();
           setLoggedIn(true);
           setCloudVersion((v) => v + 1);
         } else if (isLoggedIn()) {
+          rememberAccount(getCurrentUser()?.id);
           setLoggedIn(true);
         } else {
           // 未ログイン：起動時にログイン画面は出さない（初回体験の修正 D・lib/firstRun.js）。
@@ -317,28 +322,25 @@ export default function AppProvider({ children }) {
       )
     )
       return;
+    // 待ちになっている同期（user_state のトロットル）をセッションが生きているうちに送ってから抜ける。
+    try {
+      await flushStatePushQueue();
+    } catch {
+      /* ignore */
+    }
     try {
       await supaSignOut();
     } catch {
       /* ignore */
     }
     clearSession();
-    // cl_profiles_updated_at も一緒に消す（古い時刻が残ると次のログインの
-    // 「新しい方が勝つ」比較に前ユーザーの時刻が混ざるため）。
-    // 「一度見た」系フラグ（オンボ/チュートリアル/拡張バナー）もリセットする：
-    // 残すと次に入る別アカウント・新規ゲストが初回体験（アンケート等）を一切見られない。
-    // 既存アカウントの再ログインはクラウドの settings.onboarded が生きるので二重表示にならない。
-    [
-      'cl_profiles',
-      'cl_profiles_updated_at',
-      'cl_history',
-      'cl_srs',
-      'cl_my_words',
-      'cl_onboarded',
-      'cl_tutorial_seen',
-      'cl_ext_banner_dismissed',
-      ...TRIAL_KEYS,
-    ].forEach((k) => localStorage.removeItem(k));
+    // この端末の学習データを全部消す（lib/deviceAccount.js）。従来は cl_profiles・cl_history・cl_srs・cl_my_words と
+    // 「一度見た」系フラグ・体験の印だけで、user_state に同期する項目（学習した日・EXP・コレクション・学習時間 …）や
+    // プロフィール別キーが残り、次に入った別のアカウントの pull で合算されてクラウドへ書き戻されていた（2026-11-05 オーナー報告）。
+    // cl_profiles_updated_at も消す（古い時刻が残ると次のログインの「新しい方が勝つ」比較に前ユーザーの時刻が混ざるため）。
+    // 「一度見た」系フラグも消す（残すと次に入る別アカウント・新規ゲストが初回の流れを見られない）。
+    wipeLearningData();
+    forgetAccount(); // ログアウト後の端末はまっさら＝次のログイン・登録では消さない（ゲストの引き継ぎを守る）
     setLoggedIn(false);
     setSessionExpired(false);
     setProfile(null);

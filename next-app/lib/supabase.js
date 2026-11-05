@@ -385,8 +385,8 @@ function toIsoDateLite(v) {
 
 // ── 学習データ同期のヘルパ ──────────────────────────────────────
 
-// 同期対象の localStorage キー（user_state 1行=1キー）。
-const STATE_KEY_RE =
+// 同期対象の localStorage キー（user_state 1行=1キー）。★足したら lib/deviceAccount.js LEARNING_KEY_RE にも足す（ログアウトで消す対象）。
+export const STATE_KEY_RE =
   /^(cl_tickets|cl_fav_dramas|cl_study_sec|cl_study_drama|cl_watch_log|cl_frame_best)(_|$)|^cl_prepped$|^cl_seat_counter$|^cl_exp_ledger$|^cl_archived$|^cl_stats_daily$/;
 
 function localStateKeys() {
@@ -506,20 +506,35 @@ function mergeStateValue(key, localV, cloudV) {
 // デバウンスだと学習時間ティックのような定期書込で永久に飢餓するため、
 // 既にタイマーが走っていれば延長しない）。値は flush 時点の localStorage を読む。
 const stateTimers = {};
+function sendStateKey(key) {
+  const uid = getCurrentUser()?.id;
+  const v = readStateLocal(key);
+  if (!uid || v == null) return Promise.resolve(null);
+  return sbFetch('/rest/v1/user_state', {
+    method: 'POST',
+    headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify([{ user_id: uid, key, value: v, updated_at: new Date().toISOString() }]),
+  });
+}
 export function queueStatePush(key, delayMs = 3000) {
   if (typeof window === 'undefined' || !isLoggedIn()) return;
   if (stateTimers[key]) return;
   stateTimers[key] = setTimeout(() => {
     delete stateTimers[key];
-    const uid = getCurrentUser()?.id;
-    const v = readStateLocal(key);
-    if (!uid || v == null) return;
-    sbFetch('/rest/v1/user_state', {
-      method: 'POST',
-      headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-      body: JSON.stringify([{ user_id: uid, key, value: v, updated_at: new Date().toISOString() }]),
-    });
+    sendStateKey(key);
   }, delayMs);
+}
+// 待ちになっている同期を今すぐ送る（ログアウトの直前に呼ぶ＝消す前に失わない・2026-11-05 lib/deviceAccount.js）。
+//   セッションが有効なうちに送る必要があるので、supaSignOut / clearSession より前に await する。
+export async function flushStatePushQueue() {
+  const keys = Object.keys(stateTimers);
+  for (const k of keys) {
+    clearTimeout(stateTimers[k]);
+    delete stateTimers[k];
+  }
+  if (!keys.length) return 0;
+  await Promise.all(keys.map((k) => sendStateKey(k).catch(() => null)));
+  return keys.length;
 }
 
 // SRS を語単位でクラウドへ upsert（entries = { word: srsEntry }）。
