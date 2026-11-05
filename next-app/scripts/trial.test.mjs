@@ -286,6 +286,20 @@ test('レベルと案内は同じ高さの塊を中央に置く・作品の行�
   assert.ok(flow.indexOf('{PICK_NOTE}') < flow.indexOf('className="trial-card"'));
 });
 
+test('拡張機能の入れ方: 全経路で見えている高さに収める・体験の中だけ導入文なしで短く', () => {
+  const guide = source('ExtensionGuide.js');
+  assert.match(guide, /\{!inTrial && \(\s*<p className="ext-guide-lead">/, '導入文は体験の外だけ');
+  assert.ok(guide.includes('Netflix などで字幕の単語を集めるには、無料の Chrome 拡張機能が必要です。'), '体験の外の文面は変えない');
+  assert.match(guide, /PC（Chrome \/ Edge）専用/, 'PC 専用の趣旨は全経路で残す');
+  assert.ok(!guide.slice(guide.indexOf('ext-guide-note'), guide.indexOf('</p>', guide.indexOf('ext-guide-note'))).includes('inTrial'));
+  assert.match(guide, /inTrial \? s\.short : s\.body/);
+  const css = fs.readFileSync(new URL('../app/style.css', import.meta.url), 'utf8');
+  const rule = (name) => css.slice(css.indexOf(name), css.indexOf('}', css.indexOf(name)));
+  assert.match(rule('.ext-guide-panel {'), /max-height: calc\(100dvh - 96px\)/);
+  assert.match(rule('.ext-guide-overlay-trial .ext-guide-panel {'), /max-height: calc\(100dvh - 24px\)/);
+  assert.ok(css.indexOf('.ext-guide-panel {') > css.indexOf('.modal-panel { max-height: calc(100vh - 80px); }'), 'スマホの .modal-panel より後に書く');
+});
+
 test('呼び名はチュートリアルに統一・効果をうたう言葉を書かない', () => {
   const ui = source('TrialFlow.js').replace(/\{\/\*.*?\*\/\}/g, '').replace(/\/\/.*$/gm, '');
   assert.ok(!ui.includes('体験'), '画面に「体験」');

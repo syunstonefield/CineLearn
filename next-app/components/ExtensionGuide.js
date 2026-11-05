@@ -3,9 +3,12 @@
 // 拡張機能の導入ガイド（モーダル）。Chrome Web Store 公開済みのため、ストアから1クリックで追加する
 // 3ステップ（①ストアで追加 → ②アプリにログイン → ③Netflix / Prime Video で字幕をクリック）を案内する。
 // 旧「GitHub の zip を load unpacked（デベロッパーモード）」手順は廃止。
-// チュートリアルのスライドとダッシュボードの常設バナーから開く。
+// チュートリアルのスライド、ダッシュボードの常設バナー、初回体験の「次の一歩」から開く。
+// 初回体験の中（screen === 'trial'）だけ、導入文を出さず手順を短くして1画面に収める（オーナー決定 2026-11-05）。
+//   スマホではストアから入れられないので、ストアのボタンも出さない。閉じると「次の一歩」の画面に戻る。
 
 import { useApp } from './AppProvider';
+import { isMobileDevice } from '@/lib/device';
 
 // ストアURL（LP app/(marketing)/page.js の STORE_URL と同じものを指す。変える時は両方）。
 const STORE_URL = 'https://chromewebstore.google.com/detail/cinelearn/jdhgbdpaeoihopelnnganoojpnplkiie';
@@ -15,6 +18,7 @@ const STORE_URL = 'https://chromewebstore.google.com/detail/cinelearn/jdhgbdpaeo
 const STEPS = [
   {
     title: 'Chrome Web Store で「Chrome に追加」',
+    short: <>ストアのページで「Chrome に追加」を押します。</>,
     body: (
       <>
         下のボタンでストアのページを開き、「Chrome に追加」を押すだけ。zip の解凍やデベロッパーモードの設定は不要です
@@ -24,6 +28,11 @@ const STEPS = [
   },
   {
     title: 'このアプリにログインする',
+    short: (
+      <>
+        集めた単語をアプリに届けるには<b>ログインが必須</b>です。
+      </>
+    ),
     body: (
       <>
         拡張機能で集めた単語をアプリに届けるには<b>ログインが必須</b>です（ローカルのみの利用は予習・復習向け）。
@@ -33,6 +42,7 @@ const STEPS = [
   },
   {
     title: 'Netflix / Prime Video で字幕の単語をクリック',
+    short: <>動画を再生し、字幕の知らない単語をクリックして保存します。</>,
     body: (
       <>
         動画を再生し、字幕の知らない単語をクリックするだけ。辞書ポップアップから単語帳に保存でき、このアプリへ自動同期されます。
@@ -43,7 +53,8 @@ const STEPS = [
 ];
 
 export default function ExtensionGuide() {
-  const { closeGuide, openAuth, loggedIn } = useApp();
+  const { closeGuide, openAuth, loggedIn, screen } = useApp();
+  const inTrial = screen === 'trial';
 
   const overlayClick = (e) => {
     if (e.target === e.currentTarget) closeGuide();
@@ -56,7 +67,7 @@ export default function ExtensionGuide() {
   };
 
   return (
-    <div className="modal-overlay" style={{ display: 'flex' }} onClick={overlayClick}>
+    <div className={'modal-overlay' + (inTrial ? ' ext-guide-overlay-trial' : '')} style={{ display: 'flex' }} onClick={overlayClick}>
       <div className="modal-panel ext-guide-panel" role="dialog" aria-modal="true" aria-label="拡張機能の入れ方">
         <div className="modal-header">
           <span className="modal-title">🧩 拡張機能の入れ方</span>
@@ -66,10 +77,12 @@ export default function ExtensionGuide() {
         </div>
 
         <div className="modal-body ext-guide-body">
-          <p className="ext-guide-lead">
-            Netflix などで字幕の単語を集めるには、無料の Chrome 拡張機能が必要です。Chrome Web Store から1クリックで追加できます
-            （所要1分・Edge など他の Chromium 系ブラウザも同じ手順です）。
-          </p>
+          {!inTrial && (
+            <p className="ext-guide-lead">
+              Netflix などで字幕の単語を集めるには、無料の Chrome 拡張機能が必要です。Chrome Web Store から1クリックで追加できます
+              （所要1分・Edge など他の Chromium 系ブラウザも同じ手順です）。
+            </p>
+          )}
           <p className="ext-guide-note" style={{ marginTop: 0, marginBottom: 14 }}>
             💻 この手順は<b>PC（Chrome / Edge）専用</b>です。スマホでは拡張機能を入れられないため、お使いのPCで開いて進めてください（スマホは予習・復習・テストに使えます）。
           </p>
@@ -80,8 +93,8 @@ export default function ExtensionGuide() {
                 <span className="ext-guide-num">{i + 1}</span>
                 <div className="ext-guide-step-text">
                   <div className="ext-guide-step-title">{s.title}</div>
-                  <p>{s.body}</p>
-                  {i === 0 && (
+                  <p>{inTrial ? s.short : s.body}</p>
+                  {i === 0 && !(inTrial && isMobileDevice()) && (
                     <a className="btn-primary ext-guide-dl" href={STORE_URL} target="_blank" rel="noopener noreferrer">
                       🧩 Chrome Web Store で追加
                     </a>

@@ -2769,6 +2769,20 @@ header {
    ───────────────────────────────────────── */
 .ext-guide-panel {
   max-width: 480px;
+  /* iPhone Safari の 100vh はアドレスバーを除かない高さなので、.modal-panel の calc(100vh - …) だと閉じるボタンがバーの下に切れる。
+     見えている高さ（dvh）から、画面の上下の余白（PC 96px・スマホ 72px の大きい方）を引く */
+  max-height: calc(100vh - 96px);
+  max-height: calc(100dvh - 96px);
+}
+/* 初回体験の中は上の余白を詰めて、手順1〜3を1画面に収める */
+.modal-overlay.ext-guide-overlay-trial { align-items: center; padding: 12px; }
+.ext-guide-overlay-trial .ext-guide-panel { max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); }
+.ext-guide-overlay-trial .ext-guide-note { border-top: 0; padding-top: 0; } /* 導入文が無いので上の区切り線も要らない */
+@media (max-height: 600px) {
+  .ext-guide-overlay-trial .ext-guide-body { padding: 10px 16px; }
+  .ext-guide-overlay-trial .ext-guide-steps { gap: 10px; }
+  .ext-guide-overlay-trial .ext-guide-footer { padding: 8px 16px; }
+  .ext-guide-overlay-trial .ext-guide-dl { margin-top: 6px; padding: 6px 14px; }
 }
 .ext-guide-body {
   padding: 20px;
