@@ -10,7 +10,7 @@ import TicketPoster from './TicketPoster';
 // 学習履歴＋TMDB（seasons キャッシュ）から、作品単位の学習記録を見せる。
 // データは捏造しない：episode タイトルは未保持のため SxE＋学習日で表現する。
 export default function TicketDetailView({ entry, seasons, onBack, onFav, onStudy, profileId }) {
-  // 半券を開いたら常に一番上から表示（一覧でスクロールした位置を引き継がない）。
+  // 詳細を開いたら常に一番上から表示（一覧でスクロールした位置を引き継がない）。
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
@@ -68,7 +68,7 @@ export default function TicketDetailView({ entry, seasons, onBack, onFav, onStud
           <button className="td-back" onClick={onBack} aria-label="コレクションへ戻る">
             ‹
           </button>
-          <span className="td-htitle">半券の詳細</span>
+          <span className="td-htitle">コレクションの詳細</span>
           <span className="td-hspacer" />
         </div>
 

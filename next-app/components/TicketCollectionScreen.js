@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
 import { loadHistory, learningStatsByTitle, buildLibraryEntries } from '@/lib/storage';
 import { getStudySeconds, formatStudyTime } from '@/lib/studytime';
@@ -53,6 +53,18 @@ export default function TicketCollectionScreen() {
   useEffect(() => {
     setDetailTitle(null);
   }, [collectionTabTick]);
+  // 詳細を開く前に見ていた一覧の位置へ戻す（「‹」もタブも・オーナー 2026-11-05）。
+  //   別のタブへ移るとこの画面ごと消えるので、開き直した時は今までどおり一番上から。
+  const listScrollY = useRef(null);
+  const openDetail = (title) => {
+    listScrollY.current = window.scrollY;
+    setDetailTitle(title);
+  };
+  useLayoutEffect(() => {
+    if (detailTitle !== null || listScrollY.current === null) return;
+    window.scrollTo(0, listScrollY.current);
+    listScrollY.current = null;
+  }, [detailTitle]);
   const attemptedPosters = useRef(new Set()); // 重複fetch防止
   const [posterOverrides, setPosterOverrides] = useState({}); // title → posterPath（表示補完）
 
@@ -444,7 +456,7 @@ export default function TicketCollectionScreen() {
                 key={e.title}
                 type="button"
                 className={'tcp-item frame-' + e.frame.key}
-                onClick={() => setDetailTitle(e.title)}
+                onClick={() => openDetail(e.title)}
                 aria-label={`${e.enTitle}（${e.frame.label}の額縁${e.progress != null ? `・覚えた ${e.progress}%` : ''}）`}
                 title={e.enTitle}
               >
@@ -476,11 +488,11 @@ export default function TicketCollectionScreen() {
                 className={'tcimg-card frame-' + e.frame.key}
                 role="button"
                 tabIndex={0}
-                onClick={() => setDetailTitle(e.title)}
+                onClick={() => openDetail(e.title)}
                 onKeyDown={(ev) => {
                   if (ev.key === 'Enter' || ev.key === ' ') {
                     ev.preventDefault();
-                    setDetailTitle(e.title);
+                    openDetail(e.title);
                   }
                 }}
               >
