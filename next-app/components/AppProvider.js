@@ -640,8 +640,11 @@ export default function AppProvider({ children }) {
     setScreen('journey');
   }, []);
   // 半券コレクションは全画面（ヘッダー・ボトムナビが見える）の screen として扱う。
+  // 下のタブを押すたびに数を進める＝作品詳細を開いていれば一覧へ戻す合図（TicketCollectionScreen・オーナー 2026-11-05）。
+  const [collectionTabTick, setCollectionTabTick] = useState(0);
   const openCollection = useCallback(() => {
     exitReviewPage();
+    setCollectionTabTick((n) => n + 1);
     setScreen('collection');
   }, []);
   const closeCollection = useCallback(() => setScreen('main'), []);
@@ -816,6 +819,7 @@ export default function AppProvider({ children }) {
     setJourneyFocus,
     closeWordbook,
     openCollection,
+    collectionTabTick,
     closeCollection,
     openReviewHub,
     wordbookVersion,
