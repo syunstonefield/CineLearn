@@ -30,8 +30,17 @@ const VIEWS = [
 const POSTER_COLORS = ['#E50914', '#1A73E8', '#2E7D32', '#7B1FA2', '#E65100', '#00695C', '#AD1457'];
 
 export default function TicketCollectionScreen() {
-  const { settings, updateSettings, openDrama, mounted, profile, reviewVersion, cloudVersion, wordbookVersion } =
-    useApp();
+  const {
+    settings,
+    updateSettings,
+    openDrama,
+    mounted,
+    profile,
+    reviewVersion,
+    cloudVersion,
+    wordbookVersion,
+    collectionTabTick,
+  } = useApp();
 
   const [favs, setFavs] = useState([]);
   const [seasonsMap, setSeasonsMap] = useState({}); // tmdbId → { total, seasons }
@@ -40,6 +49,10 @@ export default function TicketCollectionScreen() {
   const [view, setView] = useState('ticket');
   const [frameBest, setFrameBest] = useState({}); // 作品タイトル → 届いた額縁の段階（上がるだけ）
   const [detailTitle, setDetailTitle] = useState(null); // 開いている作品詳細（タイトル）
+  // 作品詳細で下の「コレクション」タブを押したら一覧へ（「‹」と同じ戻り方。一覧の表示中は何も起きない）。
+  useEffect(() => {
+    setDetailTitle(null);
+  }, [collectionTabTick]);
   const attemptedPosters = useRef(new Set()); // 重複fetch防止
   const [posterOverrides, setPosterOverrides] = useState({}); // title → posterPath（表示補完）
 
