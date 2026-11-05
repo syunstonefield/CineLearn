@@ -7414,7 +7414,14 @@ html:has(.trial-flow):not(:has(.auth-input)) { height: 100%; overflow: hidden; o
 body:has(.trial-flow):not(:has(.auth-input)) { position: fixed; top: 0; left: 0; right: 0; height: 100vh; height: 100dvh; min-height: 0; overflow: hidden; overscroll-behavior: none; display: flex; flex-direction: column; }
 body:has(.trial-flow):not(:has(.auth-input)) #mainContent { flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; }
 /* 内容の少ない画面は残りの高さの中央へ。高さは min-height の扱い（flex-shrink: 0）なので、収まらなければ #mainContent がスクロールして上は切れない */
-.trial-fill { justify-content: center; }
+.trial-fill { position: relative; justify-content: center; }
+.trial-fill:has(> .trial-back) { padding-top: 40px; padding-bottom: 40px; }
+.trial-fill > .trial-back { position: absolute; top: 16px; left: 16px; }
+/* レベルと案内の塊を同じ高さにする＝中央に置いても見出しとカードの開始位置がそろい、レベルの下も空かない（行が伸びる）。
+   526px＝案内の塊の高さ。文言や部品を変えたら見直す */
+.trial-stack { display: flex; flex-direction: column; gap: 10px; min-height: 526px; }
+.trial-stack .trial-levels { flex: 1; }
+.trial-stack .trial-level { flex: 1; }
 /* レベルと案内の見出しの塊を同じ高さにして、← 戻る・見出し・説明・カードの開始位置をそろえる */
 .trial-head { display: flex; flex-direction: column; gap: 8px; min-height: 136px; }
 .trial-logo { width: 72px; height: 72px; border-radius: 16px; }
@@ -7452,17 +7459,18 @@ body:has(.trial-flow):not(:has(.auth-input)) #mainContent { flex: 1; min-height:
 .trial-count { font-size: 13px; color: var(--text-muted); margin: 0; }
 .trial-cta { width: 100%; max-width: 360px; align-self: center; }
 .trial-done-poster { line-height: 0; }
-/* 584px＝完了画面のポスター以外の高さの合計 */
-.trial-done-poster img { height: clamp(56px, calc(100dvh - 584px), 240px); width: auto; max-width: min(40vw, 160px); aspect-ratio: 2 / 3; object-fit: contain; display: block; border-radius: 6px; }
+/* 520px＝完了画面のポスター以外の高さの合計（上限は法務の 40vw/160px のまま） */
+.trial-done-poster img { height: clamp(56px, calc(100dvh - 520px), 240px); width: auto; max-width: min(40vw, 160px); aspect-ratio: 2 / 3; object-fit: contain; display: block; border-radius: 6px; }
 /* 5語の画面の下部バー。体験にはボトムナビが無く、スクロールは #mainContent の中なので、TMDB の表示のすぐ上に置く */
 .vocab-action-bar.trial-bar { bottom: 10px; margin-top: 4px; }
 .trial-bar .vab-btn { padding: 13px 4px; }
 .trial-bar .vab-main { font-size: 14px; }
 /* TMDB の表示が画面の下に来るので、iPhone のホームバーと重ならないようにする（インラインの padding を上書き） */
 body:has(.trial-flow) .app-tmdb-footer { padding-bottom: calc(12px + env(safe-area-inset-bottom)) !important; }
+.trial-collection { font-size: 14px; line-height: 1.6; color: var(--text); margin: 0; }
 .trial-frames { display: flex; justify-content: center; align-items: flex-end; gap: 20px; }
 .trial-frame { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.trial-frame .tcp-item { width: 40px; cursor: default; }
+.trial-frame .tcp-item { width: 52px; cursor: default; }
 .trial-frame .tcp-item:active { transform: none; }
 .trial-frame-blank { display: block; aspect-ratio: 2 / 3; background: var(--surface2); }
 .trial-frame-label { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
@@ -7470,17 +7478,23 @@ body:has(.trial-flow) .app-tmdb-footer { padding-bottom: calc(12px + env(safe-ar
 @media (max-height: 640px) {
   .trial-flow { padding: 10px 16px; gap: 6px; }
   .trial-h { font-size: 18px; }
-  .trial-head { min-height: 126px; gap: 6px; }
+  .trial-head { min-height: 134px; gap: 6px; }
   .trial-grid { gap: 6px; }
   .trial-poster img { height: clamp(50px, calc((100dvh - 322px) / 4), 120px); }
-  .trial-done-poster img { height: clamp(50px, calc(100dvh - 512px), 240px); }
-  .trial-frame .tcp-item { width: 28px; }
+  .trial-done-poster img { height: clamp(50px, calc(100dvh - 400px), 240px); }
+  .trial-frame .tcp-item { width: 36px; }
+  .trial-collection { font-size: 13px; }
+  .trial-fill:has(> .trial-back) { padding-top: 34px; padding-bottom: 34px; }
+  .trial-fill > .trial-back { top: 10px; }
+  .trial-stack { gap: 6px; min-height: 472px; }
   .trial-stage { padding: 8px 12px; }
   .trial-level { padding: 10px 16px; }
   .trial-cta { padding-top: 10px; padding-bottom: 10px; }
   .app-tmdb-footer { font-size: 10px !important; padding-top: 6px !important; }
 }
-.trial-watch { font-size: 13px; color: var(--text); text-decoration: underline; text-underline-offset: 2px; margin-top: 8px; }
+@media (max-height: 580px) {
+  .trial-fill:has(> .trial-back) { padding-bottom: 10px; }
+}
 
 /* 新規登録の同意の一文（AuthModal） */
 .auth-consent { margin-top: 8px; font-size: 11.5px; line-height: 1.6; color: var(--text-muted); text-align: center; }

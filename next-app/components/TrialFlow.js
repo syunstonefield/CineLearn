@@ -7,7 +7,6 @@ import CefrNote from './CefrNote';
 import { generateEpisodeVocab } from '@/lib/api';
 import { personalizeWords } from '@/lib/personalize';
 import { saveHistoryEntry } from '@/lib/storage';
-import { watchSearchUrl } from '@/lib/prep';
 import { speak } from '@/lib/speak';
 import { secToTimeLabel } from '@/lib/subtitles';
 import { cefrHintOf } from '@/lib/cefrHint';
@@ -31,7 +30,8 @@ import {
 //   ようこそ → レベル → チュートリアルの案内 → 作品 → 5語 → 予習5枚 → クイズ3問 → 完了（登録／あとで）→ 次の一歩。
 //   画面に出す呼び名は「チュートリアル」に統一（オーナー決定 2026-11-05）。作品から先は各画面に「ステップ○/4」と一行の説明を出す。
 //   ページ全体は動かさない（iPhone のアドレスバーの出入りで高さが変わると中身がずれる）。スクロールが要る時は #mainContent の中だけ。
-//   内容の少ない画面（trial-fill）は縦の中央、レベルと案内は上から同じ位置に並べる。作品選択と完了はポスターの高さで1画面に収める。
+//   内容の少ない画面（trial-fill）は縦の中央。レベルと案内は trial-stack を同じ高さにして、中央に置いても見出しとカードの位置がそろう。
+//   作品選択と完了はポスターの高さで1画面に収める。
 //   案内の「3〜5分」はオーナーの実測で確定（ゆっくり通して5分未満・2026-11-05）。語数や画面を変えたら測り直す。
 //   VocabScreen を通さない＝サービス選択・TMDB の検索し直し・ロビーの待ち・★・手入力が最初から無い。
 //   予習とクイズは既存の PrepWalkthrough / PrepQuiz を meta.trial で使う（SRS・予習済み・EXP を書かない）。
@@ -226,22 +226,24 @@ export default function TrialFlow() {
 
   if (step === 'level') {
     return (
-      <div className="trial-flow">
+      <div className="trial-flow trial-fill">
         <button type="button" className="trial-back" onClick={() => setStep('welcome')}>
           ← 戻る
         </button>
-        <div className="trial-head">
-          <h1 className="trial-h">あなたについて教えてください</h1>
-          <p className="trial-lead">いまの英語レベルは？</p>
-          <p className="trial-sub">レベルに合わせて、出す単語を変えます。点数は TOEIC の目安で、受けたことがなくても近いものを選べば大丈夫です。あとから変えられます。</p>
-        </div>
-        <div className="trial-levels">
-          {TRIAL_LEVELS.map((lv) => (
-            <button key={lv.score} type="button" className="trial-level" onClick={() => chooseLevel(lv)}>
-              <span className="trial-level-name">{lv.label}</span>
-              <span className="trial-level-range">{lv.range}</span>
-            </button>
-          ))}
+        <div className="trial-stack">
+          <div className="trial-head">
+            <h1 className="trial-h">あなたについて教えてください</h1>
+            <p className="trial-lead">いまの英語レベルは？</p>
+            <p className="trial-sub">レベルに合わせて、出す単語を変えます。点数は TOEIC の目安で、受けたことがなくても近いものを選べば大丈夫です。あとから変えられます。</p>
+          </div>
+          <div className="trial-levels">
+            {TRIAL_LEVELS.map((lv) => (
+              <button key={lv.score} type="button" className="trial-level" onClick={() => chooseLevel(lv)}>
+                <span className="trial-level-name">{lv.label}</span>
+                <span className="trial-level-range">{lv.range}</span>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -249,42 +251,44 @@ export default function TrialFlow() {
 
   if (step === 'intro') {
     return (
-      <div className="trial-flow">
+      <div className="trial-flow trial-fill">
         <button type="button" className="trial-back" onClick={() => setStep('level')}>
           ← 戻る
         </button>
-        <div className="trial-head">
-          <h1 className="trial-h">
-            ここからは<span className="trial-nowrap">チュートリアルに進みます</span>
-          </h1>
-          <p className="trial-sub">実際の作品の単語で、CineLearn の使い方を試します。</p>
-          <ul className="trial-facts">
-            <li>3〜5分ほどで終わります</li>
-            <li>動画は再生されません</li>
-            {!loggedIn && <li>登録するかは最後に選べます</li>}
-          </ul>
+        <div className="trial-stack">
+          <div className="trial-head">
+            <h1 className="trial-h">
+              ここからは<span className="trial-nowrap">チュートリアルに進みます</span>
+            </h1>
+            <p className="trial-sub">実際の作品の単語で、CineLearn の使い方を試します。</p>
+            <ul className="trial-facts">
+              <li>3〜5分ほどで終わります</li>
+              <li>動画は再生されません</li>
+              {!loggedIn && <li>登録するかは最後に選べます</li>}
+            </ul>
+          </div>
+          <ol className="trial-stages">
+            {TRIAL_STAGES.map((s) => (
+              <li key={s.label} className="trial-stage">
+                <span className="trial-stage-label">{s.label}</span>
+                <span className="trial-stage-summary">{s.summary}</span>
+              </li>
+            ))}
+          </ol>
+          <button
+            type="button"
+            className="btn-primary trial-cta"
+            onClick={() => {
+              trackUsage('trial_intro');
+              setStep('pick');
+            }}
+          >
+            チュートリアルをはじめる
+          </button>
+          <button type="button" className="trial-text-link trial-quit" onClick={finishTrial}>
+            チュートリアルをやめてホームへ
+          </button>
         </div>
-        <ol className="trial-stages">
-          {TRIAL_STAGES.map((s) => (
-            <li key={s.label} className="trial-stage">
-              <span className="trial-stage-label">{s.label}</span>
-              <span className="trial-stage-summary">{s.summary}</span>
-            </li>
-          ))}
-        </ol>
-        <button
-          type="button"
-          className="btn-primary trial-cta"
-          onClick={() => {
-            trackUsage('trial_intro');
-            setStep('pick');
-          }}
-        >
-          チュートリアルをはじめる
-        </button>
-        <button type="button" className="trial-text-link trial-quit" onClick={finishTrial}>
-          チュートリアルをやめてホームへ
-        </button>
       </div>
     );
   }
@@ -404,7 +408,6 @@ export default function TrialFlow() {
   }
 
   if (step === 'done') {
-    const service = title.watchService;
     const canSignup = !loggedIn && trialSource !== 'extension';
     return (
       <div className="trial-flow trial-center trial-fill">
@@ -416,7 +419,7 @@ export default function TrialFlow() {
         )}
         <h1 className="trial-h">「{title.title}」の学習記録をコレクションに追加しました</h1>
         <p className="trial-note">{posterUrl(title) ? DONE_NOTE : DONE_NOTE_NO_POSTER}</p>
-        <p className="trial-sub">{COLLECTION_NOTE}</p>
+        <p className="trial-collection">{COLLECTION_NOTE}</p>
         <div className="trial-frames">
           {FRAME_TIERS.slice(1).map((t) => (
             <div key={t.key} className="trial-frame">
@@ -448,10 +451,6 @@ export default function TrialFlow() {
             次へ
           </button>
         )}
-        <a className="trial-watch" href={watchSearchUrl(title.title, service)} target="_blank" rel="noopener noreferrer">
-          {service} で探す
-        </a>
-        <p className="trial-note">配信状況は変わることがあります。本サービスは {service} と提携していません。</p>
       </div>
     );
   }

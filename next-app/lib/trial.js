@@ -5,7 +5,7 @@
 //   - reason は学習面の事実だけ。「人気」「いま話題」「おすすめ No.1」「公式」「配信中」「Netflix」「独占」「オリジナル」は書かない。
 //     作品選択の画面に出るので、ここに配信サービスの名前を入れない（配信先は watchService に分ける）。
 //   - watchService の確認は作品・予習部門の担当。月1回とカタログ更新時に確認する（TMDB/JustWatch の値・最終確認 2026-11-05）。
-//     表示は作品ごとの watchService から「○○ で探す」の文字ボタンと「本サービスは ○○ と提携していません」を出す（ロゴとブランドの色なし）。
+//     画面には出さない（完了画面の「○○ で探す」と注記はオーナー決定で削除・2026-11-05）。ホームから開く時にサービス選択を飛ばす viewingService に使う。
 //   - Stranger Things の「第1話は4作の中で易しい語の割合が高め」は vocab_cache の第1話の実測に基づく比較（2026-11-05）。
 //     リストを作り直して順位が変わったら、この文を見直す。
 // 語はオーナー確定（2026-11-05）。quiz は words の中の3語。語を変える時はオーナーに確認する。
@@ -241,7 +241,6 @@ export function buildTrialSession(title, list, score) {
       season,
       episode,
       isMovie,
-      service: title.watchService,
       credit: episodeCredit(title.title, season, episode, isMovie),
       core: null,
     },

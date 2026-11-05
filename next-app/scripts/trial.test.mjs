@@ -177,7 +177,7 @@ test('法務の文言がそのまま入っている', () => {
   assert.ok(ui.includes('ポスター画像は作品を見分けるための表示です（画像：TMDB）。作品の権利者・配信サービスとは提携していません。'));
   assert.ok(ui.includes('登録して学習記録を残す'));
   assert.match(ui, /posterUrl\(title\) \? DONE_NOTE : DONE_NOTE_NO_POSTER/, 'ポスターの無い作品にポスターの文を出さない');
-  assert.ok(ui.includes('配信状況は変わることがあります。本サービスは {service} と提携していません。'));
+  assert.ok(!ui.includes('配信状況は変わることがあります') && !ui.includes('で探す') && !ui.includes('watchSearchUrl'), '配信サービスのリンクと注記は出さない（オーナー決定）');
   assert.ok(ui.includes('迷ったらこの4作から'));
 });
 
@@ -213,8 +213,8 @@ test('流れ: ようこそ→レベル→案内→作品の順・ログインと
 
 test('内容の少ない画面は縦の中央・ほかは上から・固定の高さを持たない（上が切れない）', () => {
   const flow = source('TrialFlow.js');
-  assert.equal(flow.match(/className="trial-flow[^"]*trial-fill"/g).length, 4, 'ようこそ・完了・次の一歩2種');
-  assert.equal(flow.match(/className="trial-flow"/g).length, 4, 'レベル・案内・作品・5語は上から');
+  assert.equal(flow.match(/className="trial-flow[^"]*trial-fill"/g).length, 6, 'ようこそ・レベル・案内・完了・次の一歩2種');
+  assert.equal(flow.match(/className="trial-flow"/g).length, 2, '作品・5語は上から');
   const css = fs.readFileSync(new URL('../app/style.css', import.meta.url), 'utf8');
   const rule = (name) => css.slice(css.indexOf(name), css.indexOf('}', css.indexOf(name)));
   assert.match(rule('.trial-fill {'), /justify-content: center/);
@@ -264,10 +264,13 @@ test('ページ全体を固定し、スクロールは #mainContent の中だけ
   assert.match(source('TrialFlow.js'), /getElementById\('mainContent'\)\?\.scrollTo/, '画面が変わったら先頭へ');
 });
 
-test('レベルと案内は同じ塊の高さで始める・作品の行全体が選ぶボタン', () => {
+test('レベルと案内は同じ高さの塊を中央に置く・作品の行全体が選ぶボタン', () => {
   const flow = source('TrialFlow.js');
   const at = (s) => flow.indexOf(`if (step === '${s}') {`);
-  for (const [a, b] of [['level', 'intro'], ['intro', 'pick']]) assert.match(flow.slice(at(a), at(b)), /<div className="trial-head">/, a);
+  for (const [a, b] of [['level', 'intro'], ['intro', 'pick']]) {
+    assert.match(flow.slice(at(a), at(b)), /<div className="trial-stack">\s*<div className="trial-head">/, a);
+    assert.match(flow.slice(at(a), at(b)), /className="trial-flow trial-fill"/, a);
+  }
   const card = flow.slice(flow.indexOf('className="trial-card"'), flow.indexOf('</button>', flow.indexOf('className="trial-card"')));
   assert.match(card, /<img src=\{posterUrl\(t\)\}/);
   assert.ok(flow.indexOf('{PICK_NOTE}') < flow.indexOf('className="trial-card"'));
