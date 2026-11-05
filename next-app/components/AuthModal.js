@@ -119,6 +119,11 @@ export default function AuthModal() {
             className="auth-input"
             placeholder="メールアドレス"
             autoComplete="email"
+            // iPhone でメール欄のキーボードが日本語で出る件（2026-11-05 オーナー）: Web からキーボードの言語は指定できないので、
+            // 先頭の大文字化・自動修正・スペルチェックを切って入力ミスを減らす。type=email と autoComplete=email はそのまま。
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && submit()}
@@ -127,7 +132,8 @@ export default function AuthModal() {
             type="password"
             className="auth-input"
             placeholder="パスワード（6文字以上）"
-            autoComplete="current-password"
+            // 新規登録は new-password（iPhone の強いパスワードの提案が出る）・ログインは current-password（保存済みの候補が出る）
+            autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && submit()}
