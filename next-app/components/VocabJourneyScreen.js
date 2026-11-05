@@ -2,7 +2,7 @@
 
 // あゆみタブ（下のタブ・オーナー 2026-10-08 で「円のタップ先」から変更）。
 // docs/design-paid-features-2026-10-08.md「実装メモ 4」・モック https://claude.ai/artifact/NYPowDEgA8ceU7vM7YCfem 。
-//   上から 3重の円（VocabRings・ホームから移設）→「学習した日」（草・無料）→「週ごとの推移」（プラス）。
+//   上から 3重の円（VocabRings・ホームから移設）→「段階ごとの覚えた語」（CEFR 目安別・オーナー 2026-11-05）→「学習した日」（草・無料）→「週ごとの推移」（プラス）。
 //   円の有料/無料は保留（PLAN_FEATURES.ring・canShowRings）＝このタブの中で後から出し分けられる。
 //   数え方・しきい値・文言は lib/journey.js の JOURNEY に集約（ここは描くだけ）。
 //   罪悪感 UI を作らない: 空いた日は薄い色・連続日数／休んだ日数は出さない・下がった週を赤くしない。
@@ -11,6 +11,7 @@ import { useApp } from './AppProvider';
 import VocabRings from './VocabRings';
 import GrassCard from './GrassCard';
 import PlusNote from './PlusNote';
+import CefrNote from './CefrNote';
 import { trackUsage } from '@/lib/usage';
 import { featureAccess, usePlan } from '@/lib/plan';
 import { canShowRings, loadRingSeen, saveRingSeen, settleRingValues } from '@/lib/rings';
@@ -18,6 +19,7 @@ import { loadExpLedger } from '@/lib/exp';
 import { buildLibraryEntries, collectRingWords, loadHistory, loadSrs, loadStatsDaily, ringCounts, statsByDay } from '@/lib/storage';
 import { getActiveWords, sameWorkTitle } from '@/lib/words';
 import { JOURNEY, buildGrass, buildTrend, md, niceMax, statsStart } from '@/lib/journey';
+import { countLearnedByLevel } from '@/lib/journeyCefr';
 
 const T = JOURNEY.text;
 
@@ -181,6 +183,69 @@ function Trend({ trend, plan }) {
   );
 }
 
+// 段階ごとの覚えた語（CEFR 目安別・案A 横棒・分母なし）。数え方は lib/journeyCefr.js。
+//   出さないもの: 割合・残り・表の語数との比較・本人の段階。棒は最多の段階を 1 とした相対値。
+//   注記は単語リスト・単語帳と同じ CefrNote を1か所（文は変えない）＋その外に「目安の付かない語（句動詞など）は含みません」の1行（法務 2026-11-05）。
+//   第1版は「いまの目安」（11月末）と統合しない・段階のタップで語を一覧しない（法務 2026-11-05）。
+function CefrCard({ cefr }) {
+  // 利用データ: カードが画面に半分以上出たら1回（開くたびに1回まで）
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return undefined;
+    const io = new IntersectionObserver(
+      (es) => {
+        if (es.some((e) => e.isIntersecting)) {
+          trackUsage('journey_cefr_seen');
+          io.disconnect();
+        }
+      },
+      { threshold: 0.5 }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  const pct = (f) => `${Math.round(Math.min(1, Math.max(0, f)) * 1000) / 10}%`;
+  return (
+    <section className="vj-card vj-cefr" aria-labelledby="vj-cefr-h" ref={ref}>
+      <div className="vj-ch">
+        <h3 id="vj-cefr-h">{T.cefrTitle}</h3>
+        <span className="vj-hint">{T.cefrSub}</span>
+      </div>
+      <div className="vj-cefr-rows" role="list">
+        {cefr.rows.map((r) => (
+          <div
+            key={r.level}
+            className={`vj-cefr-row${r.learned ? '' : ' is-empty'}`}
+            role="listitem"
+            aria-label={`${r.level} 覚えた ${r.learned}語${r.mastered ? `、うち マスター ${r.mastered}語` : ''}`}
+          >
+            <span className="vj-cefr-lv">{r.level}</span>
+            <div className="vj-cefr-bar" aria-hidden="true">
+              {r.learned > 0 && <i style={{ width: pct(r.frac) }} />}
+              {r.mastered > 0 && <b style={{ width: pct(r.fracMastered) }} />}
+            </div>
+            <span className="vj-cefr-n">{r.learned}</span>
+          </div>
+        ))}
+      </div>
+      <div className="vj-legend">
+        <span>
+          <i className="vj-key-learned" />
+          {T.cefrLearned}
+        </span>
+        <span>
+          <i className="vj-key-mastered" />
+          {T.cefrMastered}
+        </span>
+      </div>
+      {/* 法務 2026-11-05: CefrNote はそのまま1か所、その外に固定の1行（語数は出さない） */}
+      <p className="vj-hint">{T.cefrNone}</p>
+      <CefrNote />
+    </section>
+  );
+}
+
 // 3重の円の値（ホームにあった処理を移設）。値は最高値＝縮まない。開いた時は「前回見た値」から広がる。
 // 母数は履歴＋マイ単語帳の語（getActiveWords は非同期＝揃ってから描く・途中の小さい値で動かさない）。
 function useRings({ mounted, profile, settings, version }) {
@@ -252,13 +317,16 @@ function useRings({ mounted, profile, settings, version }) {
           null;
   }, [mounted, settings, version]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { ring, recent, posterFor };
+  // 段階ごとの覚えた語（保存語の段階は端末の履歴から借りる＝loadHistory を渡す）
+  const cefr = useMemo(() => (words ? countLearnedByLevel(words, loadHistory()) : null), [words]);
+
+  return { ring, recent, posterFor, cefr };
 }
 
 export default function VocabJourneyScreen() {
   const { mounted, loggedIn, reviewVersion, cloudVersion, wordbookVersion, profile, settings, journeyFocus, setJourneyFocus } = useApp();
   const plan = usePlan(loggedIn);
-  const { ring, recent, posterFor } = useRings({
+  const { ring, recent, posterFor, cefr } = useRings({
     mounted,
     profile,
     settings,
@@ -371,6 +439,11 @@ export default function VocabJourneyScreen() {
               cue="タップで記録を見る ↓"
               restClassName="vj-reveal"
             />
+          )}
+          {cefr?.show && (
+            <div className="vj-reveal">
+              <CefrCard cefr={cefr} />
+            </div>
           )}
           {grassOk && (
             <div className="vj-reveal" id="vj-grass-sec">

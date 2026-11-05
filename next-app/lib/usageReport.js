@@ -11,6 +11,7 @@ export const PLUS_FEATURES = [
   ['journey_tab', 'あゆみ(タブ)'],
   ['journey_grass', 'あゆみ(学習した日から)'],
   ['trend_seen', '週ごとの推移'],
+  ['journey_cefr_seen', '段階ごとの覚えた語'],
 ];
 const PLUS_KEYS = PLUS_FEATURES.map(([k]) => k);
 export const FUNNEL = [

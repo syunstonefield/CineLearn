@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>あゆみ：段階ごとの覚えた語（モック・2026-11-05）</title>
+<style>
+  :root {
+    --bg:#f8f7f4; --ink:#292622; --muted:#8d877e; --soft:#6f6a62;
+    --card:#fff; --border:#e8e0d5; --warm:#fffaf0; --warm-border:#efdcbc;
+    --learned:#e3ad50; --mastered:#bd7418; --met:#f3e3bf; --grid:#efe7da; --green:#2ea87a; --gold:#c79a2e;
+    --note:#8d877e;
+  }
+  [data-theme="dark"] {
+    --bg:#1b1916; --ink:#f3ece0; --muted:#a39a8c; --soft:#c4baa9;
+    --card:#24211d; --border:rgba(255,255,255,.1); --warm:rgba(255,220,160,.06); --warm-border:rgba(214,170,100,.28);
+    --learned:#c98a2e; --mastered:#f7d27a; --met:rgba(214,170,100,.22); --grid:rgba(255,255,255,.08);
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif; }
+  .top { padding:16px 20px; border-bottom:1px solid var(--border); display:flex; gap:14px; align-items:center; flex-wrap:wrap; }
+  .top h1 { font-size:16px; margin:0; }
+  .top small { color:var(--muted); }
+  .top button { font:inherit; padding:6px 12px; border-radius:999px; border:1px solid var(--border); background:var(--card); color:var(--ink); cursor:pointer; }
+  .wrap { padding:20px; display:grid; gap:28px; }
+  h2 { font-size:15px; margin:0 0 4px; }
+  .lead { margin:0 0 12px; font-size:13px; color:var(--soft); max-width:760px; }
+  .frames { display:flex; gap:24px; align-items:flex-start; flex-wrap:wrap; }
+  .frame { background:var(--bg); border:1px solid var(--border); border-radius:22px; overflow:hidden; }
+  .frame-label { font-size:11px; color:var(--muted); padding:6px 12px; border-bottom:1px solid var(--border); }
+  .phone { width:375px; }
+  .pc { width:720px; }
+  .frame-body { padding:12px 16px 18px; }
+  .pc .frame-body { padding:16px 40px 24px; }
+
+  /* ---- あゆみのカード（.vj-card 相当） ---- */
+  .card { border:1px solid var(--border); border-radius:18px; background:var(--card); padding:16px 14px; box-shadow:0 3px 12px rgba(50,40,30,.04); display:grid; gap:12px; }
+  .pc .card { padding:18px 20px; }
+  .ch { display:flex; flex-wrap:wrap; gap:6px 12px; align-items:baseline; justify-content:space-between; }
+  .ch h3 { margin:0; font-size:17px; }
+  .ch .sub { font-size:12px; color:var(--muted); }
+  .hint { margin:0; font-size:12px; color:var(--muted); }
+  .note { font-size:11px; color:var(--note); line-height:1.5; }
+  .note a { color:inherit; text-decoration:underline; text-underline-offset:2px; }
+
+  /* 案A: 横棒（分母なし・いちばん多い段階を基準に長さを決める） */
+  .rows { display:grid; gap:8px; }
+  .row { display:grid; grid-template-columns:34px 1fr 56px; align-items:center; gap:10px; }
+  .lv { font-size:13px; font-weight:700; letter-spacing:.02em; color:var(--soft); }
+  .bar { height:12px; border-radius:999px; background:var(--grid); overflow:hidden; position:relative; }
+  .bar > i { position:absolute; inset:0 auto 0 0; border-radius:999px; background:var(--learned); }
+  .bar > b { position:absolute; inset:0 auto 0 0; border-radius:999px; background:var(--mastered); }
+  .n { font-size:14px; font-variant-numeric:tabular-nums; text-align:right; }
+  .n small { font-size:11px; color:var(--muted); margin-left:2px; }
+  .row.none .lv { color:var(--muted); font-weight:500; font-size:12px; }
+  .row.none .bar { opacity:.55; }
+  .legend { display:flex; gap:14px; flex-wrap:wrap; font-size:11px; color:var(--muted); }
+  .legend i { display:inline-block; width:10px; height:10px; border-radius:3px; vertical-align:-1px; margin-right:4px; }
+
+  /* 案B: 出会った語を薄い下地にした積み上げ（円の外側＝出会ったと同じ意味） */
+  .cols { display:grid; grid-template-columns:repeat(6, 1fr); gap:8px; align-items:end; height:150px; }
+  .pc .cols { height:170px; gap:14px; }
+  .col { display:grid; grid-template-rows:1fr auto; height:100%; gap:6px; text-align:center; }
+  .stack { position:relative; border-radius:8px 8px 4px 4px; background:var(--met); align-self:end; height:100%; overflow:hidden; }
+  .stack > i { position:absolute; left:0; right:0; bottom:0; background:var(--learned); }
+  .stack > b { position:absolute; left:0; right:0; bottom:0; background:var(--mastered); }
+  .stack > span { position:absolute; left:0; right:0; top:4px; font-size:12px; font-variant-numeric:tabular-nums; }
+  .col .lv { font-size:12px; }
+  .col.dim .stack { opacity:.45; }
+  .sum { display:flex; flex-wrap:wrap; gap:4px 18px; font-size:13px; color:var(--soft); }
+  .sum b { font-family:'Playfair Display',Georgia,serif; font-size:20px; color:var(--ink); margin-right:2px; font-variant-numeric:tabular-nums; }
+
+  .caption { font-size:12px; color:var(--soft); max-width:720px; line-height:1.6; }
+  .caption b { color:var(--ink); }
+  .ng { border:1px dashed var(--warm-border); background:var(--warm); border-radius:12px; padding:10px 14px; font-size:12px; color:var(--soft); max-width:720px; }
+</style>
+</head>
+<body>
+<div class="top">
+  <h1>あゆみ：段階ごとの覚えた語 ／ モック2案</h1>
+  <small>2026-11-05・ホーム・あゆみ部門・数字はダミー（覚えた 227語＝円の「覚えた」と同じ母数）</small>
+  <button onclick="document.documentElement.dataset.theme = document.documentElement.dataset.theme==='dark'?'':'dark'">ダーク切替</button>
+</div>
+
+<div class="wrap">
+
+<section>
+  <h2>案A：横棒（分母なし）※並びは上から C2→A1（オーナー 2026-11-05）</h2>
+  <p class="lead">段階ごとに「覚えた」の数だけを出す。棒の長さはいちばん多い段階を基準にした相対値で、表の語数や出会った語数とは比べない（「あと○語」が出ない＝やる気を落とさない）。マスターは覚えたの内数として濃い色で重ねる。円のカードと「学習した日」の間に1枚のカードとして置く。</p>
+  <div class="frames">
+    <div class="frame phone">
+      <div class="frame-label">スマホ 375px</div>
+      <div class="frame-body">
+        <div class="card">
+          <div class="ch"><h3>段階ごとの覚えた語</h3><span class="sub">CEFR目安</span></div>
+          <div class="rows">
+            <div class="row"><span class="lv">C2</span><div class="bar"><i style="width:4%"></i></div><span class="n">3</span></div>
+            <div class="row"><span class="lv">C1</span><div class="bar"><i style="width:17%"></i><b style="width:3%"></b></div><span class="n">12</span></div>
+            <div class="row"><span class="lv">B2</span><div class="bar"><i style="width:57%"></i><b style="width:10%"></b></div><span class="n">41</span></div>
+            <div class="row"><span class="lv">B1</span><div class="bar"><i style="width:100%"></i><b style="width:28%"></b></div><span class="n">72</span></div>
+            <div class="row"><span class="lv">A2</span><div class="bar"><i style="width:85%"></i><b style="width:38%"></b></div><span class="n">61</span></div>
+            <div class="row"><span class="lv">A1</span><div class="bar"><i style="width:53%"></i><b style="width:31%"></b></div><span class="n">38</span></div>
+          </div>
+          <div class="legend"><span><i style="background:var(--learned)"></i>覚えた</span><span><i style="background:var(--mastered)"></i>うち マスター</span></div>
+          <p class="hint">目安が付かない語（句動詞・言い回しなど）が ほかに 19語。</p>
+          <div class="note">CEFR目安：CEFR-J・Octanove（CC BY-SA 4.0）／表にない語は AI 推定　<a href="#">出典›</a></div>
+        </div>
+      </div>
+    </div>
+    <div class="frame pc">
+      <div class="frame-label">PC 720px（コンテンツ幅）</div>
+      <div class="frame-body">
+        <div class="card">
+          <div class="ch"><h3>段階ごとの覚えた語</h3><span class="sub">CEFR目安・覚えた 227語の内訳</span></div>
+          <div class="rows">
+            <div class="row"><span class="lv">C2</span><div class="bar"><i style="width:4%"></i></div><span class="n">3</span></div>
+            <div class="row"><span class="lv">C1</span><div class="bar"><i style="width:17%"></i><b style="width:3%"></b></div><span class="n">12</span></div>
+            <div class="row"><span class="lv">B2</span><div class="bar"><i style="width:57%"></i><b style="width:10%"></b></div><span class="n">41</span></div>
+            <div class="row"><span class="lv">B1</span><div class="bar"><i style="width:100%"></i><b style="width:28%"></b></div><span class="n">72</span></div>
+            <div class="row"><span class="lv">A2</span><div class="bar"><i style="width:85%"></i><b style="width:38%"></b></div><span class="n">61</span></div>
+            <div class="row"><span class="lv">A1</span><div class="bar"><i style="width:53%"></i><b style="width:31%"></b></div><span class="n">38</span></div>
+          </div>
+          <div class="legend"><span><i style="background:var(--learned)"></i>覚えた</span><span><i style="background:var(--mastered)"></i>うち マスター</span></div>
+          <p class="hint">目安が付かない語（句動詞・言い回しなど）が ほかに 19語。</p>
+          <div class="note">CEFR目安：CEFR-J Wordlist（東京外国語大学投野由紀夫研究室）・Octanove Vocabulary Profile（CC BY-SA 4.0）に基づく。表にない語は AI による推定。<a href="#">出典</a></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="caption"><b>やる気の面</b>：数字は「覚えた」だけ。分母がないので割合も「残り」も出ない。棒が伸びる方向しかない（高水位を使えば減らない・後述）。<b>弱み</b>：出会った語が少ない段階（C1/C2）は小さい棒のまま＝「上の段階は手付かず」に見えうる。</p>
+</section>
+
+<section>
+  <h2>案B：出会った語を下地にした積み上げ（円と同じ3層）</h2>
+  <p class="lead">3重の円と同じ意味の3層（出会った＝薄い下地／覚えた／マスター）を段階ごとに縦に並べる。分母は「自分が出会った語」＝自分の作品から出た語だけで、表の語数とは比べない。円を見慣れた人にそのまま読める。数字は覚えたの数だけを柱の上に出す。</p>
+  <div class="frames">
+    <div class="frame phone">
+      <div class="frame-label">スマホ 375px</div>
+      <div class="frame-body">
+        <div class="card">
+          <div class="ch"><h3>段階ごとの覚えた語</h3><span class="sub">CEFR目安</span></div>
+          <div class="sum"><span><b>227</b>語 覚えた</span><span><b>58</b>語 マスター</span></div>
+          <div class="cols">
+            <div class="col"><div class="stack" style="height:40%"><i style="height:73%"></i><b style="height:40%"></b><span>38</span></div><span class="lv">A1</span></div>
+            <div class="col"><div class="stack" style="height:66%"><i style="height:68%"></i><b style="height:30%"></b><span>61</span></div><span class="lv">A2</span></div>
+            <div class="col"><div class="stack" style="height:100%"><i style="height:51%"></i><b style="height:14%"></b><span>72</span></div><span class="lv">B1</span></div>
+            <div class="col"><div class="stack" style="height:79%"><i style="height:37%"></i><b style="height:6%"></b><span>41</span></div><span class="lv">B2</span></div>
+            <div class="col"><div class="stack" style="height:34%"><i style="height:25%"></i><b style="height:4%"></b><span>12</span></div><span class="lv">C1</span></div>
+            <div class="col dim"><div class="stack" style="height:14%"><i style="height:15%"></i><span>3</span></div><span class="lv">C2</span></div>
+          </div>
+          <div class="legend"><span><i style="background:var(--met)"></i>出会った</span><span><i style="background:var(--learned)"></i>覚えた</span><span><i style="background:var(--mastered)"></i>マスター</span></div>
+          <div class="note">CEFR目安：CEFR-J・Octanove（CC BY-SA 4.0）／表にない語は AI 推定・目安の付かない語は含みません　<a href="#">出典›</a></div>
+        </div>
+      </div>
+    </div>
+    <div class="frame pc">
+      <div class="frame-label">PC 720px（コンテンツ幅）</div>
+      <div class="frame-body">
+        <div class="card">
+          <div class="ch"><h3>段階ごとの覚えた語</h3><span class="sub">CEFR目安</span></div>
+          <div class="sum"><span><b>227</b>語 覚えた</span><span><b>58</b>語 マスター</span></div>
+          <div class="cols">
+            <div class="col"><div class="stack" style="height:40%"><i style="height:73%"></i><b style="height:40%"></b><span>38</span></div><span class="lv">A1</span></div>
+            <div class="col"><div class="stack" style="height:66%"><i style="height:68%"></i><b style="height:30%"></b><span>61</span></div><span class="lv">A2</span></div>
+            <div class="col"><div class="stack" style="height:100%"><i style="height:51%"></i><b style="height:14%"></b><span>72</span></div><span class="lv">B1</span></div>
+            <div class="col"><div class="stack" style="height:79%"><i style="height:37%"></i><b style="height:6%"></b><span>41</span></div><span class="lv">B2</span></div>
+            <div class="col"><div class="stack" style="height:34%"><i style="height:25%"></i><b style="height:4%"></b><span>12</span></div><span class="lv">C1</span></div>
+            <div class="col dim"><div class="stack" style="height:14%"><i style="height:15%"></i><span>3</span></div><span class="lv">C2</span></div>
+          </div>
+          <div class="legend"><span><i style="background:var(--met)"></i>出会った</span><span><i style="background:var(--learned)"></i>覚えた</span><span><i style="background:var(--mastered)"></i>マスター</span></div>
+          <div class="note">CEFR目安：CEFR-J Wordlist（東京外国語大学投野由紀夫研究室）・Octanove Vocabulary Profile（CC BY-SA 4.0）に基づく。表にない語は AI による推定。目安の付かない語（句動詞など）は含みません。<a href="#">出典</a></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="caption"><b>やる気の面</b>：「出会った」が下地なので、覚えていない語の量が見える＝案Aより少し圧がある。ただし分母は本人の作品由来なので「表の語数に対して5%」のような数は出ない。<b>強み</b>：円と同じ3色で読み方の説明がいらない。</p>
+</section>
+
+<section>
+  <h2>出さないと決めた見せ方（参考）</h2>
+  <div class="ng">
+    ✕ 「A1 38 / 1,088語（3%）」のように表の語数を分母にする：ほぼ全員が1桁%になり、やる気を落とす。表の段階別語数を画面に出すこと自体も「表の構造の書き出し」に近づくので避ける。<br>
+    ✕ 「あなたのレベルは B1」「B1 を達成」「判定」「認定」：法務 2026-10-30 の表現制限。段階ごとの語数だけを出し、本人の段階は言わない（11月末の「いまの目安」は別カードで、幅で出す）。<br>
+    ✕ 段階ごとの割合（覚えた÷出会った %）の数字：忘れると下がる数字＝罪悪感 UI。
+  </div>
+</section>
+
+</div>
+</body>
+</html>
