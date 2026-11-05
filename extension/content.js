@@ -107,14 +107,21 @@ function rebuildMarkSet() {
 // クラウドの単語帳＋覚えた語を取り込む（30分の鮮度・ログイン時に更新）。失敗は黙って前回値のまま
 function loadKnownWords(force = false) {
   if (!chrome.runtime?.id) return;
-  chrome.storage.local.get([CL_KNOWN_KEY], (r) => {
-    const cached = r[CL_KNOWN_KEY];
+  chrome.storage.local.get([CL_KNOWN_KEY, 'cl_ledger_owner'], (r) => {
+    // 別の人の控えは使わない（v1.2.12・切り替えの最中に前の人の取得結果が書かれた場合の保険）
+    const owner = r.cl_ledger_owner;
+    const cached = owner && r[CL_KNOWN_KEY]?.uid && r[CL_KNOWN_KEY].uid !== owner ? null : r[CL_KNOWN_KEY];
     if (cached?.words) { clCloudWords = cached.words; rebuildMarkSet(); refreshMarkers(); }
     if (!force && cached?.at && Date.now() - cached.at < CL_KNOWN_TTL_MS) return;
     try {
       chrome.runtime.sendMessage({ type: 'CL_FETCH_KNOWN_WORDS' }, (res) => {
         if (chrome.runtime.lastError) return;
-        if (!res?.found) { console.debug('[CL:known] not loaded', res?.reason); return; }
+        if (!res?.found) {
+          console.debug('[CL:known] not loaded', res?.reason);
+          // ログアウト後は開いているタブからも前の人の語を外す（一時的な通信失敗では前回値のまま）
+          if (res?.reason === 'no_session') { clCloudWords = []; rebuildMarkSet(); refreshMarkers(); }
+          return;
+        }
         clCloudWords = res.words || [];
         chrome.storage.local.set({ [CL_KNOWN_KEY]: { at: Date.now(), uid: res.uid, words: clCloudWords } });
         console.debug('[CL:known] loaded', clCloudWords.length, 'words');

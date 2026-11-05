@@ -96,6 +96,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       const session = await getFreshSession().catch(() => null);
       if (!session?.access_token || !session?.user?.id) return { ok: false, reason: 'no_session' };
+      // 送るのは今の持ち主の台帳（v1.2.12）。content.js の一覧は5秒前の姿で、その間に切り替わると前の人の分になる。
+      if (!(await ensureLedgerOwner(session.user.id))) return { ok: false, reason: 'ledger_switch_failed' };
+      const { [REUNIONS_KEY]: list = [] } = await chrome.storage.local.get(REUNIONS_KEY);
+      if (!list.length) return { ok: true, skipped: true }; // 空でクラウドの記録を潰さない
       const r = await fetch(`${SUPABASE_URL}/rest/v1/user_state`, {
         method: 'POST',
         headers: {
@@ -104,7 +108,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           Authorization: `Bearer ${session.access_token}`,
           Prefer: 'resolution=merge-duplicates,return=minimal',
         },
-        body: JSON.stringify([{ user_id: session.user.id, key: 'cl_reunions', value: msg.payload || [], updated_at: new Date().toISOString() }]),
+        body: JSON.stringify([{ user_id: session.user.id, key: REUNIONS_KEY, value: list, updated_at: new Date().toISOString() }]),
       });
       return { ok: r.ok, status: r.status };
     })()
@@ -243,6 +247,61 @@ async function rememberUser(uid) {
   if (uid && uid !== (await getLastUserId())) await chrome.storage.local.set({ [LAST_USER_KEY]: uid });
 }
 
+// ── 端末の台帳の持ち主（同じ Chrome で別アカウントに切り替えた時の混入防止・v1.2.12）──
+//   cl_my_words*（保存語）と cl_reunions（再会の記録）はキーにアカウントを含まない。持ち主が変わったら
+//   前の人の分を持ち主別の控えへ移し、新しい人の控えを戻す。content.js は今のキーのまま読み書きできる。
+//   ・同じ人の入り直し＝持ち主が同じなので何もしない
+//   ・持ち主なし（一度もログインしていない端末）＝最初にログインした人がそのまま引き継ぐ（ゲストの語）
+//   ・既存の利用者の更新＝cl_last_user_id を今の持ち主とみなすので、印を付けるだけで台帳は動かさない
+//   移動は1回の set でまとめて書く＝失敗しても元のまま（語は消えない）。次の契機でやり直す。
+//   ★残る制限（オーナー決定 2026-11-05 で第2段階は作らない）: ログアウトしただけでは入れ替えない。次のログインまで
+//     前の人の語が画面に出るし、未ログインで保存した語は直前の人の語として扱う（上の「持ち主」のとおり）。
+const LEDGER_OWNER_KEY = 'cl_ledger_owner';
+const LEDGER_ARCHIVE_PREFIX = 'cl_ledger_archive_'; // cl_my_words で始めない（recoverUnsyncedOnce の走査に入れない）
+const REUNIONS_KEY = 'cl_reunions';
+const KNOWN_WORDS_KEY = 'cl_known_words';
+const isLedgerKey = (k) => k.startsWith('cl_my_words') || k === REUNIONS_KEY;
+const emptyKnownWords = (uid) => ({ at: 0, uid: uid || null, words: [] });
+
+async function switchLedgerTo(uid) {
+  const got = await chrome.storage.local.get([LEDGER_OWNER_KEY, LAST_USER_KEY]);
+  const owner = got[LEDGER_OWNER_KEY] || got[LAST_USER_KEY] || null;
+  if (owner === uid || !owner) {
+    if (got[LEDGER_OWNER_KEY] !== uid) await chrome.storage.local.set({ [LEDGER_OWNER_KEY]: uid });
+    return;
+  }
+  const all = await chrome.storage.local.get(null);
+  const leaving = {};
+  const next = {};
+  for (const [k, v] of Object.entries(all)) {
+    if (!isLedgerKey(k)) continue;
+    leaving[k] = v;
+    next[k] = []; // 空で上書きする（remove と分けると途中で失敗した時に混ざったまま残る）
+  }
+  const incomingKey = LEDGER_ARCHIVE_PREFIX + uid;
+  const incoming = all[incomingKey];
+  if (incoming && typeof incoming === 'object') {
+    for (const [k, v] of Object.entries(incoming)) if (isLedgerKey(k)) next[k] = v;
+  }
+  await chrome.storage.local.set({
+    ...next,
+    [LEDGER_ARCHIVE_PREFIX + owner]: leaving,
+    [KNOWN_WORDS_KEY]: emptyKnownWords(uid),
+    [LEDGER_OWNER_KEY]: uid,
+  });
+  // 戻した控えの片付け。失敗しても、この人が次に抜ける時に上書きされるので害はない。
+  if (incoming) await chrome.storage.local.remove(incomingKey).catch(() => {});
+}
+
+// 台帳を uid のものにする。戻り値 false＝入れ替えに失敗（台帳は元のまま。送信を控えて次の契機に回す）。
+//   同期処理・単語の送信・再会の送信が同時に呼ぶので、1本ずつ順に流す。
+let _ledgerChain = Promise.resolve();
+function ensureLedgerOwner(uid) {
+  const run = _ledgerChain.then(() => switchLedgerTo(uid)).then(() => true, () => false);
+  _ledgerChain = run;
+  return run;
+}
+
 async function queuePendingSync(word, owner) {
   if (!word?.word) return;
   const rec = { ...word, _clOwner: word._clOwner || owner || null };
@@ -277,6 +336,7 @@ async function flushPendingSync() {
     const session = await getFreshSession();
     if (!session?.access_token || !session?.user?.id) return;
     const uid = session.user.id;
+    if (!(await ensureLedgerOwner(uid))) return; // 台帳が前の人のままなので送らない（次の契機でやり直す）
     // 救済は「直前の持ち主＝今のログイン」の時だけ（別の人のローカル語を今の人へ送らない）。
     const last = await getLastUserId();
     if (!last || last === uid) await recoverUnsyncedOnce(session);
@@ -326,7 +386,9 @@ async function recoverUnsyncedOnce(session) {
 
 // 契機: Webアプリでログイン（bridge.js がセッションを置く）／ブラウザ起動／ワーカーの起床。
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local' && changes[SB_SESSION_KEY]?.newValue) flushPendingSync();
+  if (area !== 'local' || !changes[SB_SESSION_KEY]) return;
+  if (changes[SB_SESSION_KEY].newValue) flushPendingSync();
+  else chrome.storage.local.set({ [KNOWN_WORDS_KEY]: emptyKnownWords() }); // ログアウト後のゲストに前の人の語を出さない
 });
 chrome.runtime.onStartup.addListener(() => flushPendingSync());
 flushPendingSync();
@@ -341,6 +403,10 @@ async function syncWordToSupabase(word, { fromFlush = false } = {}) {
   const uid = session.user.id;
   if (word._clOwner && word._clOwner !== uid) {
     await queuePendingSync(word); // 別の人の未送信語は今のアカウントへ送らない
+    return false;
+  }
+  if (!(await ensureLedgerOwner(uid))) {
+    await queuePendingSync(word, uid); // 入れ替えに失敗した間は送らない（次の契機で再送）
     return false;
   }
 
