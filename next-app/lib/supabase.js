@@ -56,6 +56,7 @@ function sbHeaders(extra = {}) {
 async function sbFetch(path, opts = {}) {
   try {
     const res = await fetch(`${SUPABASE_URL}${path}`, { ...opts, headers: sbHeaders(opts.headers || {}) });
+    if (res.status === 401 && getSession()?.access_token && !path.startsWith('/auth/')) notifySessionExpired(); // トークンが無効＝失効を知らせる
     if (res.status === 204 || res.status === 201) return null;
     return await res.json();
   } catch {
@@ -87,21 +88,59 @@ export async function supaSignOut() {
 }
 
 // セッションを有効に保つ（オートログインの核）。戻り値: ログイン維持できたか。
+// セッション失効の通知（2026-11-07・候補C）。更新に失敗した／401 を受けた時に window へ出し、AppProvider が
+// 「ログイン表示を落として期限切れの帯を出す」。以前は失敗しても黙って古いままで、送信は捨てられ取り込みも止まっていた。
+export const SESSION_EXPIRED_EVENT = 'cl:session-expired';
+function notifySessionExpired() {
+  try {
+    if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT));
+  } catch {
+    /* ignore */
+  }
+}
+
+// 更新を一本化（同時に複数の送信が失効を見ても refresh_token を二度使わない＝使い捨てトークンの再利用拒否を避ける）
+let _refreshing = null;
 export async function ensureFreshSession() {
   const s = getSession();
   if (!s?.access_token) return false;
   const now = Date.now() / 1000;
   if (s.expires_at && s.expires_at - now > 600) return true;
-  if (!s.refresh_token) return false;
-  const d = await sbFetch('/auth/v1/token?grant_type=refresh_token', {
-    method: 'POST',
-    body: JSON.stringify({ refresh_token: s.refresh_token }),
-  });
-  if (d?.access_token) {
-    setSession(d);
-    return true;
+  if (!s.refresh_token) {
+    notifySessionExpired();
+    return false;
   }
-  return false;
+  if (!_refreshing) {
+    _refreshing = (async () => {
+      try {
+        const d = await sbFetch('/auth/v1/token?grant_type=refresh_token', {
+          method: 'POST',
+          body: JSON.stringify({ refresh_token: s.refresh_token }),
+        });
+        if (d?.access_token) {
+          setSession(d);
+          return true;
+        }
+        // 失敗。Chrome 拡張（bridge.js v1.2.12〜）が先に更新して新しいセッションを localStorage に書き戻していれば、それを採る
+        // （同じ refresh_token を拡張が先に使うと、こちらの更新は「使用済み」で拒否される）。古い拡張（書き戻さない）でも動きは従来どおり。
+        const s2 = getSession();
+        if (s2?.access_token && s2.refresh_token !== s.refresh_token && s2.expires_at && s2.expires_at - Date.now() / 1000 > 60) return true;
+        notifySessionExpired();
+        return false;
+      } finally {
+        _refreshing = null;
+      }
+    })();
+  }
+  return _refreshing;
+}
+
+// 送信・削除の前に呼ぶ: ログイン中ならそのまま、期限切れなら更新を試し、だめなら失効を知らせて false。
+//   旧: isLoggedIn() が false だと何もせず捨てていた（失効に気づけない）。セッション自体が無い（未ログイン）時は静かに false。
+export async function ensureSessionForSync() {
+  if (isLoggedIn()) return true;
+  if (!getSession()?.access_token) return false;
+  return ensureFreshSession();
 }
 
 // my_words を created_at 降順で末尾までページ送りして集める（2026-09-22）。
@@ -475,6 +514,7 @@ function mergeStateValue(key, localV, cloudV) {
 const stateTimers = {};
 // 戻り値＝送れたか（送るものが無い時も true）。sbFetch は 204 と失敗をどちらも null で返すので、ここだけ HTTP の結果を見る。
 async function sendStateKey(key) {
+  if (!(await ensureSessionForSync())) return false;
   const uid = getCurrentUser()?.id;
   const v = readStateLocal(key);
   if (!uid || v == null) return true;
@@ -490,7 +530,7 @@ async function sendStateKey(key) {
   }
 }
 export function queueStatePush(key, delayMs = 3000) {
-  if (typeof window === 'undefined' || !isLoggedIn()) return;
+  if (typeof window === 'undefined' || !getSession()?.access_token) return; // 期限切れでも積む（送る時に更新を試す）
   if (stateTimers[key]) return;
   stateTimers[key] = setTimeout(() => {
     delete stateTimers[key];
@@ -534,7 +574,7 @@ function missingSrsColumn(res) {
 }
 
 export async function pushSrsWords(entries) {
-  if (!isLoggedIn()) return;
+  if (!(await ensureSessionForSync())) return;
   const uid = getCurrentUser()?.id;
   if (!uid || !entries) return;
   const build = () =>
@@ -620,7 +660,7 @@ function isMissingInWordbook(res) {
 }
 
 export async function pushMyWord(w) {
-  if (!isLoggedIn()) return false;
+  if (!(await ensureSessionForSync())) return false;
   const uid = getCurrentUser()?.id;
   if (!uid || !w?.word) return false;
   // 「取れなかった値は列ごと省く」＝拡張 background.js と同じ規則に揃える（2026-08-08）。
@@ -697,7 +737,7 @@ export async function pushMyWord(w) {
 // cl_my_words を上書き→getActiveWords の「再保存された語は削除リストから外す」掃除が発動し、
 // 削除した語（タイポ等）が必ず復活する。ユーザーの明示削除は行ごと消すのが正。
 export async function deleteMyWordCloud(word) {
-  if (!isLoggedIn()) return false;
+  if (!(await ensureSessionForSync())) return false;
   const uid = getCurrentUser()?.id;
   if (!uid || !word) return false;
   // ilike（ワイルドカード無し＝大小無視の完全一致）: PK は case-sensitive のため、
@@ -713,7 +753,7 @@ export async function deleteMyWordCloud(word) {
 // updatedAt にはローカル保存時の時刻（cl_profiles_updated_at と同値）を渡す。
 // pull 側が同じ時刻軸で「新しい方が勝つ」比較をするため、push 時に時刻を作り直さない。
 export async function pushProfiles(profiles, updatedAt = null) {
-  if (!isLoggedIn()) return;
+  if (!(await ensureSessionForSync())) return;
   const uid = getCurrentUser()?.id;
   if (!uid || !Array.isArray(profiles) || !profiles.length) return;
   await sbFetch('/rest/v1/profiles', {
@@ -734,7 +774,7 @@ export async function pushProfiles(profiles, updatedAt = null) {
 
 // プロフィール削除をクラウドへ反映（upsert だけだと次回 pull で復活してしまう）。
 export async function deleteProfileRow(id) {
-  if (!isLoggedIn() || !id) return;
+  if (!id || !(await ensureSessionForSync())) return;
   const uid = getCurrentUser()?.id;
   if (!uid) return;
   await sbFetch(`/rest/v1/profiles?id=eq.${encodeURIComponent(id)}&user_id=eq.${uid}`, {
@@ -802,7 +842,7 @@ export async function migrateLocalToCloudAfterLogin() {
 // drama/season/episode は schema 上 NOT NULL なので、必ず「完全なエントリ」を渡すこと
 // （部分更新を merge-duplicates で送ると NOT NULL を壊す）。
 export async function pushHistoryEntry(entry) {
-  if (!isLoggedIn() || !entry?.id) return;
+  if (!entry?.id || !(await ensureSessionForSync())) return;
   const uid = getCurrentUser()?.id;
   if (!uid) return;
   await sbFetch('/rest/v1/history', {
@@ -832,7 +872,7 @@ export async function pushHistoryEntry(entry) {
 // 採点取り消しで「新規語の初採点」を戻す時だけ使う（行が無かった状態に戻す）。
 // pushSrsWords は upsert のみで削除できないため専用に用意。GRANT DELETE は supabase_user_state.sql 済み。
 export async function deleteSrsWord(word) {
-  if (!isLoggedIn() || !word) return;
+  if (!word || !(await ensureSessionForSync())) return;
   const uid = getCurrentUser()?.id;
   if (!uid) return;
   await sbFetch(`/rest/v1/srs_data?user_id=eq.${uid}&word=eq.${encodeURIComponent(word)}`, {
@@ -844,7 +884,7 @@ export async function deleteSrsWord(word) {
 // 作品の単語リスト（履歴）をクラウドから作品名でまとめて削除（全エピソード一括削除用）。
 // drama は JSONB なので drama->>title で絞る。端末に無いクラウド側の同作品行も消す＝次の pull で生き返らない。
 export async function deleteHistoryRowsByTitle(title) {
-  if (!isLoggedIn() || !title) return;
+  if (!title || !(await ensureSessionForSync())) return;
   const uid = getCurrentUser()?.id;
   if (!uid) return;
   await sbFetch(`/rest/v1/history?user_id=eq.${uid}&drama->>title=eq.${encodeURIComponent(title)}`, {
@@ -854,7 +894,7 @@ export async function deleteHistoryRowsByTitle(title) {
 }
 
 export async function deleteHistoryRow(id) {
-  if (!isLoggedIn() || !id) return;
+  if (!id || !(await ensureSessionForSync())) return;
   const uid = getCurrentUser()?.id;
   if (!uid) return;
   await sbFetch(`/rest/v1/history?id=eq.${encodeURIComponent(id)}&user_id=eq.${uid}`, {

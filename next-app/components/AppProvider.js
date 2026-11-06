@@ -13,6 +13,7 @@ import { applyTheme, getThemePref } from '@/lib/theme';
 import { initUsage, trackUsage, noteExtWordsOnce } from '@/lib/usage';
 import {
   ensureFreshSession,
+  SESSION_EXPIRED_EVENT,
   pullFromCloud,
   isLoggedIn,
   getSession,
@@ -224,11 +225,20 @@ export default function AppProvider({ children }) {
         setBootstrapping(false);
       }
     })();
-    // タブを開いている間は期限が近づいたら自動更新（約1時間で失効するため）
+    // タブを開いている間は期限が近づいたら自動更新（約1時間で失効するため）。更新に失敗すると lib/supabase.js が
+    // SESSION_EXPIRED_EVENT を出し、下のリスナーがログイン表示を落として期限切れの帯を出す（以前は黙って古いままだった・2026-11-07）。
     const timer = setInterval(() => {
       ensureFreshSession().catch(() => {});
     }, 10 * 60 * 1000);
-    return () => clearInterval(timer);
+    const onExpired = () => {
+      setLoggedIn(false);
+      setSessionExpired(true);
+    };
+    window.addEventListener(SESSION_EXPIRED_EVENT, onExpired);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired);
+    };
   }, []);
 
   // ログイン成功時（AuthModal から呼ぶ）：pull 済みデータを反映
