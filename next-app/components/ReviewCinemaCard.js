@@ -15,14 +15,15 @@ import { surfaceFormInExample, wordMatchRegex, normApostrophes } from '@/lib/sub
 import { speak } from '@/lib/speak';
 import { chunkParts } from '@/lib/chunk';
 import { subtitleCredit } from '@/lib/storage';
-import { fitLongestWord } from '@/lib/fitWord';
+import { fitLongestWord, fitPhraseLines, PHRASE_MIN_PX } from '@/lib/fitWord';
 
 const FILM_FRAMES = 10; // 進み具合のフィルム＝1コマ1枚・10枚で次の10コマへ
 
 // 大きな語は語の途中で切らない（オーナー 2026-11-07「reconnaissan / ce」の実例・訂正込み）。
 //   句は今の大きさのまま空白でだけ折り返す。いちばん長い1語がカードの幅に入らない時だけ、その語が
 //   1行に入るまで縮める（計算は lib/fitWord.js）。書体の読み込み後・画面の幅が変わった時も測り直す。
-function useFitWord(ref, deps) {
+//   句（空白を含む）は、さらに2行に収まる大きさまで縮める（下限は表28px・裏22px・オーナー 2026-11-07）。
+function useFitWord(ref, phraseMinPx, deps) {
   useLayoutEffect(() => {
     const el = ref.current;
     const parent = el?.parentElement;
@@ -33,8 +34,17 @@ function useFitWord(ref, deps) {
       const pcs = getComputedStyle(parent);
       const avail = parent.clientWidth - parseFloat(pcs.paddingLeft) - parseFloat(pcs.paddingRight);
       // 空白でだけ折り返す設定なので、幅を超えるのは「1語だけで幅に入らない語」がある時だけ
-      const size = fitLongestWord(max, el.scrollWidth, avail);
-      if (size !== max) el.style.fontSize = `${size}px`;
+      let size = fitLongestWord(max, el.scrollWidth, avail);
+      if (/\s/.test((el.textContent || '').trim())) {
+        // 実際にその大きさで描いて行数を数える（行の高さは CSS の line-height から）
+        const linesAt = (px) => {
+          el.style.fontSize = `${px}px`;
+          const lh = parseFloat(getComputedStyle(el).lineHeight) || px * 1.08;
+          return Math.round(el.getBoundingClientRect().height / lh);
+        };
+        size = fitPhraseLines(size, phraseMinPx, linesAt);
+      }
+      el.style.fontSize = size !== max ? `${size}px` : '';
     };
     fit();
     // 書体（Playfair）の読み込みが後から終わると幅が変わる／画面の回転・幅の変化
@@ -137,7 +147,7 @@ export default function ReviewCinemaCard({ word: w, flipped, retryMode, onFlip, 
   const plain = w.example && !credit ? highlightExample(w.example, w.word) : null;
   const sf = w.pos ? surfaceFormInExample(w.example, w.word) : null;
   const wordRef = useRef(null);
-  useFitWord(wordRef, [w.word, w.chunk, flipped]);
+  useFitWord(wordRef, flipped ? PHRASE_MIN_PX.back : PHRASE_MIN_PX.front, [w.word, w.chunk, flipped]);
 
   const wordEl = (
     <span ref={wordRef} className={'rc-word' + (flipped ? ' is-small' : '')}>
