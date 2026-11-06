@@ -216,10 +216,10 @@ export default function VocabRings({ values, from = null, glowFrom = null, gain 
             <i className="vr-dot vr-dot-met" />
             <b>{fmt(nums.met)}</b>
             <span>出会った</span>
-            {/* 消去した作品がある人だけ数え方を足す（ボタン名は「棚から外す」・ホーム・あゆみ部門 2026-11-07） */}
+            {/* 消去した作品がある人だけ数え方を足す（ボタン名は「棚から外す」・375px で2行に収める・ホーム・あゆみ部門 2026-11-07） */}
             <small>
               {loadRemovedWorks().length
-                ? 'これまでに出会った語（棚から外した作品も含む・消去した作品は学習した語だけ）'
+                ? '出会った語（棚から外した作品も含む・消去した作品は学習した語だけ）'
                 : 'これまでに出会った語（棚から外した作品も含む）'}
             </small>
           </div>
