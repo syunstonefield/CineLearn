@@ -609,12 +609,14 @@ export default function VocabScreen() {
           setSeasons([{ season: 1, episodes: 10 }, { season: 2, episodes: 10 }, { season: 3, episodes: 10 }]);
         }
       }
-      const md = (settings.myDramas || []).map((d) =>
-        d.title === drama.title
-          ? { ...d, type: drama.type, mediaType: drama.mediaType, tmdbId: drama.tmdbId, englishTitle: drama.englishTitle, posterPath: drama.posterPath || d.posterPath }
-          : d
-      );
-      updateSettings({ myDramas: md });
+      // 最新の settings から作る（描画時点の値で丸ごと書き戻すと、戻した作品の touchedAt などが消える）。
+      updateSettings((prev) => ({
+        myDramas: (prev.myDramas || []).map((d) =>
+          d.title === drama.title
+            ? { ...d, type: drama.type, mediaType: drama.mediaType, tmdbId: drama.tmdbId, englishTitle: drama.englishTitle, posterPath: drama.posterPath || d.posterPath }
+            : d
+        ),
+      }));
       setDrama({ ...drama });
     },
     [drama, settings, updateSettings]

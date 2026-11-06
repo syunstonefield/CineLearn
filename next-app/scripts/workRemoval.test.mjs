@@ -137,3 +137,23 @@ test('拡張で保存した作品の印を外す: 印より後に保存した語
   // 外れている印（on:false）は対象外・作品名の無い語は数えない
   assert.deepEqual(titlesReopenedBySaves(marks, [{ word: 'a', dramaTitle: 'Lupin', createdAt: '2026-12-01T00:00:00Z' }, { word: 'b', createdAt: '2026-12-01T00:00:00Z' }]), []);
 });
+
+test('戻した作品を一番上へ: 並びは最終学習日と戻した時刻の新しい方・戻した作品だけ touchedAt', async () => {
+  const { recencyMs, touchDramas } = await import('../lib/workRemoval.js');
+  const md = [{ title: 'Iron Man' }, { title: 'Suits' }];
+  const now = Date.parse('2026-11-07T12:00:00Z');
+  const next = touchDramas(md, ['Iron Man'], now);
+  assert.equal(next[0].touchedAt, now);
+  assert.equal(next[1].touchedAt, undefined);
+  assert.equal(touchDramas(md, ['Lupin'], now), md); // 当たらなければ同じ配列（設定を書き直さない）
+  // 最終学習日 11/03 の Suits より、11/01 に学習して今日戻した Iron Man が上
+  const rows = [
+    { title: 'Suits', lastDate: '2026-11-03' },
+    { title: 'Iron Man', lastDate: '2026-11-01', touchedAt: now },
+    { title: 'Lupin', lastDate: '2026-10-20' },
+  ];
+  rows.sort((a, b) => recencyMs(b.lastDate, b.touchedAt) - recencyMs(a.lastDate, a.touchedAt));
+  assert.deepEqual(rows.map((r) => r.title), ['Iron Man', 'Suits', 'Lupin']);
+  // 戻していない作品同士は従来どおり最終学習日の新しい順
+  assert.ok(recencyMs('2026-11-03') > recencyMs('2026-11-01'));
+});

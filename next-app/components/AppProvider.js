@@ -14,7 +14,7 @@ import {
   cleanupLegacySubtitleCache,
 } from '@/lib/storage';
 import { reapplyWorkRemovals } from '@/lib/workRemovalStore';
-import { titlesToReopen, titlesReopenedBySaves } from '@/lib/workRemoval';
+import { titlesToReopen, titlesReopenedBySaves, touchDramas } from '@/lib/workRemoval';
 import { sameWorkTitle } from '@/lib/words';
 import { addStudySeconds, addDramaStudySeconds } from '@/lib/studytime';
 import { applyTheme, getThemePref } from '@/lib/theme';
@@ -207,8 +207,11 @@ export default function AppProvider({ children }) {
     } catch {
       saved = [];
     }
-    titlesReopenedBySaves(loadArchivedMap(), saved, sameWorkTitle).forEach((t) => unarchiveDrama(t));
-    titlesReopenedBySaves(loadRemovedWorksMap(), saved, sameWorkTitle).forEach((t) => unremoveWork(t));
+    const a = titlesReopenedBySaves(loadArchivedMap(), saved, sameWorkTitle);
+    const r = titlesReopenedBySaves(loadRemovedWorksMap(), saved, sameWorkTitle);
+    a.forEach((t) => unarchiveDrama(t));
+    r.forEach((t) => unremoveWork(t));
+    if (a.length || r.length) touchWorks([...a, ...r]); // 定義は下（effect は描画後に走るので参照できる）
     reapplyWorkRemovals(profileRef.current?.id)
       .then((n) => n && setWordbookVersion((v) => v + 1))
       .catch(() => {});
@@ -550,8 +553,10 @@ export default function AppProvider({ children }) {
     setSettings((prev) => ({ ...prev, ...(patch || {}), onboarded: true }));
   }, []);
 
+  // patch は関数でもよい（prev → 部分）。描画時点の settings から作った myDramas を丸ごと書き戻すと、
+  //   その間に入った変更（戻した作品の touchedAt など）を消すため、最新の値から作る時に使う。
   const updateSettings = useCallback((patch) => {
-    setSettings((prev) => ({ ...prev, ...patch }));
+    setSettings((prev) => ({ ...prev, ...(typeof patch === 'function' ? patch(prev) : patch) }));
   }, []);
 
   // 単語リスト/サービス選択の「戻る」の行き先（'main' | 'search'）。
@@ -565,10 +570,21 @@ export default function AppProvider({ children }) {
   // 作品をもう一度開いたら「棚から外す」と「コレクションから消去」の印を外す（作品名の揺れも寄せる）。
   //   openDrama のほか、単語リストの画面に入った時（コレクションの話の行・復習ハブなど openDrama を通らない入口）にも呼ぶ。
   //   2026-11-07 オーナー報告: 続きから学習で棚から外した作品を、コレクションの話の行から開いて復習しても戻らなかった。
-  const reopenWork = useCallback((title) => {
-    titlesToReopen(loadArchived(), title, sameWorkTitle).forEach((t) => unarchiveDrama(t));
-    titlesToReopen(loadRemovedWorks(), title, sameWorkTitle).forEach((t) => unremoveWork(t));
+  //   戻した作品は「最近触った」扱いにして、続きから学習・復習の作品一覧の一番上へ（myDramas.touchedAt・オーナー 2026-11-07）。
+  const touchWorks = useCallback((titles) => {
+    if (!titles?.length) return;
+    setSettings((prev) => {
+      const myDramas = touchDramas(prev.myDramas, titles, Date.now(), sameWorkTitle);
+      return myDramas === prev.myDramas ? prev : { ...prev, myDramas };
+    });
   }, []);
+  const reopenWork = useCallback((title) => {
+    const a = titlesToReopen(loadArchived(), title, sameWorkTitle);
+    const r = titlesToReopen(loadRemovedWorks(), title, sameWorkTitle);
+    a.forEach((t) => unarchiveDrama(t));
+    r.forEach((t) => unremoveWork(t));
+    if (a.length || r.length) touchWorks([title, ...a, ...r]);
+  }, [touchWorks]);
   // 単語リストの画面に入ったら、その作品の印を外す（openDrama を通らない入口の分・reopenWork）。
   useEffect(() => {
     if (screen === 'vocab' && drama?.title) reopenWork(drama.title);

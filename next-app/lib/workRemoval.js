@@ -158,3 +158,21 @@ export function titlesReopenedBySaves(marks, words, sameTitle = (a, b) => a === 
   }
   return out;
 }
+
+// 印を外して戻した作品を「最近触った」扱いにする時刻（myDramas の touchedAt・プロフィールと一緒に同期）。
+//   続きから学習・復習の作品一覧の並びは「最終学習日」と「戻した時刻」の新しい方（オーナー 2026-11-07）。
+export function recencyMs(lastDate, touchedAt) {
+  const d = Date.parse(String(lastDate || ''));
+  return Math.max(Number.isFinite(d) ? d : 0, Number(touchedAt) || 0);
+}
+// myDramas のうち、作品名（揺れは寄せる）が titles に当たるものへ touchedAt を入れる。変わらなければ同じ配列を返す。
+export function touchDramas(myDramas, titles, now = Date.now(), sameTitle = (a, b) => a === b) {
+  const list = Array.isArray(myDramas) ? myDramas : [];
+  let changed = false;
+  const next = list.map((d) => {
+    if (!d?.title || !(titles || []).some((t) => t === d.title || sameTitle(d.title, t))) return d;
+    changed = true;
+    return { ...d, touchedAt: now };
+  });
+  return changed ? next : list;
+}

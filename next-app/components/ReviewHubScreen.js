@@ -26,6 +26,7 @@ import { dailyReviewCap } from '@/lib/reviewCount';
 import PlusNote from './PlusNote';
 import { trackUsage } from '@/lib/usage';
 import { rememberHubScroll, takeHubScroll } from '@/lib/hubScroll';
+import { recencyMs } from '@/lib/workRemoval';
 
 // 復習一覧の一番上の「覚えた・マスター」全体バー。2026-10-31 オーナー判断で一旦非表示（true で復活）。
 const SHOW_HUB_OVERALL = false;
@@ -191,8 +192,16 @@ export default function ReviewHubScreen() {
         (a, b) => (a.entry.season || 0) - (b.entry.season || 0) || (a.entry.episode || 0) - (b.entry.episode || 0)
       )
     );
-    return [...m.values()];
-  }, [history, srs, movieTitles]);
+    // 棚から外す・消去から戻した作品（myDramas.touchedAt が最後の学習日より新しい）は一番上へ（戻した順）。
+    //   それ以外は今までどおり（履歴の新しい順）。sort は安定なので戻していない作品の並びは変わらない。
+    const touched = new Map((settings.myDramas || []).filter((d) => d?.touchedAt).map((d) => [d.title, d.touchedAt]));
+    const boost = (g) => {
+      const t = touched.get(g.title) || [...touched].find(([k]) => sameWorkTitle(k, g.title))?.[1] || 0;
+      const latest = Math.max(0, ...g.episodes.map((e) => recencyMs(e.entry.date, 0)));
+      return t > latest ? t : 0;
+    };
+    return [...m.values()].map((g) => ({ g, b: boost(g) })).sort((x, y) => y.b - x.b).map(({ g }) => g);
+  }, [history, srs, movieTitles, settings.myDramas]);
 
   // ホームの「今日の復習」と同じ母集団にする（myWords を渡す）。渡さないと同じ名前の入口が
   // 画面ごとに別の数字を出す（ホーム=本編+保存語／ここ=本編のみ）＝どちらかが嘘になる。
