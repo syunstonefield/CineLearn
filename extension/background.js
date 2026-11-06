@@ -58,20 +58,16 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       if (!session?.access_token || !session?.user?.id) return { found: false, reason: 'no_session' };
       const uid = session.user.id;
       const headers = { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${session.access_token}` };
-      const get = async (path) => {
-        const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers });
-        if (!r.ok) return { ok: false, status: r.status, body: await r.text().catch(() => '') };
-        return { ok: true, rows: await r.json() };
-      };
+      const get = (path) => fetchAllRows(path, headers); // 1000 行で切れないよう最後まで読む（v1.2.12）
       // ① 単語帳
-      let mw = await get(`my_words?user_id=eq.${uid}&in_wordbook=is.true&select=word,ja,pos,drama_title,season,episode&limit=5000`);
+      let mw = await get(`my_words?user_id=eq.${uid}&in_wordbook=is.true&select=word,ja,pos,drama_title,season,episode`);
       if (!mw.ok && /in_wordbook/.test(mw.body)) {
-        mw = await get(`my_words?user_id=eq.${uid}&select=word,ja,pos,drama_title,season,episode&limit=5000`);
+        mw = await get(`my_words?user_id=eq.${uid}&select=word,ja,pos,drama_title,season,episode`);
       }
       // ② 覚えた以上（出所つき）
-      let srs = await get(`srs_data?user_id=eq.${uid}&repetitions=gte.2&skipped=is.false&select=word,repetitions,interval,ease_factor,origin_title,origin_season,origin_episode&limit=5000`);
+      let srs = await get(`srs_data?user_id=eq.${uid}&repetitions=gte.2&skipped=is.false&select=word,repetitions,interval,ease_factor,origin_title,origin_season,origin_episode`);
       if (!srs.ok && /origin_/.test(srs.body)) {
-        srs = await get(`srs_data?user_id=eq.${uid}&repetitions=gte.2&skipped=is.false&select=word,repetitions,interval,ease_factor&limit=5000`);
+        srs = await get(`srs_data?user_id=eq.${uid}&repetitions=gte.2&skipped=is.false&select=word,repetitions,interval,ease_factor`);
       }
       if (!mw.ok && !srs.ok) return { found: false, reason: 'http_' + (mw.status || srs.status) };
       const words = [];
@@ -171,6 +167,31 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
 });
 
+// ── 全件取得（v1.2.12）──
+//   PostgREST は1回の応答を上限（既定 1000 行）で黙って打ち切る。limit を大きくしても切れる
+//   （アプリの srs_data で端末間の復習がずれた事故 2026-11-07 と同じ型）。主キーの word 順に、返った行数ぶん
+//   offset を進めて空のページまで読む＝サーバ側の上限がいくつでも取りこぼさない。
+//   1ページでも失敗したら ok:false（呼び出し側は途中までの結果で判断しない）。
+const PAGE_ROWS = 1000;
+const PAGE_ROWS_MAX = 50000; // 暴走防止（1人の行数として十分大きい）
+async function fetchAllRows(path, headers) {
+  const rows = [];
+  while (rows.length < PAGE_ROWS_MAX) {
+    let r;
+    try {
+      r = await fetch(`${SUPABASE_URL}/rest/v1/${path}&order=word.asc&limit=${PAGE_ROWS}&offset=${rows.length}`, { headers });
+    } catch {
+      return { ok: false, status: 0, body: '' };
+    }
+    if (!r.ok) return { ok: false, status: r.status, body: await r.text().catch(() => '') };
+    const page = await r.json().catch(() => null);
+    if (!Array.isArray(page)) return { ok: false, status: r.status, body: '' };
+    if (!page.length) return { ok: true, rows };
+    rows.push(...page);
+  }
+  return { ok: false, status: 0, body: 'too_many_rows' };
+}
+
 // セッションを有効な状態に保つ（js/supabase.js の ensureFreshSession と同等）。
 // アクセストークンは約1時間で失効するため、期限が近ければ refresh_token で
 // 自動更新して chrome.storage に書き戻す。これが無いと失効後の単語保存が
@@ -195,6 +216,10 @@ async function getFreshSession() {
           body: JSON.stringify({ refresh_token: session.refresh_token }),
         });
         const d = await res.json();
+        // 更新の間にセッションが変わっていたら（アプリから新しいものが届いた・別の人に切り替わった・ログアウトした）、
+        //   古いセッションの結果で上書きも削除もしない（v1.2.12）。呼び出し側は次の契機でやり直す。
+        const { [SB_SESSION_KEY]: now } = await chrome.storage.local.get([SB_SESSION_KEY]);
+        if (now?.refresh_token !== session.refresh_token) return null;
         if (!d?.access_token) {
           // refresh_token が無効（400/401）＝再ログインが必要。失効セッションを破棄して
           // 使い捨て refresh_token の無駄撃ちを止める（bridge.js が Webアプリから再取得する）。
@@ -206,6 +231,8 @@ async function getFreshSession() {
         }
         if (!d.expires_at) d.expires_at = Math.floor(Date.now() / 1000) + (d.expires_in || 3600);
         if (!d.user) d.user = session.user; // 応答に user が無い場合は引き継ぐ
+        // ここで書いた新しいセッションは bridge.js がアプリへ戻す（refresh_token は使い捨てなので、戻さないと
+        //   アプリ側の更新が already used で失敗し、アプリのログインが切れていた・v1.2.12）。
         await chrome.storage.local.set({ [SB_SESSION_KEY]: d });
         return d;
       } catch {
@@ -373,12 +400,14 @@ async function recoverUnsyncedOnce(session) {
     }
   }
   if (local.size) {
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/my_words?user_id=eq.${session.user.id}&select=word&limit=10000`,
-      { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${session.access_token}` } }
-    );
-    if (!res.ok) return; // 照合できない時は何もしない（次の契機でやり直す）
-    const cloud = new Set((await res.json()).map((r) => String(r.word).toLowerCase()));
+    // クラウドの語を最後まで読む（1回の取得は 1000 行で切れ、切れた先の語を「無い」と誤認して
+    //   端末の古い記録で上書きしていた・v1.2.12）。全ページ取れた時だけ照合する。
+    const res = await fetchAllRows(`my_words?user_id=eq.${session.user.id}&select=word`, {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${session.access_token}`,
+    });
+    if (!res.ok) return; // 照合できない時は何も送らず旗も立てない（次の契機でやり直す）
+    const cloud = new Set(res.rows.map((r) => String(r.word).toLowerCase()));
     for (const [lower, w] of local) if (!cloud.has(lower)) await queuePendingSync(w, session.user.id);
   }
   await chrome.storage.local.set({ [RECOVER_FLAG_KEY]: Date.now() });

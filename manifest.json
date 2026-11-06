@@ -43,7 +43,7 @@
     {
       "matches": ["https://cinelearn-next.vercel.app/*"],
       "js": ["extension/bridge.js"],
-      "run_at": "document_idle"
+      "run_at": "document_start"
     }
   ],
 
