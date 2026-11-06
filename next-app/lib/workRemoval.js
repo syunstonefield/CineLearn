@@ -122,3 +122,11 @@ export function removalConfirmLines(c) {
   lines.push('作品をもう一度開けば、単語リストはいつでも作り直せます');
   return lines;
 }
+
+// もう一度開いた作品で外す印の作品名（棚から外す cl_archived・消去 cl_removed_works の両方に使う）。
+//   一覧を隠す側は作品名の揺れ（邦題/英題）を sameTitle で寄せているので、外す側も同じ寄せ方にする
+//   （完全一致だけだと、隠れたまま外れない作品が出る）。
+export function titlesToReopen(markedTitles, title, sameTitle = (a, b) => a === b) {
+  if (!title) return [];
+  return (markedTitles || []).filter((t) => t === title || sameTitle(t, title));
+}

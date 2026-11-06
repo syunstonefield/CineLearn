@@ -7,9 +7,13 @@ import {
   patchProfileSettings,
   unarchiveDrama,
   unremoveWork,
+  loadArchived,
+  loadRemovedWorks,
   cleanupLegacySubtitleCache,
 } from '@/lib/storage';
 import { reapplyWorkRemovals } from '@/lib/workRemovalStore';
+import { titlesToReopen } from '@/lib/workRemoval';
+import { sameWorkTitle } from '@/lib/words';
 import { addStudySeconds, addDramaStudySeconds } from '@/lib/studytime';
 import { applyTheme, getThemePref } from '@/lib/theme';
 import { initUsage, trackUsage, noteExtWordsOnce } from '@/lib/usage';
@@ -545,6 +549,18 @@ export default function AppProvider({ children }) {
   // ライブラリのカード/検索結果をクリック → サービス選択画面へ。
   // clearService=true（新規追加時）は前回の視聴サービスをクリアする（既存 selectDrama 準拠）。
   // opts.returnTo: 戻るボタンの行き先（検索経由なら 'search'・省略時 'main'）。
+  // 作品をもう一度開いたら「棚から外す」と「コレクションから消去」の印を外す（作品名の揺れも寄せる）。
+  //   openDrama のほか、単語リストの画面に入った時（コレクションの話の行・復習ハブなど openDrama を通らない入口）にも呼ぶ。
+  //   2026-11-07 オーナー報告: 続きから学習で棚から外した作品を、コレクションの話の行から開いて復習しても戻らなかった。
+  const reopenWork = useCallback((title) => {
+    titlesToReopen(loadArchived(), title, sameWorkTitle).forEach((t) => unarchiveDrama(t));
+    titlesToReopen(loadRemovedWorks(), title, sameWorkTitle).forEach((t) => unremoveWork(t));
+  }, []);
+  // 単語リストの画面に入ったら、その作品の印を外す（openDrama を通らない入口の分・reopenWork）。
+  useEffect(() => {
+    if (screen === 'vocab' && drama?.title) reopenWork(drama.title);
+  }, [screen, drama?.title, reopenWork]);
+
   const openDrama = useCallback((d, clearService = false, opts) => {
     trackUsage('work_select'); // 利用データ: 作品を選んだ（入口はここに一本化されている）
     setVocabReturn(opts?.returnTo || 'main');
@@ -555,10 +571,8 @@ export default function AppProvider({ children }) {
     const saved = (settingsRef.current.myDramas || []).find((x) => x.title === d.title);
     setSeason(saved?.lastSeason || 1);
     setEpisode(saved?.lastEpisode || 1);
-    // 棚から外していた作品を開き直したら自動で棚に戻す（アーカイブ解除）
-    unarchiveDrama(d.title);
-    // コレクションから消去した作品も、開き直したら戻す（語を抜いた話は開いた時に作り直す・VocabScreen）
-    unremoveWork(d.title);
+    // 棚から外していた作品・コレクションから消去した作品を開き直したら戻す（語を抜いた話は開いた時に作り直す・VocabScreen）
+    reopenWork(d.title);
     // 2回目以降（ライブラリから再オープン＝clearService=false）で、前回の視聴サービスが
     // 分かっていればサービス選択を省略して直接 vocab へ。新規追加時(clearService)は従来どおり選択させる。
     const remembered = !clearService && d.viewingService ? d.viewingService : null;

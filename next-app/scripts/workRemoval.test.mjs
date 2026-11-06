@@ -110,3 +110,12 @@ test('消した印と円の起点はクラウドに同期する項目', () => {
   assert.ok(STATE_KEY_RE.test('cl_removed_works'));
   assert.ok(STATE_KEY_RE.test('cl_ring_met_reset'));
 });
+
+test('もう一度開いた作品で外す印: 完全一致と作品名の揺れ（寄せ方は呼び出し側）', async () => {
+  const { titlesToReopen } = await import('../lib/workRemoval.js');
+  const same = (a, b) => (a === 'Iron Man' && b === 'アイアンマン') || (a === 'アイアンマン' && b === 'Iron Man');
+  assert.deepEqual(titlesToReopen(['Iron Man', 'Suits'], 'Iron Man'), ['Iron Man']);
+  assert.deepEqual(titlesToReopen(['Iron Man', 'Suits'], 'アイアンマン', same), ['Iron Man']);
+  assert.deepEqual(titlesToReopen(['Suits LA'], 'Suits'), []);
+  assert.deepEqual(titlesToReopen(['Iron Man'], ''), []);
+});
