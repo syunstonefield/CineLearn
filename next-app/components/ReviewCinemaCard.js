@@ -147,6 +147,31 @@ export default function ReviewCinemaCard({ word: w, flipped, retryMode, onFlip, 
   const plain = w.example && !credit ? highlightExample(w.example, w.word) : null;
   const sf = w.pos ? surfaceFormInExample(w.example, w.word) : null;
   const wordRef = useRef(null);
+  // 裏は点線より上（語の場所）が伸びて、点線より下は中身の高さ（オーナー 2026-11-07「下に余白ができすぎるのは避けたい」）。
+  //   点線の位置が中身で変わるので、両端の切り欠きを点線の高さに合わせる（表は CSS の固定位置のまま）。
+  const ticketRef = useRef(null);
+  const backPerfRef = useRef(null);
+  useLayoutEffect(() => {
+    const t = ticketRef.current;
+    if (!t) return undefined;
+    if (!flipped) {
+      t.style.removeProperty('--rc-notch-y');
+      return undefined;
+    }
+    const set = () => {
+      const p = backPerfRef.current;
+      if (p) t.style.setProperty('--rc-notch-y', `${p.offsetTop + 1}px`);
+    };
+    set();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(set) : null;
+    ro?.observe(t);
+    let alive = true;
+    document.fonts?.ready?.then(() => alive && set());
+    return () => {
+      alive = false;
+      ro?.disconnect();
+    };
+  }, [flipped, w.word]);
   useFitWord(wordRef, flipped ? PHRASE_MIN_PX.back : PHRASE_MIN_PX.front, [w.word, w.chunk, flipped]);
 
   const wordEl = (
@@ -181,6 +206,7 @@ export default function ReviewCinemaCard({ word: w, flipped, retryMode, onFlip, 
     <div className="rc-card" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
       <div className="rc-deck">
         <div
+          ref={ticketRef}
           className={'rc-ticket' + (flipped ? ' is-back' : ' is-front')}
           onClick={(e) => {
             if (flipped || e.target.closest('button')) return;
@@ -235,8 +261,10 @@ export default function ReviewCinemaCard({ word: w, flipped, retryMode, onFlip, 
                   {speakBtn}
                 </div>
               </div>
-              <div className="rc-perf" aria-hidden="true" />
+              <div ref={backPerfRef} className="rc-perf" aria-hidden="true" />
               <div className="rc-back-body">
+                {/* 意味は点線のすぐ下。点線より下は中身の高さで、長い時だけカードの中でスクロール */}
+                <div className="rc-back-inner">
                 <div className="rc-def">{w.definition || ''}</div>
                 {ex && (
                   <div className="rc-sub">
@@ -291,6 +319,7 @@ export default function ReviewCinemaCard({ word: w, flipped, retryMode, onFlip, 
                     </button>
                   </div>
                 )}
+                </div>
               </div>
             </>
           )}

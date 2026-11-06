@@ -7633,7 +7633,10 @@ html[data-theme="dark"] .screen.review-screen.review-cinema {
 html.cl-review-lock .app-tmdb-footer { display: none; }
 .screen.review-screen.review-cinema { min-height: calc(100dvh - var(--header-h, 60px)); display: flex; flex-direction: column; }
 .review-cinema .review-panel { flex: 1; display: flex; flex-direction: column; min-height: 0; }
-.review-cinema .review-content { flex: 1; min-height: 0; }
+.review-cinema .review-content { flex: 1; min-height: 0; overflow-y: auto; }
+/* PC でも画面の高さに収める（長い裏でカードが伸びて3択が下にずれない・2026-11-07）。背の低い窓では中身ごとスクロール */
+.screen.review-screen.review-cinema { height: calc(100dvh - var(--header-h, 60px)); }
+.review-cinema .rc-card { min-height: 0; }
 
 /* 進み具合＝「12 / 125」＋フィルム10コマ（1コマ1枚）＋全体の細い線 */
 .rc-progress { padding: 10px 16px 0; display: flex; flex-direction: column; gap: 5px; flex-shrink: 0; }
@@ -7662,7 +7665,7 @@ html.cl-review-lock .app-tmdb-footer { display: none; }
   mask: radial-gradient(circle at 0 var(--rc-notch-y), transparent 13px, #000 13.5px) left / 51% 100% no-repeat,
     radial-gradient(circle at 100% var(--rc-notch-y), transparent 13px, #000 13.5px) right / 51% 100% no-repeat;
 }
-.rc-ticket.is-back { --rc-notch-y: calc(40px + var(--rc-backword-h) + 1px); cursor: default; }
+.rc-ticket.is-back { --rc-notch-y: calc(40px + var(--rc-backword-h) + 1px); cursor: default; } /* 実際の位置は ReviewCinemaCard が点線に合わせて上書き */
 .rc-ticket-head { height: 40px; flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 14px 0 6px; }
 /* 上段は1行（オーナー 2026-11-07）。「↩ 戻る」は短く・押せる大きさは保つ／作品名は長ければ「…」 */
 .rc-undo { flex: none; min-width: 64px; height: 36px; border: none; background: none; padding: 0 8px; font: inherit; font-size: 13px; color: var(--rc-muted); cursor: pointer; white-space: nowrap; text-align: left; }
@@ -7693,8 +7696,11 @@ html.cl-review-lock .app-tmdb-footer { display: none; }
 .rc-hint-sub { font-size: 13px; color: var(--rc-muted); }
 
 /* 裏：意味 → 字幕の帯（例文＋和訳） → 作品情報 */
-.rc-back-word { height: var(--rc-backword-h); flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 0 16px; }
-.rc-back-body { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 14px 18px 12px; }
+.rc-back-word { min-height: var(--rc-backword-h); flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 0 16px; }
+.rc-back-body { flex: 0 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; padding: 14px 18px 16px; }
+/* 裏: 点線より上（語の場所）が残りの高さを取り、点線より下は中身の高さ＝意味は点線のすぐ下・下に大きな余白を作らない（オーナー 2026-11-07）。
+   中身が長い時は語の場所が最小の高さまで縮み、点線より下だけがスクロールする。カードの高さと3択の位置は変えない */
+.rc-back-inner { display: flex; flex-direction: column; gap: 10px; }
 .rc-def { font-size: 20px; font-weight: 700; line-height: 1.4; text-align: center; color: var(--rc-ink); }
 /* 例文はカードの紙の上にそのまま（黒い字幕の帯はやめた＝浮いて見える・オーナー 2026-11-07）。対象語の強調は残す */
 .rc-sub { display: flex; flex-direction: column; gap: 6px; padding: 2px 4px; }
@@ -7756,7 +7762,8 @@ html.cl-review-lock .app-tmdb-footer { display: none; }
   .rc-word { font-size: 40px; }
   .rc-word.is-small { font-size: 30px; }
   .rc-front-main { gap: 10px; }
-  .rc-back-body { padding: 10px 16px 8px; gap: 8px; }
+  .rc-back-body { padding: 10px 16px 8px; }
+  .rc-back-inner { gap: 8px; }
   .rc-def { font-size: 18px; }
   .rc-rate-emoji { font-size: 18px; }
   .rc-rate { gap: 2px; }
