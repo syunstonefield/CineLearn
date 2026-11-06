@@ -660,7 +660,7 @@ export function nextReviewLabel(word, srs = loadSrs()) {
 export function skipWord(word) {
   const all = loadSrs();
   const k = word.toLowerCase();
-  all[k] = { interval: 1, repetitions: 0, easeFactor: 2.5, ...(all[k] || {}), skipped: true };
+  all[k] = { interval: 1, repetitions: 0, easeFactor: 2.5, ...(all[k] || {}), skipped: true, updatedAt: new Date().toISOString() };
   saveSrs(all);
   pushSrsWords({ [k]: all[k] }); // クラウドへ（未ログイン時は no-op・fire-and-forget）
 }
@@ -669,6 +669,7 @@ export function unskipWord(word) {
   const k = word.toLowerCase();
   if (all[k]) {
     all[k].skipped = false;
+    all[k].updatedAt = new Date().toISOString();
     saveSrs(all);
     pushSrsWords({ [k]: all[k] });
   }
@@ -746,6 +747,7 @@ export function reviewWord(word, quality, src = null) {
   if (e.lastReview === todayStr() && quality >= 3) {
     e.lastQuality = quality;
     e.reviewCount = (e.reviewCount || 0) + 1;
+    e.updatedAt = new Date().toISOString();
     all[k] = e;
     saveSrs(all);
     pushSrsWords({ [k]: e }); // クラウドへ（未ログイン時は no-op・fire-and-forget）
@@ -768,6 +770,7 @@ export function reviewWord(word, quality, src = null) {
   e.lastReview = todayStr();
   e.lastQuality = quality;
   e.reviewCount = (e.reviewCount || 0) + 1;
+  e.updatedAt = new Date().toISOString(); // 採点した時刻（同じ日に別の端末でも採点した時の決着に使う・lib/srsMerge.js）
   all[k] = e;
   saveSrs(all);
   pushSrsWords({ [k]: e }); // クラウドへ（未ログイン時は no-op・fire-and-forget）
@@ -835,9 +838,9 @@ export function restoreSrsEntry(word, before) {
   const all = loadSrs();
   const k = word.toLowerCase();
   if (before) {
-    all[k] = before;
+    all[k] = { ...before, updatedAt: new Date().toISOString() }; // 取り消しも「今」の操作として決着させる
     saveSrs(all);
-    pushSrsWords({ [k]: before });
+    pushSrsWords({ [k]: all[k] });
   } else {
     delete all[k];
     saveSrs(all);

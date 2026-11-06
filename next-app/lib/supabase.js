@@ -14,6 +14,7 @@
 import { PROFILES_AT_KEY, mergeProfileArrays, cloudWins } from './profileMerge';
 import { ticketEpKey, trimTickets } from './ticketRules';
 import { mergeActivityDates, mergeReviewLog, mergeQuizAwarded } from './stateMergeRules';
+import { fetchAllSrs, mergeSrs } from './srsMerge';
 
 const SUPABASE_URL = 'https://mndyexwdevkpdssglwpl.supabase.co';
 const SUPABASE_ANON_KEY =
@@ -184,63 +185,23 @@ export async function pullFromCloud(profileId = null) {
     );
   }
 
-  // srs（語単位マージ: lastReview が新しい方を採用・同日/欠落はローカル優先）。
-  // 丸ごと上書きにしないのは、この端末で育てたローカル SRS（lastQuality/reviewCount 等の
-  // 拡張フィールド含む）を、古いクラウド行で吹き飛ばさないため。
-  // マージ後、ローカル側が勝った/ローカルにしか無い語はクラウドへ吸い上げる
-  // （初回ログイン時の移行と、オフライン期間の追いつきを兼ねる）。
-  const srs = await sbFetch(`/rest/v1/srs_data?user_id=eq.${uid}&select=*&limit=5000`);
-  if (Array.isArray(srs)) {
+  // srs（語単位マージ・2026-11-07 lib/srsMerge.js に集約）。
+  //   word 順に 1000 行ずつ全部読む（旧: limit=5000 の1回取得＝Supabase の行数上限で途中で切れ、取り込みに入らなかった語が
+  //   端末の古い値のまま残り、さらにクラウドへ書き戻されていた）。クラウドの last_review が新しい方を採用、同じ日なら
+  //   updated_at が新しい方、どちらも無ければ端末優先。全件取れた時だけ「ローカルにしか無い語」をクラウドへ吸い上げる。
+  const { rows: srsRows, complete: srsComplete } = await fetchAllSrs((offset, limit) =>
+    sbFetch(`/rest/v1/srs_data?user_id=eq.${uid}&select=*&order=word.asc&limit=${limit}&offset=${offset}`)
+  );
+  if (srsRows.length || srsComplete) {
     let local = {};
     try {
       local = JSON.parse(localStorage.getItem('cl_srs') || '{}') || {};
     } catch {
       local = {};
     }
-    const merged = { ...local };
-    const cloudByWord = {};
-    srs.forEach((e) => {
-      cloudByWord[e.word] = e;
-      const cloudEntry = {
-        interval: e.interval,
-        repetitions: e.repetitions,
-        easeFactor: parseFloat(e.ease_factor),
-        dueDate: e.due_date,
-        lastReview: e.last_review,
-        skipped: e.skipped,
-      };
-      // 出所（最初に出会った作品/話）。列が無いDBでは undefined＝付けない
-      if (e.origin_title) cloudEntry.origin = { title: e.origin_title, season: e.origin_season ?? null, episode: e.origin_episode ?? null };
-      // 初回の答え（first_quality・supabase_srs_first_quality.sql）。先に入った値を優先・null は上書きしない
-      if (e.first_quality != null) cloudEntry.firstQuality = e.first_quality;
-      const l = local[e.word];
-      // クラウドの方が新しい復習日を持つ場合のみ採用（YYYY-MM-DD の文字列比較）。
-      if (!l || (e.last_review || '') > (l.lastReview || '')) {
-        // ローカルだけが出所を持っていれば引き継ぐ（クラウド行が古い＝出所列が空のことがある）
-        if (!cloudEntry.origin && l?.origin?.title) cloudEntry.origin = l.origin;
-        if (cloudEntry.firstQuality == null && l?.firstQuality != null) cloudEntry.firstQuality = l.firstQuality;
-        merged[e.word] = cloudEntry;
-      } else {
-        const fill = {};
-        if (!l.origin?.title && cloudEntry.origin) fill.origin = cloudEntry.origin; // ローカル優先でも出所だけは補う
-        if (l.firstQuality == null && cloudEntry.firstQuality != null) fill.firstQuality = cloudEntry.firstQuality;
-        if (Object.keys(fill).length) merged[e.word] = { ...l, ...fill };
-      }
-    });
-    const pushBack = {};
-    Object.entries(merged).forEach(([w, e]) => {
-      const c = cloudByWord[w];
-      if (
-        !c ||
-        (e.lastReview || '') > (c.last_review || '') ||
-        !!e.skipped !== !!c.skipped ||
-        // 列はあるのにクラウド側が空＝ローカルだけが初回の答えを持つ（列が無いDBでは c に key 自体が無い＝送らない）
-        ('first_quality' in c && c.first_quality == null && e.firstQuality != null)
-      ) {
-        pushBack[w] = e;
-      }
-    });
+    const { merged, pushBack } = mergeSrs(local, srsRows, { complete: srsComplete });
     localStorage.setItem('cl_srs', JSON.stringify(merged));
+    if (!srsComplete) console.warn('[CL:SYNC] srs の取り込みが途中で切れた（吸い上げは見送り）', srsRows.length);
     if (Object.keys(pushBack).length) pushSrsWords(pushBack); // fire-and-forget
   }
 
@@ -589,7 +550,8 @@ export async function pushSrsWords(entries) {
           due_date: e.dueDate ?? null,
           last_review: e.lastReview ?? null,
           skipped: !!e.skipped,
-          updated_at: new Date().toISOString(),
+          // 採点した時刻（storage.js が付ける・無ければ今）。同じ日に別の端末でも採点した語の決着に使う（lib/srsMerge.js）
+          updated_at: e.updatedAt || new Date().toISOString(),
         };
         // 出所は持っている時だけ送る（省略＝据え置き・merge-duplicates）。最初に出会った作品を上書きしない
         if (!_srsOriginUnsupported && e.origin?.title) {
