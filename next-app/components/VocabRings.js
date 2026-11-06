@@ -8,8 +8,9 @@
 //   prefers-reduced-motion では止まった絵で出す。
 // values はすでに最高値（lib/rings.js settleRingValues）。縮むのは「出会った」を、利用者がコレクションから
 // 作品を消去した時だけ（2026-11-07）。開くたびに 0 から伸ばすので、縮んだ値でも動きは同じ。
+// 枠（values.tier）は台帳の最高値から決まり下がらない＝from / glowFrom の弧も同じ枠で描く（覚えた・マスターの弧は動かない）。
 import { useEffect, useRef, useState } from 'react';
-import { ringFractions } from '@/lib/rings';
+import { ringFractions, ringTier } from '@/lib/rings';
 import { subtitleCredit, loadRemovedWorks } from '@/lib/storage';
 
 const C = 160;
@@ -48,8 +49,8 @@ function Arc({ r, f0, f1, className, width = 11, opacity, filter }) {
   );
 }
 
-function staticFrame(v) {
-  return { nums: v, fr: ringFractions(v), prevFr: null, glow: 0 };
+function staticFrame(v, tier) {
+  return { nums: v, fr: ringFractions(v, tier), prevFr: null, glow: 0 };
 }
 
 // glowFrom＝光らせる区間の始まり（前回見た値）。from から伸ばしつつ、glowFrom→今の値の差分だけ光る。
@@ -57,7 +58,9 @@ function staticFrame(v) {
 //   終わる等）、最終値から始め直して動きが消えることがない（2026-10-08 オーナー報告「PC で動かない」）。
 //   開発時の StrictMode（effect が2回走る）でも、1回目で描かれていなければ 0 から動く。
 function useRingAnimation(values, from, glowFrom) {
-  const [frame, setFrameState] = useState(() => staticFrame(from || values));
+  // 枠は今の値のもの（settleRingValues の tier）。from / glowFrom は tier を持たないので同じ枠で描く。
+  const tier = values.tier || ringTier(values.met);
+  const [frame, setFrameState] = useState(() => staticFrame(from || values, tier));
   const curRef = useRef(from || values);
   const setFrame = (f) => {
     curRef.current = f.nums;
@@ -71,13 +74,13 @@ function useRingAnimation(values, from, glowFrom) {
       typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     const same = KEYS.every((k) => fromV[k] === to[k]);
     if (reduce || same) {
-      setFrame(staticFrame(to));
+      setFrame(staticFrame(to, tier));
       return undefined;
     }
-    const frFrom = ringFractions(fromV);
-    const frTo = ringFractions(to);
+    const frFrom = ringFractions(fromV, tier);
+    const frTo = ringFractions(to, tier);
     // 光る区間は「前回見た値→今の値」（最初の1回だけ）。それ以降の更新は伸びた分だけ光る
-    const frGlow = glowRef.current ? ringFractions(glowRef.current) : frFrom;
+    const frGlow = glowRef.current ? ringFractions(glowRef.current, tier) : frFrom;
     let raf = 0;
     let t0 = null;
     const end = DUR + Math.max(...Object.values(DELAYS));
@@ -97,12 +100,12 @@ function useRingAnimation(values, from, glowFrom) {
         raf = requestAnimationFrame(tick);
       } else {
         glowRef.current = null; // 前回見た値からの光りは最初の動き切りで使い終わる
-        setFrame(staticFrame(to));
+        setFrame(staticFrame(to, tier));
       }
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [values.met, values.learned, values.mastered]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [values.met, values.learned, values.mastered, tier]); // eslint-disable-line react-hooks/exhaustive-deps
   return frame;
 }
 

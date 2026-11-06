@@ -4,6 +4,8 @@
 //   外＝出会った／中＝覚えた／内＝マスター。各値は「これまでの最高値」（cl_stats_daily の全行の max と
 //   今の計算値の大きい方）＝忘れて判定が外れても円はしぼまない（罪悪感 UI を作らない）。
 //   円弧の長さ＝語数÷段階の枠。段階の中では伸びるだけ、出会った語が段階を超えた時だけ一度短くなる。
+//   枠は下がらない（2026-11-07）: コレクションから作品を消去して「出会った」が減っても、枠は台帳の最高値から決める＝
+//   出会ったの弧だけ短くなり、覚えた・マスターの弧は語数どおり動かない（「覚えた・マスターはこれまでどおり」）。
 
 import { recordStatsDailyRings, statsHighWater, loadStatsDaily, loadRingMetReset, saveRingMetReset } from './storage';
 import { ringMetValue } from './workRemoval';
@@ -20,8 +22,9 @@ export const RING_TIERS = [100, 250, 500, 1000, 2000, 4000, 8000, 16000];
 export function ringTier(met) {
   return RING_TIERS.find((t) => met <= t) ?? RING_TIERS[RING_TIERS.length - 1];
 }
-export function ringFractions(v) {
-  const tier = ringTier(v.met);
+// tier を省くと v.tier（settleRingValues が付ける・台帳の最高値から決めた枠）、それも無ければ v.met から決める。
+//   動きの途中の値（from / glowFrom は tier を持たない）は、呼び出し側が今の値の枠を渡して同じ枠で描く。
+export function ringFractions(v, tier = v.tier || ringTier(v.met)) {
   const f = (n) => Math.min(1, Math.max(0, n / tier));
   return { met: f(v.met), learned: f(v.learned), mastered: f(v.mastered) };
 }
@@ -40,7 +43,8 @@ export function settleRingValues(current) {
     mastered: Math.max(hw.mastered, current.mastered || 0),
   };
   recordStatsDailyRings(v);
-  return v;
+  // 枠＝これまでの「出会った」の最高値（台帳）と今の値の大きい方で決める＝消去で met が減っても枠は縮まない。
+  return { ...v, tier: ringTier(Math.max(hw.met, met)) };
 }
 
 // 「前回見た値」（開いた時に前回→今へ広がる動きの起点）。端末ごと・同期しない。
