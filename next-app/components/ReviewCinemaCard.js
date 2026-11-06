@@ -32,7 +32,7 @@ export function highlightExample(example, word) {
   return { before: text.slice(0, m.index), hit: text.slice(m.index, m.index + m[0].length), after: text.slice(m.index + m[0].length) };
 }
 
-// 「12 / 125」＋フィルム10コマ（今の10枚のうち答えた枚数が点く）＋全体の細い線。
+// 「12 / 125」＋フィルム10コマ（今の10枚のうち答えた枚数が点く）＋全体の細い線。見出しは「今日の復習」（チケット形の横で上映の券と紛れないよう「上映」は使わない・法務 2026-11-07）。
 export function CinemaProgress({ idx, total }) {
   const blockStart = Math.floor(idx / FILM_FRAMES) * FILM_FRAMES;
   const frames = Math.max(1, Math.min(FILM_FRAMES, total - blockStart));
@@ -55,7 +55,7 @@ export function CinemaProgress({ idx, total }) {
             <path d="M3 10l2-5 16-1-1 5" />
             <path d="M8 5l2 4.5M13 4.6l2 4.5" />
           </svg>
-          今日の上映
+          今日の復習
         </span>
       </div>
       <div className="rc-overall" aria-hidden="true">
