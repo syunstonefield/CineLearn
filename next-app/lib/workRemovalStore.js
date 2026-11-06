@@ -64,7 +64,11 @@ export async function previewWorkRemoval(title, profileId) {
 }
 
 function sendRows(plan) {
-  plan.rowsUpdate.forEach((h) => pushHistoryEntry(h)); // ログイン時のみ・fire-and-forget
+  // クラウドの history は season/episode が NOT NULL。端末にしか無い古い行（null）は送らない
+  //（送ると 400 になり、取り込みのたびに同じ行を送り直すだけになる・裏側レビュー 2026-11-07）。
+  plan.rowsUpdate
+    .filter((h) => h.season != null && h.episode != null)
+    .forEach((h) => pushHistoryEntry(h)); // ログイン時のみ・fire-and-forget
   plan.rowsDelete.forEach((id) => deleteHistoryRow(id));
 }
 
