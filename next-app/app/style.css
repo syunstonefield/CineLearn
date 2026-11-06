@@ -7661,9 +7661,8 @@ html.cl-review-lock .app-tmdb-footer { display: none; }
 .rc-work-suffix { flex: none; }
 .rc-perf { flex: none; margin: 0 22px; border-top: 2px dashed var(--rc-perf); }
 
-.rc-word { font-family: 'Playfair Display', serif; font-size: 48px; font-weight: 700; line-height: 1.08; color: var(--rc-word); text-align: center; white-space: nowrap; max-width: none; }
-/* 1行に入らない語は ReviewCinemaCard の useFitWord が縮める。下限でも入らない極端に長い句だけ、単語の切れ目で折り返す */
-.rc-word.is-wrap { white-space: normal; overflow-wrap: normal; word-break: normal; max-width: 100%; } /* 空白でだけ折る（語の途中では折らない） */
+.rc-word { font-family: 'Playfair Display', serif; font-size: 48px; font-weight: 700; line-height: 1.08; color: var(--rc-word); text-align: center; white-space: normal; overflow-wrap: normal; word-break: normal; hyphens: none; max-width: 100%; }
+/* 句は空白でだけ折り返す（語の途中では折らない）。1語だけで幅に入らない時は ReviewCinemaCard の useFitWord が縮める */
 .rc-word.is-small { font-size: 34px; }
 .rc-word-side { font-size: 0.5em; font-weight: 600; color: var(--rc-muted); }
 .rc-word-meta { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }

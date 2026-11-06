@@ -15,33 +15,26 @@ import { surfaceFormInExample, wordMatchRegex, normApostrophes } from '@/lib/sub
 import { speak } from '@/lib/speak';
 import { chunkParts } from '@/lib/chunk';
 import { subtitleCredit } from '@/lib/storage';
-import { fitFontSize, fitWrappedSize, FIT_MIN_PX } from '@/lib/fitWord';
+import { fitLongestWord } from '@/lib/fitWord';
 
 const FILM_FRAMES = 10; // 進み具合のフィルム＝1コマ1枚・10枚で次の10コマへ
 
-// 大きな語は折り返さず、1行に入るまで文字を縮める（オーナー 2026-11-07「長い単語が次の行にいっちゃうのはやめたい」）。
-//   CSS の大きさ（表48px・裏34px・画面幅で変わる）を最大に、実際の幅を測って縮める（計算は lib/fitWord.js）。
-//   下限（表22px・裏20px）でも入らない極端に長い句だけ、空白で折り返す。語の途中では折らない（1語は下限を割ってでも1行）。
-function useFitWord(ref, minPx, deps) {
+// 大きな語は語の途中で切らない（オーナー 2026-11-07「reconnaissan / ce」の実例・訂正込み）。
+//   句は今の大きさのまま空白でだけ折り返す。いちばん長い1語がカードの幅に入らない時だけ、その語が
+//   1行に入るまで縮める（計算は lib/fitWord.js）。書体の読み込み後・画面の幅が変わった時も測り直す。
+function useFitWord(ref, deps) {
   useLayoutEffect(() => {
     const el = ref.current;
     const parent = el?.parentElement;
     if (!el || !parent) return undefined;
     const fit = () => {
       el.style.fontSize = '';
-      el.classList.remove('is-wrap');
       const max = parseFloat(getComputedStyle(el).fontSize);
       const pcs = getComputedStyle(parent);
       const avail = parent.clientWidth - parseFloat(pcs.paddingLeft) - parseFloat(pcs.paddingRight);
-      const hasSpace = /\s/.test((el.textContent || '').trim());
-      const { size, wrap } = fitFontSize(max, el.scrollWidth, avail, minPx, hasSpace);
+      // 空白でだけ折り返す設定なので、幅を超えるのは「1語だけで幅に入らない語」がある時だけ
+      const size = fitLongestWord(max, el.scrollWidth, avail);
       if (size !== max) el.style.fontSize = `${size}px`;
-      if (wrap) {
-        el.classList.add('is-wrap');
-        // 空白で折った後も1語が幅を超える（極端に長い語を含む句）なら、その語が入るまで縮める
-        const s2 = fitWrappedSize(size, el.scrollWidth, avail);
-        if (s2 !== size) el.style.fontSize = `${s2}px`;
-      }
     };
     fit();
     // 書体（Playfair）の読み込みが後から終わると幅が変わる／画面の回転・幅の変化
@@ -144,7 +137,7 @@ export default function ReviewCinemaCard({ word: w, flipped, retryMode, onFlip, 
   const plain = w.example && !credit ? highlightExample(w.example, w.word) : null;
   const sf = w.pos ? surfaceFormInExample(w.example, w.word) : null;
   const wordRef = useRef(null);
-  useFitWord(wordRef, flipped ? FIT_MIN_PX.back : FIT_MIN_PX.front, [w.word, w.chunk, flipped]);
+  useFitWord(wordRef, [w.word, w.chunk, flipped]);
 
   const wordEl = (
     <span ref={wordRef} className={'rc-word' + (flipped ? ' is-small' : '')}>
