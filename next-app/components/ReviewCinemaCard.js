@@ -263,7 +263,7 @@ export default function ReviewCinemaCard({ word: w, flipped, retryMode, onFlip, 
               </div>
               <div ref={backPerfRef} className="rc-perf" aria-hidden="true" />
               <div className="rc-back-body">
-                {/* 意味は点線のすぐ下。点線より下は中身の高さで、長い時だけカードの中でスクロール */}
+                {/* 意味は点線のすぐ下。並び＝意味→例文→和訳→例文の再生（出所は下の rc-src-foot でカードの一番下）。長い時だけここがスクロール */}
                 <div className="rc-back-inner">
                 <div className="rc-def">{w.definition || ''}</div>
                 {ex && (
@@ -293,34 +293,36 @@ export default function ReviewCinemaCard({ word: w, flipped, retryMode, onFlip, 
                   </div>
                 )}
                 {(ex || plain || ai) && (
-                  <div className="rc-src-row">
-                    <span className="rc-src">
-                      {ex && credit && (
-                        <span className="rc-src-line">
-                          <FilmIcon />
-                          {/* 出所明示（著作権法48条）：例文を引いた作品・話・字幕元 */}
-                          <span>{credit.replace(/^📺\s*/, '')}</span>
-                        </span>
-                      )}
-                      {ex && isOtherSceneExample(w) && <span className="rc-src-note">この回の別の場面のセリフです</span>}
-                      {/* AI 作例（2026-10-31）: 字幕の引用ではないので “…” と出所を付けず、注記で明示する */}
-                      {ai && <span className="rc-src-note">AI 作例（ドラマのセリフではありません）</span>}
-                    </span>
-                    <button
-                      type="button"
-                      className="rc-speak-sm"
-                      aria-label="例文を聞く"
-                      onClick={(ev) => {
-                        ev.stopPropagation();
-                        speak(ex || plain ? w.example : ai.en);
-                      }}
-                    >
-                      <SpeakIcon />
-                    </button>
-                  </div>
+                  /* 例文の再生＝和訳のすぐ下・中央に、押しやすい大きさ（高さ44px）で（オーナー 2026-11-07） */
+                  <button
+                    type="button"
+                    className="rc-speak-ex"
+                    onClick={(ev) => {
+                      ev.stopPropagation();
+                      speak(ex || plain ? w.example : ai.en);
+                    }}
+                  >
+                    <SpeakIcon />
+                    例文を聞く
+                  </button>
                 )}
                 </div>
               </div>
+              {/* 出所の行＝カードの一番下に固定（スクロールしない）。例文より一段控えめだが読める濃さ（4.5:1 以上）を保つ。
+                  出所明示（著作権法48条）：作品名・話・字幕元は省略しない */}
+              {((ex && credit) || (ex && isOtherSceneExample(w)) || ai) && (
+                <div className="rc-src-foot">
+                  {ex && credit && (
+                    <span className="rc-src-line">
+                      <FilmIcon />
+                      <span>{credit.replace(/^📺\s*/, '')}</span>
+                    </span>
+                  )}
+                  {ex && isOtherSceneExample(w) && <span className="rc-src-note">この回の別の場面のセリフです</span>}
+                  {/* AI 作例（2026-10-31）: 字幕の引用ではないので “…” と出所を付けず、注記で明示する */}
+                  {ai && <span className="rc-src-note">AI 作例（ドラマのセリフではありません）</span>}
+                </div>
+              )}
             </>
           )}
         </div>

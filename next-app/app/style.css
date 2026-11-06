@@ -7569,6 +7569,7 @@ body:has(.trial-flow) .app-tmdb-footer { padding-bottom: calc(12px + env(safe-ar
   --rc-flip-bg: #3b2414;
   --rc-flip-ink: #fdf0dc;
   --rc-hit-line: rgba(138, 75, 31, 0.45);
+  --rc-src: #7d6650; /* 出所の行＝例文より一段淡く、紙の色に対して 5.0:1（読める水準 4.5:1 以上・法務 2026-11-07） */
   /* 大きさ（背の低い画面では下の @media で詰める）。切り欠きの位置もここから決まる */
   --rc-hint-h: 120px;
   --rc-backword-h: 104px;
@@ -7599,6 +7600,7 @@ html[data-theme="dark"] .review-cinema {
   --rc-flip-bg: #e8b465;
   --rc-flip-ink: #1c1813;
   --rc-hit-line: rgba(240, 184, 102, 0.55);
+  --rc-src: #b8a78f; /* ダークの紙の色に対して 5.6:1 */
   --rc-pos-ink: #c3bcff;
   --rc-pos-bg: rgba(139, 128, 255, 0.14);
   --rc-speak-bg: #2d231a;
@@ -7697,7 +7699,7 @@ html.cl-review-lock .app-tmdb-footer { display: none; }
 
 /* 裏：意味 → 字幕の帯（例文＋和訳） → 作品情報 */
 .rc-back-word { min-height: var(--rc-backword-h); flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 0 16px; }
-.rc-back-body { flex: 0 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; padding: 14px 18px 16px; }
+.rc-back-body { flex: 0 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; padding: 14px 18px 10px; }
 /* 裏: 点線より上（語の場所）が残りの高さを取り、点線より下は中身の高さ＝意味は点線のすぐ下・下に大きな余白を作らない（オーナー 2026-11-07）。
    中身が長い時は語の場所が最小の高さまで縮み、点線より下だけがスクロールする。カードの高さと3択の位置は変えない */
 .rc-back-inner { display: flex; flex-direction: column; gap: 10px; }
@@ -7711,12 +7713,17 @@ html.cl-review-lock .app-tmdb-footer { display: none; }
 .rc-ai-en { font-size: 15px; line-height: 1.45; color: var(--rc-ink); text-align: center; }
 .rc-ai-hit { font-weight: 700; color: var(--rc-word); }
 .rc-ai-ja { font-size: 13px; color: var(--rc-soft); text-align: center; }
-.rc-src-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.rc-src { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.rc-src-line { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--rc-soft); }
+.rc-src-line { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 11px; color: var(--rc-src); text-align: center; }
 .rc-src-line svg { flex: none; }
-.rc-src-note { font-size: 11px; color: var(--rc-muted); }
-.rc-speak-sm { width: 44px; height: 44px; flex: none; border: none; background: none; color: var(--rc-word); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.rc-src-note { font-size: 11px; color: var(--rc-src); text-align: center; }
+/* 出所の行はスクロールの外・カードの一番下（中身が少なくても語の場所が伸びるので、例文との間は空きすぎない） */
+.rc-src-foot { flex: none; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 0 18px 12px; }
+/* 例文の再生＝和訳の下・中央・高さ44px（押しやすい大きさ） */
+.rc-speak-ex {
+  align-self: center; height: 44px; padding: 0 18px; border-radius: 999px; border: 1px solid var(--rc-speak-line); background: var(--rc-speak-bg);
+  display: inline-flex; align-items: center; gap: 6px; color: var(--rc-word); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer;
+}
+.rc-speak-ex:active { transform: scale(0.96); }
 
 /* 3択＝同じ幅と高さ・淡い色の地＋文字で区別（押す前に1つだけ光らせない＝正直な採点を歪めない） */
 .rc-actions { flex: none; }
