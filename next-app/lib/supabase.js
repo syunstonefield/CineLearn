@@ -101,6 +101,10 @@ function notifySessionExpired() {
 
 // 更新を一本化（同時に複数の送信が失効を見ても refresh_token を二度使わない＝使い捨てトークンの再利用拒否を避ける）
 let _refreshing = null;
+// 更新に失敗した時、拡張（bridge v1.2.12〜）の書き戻しを待つ時間（テストから短くできる）
+export const sessionRetry = { delayMs: 1500 };
+// 拡張が localStorage へ書き戻した直後に出すイベント名（同じタブでは storage イベントが来ないため）。AppProvider が受けて判定し直す。
+export const SESSION_UPDATED_EVENT = 'cl-session-updated';
 export async function ensureFreshSession() {
   const s = getSession();
   if (!s?.access_token) return false;
@@ -122,9 +126,15 @@ export async function ensureFreshSession() {
           return true;
         }
         // 失敗。Chrome 拡張（bridge.js v1.2.12〜）が先に更新して新しいセッションを localStorage に書き戻していれば、それを採る
-        // （同じ refresh_token を拡張が先に使うと、こちらの更新は「使用済み」で拒否される）。古い拡張（書き戻さない）でも動きは従来どおり。
-        const s2 = getSession();
-        if (s2?.access_token && s2.refresh_token !== s.refresh_token && s2.expires_at && s2.expires_at - Date.now() / 1000 > 60) return true;
+        // （同じ refresh_token を拡張が先に使うと、こちらの更新は「使用済み」で拒否される）。ほぼ同時に更新した場合の救済として
+        // 少し待ってから読み直す。セッションは消さない。古い拡張（書き戻さない）でも動きは従来どおり（失敗→失効の通知）。
+        const fresher = () => {
+          const s2 = getSession();
+          return !!(s2?.access_token && s2.refresh_token !== s.refresh_token && s2.expires_at && s2.expires_at - Date.now() / 1000 > 60);
+        };
+        if (fresher()) return true;
+        await new Promise((r) => setTimeout(r, sessionRetry.delayMs));
+        if (fresher()) return true;
         notifySessionExpired();
         return false;
       } finally {

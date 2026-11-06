@@ -16,7 +16,8 @@ let fetchLog = [];
 let fetchImpl = async () => new Response('{}', { status: 200 });
 globalThis.fetch = (...a) => { fetchLog.push(a[0]); return fetchImpl(...a); };
 
-const { ensureFreshSession, ensureSessionForSync, SESSION_EXPIRED_EVENT, getSession } = await import('../lib/supabase.js');
+const { ensureFreshSession, ensureSessionForSync, SESSION_EXPIRED_EVENT, getSession, sessionRetry } = await import('../lib/supabase.js');
+sessionRetry.delayMs = 20; // 拡張の書き戻しを待つ時間（本番 1.5 秒）を短く
 
 const now = () => Math.floor(Date.now() / 1000);
 const session = (over = {}) => ({ access_token: 'old', refresh_token: 'r1', expires_at: now() + 30, user: { id: 'u1' }, ...over });
@@ -75,4 +76,14 @@ test('送信前の判定: ログイン中は更新しない・未ログインは
   fetchImpl = async () => new Response('{}', { status: 400 });
   assert.equal(await ensureSessionForSync(), false);
   assert.deepEqual(events, [SESSION_EXPIRED_EVENT]);
+});
+
+test('更新に失敗した直後は古いままでも、少し待つ間に拡張が書き戻せばそれを採る（セッションは消さない）', async () => {
+  reset();
+  store.set('cl_sb_session', JSON.stringify(session()));
+  fetchImpl = async () => new Response(JSON.stringify({ msg: 'Invalid Refresh Token: Already Used' }), { status: 400 });
+  setTimeout(() => store.set('cl_sb_session', JSON.stringify(session({ access_token: 'ext2', refresh_token: 'r7', expires_at: now() + 3000 }))), 5);
+  assert.equal(await ensureFreshSession(), true);
+  assert.equal(getSession().access_token, 'ext2');
+  assert.deepEqual(events, []);
 });

@@ -14,6 +14,7 @@ import { initUsage, trackUsage, noteExtWordsOnce } from '@/lib/usage';
 import {
   ensureFreshSession,
   SESSION_EXPIRED_EVENT,
+  SESSION_UPDATED_EVENT,
   pullFromCloud,
   isLoggedIn,
   getSession,
@@ -296,6 +297,19 @@ export default function AppProvider({ children }) {
   useEffect(() => {
     profileRef.current = profile;
   }, [profile]);
+
+  // 拡張（bridge v1.2.12〜）が新しいセッションを localStorage に書き戻した合図。起動時に期限切れと判定した後で届くことがあるので、
+  // ログイン状態を判定し直し、生きていれば帯を下ろしてクラウドから取り直す（2026-11-07 候補C）。
+  useEffect(() => {
+    const onUpdated = () => {
+      if (!isLoggedIn()) return;
+      setSessionExpired(false);
+      setLoggedIn(true);
+      refreshFromCloud();
+    };
+    window.addEventListener(SESSION_UPDATED_EVENT, onUpdated);
+    return () => window.removeEventListener(SESSION_UPDATED_EVENT, onUpdated);
+  }, [refreshFromCloud]);
 
   // タブ復帰時に自動で再取得（10秒スロットル）。
   // Netflixタブで単語を保存 → このタブに戻る、の典型動線をカバーする。
