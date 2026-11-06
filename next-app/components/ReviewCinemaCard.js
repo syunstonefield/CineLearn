@@ -9,14 +9,46 @@
 //   2026-11-07 オーナー実機: 例文の黒い字幕の帯は浮いて見えるのでやめ、カードの紙の上に置く。
 //   見た目は CSS だけ（画像ゼロ・app/style.css「復習カード（夕焼けシネマ）」）。動き・10枚の区切りの演出は後の段。
 
-import { useRef } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 import { aiExampleOf, isOtherSceneExample } from '@/lib/exampleBackfill';
 import { surfaceFormInExample, wordMatchRegex, normApostrophes } from '@/lib/subtitles';
 import { speak } from '@/lib/speak';
 import { chunkParts } from '@/lib/chunk';
 import { subtitleCredit } from '@/lib/storage';
+import { fitLongestWord } from '@/lib/fitWord';
 
 const FILM_FRAMES = 10; // 進み具合のフィルム＝1コマ1枚・10枚で次の10コマへ
+
+// 大きな語は語の途中で切らない（オーナー 2026-11-07「reconnaissan / ce」の実例・訂正込み）。
+//   句は今の大きさのまま空白でだけ折り返す。いちばん長い1語がカードの幅に入らない時だけ、その語が
+//   1行に入るまで縮める（計算は lib/fitWord.js）。書体の読み込み後・画面の幅が変わった時も測り直す。
+function useFitWord(ref, deps) {
+  useLayoutEffect(() => {
+    const el = ref.current;
+    const parent = el?.parentElement;
+    if (!el || !parent) return undefined;
+    const fit = () => {
+      el.style.fontSize = '';
+      const max = parseFloat(getComputedStyle(el).fontSize);
+      const pcs = getComputedStyle(parent);
+      const avail = parent.clientWidth - parseFloat(pcs.paddingLeft) - parseFloat(pcs.paddingRight);
+      // 空白でだけ折り返す設定なので、幅を超えるのは「1語だけで幅に入らない語」がある時だけ
+      const size = fitLongestWord(max, el.scrollWidth, avail);
+      if (size !== max) el.style.fontSize = `${size}px`;
+    };
+    fit();
+    // 書体（Playfair）の読み込みが後から終わると幅が変わる／画面の回転・幅の変化
+    let alive = true;
+    document.fonts?.ready?.then(() => alive && fit());
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => fit()) : null;
+    ro?.observe(parent);
+    return () => {
+      alive = false;
+      ro?.disconnect();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+}
 
 // 表に出す「どの作品・話で出会ったか」。出所表示（subtitleCredit）と同じ規則（別の話数の字幕なら話数を外す・plus 語は出さない）。
 function workLabelOf(w) {
@@ -104,9 +136,11 @@ export default function ReviewCinemaCard({ word: w, flipped, retryMode, onFlip, 
   const ex = w.example && credit ? highlightExample(w.example, w.word) : null;
   const plain = w.example && !credit ? highlightExample(w.example, w.word) : null;
   const sf = w.pos ? surfaceFormInExample(w.example, w.word) : null;
+  const wordRef = useRef(null);
+  useFitWord(wordRef, [w.word, w.chunk, flipped]);
 
   const wordEl = (
-    <span className={'rc-word' + (flipped ? ' is-small' : '')}>
+    <span ref={wordRef} className={'rc-word' + (flipped ? ' is-small' : '')}>
       {cp && cp.hit ? (
         <>
           <span className="rc-word-side">{cp.before}</span>
@@ -145,16 +179,19 @@ export default function ReviewCinemaCard({ word: w, flipped, retryMode, onFlip, 
         >
           <div className="rc-ticket-head">
             {onUndo ? (
-              <button type="button" className="rc-undo" onClick={onUndo}>
-                ↩ 前のカードに戻る
+              <button type="button" className="rc-undo" onClick={onUndo} aria-label="前のカードに戻る">
+                {/* ↩︎＝文字として出す（iOS で青い絵文字の箱にしない）。上段を1行に収めるため短く（オーナー 2026-11-07） */}
+                ↩︎ 戻る
               </button>
             ) : (
               <span />
             )}
             {!flipped && work && (
-              <span className="rc-work">
+              <span className="rc-work" title={`${work} で出会った表現`}>
                 <FilmIcon />
-                {work} で出会った表現
+                {/* 作品名が長い時は作品名だけを1行で「…」に省略（「で出会った表現」は残す） */}
+                <span className="rc-work-title">{work}</span>
+                <span className="rc-work-suffix">で出会った表現</span>
               </span>
             )}
           </div>
