@@ -6043,6 +6043,18 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
   margin-top: 4px;
 }
 .td-cta:active { transform: scale(0.99); }
+/* コレクションから消去（2026-11-07）。責めない＝赤や警告色にせず、目立たない文字ボタン */
+.td-remove { display: block; margin: 18px auto 0; padding: 8px 12px; background: none; border: none; font: inherit; font-size: 13px; color: var(--text-muted); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.wr-overlay { align-items: center; }
+.wr-panel { padding: 20px; gap: 14px; overflow-y: auto; }
+.wr-title { font-size: 16px; font-weight: 700; line-height: 1.5; margin: 0; color: var(--text); }
+.wr-lines { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 8px; font-size: 13.5px; line-height: 1.6; color: var(--text); }
+.wr-actions { display: flex; gap: 10px; justify-content: flex-end; }
+.wr-actions > button { flex: 1; max-width: 180px; }
+/* 中央寄せは left/right＋margin:auto（left:50% だと幅が画面の半分に縮み文が切れる） */
+.wr-undo { position: fixed; left: 0; right: 0; margin: 0 auto; width: max-content; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); z-index: 950; display: flex; align-items: center; gap: 14px; max-width: calc(100% - 32px); padding: 10px 14px 10px 16px; border-radius: 12px; background: var(--text); color: var(--surface); box-shadow: 0 6px 24px rgba(0,0,0,0.2); font-size: 13.5px; }
+.wr-undo-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wr-undo-btn { flex-shrink: 0; background: none; border: none; padding: 4px 2px; font: inherit; font-weight: 700; color: inherit; text-decoration: underline; cursor: pointer; }
 
 /* ── マイ単語帳（ページ版・表示は単語リスト＝VocabItem） ───────── */
 /* 設定ページ（旧モーダル→screen='settings'） */

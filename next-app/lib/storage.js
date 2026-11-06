@@ -4,6 +4,7 @@
 import { pushHistoryEntry, deleteHistoryRow, deleteHistoryRowsByTitle, pushSrsWords, deleteSrsWord, pushProfiles, queueStatePush } from './supabase';
 import { PROFILES_AT_KEY } from './profileMerge';
 import { getDeviceKey } from './device';
+import { REMOVED_WORKS_KEY, RING_MET_RESET_KEY, removedTitlesOf, withRemoved } from './workRemoval';
 
 export const HISTORY_KEY = 'cl_history';
 export const SRS_KEY = 'cl_srs';
@@ -377,13 +378,16 @@ export function platformColor(platform) {
 
 // 履歴 + myDramas からライブラリカード用のエントリ一覧を作る
 // （既存 renderDramaLibrary のグループ化部分と同じロジック）
-export function buildLibraryEntries(history, myDramas) {
+//   コレクションから消去した作品（cl_removed_works）は出さない（学習した語を残した行と myDramas は残っている）。
+export function buildLibraryEntries(history, myDramas, removed = loadRemovedWorks()) {
   // myDramas はタイトル→詳細（tmdbId / posterPath / totalEpisodes 等）の参照に使う。
   const byTitle = new Map((myDramas || []).map((d) => [d.title, d]));
+  const isRemoved = new Set(removed || []);
   const map = new Map();
   history.forEach((h) => {
     const key = h.drama?.title;
     if (!key) return; // drama 欠落エントリ（過去の同期巻き戻りの残骸）は走査対象外
+    if (isRemoved.has(key)) return;
     if (!map.has(key)) {
       // 履歴の drama は {title,genre,platform} のみ。myDramas 側の
       // tmdbId/posterPath/totalEpisodes を引き継ぎ、ポスター取得や進捗バーを出せるようにする。
@@ -402,7 +406,7 @@ export function buildLibraryEntries(history, myDramas) {
   });
 
   (myDramas || []).forEach((d) => {
-    if (!map.has(d.title)) {
+    if (!map.has(d.title) && !isRemoved.has(d.title)) {
       map.set(d.title, { drama: d, episodes: [], bestScore: null, lastDate: null });
     }
   });
@@ -472,6 +476,42 @@ export function unarchiveDrama(title) {
   if (!m[title]?.on) return;
   m[title] = { on: false, at: Date.now() };
   saveArchivedMap(m);
+}
+
+// ── コレクションから消去（2026-11-07・lib/workRemoval.js・消す処理は lib/workRemovalStore.js）──────
+// 印は { [title]: { on, at } }。端末間は作品ごとに at が新しい方（lib/supabase.js mergeStateValue）。
+export function loadRemovedWorksMap() {
+  const m = readJson(REMOVED_WORKS_KEY, {});
+  return m && typeof m === 'object' && !Array.isArray(m) ? m : {};
+}
+export function loadRemovedWorks() {
+  return removedTitlesOf(loadRemovedWorksMap());
+}
+export function saveRemovedWorksMap(m, { push = true } = {}) {
+  safeSet(REMOVED_WORKS_KEY, JSON.stringify(m));
+  if (push) queueStatePush(REMOVED_WORKS_KEY, 500);
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(ARCHIVE_EVENT));
+}
+// もう一度開いたら印を外す（openDrama）。語を抜いた行は、その話を開いた時に作り直す（VocabScreen）。
+export function unremoveWork(title) {
+  if (!title) return;
+  const m = loadRemovedWorksMap();
+  if (!m[title]?.on) return;
+  saveRemovedWorksMap(withRemoved(m, title, false));
+}
+// 円の「出会った」を数え直す起点 { at, met }（lib/rings.js）。
+export function loadRingMetReset() {
+  const v = readJson(RING_MET_RESET_KEY, null);
+  return v && typeof v === 'object' && Number.isFinite(v.at) ? v : null;
+}
+//   消去の「元に戻す」待ちの間は送らない（holdRingMetResetPush・lib/workRemovalStore.js）。戻した時に別の端末へ届かないように。
+let ringMetResetHold = false;
+export function holdRingMetResetPush(on) {
+  ringMetResetHold = !!on;
+}
+export function saveRingMetReset(v, { push = true } = {}) {
+  safeSet(RING_MET_RESET_KEY, JSON.stringify(v));
+  if (push && !ringMetResetHold) queueStatePush(RING_MET_RESET_KEY, 3000);
 }
 
 // 「学習中」の語（小文字キー）の集合。棚から外した作品“だけ”に出てくる語を除く。

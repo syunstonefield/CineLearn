@@ -23,6 +23,7 @@ import {
   episodeCredit,
   isEpisodeMismatch,
 } from '@/lib/storage';
+import { isPrunedRow } from '@/lib/workRemoval';
 import {
   fetchTitleCandidatesFromTMDb,
   resolveTitleCandidate,
@@ -368,7 +369,9 @@ export default function VocabScreen() {
       const entry = history.find(
         (h) => h.drama?.title === drama.title && h.season === se && h.episode === ep
       );
-      if (entry?.words?.length) {
+      // コレクションから消去して語を抜いた話（drama.prunedAt）は保存済みとして出さず作り直す（lib/workRemoval.js）。
+      //   作り直した行は同じ id のまま全部の語に置き換わる（saveHistoryEntry）。共有の単語リストがあれば生成の枠も使わない。
+      if (entry?.words?.length && !isPrunedRow(entry)) {
         setVocab(entry.words);
         setHistoryId(entry.id);
         // テスト画面用に履歴IDを共有。クイズは QuizScreen がローカルで毎回組み直すので

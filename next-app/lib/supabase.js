@@ -13,7 +13,7 @@
 // - my_words: pull のみ（書込は拡張が直接 Supabase へ）。
 import { PROFILES_AT_KEY, mergeProfileArrays, cloudWins } from './profileMerge';
 import { ticketEpKey, trimTickets } from './ticketRules';
-import { mergeActivityDates, mergeReviewLog, mergeQuizAwarded } from './stateMergeRules';
+import { mergeActivityDates, mergeReviewLog, mergeQuizAwarded, mergeTitleToggles, mergeRingMetReset } from './stateMergeRules';
 import { fetchAllSrs, mergeSrs } from './srsMerge';
 
 const SUPABASE_URL = 'https://mndyexwdevkpdssglwpl.supabase.co';
@@ -397,10 +397,11 @@ function toIsoDateLite(v) {
 // ── 学習データ同期のヘルパ ──────────────────────────────────────
 
 // 同期対象の localStorage キー（user_state 1行=1キー）。★足したら lib/deviceAccount.js LEARNING_KEY_RE にも足す（ログアウトで消す対象）。
+//   2026-11-07: cl_removed_works（コレクションから消去した印）・cl_ring_met_reset（円の「出会った」を数え直す起点）を追加。
 //   2026-11-05: cl_activity_dates（学習した日）・cl_review_log（復習の記録）・cl_quiz_exp_awarded（クイズ EXP の台帳）を追加
 //   （ログアウトで端末から消すようにしたため、写しが無いと同じアカウントの入り直しで戻らない。規則は lib/stateMergeRules.js）。
 export const STATE_KEY_RE =
-  /^(cl_tickets|cl_fav_dramas|cl_study_sec|cl_study_drama|cl_watch_log|cl_frame_best)(_|$)|^cl_prepped$|^cl_seat_counter$|^cl_exp_ledger$|^cl_archived$|^cl_stats_daily$|^cl_activity_dates$|^cl_review_log$|^cl_quiz_exp_awarded$/;
+  /^(cl_tickets|cl_fav_dramas|cl_study_sec|cl_study_drama|cl_watch_log|cl_frame_best)(_|$)|^cl_prepped$|^cl_seat_counter$|^cl_exp_ledger$|^cl_archived$|^cl_stats_daily$|^cl_activity_dates$|^cl_review_log$|^cl_quiz_exp_awarded$|^cl_removed_works$|^cl_ring_met_reset$/;
 
 function localStateKeys() {
   try {
@@ -478,6 +479,9 @@ function mergeStateValue(key, localV, cloudV) {
   if (key === 'cl_activity_dates') return mergeActivityDates(localV, cloudV);
   if (key === 'cl_review_log') return mergeReviewLog(localV, cloudV);
   if (key === 'cl_quiz_exp_awarded') return mergeQuizAwarded(localV, cloudV);
+  // コレクションから消去した印（作品ごとに新しい方）と、円の「出会った」を数え直す起点（2026-11-07・lib/workRemoval.js）。
+  if (key === 'cl_removed_works') return mergeTitleToggles(localV, cloudV);
+  if (key === 'cl_ring_met_reset') return mergeRingMetReset(localV, cloudV);
   if (key === 'cl_stats_daily') {
     // 日ごとの学習記録（storage.js STATS_DAILY_KEY）: 「日付|端末キー」の行ごと・フィールドごとの max。
     // 行はその端末だけが書き、各フィールドは単調増加＝max で正しい（cl_exp_ledger の数値 max は入れ子に効かない）。

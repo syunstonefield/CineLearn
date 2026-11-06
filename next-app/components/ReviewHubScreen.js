@@ -18,6 +18,7 @@ import {
   backfillSrsOrigins,
   overallVocabStats,
   loadArchived,
+  loadRemovedWorks,
   DAILY_REVIEW_CAP,
 } from '@/lib/storage';
 import { usePlan, featureAccess } from '@/lib/plan';
@@ -154,7 +155,8 @@ export default function ReviewHubScreen() {
   //   今日の復習・マスター手前からも外す（lib/storage.js getDueReviewWords）。SRS の記録は消さない＝棚に戻せば再び出る。
   const groups = useMemo(() => {
     const m = new Map();
-    const archived = loadArchived();
+    // コレクションから消去した作品（cl_removed_works）も出さない。学習した語は今日の復習・ランダムで続く。
+    const archived = [...loadArchived(), ...loadRemovedWorks()];
     const isArchived = (t) => archived.some((a) => sameWorkTitle(a, t));
     history.forEach((h) => {
       const title = h.drama?.title;

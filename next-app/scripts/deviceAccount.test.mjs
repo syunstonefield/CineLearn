@@ -21,6 +21,7 @@ const STATE_KEYS = [
   'cl_study_drama', 'cl_study_drama_p_1', 'cl_watch_log', 'cl_watch_log_p_1', 'cl_frame_best', 'cl_frame_best_p_1',
   'cl_prepped', 'cl_seat_counter', 'cl_exp_ledger', 'cl_archived', 'cl_stats_daily',
   'cl_activity_dates', 'cl_review_log', 'cl_quiz_exp_awarded', // 2026-11-05 に同期対象へ（写しがあるので消しても戻る）
+  'cl_removed_works', 'cl_ring_met_reset', // 2026-11-07 コレクションから消去
 ];
 // signOut が従来から消していたもの＋アプリの他の学習データ・プロフィール別キー
 const OTHER_LEARNING = [

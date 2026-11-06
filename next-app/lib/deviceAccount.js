@@ -17,7 +17,7 @@ export const LAST_UID_KEY = 'cl_last_uid';
 
 // 学習データ（アカウントに属するもの）。プロフィール別キー（cl_my_words_<pid> など）も接頭辞で拾う。
 export const LEARNING_KEY_RE =
-  /^cl_(profiles|history|srs|my_words|deleted_words|tickets|fav_dramas|study_sec|study_drama|watch_log|frame_best|prepped|seat_counter|exp_ledger|archived|stats_daily|activity_dates|review_log|quiz_exp_awarded|recent_searches|prep_pos|ring_seen|plan_cache|trial_done|trial_later|trial_later_shown)(_|$)/;
+  /^cl_(profiles|history|srs|my_words|deleted_words|tickets|fav_dramas|study_sec|study_drama|watch_log|frame_best|prepped|seat_counter|exp_ledger|archived|stats_daily|activity_dates|review_log|quiz_exp_awarded|recent_searches|prep_pos|ring_seen|plan_cache|trial_done|trial_later|trial_later_shown|removed_works|ring_met_reset)(_|$)/;
 // 消すキーとクラウドの写し（2026-11-05 受付レビューで一覧化。写しがある＝同じアカウントの入り直しで戻る）:
 //   profiles(+_updated_at)→profiles表／history→history表／srs→srs_data／my_words(_pid)→my_words／
 //   tickets・fav_dramas・study_sec・study_drama・watch_log・frame_best・prepped・seat_counter・exp_ledger・archived・stats_daily→user_state／

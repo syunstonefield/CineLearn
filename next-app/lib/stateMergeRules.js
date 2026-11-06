@@ -45,3 +45,24 @@ export function mergeQuizAwarded(localV, cloudV) {
   add(localV);
   return out;
 }
+
+// 作品ごとの on/off の印（cl_removed_works＝コレクションから消去・2026-11-07）。作品ごとに at が新しい方
+//   （同じ時刻ならローカル）。cl_archived と同じ規則（あちらは旧形式の配列も読むので lib/supabase.js に別にある）。
+export function mergeTitleToggles(localV, cloudV) {
+  const norm = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
+  const out = { ...norm(cloudV) };
+  for (const [t, v] of Object.entries(norm(localV))) {
+    if (!out[t] || (v?.at || 0) >= (out[t]?.at || 0)) out[t] = v;
+  }
+  return out;
+}
+
+// 円の「出会った」を数え直す起点 { at, met }（cl_ring_met_reset・2026-11-07）。
+//   新しい消去（at が大きい方）が勝つ。同じ消去なら、その後の最高値（met の大きい方）。
+export function mergeRingMetReset(localV, cloudV) {
+  const ok = (v) => v && typeof v === 'object' && Number.isFinite(v.at);
+  if (!ok(localV)) return ok(cloudV) ? cloudV : localV;
+  if (!ok(cloudV)) return localV;
+  if (localV.at !== cloudV.at) return localV.at > cloudV.at ? localV : cloudV;
+  return { at: localV.at, met: Math.max(Number(localV.met) || 0, Number(cloudV.met) || 0) };
+}

@@ -6,7 +6,8 @@
 //   中心＝覚えた＋小さく「うち マスター N」（0の間は出さない）。
 //   開いた時は前回見た値→今の値へ広がり、増えた分の弧だけ光る（マスター→覚えた→出会ったの順）。
 //   prefers-reduced-motion では止まった絵で出す。
-// values はすでに最高値（lib/rings.js settleRingValues）＝この部品は縮む値を受け取らない。
+// values はすでに最高値（lib/rings.js settleRingValues）。縮むのは「出会った」を、利用者がコレクションから
+// 作品を消去した時だけ（2026-11-07）。開くたびに 0 から伸ばすので、縮んだ値でも動きは同じ。
 import { useEffect, useRef, useState } from 'react';
 import { ringFractions } from '@/lib/rings';
 import { subtitleCredit } from '@/lib/storage';
@@ -212,7 +213,7 @@ export default function VocabRings({ values, from = null, glowFrom = null, gain 
             <i className="vr-dot vr-dot-met" />
             <b>{fmt(nums.met)}</b>
             <span>出会った</span>
-            <small>これまでに出会った語（棚から外した作品も含む）</small>
+            <small>これまでに出会った語（学習中から外した作品も含む・コレクションから消去した作品の学習していない語は除く）</small>
           </div>
           <div className="vr-lrow">
             <i className="vr-dot vr-dot-learned" />

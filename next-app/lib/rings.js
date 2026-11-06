@@ -5,7 +5,8 @@
 //   今の計算値の大きい方）＝忘れて判定が外れても円はしぼまない（罪悪感 UI を作らない）。
 //   円弧の長さ＝語数÷段階の枠。段階の中では伸びるだけ、出会った語が段階を超えた時だけ一度短くなる。
 
-import { recordStatsDailyRings, statsHighWater, loadStatsDaily } from './storage';
+import { recordStatsDailyRings, statsHighWater, loadStatsDaily, loadRingMetReset, saveRingMetReset } from './storage';
+import { ringMetValue } from './workRemoval';
 
 // 円の有料/無料は保留（オーナー 2026-10-08・全部完成してから決める）＝無料で固定しない。
 // 有料にすると決めたらここを true にし、呼び出し側から isPro（【A】土台）を渡す。
@@ -26,10 +27,15 @@ export function ringFractions(v) {
 }
 
 // 表示する値＝max(台帳の最高値, 今の計算値)。あわせて今日の行に最高値を残す（同期は max マージ）。
+//   「出会った」だけは、利用者が自分でコレクションから作品を消去したら減ってよい（オーナー 2026-11-07）＝
+//   消去した時点からの最高値（cl_ring_met_reset）を使う。「覚えた・マスター」は今までどおり縮まない。
 export function settleRingValues(current) {
   const hw = statsHighWater(loadStatsDaily());
+  const reset = loadRingMetReset();
+  const met = ringMetValue({ current: current.met, highWater: hw.met, reset });
+  if (reset && met !== reset.met) saveRingMetReset({ at: reset.at, met });
   const v = {
-    met: Math.max(hw.met, current.met || 0),
+    met,
     learned: Math.max(hw.learned, current.learned || 0),
     mastered: Math.max(hw.mastered, current.mastered || 0),
   };

@@ -6,8 +6,10 @@ import {
   saveProfiles,
   patchProfileSettings,
   unarchiveDrama,
+  unremoveWork,
   cleanupLegacySubtitleCache,
 } from '@/lib/storage';
+import { reapplyWorkRemovals } from '@/lib/workRemovalStore';
 import { addStudySeconds, addDramaStudySeconds } from '@/lib/studytime';
 import { applyTheme, getThemePref } from '@/lib/theme';
 import { initUsage, trackUsage, noteExtWordsOnce } from '@/lib/usage';
@@ -186,6 +188,13 @@ export default function AppProvider({ children }) {
   // 拡張で保存した語がこの端末に初めて届いたか（クラウド取込＝cloudVersion が進むたびに単語帳を見る・1回だけ数える）。
   useEffect(() => {
     if (cloudVersion > 0) noteExtWordsOnce();
+  }, [cloudVersion]);
+  // コレクションから消去した作品に、別の端末や古いクラウドの行で未学習の語が戻っていたら抜き直す（lib/workRemovalStore.js）。
+  useEffect(() => {
+    if (cloudVersion <= 0) return;
+    reapplyWorkRemovals(profileRef.current?.id)
+      .then((n) => n && setWordbookVersion((v) => v + 1))
+      .catch(() => {});
   }, [cloudVersion]);
 
   useEffect(() => {
@@ -548,6 +557,8 @@ export default function AppProvider({ children }) {
     setEpisode(saved?.lastEpisode || 1);
     // 棚から外していた作品を開き直したら自動で棚に戻す（アーカイブ解除）
     unarchiveDrama(d.title);
+    // コレクションから消去した作品も、開き直したら戻す（語を抜いた話は開いた時に作り直す・VocabScreen）
+    unremoveWork(d.title);
     // 2回目以降（ライブラリから再オープン＝clearService=false）で、前回の視聴サービスが
     // 分かっていればサービス選択を省略して直接 vocab へ。新規追加時(clearService)は従来どおり選択させる。
     const remembered = !clearService && d.viewingService ? d.viewingService : null;

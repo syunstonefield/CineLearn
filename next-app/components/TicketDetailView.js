@@ -9,7 +9,7 @@ import TicketPoster from './TicketPoster';
 // 半券の詳細ページ（Phase 2）。コレクション一覧のカードをタップで開くサブ画面。
 // 学習履歴＋TMDB（seasons キャッシュ）から、作品単位の学習記録を見せる。
 // データは捏造しない：episode タイトルは未保持のため SxE＋学習日で表現する。
-export default function TicketDetailView({ entry, seasons, onBack, onFav, onStudy, profileId }) {
+export default function TicketDetailView({ entry, seasons, onBack, onFav, onStudy, onRemove, profileId }) {
   // 詳細を開いたら常に一番上から表示（一覧でスクロールした位置を引き継がない）。
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -211,6 +211,12 @@ export default function TicketDetailView({ entry, seasons, onBack, onFav, onStud
         <button type="button" className="td-cta" onClick={onStudy}>
           📖 単語リスト
         </button>
+        {/* コレクションから消去（オーナー 2026-11-07・確認画面で何が消えて何が残るかを件数で出す） */}
+        {onRemove && (
+          <button type="button" className="td-remove" onClick={onRemove}>
+            コレクションから消去
+          </button>
+        )}
       </div>
     </div>
   );
