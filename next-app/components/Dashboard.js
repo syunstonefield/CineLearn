@@ -21,6 +21,7 @@ import { tmdb } from '@/lib/api';
 import { computeRecap, computeWatchGroup } from '@/lib/reunion';
 import { settleRingValues } from '@/lib/rings';
 import { recencyMs } from '@/lib/workRemoval';
+import { workRecency, byRecency } from '@/lib/workRecency';
 import { refetchPreDomExamples } from '@/lib/preDomExamples';
 import { usePlan, featureAccess } from '@/lib/plan';
 import { dailyReviewCap } from '@/lib/reviewCount';
@@ -326,8 +327,11 @@ export default function Dashboard() {
     // 保存語の作品名は日英で揺れるので名寄せ込みの sameWorkTitle で判定する。
     const activeKeys = activeWordKeys(history, myWords, sameWorkTitle);
     const overall = overallVocabStats(history, myWords, loadSrs(), activeKeys);
+    // 作品の「最近触った」時刻（作った日・復習・保存・開いた/戻した）。続きから学習の並びに使う（lib/workRecency.js）。
+    const recency = workRecency({ history, srs: loadSrs(), myWords, myDramas, sameTitle: sameWorkTitle });
     return {
       history,
+      recency,
       entries: buildLibraryEntries(history, myDramas).filter((e) => !archived.has(e.drama.title)),
       learnStats,
       totalLearned: overall.learned,
@@ -464,11 +468,11 @@ export default function Dashboard() {
     };
   });
 
-  // サブスク風に「続き（学習中）」と「マイリスト（未着手）」へ二分し、続きは最終学習日の新しい順。
-  //   棚から外す・消去から戻した作品は、戻した時刻（myDramas.touchedAt）も「最近」に数える（一番上に来る）。
+  // サブスク風に「続き（学習中）」と「マイリスト（未着手）」へ二分し、続きは最近触った順
+  //   （作った日・復習・拡張の保存・開いた/戻した時刻の新しい方・lib/workRecency.js。オーナー 2026-11-07）。
   const continueEntries = entries
     .filter((e) => e.episodes.length > 0)
-    .sort((a, b) => recencyMs(b.lastDate, b.drama?.touchedAt) - recencyMs(a.lastDate, a.drama?.touchedAt));
+    .sort(byRecency(data.recency || new Map(), (e) => e.drama.title, (e) => recencyMs(e.lastDate, e.drama?.touchedAt)));
   const listEntries = entries.filter((e) => e.episodes.length === 0);
 
   // 空のダッシュボード（履歴・ライブラリ0件）で中央に出すおすすめ6件

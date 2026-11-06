@@ -585,10 +585,13 @@ export default function AppProvider({ children }) {
     r.forEach((t) => unremoveWork(t));
     if (a.length || r.length) touchWorks([title, ...a, ...r]);
   }, [touchWorks]);
-  // 単語リストの画面に入ったら、その作品の印を外す（openDrama を通らない入口の分・reopenWork）。
+  // 単語リストの画面に入ったら、その作品の印を外し（openDrama を通らない入口の分・reopenWork）、
+  //   「最近触った」時刻も今にする（続きから学習・復習の作品一覧の並び・lib/workRecency.js・オーナー 2026-11-07）。
   useEffect(() => {
-    if (screen === 'vocab' && drama?.title) reopenWork(drama.title);
-  }, [screen, drama?.title, reopenWork]);
+    if (screen !== 'vocab' || !drama?.title) return;
+    reopenWork(drama.title);
+    touchWorks([drama.title]);
+  }, [screen, drama?.title, reopenWork, touchWorks]);
 
   const openDrama = useCallback((d, clearService = false, opts) => {
     trackUsage('work_select'); // 利用データ: 作品を選んだ（入口はここに一本化されている）
