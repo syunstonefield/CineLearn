@@ -15,13 +15,13 @@ import { surfaceFormInExample, wordMatchRegex, normApostrophes } from '@/lib/sub
 import { speak } from '@/lib/speak';
 import { chunkParts } from '@/lib/chunk';
 import { subtitleCredit } from '@/lib/storage';
-import { fitFontSize, FIT_MIN_PX } from '@/lib/fitWord';
+import { fitFontSize, fitWrappedSize, FIT_MIN_PX } from '@/lib/fitWord';
 
 const FILM_FRAMES = 10; // 進み具合のフィルム＝1コマ1枚・10枚で次の10コマへ
 
 // 大きな語は折り返さず、1行に入るまで文字を縮める（オーナー 2026-11-07「長い単語が次の行にいっちゃうのはやめたい」）。
 //   CSS の大きさ（表48px・裏34px・画面幅で変わる）を最大に、実際の幅を測って縮める（計算は lib/fitWord.js）。
-//   下限（表22px・裏20px）でも入らない極端に長い句だけ、単語の切れ目で折り返す（1語だけで入らない時は語の途中で折る）。
+//   下限（表22px・裏20px）でも入らない極端に長い句だけ、空白で折り返す。語の途中では折らない（1語は下限を割ってでも1行）。
 function useFitWord(ref, minPx, deps) {
   useLayoutEffect(() => {
     const el = ref.current;
@@ -33,9 +33,15 @@ function useFitWord(ref, minPx, deps) {
       const max = parseFloat(getComputedStyle(el).fontSize);
       const pcs = getComputedStyle(parent);
       const avail = parent.clientWidth - parseFloat(pcs.paddingLeft) - parseFloat(pcs.paddingRight);
-      const { size, wrap } = fitFontSize(max, el.scrollWidth, avail, minPx);
+      const hasSpace = /\s/.test((el.textContent || '').trim());
+      const { size, wrap } = fitFontSize(max, el.scrollWidth, avail, minPx, hasSpace);
       if (size !== max) el.style.fontSize = `${size}px`;
-      if (wrap) el.classList.add('is-wrap');
+      if (wrap) {
+        el.classList.add('is-wrap');
+        // 空白で折った後も1語が幅を超える（極端に長い語を含む句）なら、その語が入るまで縮める
+        const s2 = fitWrappedSize(size, el.scrollWidth, avail);
+        if (s2 !== size) el.style.fontSize = `${s2}px`;
+      }
     };
     fit();
     // 書体（Playfair）の読み込みが後から終わると幅が変わる／画面の回転・幅の変化
@@ -180,16 +186,19 @@ export default function ReviewCinemaCard({ word: w, flipped, retryMode, onFlip, 
         >
           <div className="rc-ticket-head">
             {onUndo ? (
-              <button type="button" className="rc-undo" onClick={onUndo}>
-                ↩ 前のカードに戻る
+              <button type="button" className="rc-undo" onClick={onUndo} aria-label="前のカードに戻る">
+                {/* ↩︎＝文字として出す（iOS で青い絵文字の箱にしない）。上段を1行に収めるため短く（オーナー 2026-11-07） */}
+                ↩︎ 戻る
               </button>
             ) : (
               <span />
             )}
             {!flipped && work && (
-              <span className="rc-work">
+              <span className="rc-work" title={`${work} で出会った表現`}>
                 <FilmIcon />
-                {work} で出会った表現
+                {/* 作品名が長い時は作品名だけを1行で「…」に省略（「で出会った表現」は残す） */}
+                <span className="rc-work-title">{work}</span>
+                <span className="rc-work-suffix">で出会った表現</span>
               </span>
             )}
           </div>
