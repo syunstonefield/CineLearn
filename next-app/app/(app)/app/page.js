@@ -93,11 +93,14 @@ function AppShell() {
   );
   // ボトムナビはアプリ内（プロフィール選択済み）でのみ表示。
   // プロフィール選択・オンボーディング中は出さない。
-  const showBottomNav = !!profile && screen !== 'profile-select' && screen !== 'onboarding' && screen !== 'trial';
+  // 復習（ページ表示）の間も出さない＝全画面で広く使い、途中で下のバーを誤って押して結果を見ずに離れるのを防ぐ
+  //   （オーナー 2026-11-07）。抜けるのは復習の上の ✕（途中なら「ここまでで N語」の画面）。reviewPage は下で定義。
+  const showBottomNav =
+    !!profile && screen !== 'profile-select' && screen !== 'onboarding' && screen !== 'trial' && !(reviewWords && reviewAsPage);
   // プロフィール選択画面ではヘッダーのプロフィールチップを隠す（既存挙動）
   const headerProfile = screen === 'profile-select' ? null : profile;
 
-  // 復習はページ表示（reviewAsPage）時、他画面に代わって <main> 内に出す（ボトムナビ表示）。
+  // 復習はページ表示（reviewAsPage）時、他画面に代わって <main> 内に出す（ボトムナビは隠す・2026-11-07）。
   const reviewPage = !!reviewWords && reviewAsPage;
 
   return (

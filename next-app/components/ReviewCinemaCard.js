@@ -3,9 +3,10 @@
 // 復習カード（夕焼けシネマ・オーナー決定 2026-11-07）。復習タブのページ表示（ReviewModal asPage）だけで使う。
 //   予習の「じっくり覚える」（同じ ReviewModal の重ね表示）は従来の ReviewCard のまま＝見た目を分ける（オーナー「分けたい」）。
 //   変えない: 表→タップで裏→3択の流れ・3択の文言と意味・採点（SRS）・スワイプとキー操作・押し間違いの「戻る」。
-//   中身の改善（オーナー資料 2026-11-07）: 裏の読む順＝意味→字幕の帯（例文＋和訳）→作品情報／3択は同じ大きさで
+//   中身の改善（オーナー資料 2026-11-07）: 裏の読む順＝意味→例文と和訳（紙の上・対象語を強調）→作品情報／3択は同じ大きさで
 //   淡い色の地＋文字で区別（押す前に1つだけ光らせない）／表の下に「思い出してから開く」誘導／意味を確認するボタンは
-//   3択と同じ位置・同じ高さ。場面の画像は出さない（法務の線）＝場面は字幕の帯と作品・話で見せる。
+//   3択と同じ位置・同じ高さ。場面の画像は出さない（法務の線）＝場面は実際のセリフと作品・話で見せる。
+//   2026-11-07 オーナー実機: 例文の黒い字幕の帯は浮いて見えるのでやめ、カードの紙の上に置く。
 //   見た目は CSS だけ（画像ゼロ・app/style.css「復習カード（夕焼けシネマ）」）。動き・10枚の区切りの演出は後の段。
 
 import { useRef } from 'react';
@@ -98,8 +99,8 @@ export default function ReviewCinemaCard({ word: w, flipped, retryMode, onFlip, 
   const work = workLabelOf(w);
   const credit = subtitleCredit(w);
   const ai = !w.example ? aiExampleOf(w) : null;
-  // 字幕の帯にするのは出所（作品・話・字幕元）を出せる例文だけ＝字幕の引用。出所の無い例文（plus 語の生成例文など）は
-  // セリフに見せないよう、AI 作例と同じ素の枠に入れる。
+  // “…” と出所（作品・話・字幕元）を付けるのは出所を出せる例文だけ＝字幕の引用。出所の無い例文（plus 語の生成例文など）は
+  // セリフに見せないよう、AI 作例と同じく “…” も出所も付けない。
   const ex = w.example && credit ? highlightExample(w.example, w.word) : null;
   const plain = w.example && !credit ? highlightExample(w.example, w.word) : null;
   const sf = w.pos ? surfaceFormInExample(w.example, w.word) : null;
@@ -227,7 +228,7 @@ export default function ReviewCinemaCard({ word: w, flipped, retryMode, onFlip, 
                         </span>
                       )}
                       {ex && isOtherSceneExample(w) && <span className="rc-src-note">この回の別の場面のセリフです</span>}
-                      {/* AI 作例（2026-10-31）: 字幕の引用ではないので字幕の帯にせず、“…” と出所も付けない */}
+                      {/* AI 作例（2026-10-31）: 字幕の引用ではないので “…” と出所を付けず、注記で明示する */}
                       {ai && <span className="rc-src-note">AI 作例（ドラマのセリフではありません）</span>}
                     </span>
                     <button
@@ -258,6 +259,10 @@ export default function ReviewCinemaCard({ word: w, flipped, retryMode, onFlip, 
                 <path d="M6 9l6 6 6-6" />
               </svg>
             </button>
+            {/* 裏の3択の下に出るスワイプの案内と同じ高さを空けておく＝表のボタンと3択が同じ位置（親指を動かさない） */}
+            <div className="review-swipe-hint rc-swipe-hint rc-hint-spacer" aria-hidden="true">
+              ← 知らなかった　｜　知ってた →
+            </div>
             <div className="review-key-hint" aria-hidden="true">
               <kbd>Shift</kbd> / <kbd>Space</kbd> で意味を確認
             </div>
