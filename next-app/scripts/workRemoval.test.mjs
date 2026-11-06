@@ -68,7 +68,7 @@ test('確認画面の文：件数つき・0 の項目は書かない', () => {
   assert.deepEqual(removalConfirmLines({ removed: 74, shared: 6, studied: 19, learned: 12, mastered: 3, wordbook: 4 }), [
     '消去する語：74語（ほかの作品の単語リストにもある 6語は残ります）',
     '残る語：学習した 19語（覚えた 12・マスター 3 を含む）と、単語帳の 4語。復習もこれまでどおり続きます',
-    '学習した日・EXP・あゆみの記録はそのままです',
+    '学習した日・EXP・覚えた・マスターの記録はそのままです（あゆみの「出会った」は消去した語の分だけ減ります）',
     '作品をもう一度開けば、単語リストはいつでも作り直せます',
   ]);
   const none = removalConfirmLines({ removed: 30, shared: 0, studied: 0, learned: 0, mastered: 0, wordbook: 0 });

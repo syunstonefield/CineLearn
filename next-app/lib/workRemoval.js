@@ -117,7 +117,8 @@ export function removalConfirmLines(c) {
   }
   if (c.wordbook) keep.push(`単語帳の ${c.wordbook}語`);
   lines.push(keep.length ? `残る語：${keep.join('と、')}。復習もこれまでどおり続きます` : '残る語：ありません');
-  lines.push('学習した日・EXP・あゆみの記録はそのままです');
+  // あゆみの円の「出会った」は減るので「あゆみの記録はそのまま」とは書かない（ホーム・あゆみ部門 2026-11-07）。
+  lines.push('学習した日・EXP・覚えた・マスターの記録はそのままです（あゆみの「出会った」は消去した語の分だけ減ります）');
   lines.push('作品をもう一度開けば、単語リストはいつでも作り直せます');
   return lines;
 }

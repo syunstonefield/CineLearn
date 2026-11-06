@@ -10,7 +10,7 @@
 // 作品を消去した時だけ（2026-11-07）。開くたびに 0 から伸ばすので、縮んだ値でも動きは同じ。
 import { useEffect, useRef, useState } from 'react';
 import { ringFractions } from '@/lib/rings';
-import { subtitleCredit } from '@/lib/storage';
+import { subtitleCredit, loadRemovedWorks } from '@/lib/storage';
 
 const C = 160;
 const RINGS = [
@@ -213,7 +213,12 @@ export default function VocabRings({ values, from = null, glowFrom = null, gain 
             <i className="vr-dot vr-dot-met" />
             <b>{fmt(nums.met)}</b>
             <span>出会った</span>
-            <small>これまでに出会った語（学習中から外した作品も含む・コレクションから消去した作品の学習していない語は除く）</small>
+            {/* 消去した作品がある人だけ数え方を足す（ボタン名は「棚から外す」・ホーム・あゆみ部門 2026-11-07） */}
+            <small>
+              {loadRemovedWorks().length
+                ? 'これまでに出会った語（棚から外した作品も含む・消去した作品は学習した語だけ）'
+                : 'これまでに出会った語（棚から外した作品も含む）'}
+            </small>
           </div>
           <div className="vr-lrow">
             <i className="vr-dot vr-dot-learned" />
