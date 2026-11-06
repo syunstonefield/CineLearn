@@ -196,6 +196,7 @@ async function fetchAllRows(path, headers) {
 // アクセストークンは約1時間で失効するため、期限が近ければ refresh_token で
 // 自動更新して chrome.storage に書き戻す。これが無いと失効後の単語保存が
 // 黙ってクラウド同期されなくなる（単語帳には残るが他端末に届かない）。
+const EXT_REFRESH_AHEAD_SEC = 15 * 60;
 let _refreshPromise = null; // 並行リフレッシュ防止（refresh_token は使い捨てのため）
 
 async function getFreshSession() {
@@ -204,7 +205,9 @@ async function getFreshSession() {
   if (!session?.access_token) return null;
 
   const now = Date.now() / 1000;
-  if (session.expires_at && session.expires_at - now > 600) return session; // まだ新鮮
+  // アプリ（期限の10分前に更新）より先に更新し、bridge.js でアプリへ戻す＝同じ refresh_token を両方が使って
+  //   後の側が already used で拒否される取り合いを起こさない（v1.2.12・裏側と合わせた 15 分）。
+  if (session.expires_at && session.expires_at - now > EXT_REFRESH_AHEAD_SEC) return session; // まだ新鮮
   if (!session.refresh_token) return null;
 
   if (!_refreshPromise) {

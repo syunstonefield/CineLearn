@@ -71,6 +71,14 @@ test('拡張の更新: 通常は新しいセッションを書く', async () => 
   assert.equal(w.store.cl_sb_session.refresh_token, 'r-A2');
 });
 
+test('拡張の更新は期限の15分前から（アプリの10分前より先に更新してアプリへ戻す）', async () => {
+  const inMin = (m) => ({ ...sess('A'), expires_at: Math.floor(Date.now() / 1000) + m * 60 });
+  const w = await world({ cl_sb_session: inMin(20), cl_ledger_owner: 'A', cl_last_user_id: 'A', cl_sync_recover_v1: 1 }, { refresh: () => new Response(JSON.stringify(refreshed('A')), { status: 200 }) });
+  assert.equal((await w.runBg('getFreshSession()')).refresh_token, 'r-A', '20分先ならまだ更新しない');
+  w.store.cl_sb_session = inMin(12);
+  assert.equal((await w.runBg('getFreshSession()')).refresh_token, 'r-A2', '12分先なら更新する（アプリはまだ更新しない時点）');
+});
+
 for (const [label, change, expect] of [
   ['アプリから新しいセッションが届いた', (w) => (w.store.cl_sb_session = { ...sess('A'), refresh_token: 'r-from-app' }), (s) => assert.equal(s.refresh_token, 'r-from-app')],
   ['別の人に切り替わった', (w) => (w.store.cl_sb_session = sess('B')), (s) => assert.equal(s.user.id, 'B')],
