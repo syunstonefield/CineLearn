@@ -7699,7 +7699,7 @@ html.cl-review-lock .app-tmdb-footer { display: none; }
 
 /* 裏：意味 → 字幕の帯（例文＋和訳） → 作品情報 */
 .rc-back-word { min-height: var(--rc-backword-h); flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 0 16px; }
-.rc-back-body { flex: 0 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; padding: 14px 18px 10px; }
+.rc-back-body { flex: 0 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; padding: 14px 18px 18px; } /* 下の 18px＝ボタンと出所の間（オーナー 2026-11-07「もう少し広く」） */
 /* 裏: 点線より上（語の場所）が残りの高さを取り、点線より下は中身の高さ＝意味は点線のすぐ下・下に大きな余白を作らない（オーナー 2026-11-07）。
    中身が長い時は語の場所が最小の高さまで縮み、点線より下だけがスクロールする。カードの高さと3択の位置は変えない */
 .rc-back-inner { display: flex; flex-direction: column; gap: 10px; }
@@ -7720,7 +7720,7 @@ html.cl-review-lock .app-tmdb-footer { display: none; }
 .rc-src-foot { flex: none; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 0 18px 12px; }
 /* 例文の再生＝和訳の下・中央・高さ44px（押しやすい大きさ） */
 .rc-speak-ex {
-  align-self: center; height: 44px; padding: 0 18px; border-radius: 999px; border: 1px solid var(--rc-speak-line); background: var(--rc-speak-bg);
+  align-self: center; margin-top: 8px; /* 和訳との間＝並びの間隔 10px＋8px＝18px（オーナー 2026-11-07） */ height: 44px; padding: 0 18px; border-radius: 999px; border: 1px solid var(--rc-speak-line); background: var(--rc-speak-bg);
   display: inline-flex; align-items: center; gap: 6px; color: var(--rc-word); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer;
 }
 .rc-speak-ex:active { transform: scale(0.96); }
@@ -7769,7 +7769,7 @@ html.cl-review-lock .app-tmdb-footer { display: none; }
   .rc-word { font-size: 40px; }
   .rc-word.is-small { font-size: 30px; }
   .rc-front-main { gap: 10px; }
-  .rc-back-body { padding: 10px 16px 8px; }
+  .rc-back-body { padding: 10px 16px 16px; }
   .rc-back-inner { gap: 8px; }
   .rc-def { font-size: 18px; }
   .rc-rate-emoji { font-size: 18px; }
