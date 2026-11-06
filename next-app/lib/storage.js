@@ -442,7 +442,8 @@ export function normalizeArchived(v) {
   return v && typeof v === 'object' ? v : {};
 }
 
-function loadArchivedMap() {
+// 棚の印の地図（作品名 → { on, at }）。拡張で保存した語で印を外す判定にも使う（lib/workRemoval.js titlesReopenedBySaves）。
+export function loadArchivedMap() {
   return normalizeArchived(readJson(ARCHIVED_KEY, {}));
 }
 

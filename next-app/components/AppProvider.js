@@ -9,10 +9,12 @@ import {
   unremoveWork,
   loadArchived,
   loadRemovedWorks,
+  loadArchivedMap,
+  loadRemovedWorksMap,
   cleanupLegacySubtitleCache,
 } from '@/lib/storage';
 import { reapplyWorkRemovals } from '@/lib/workRemovalStore';
-import { titlesToReopen } from '@/lib/workRemoval';
+import { titlesToReopen, titlesReopenedBySaves } from '@/lib/workRemoval';
 import { sameWorkTitle } from '@/lib/words';
 import { addStudySeconds, addDramaStudySeconds } from '@/lib/studytime';
 import { applyTheme, getThemePref } from '@/lib/theme';
@@ -193,9 +195,20 @@ export default function AppProvider({ children }) {
   useEffect(() => {
     if (cloudVersion > 0) noteExtWordsOnce();
   }, [cloudVersion]);
-  // コレクションから消去した作品に、別の端末や古いクラウドの行で未学習の語が戻っていたら抜き直す（lib/workRemovalStore.js）。
+  // 取り込みのあと（cloudVersion）:
+  //   1) 拡張で、棚から外した／消去した作品の語を印より後に保存していたら、その作品の印を外す（オーナー 2026-11-07）。
+  //      単語帳は pull がグローバルキー cl_my_words に入れる。印を外した消去の作品は、下の抜き直しの対象から外れる。
+  //   2) コレクションから消去した作品に、別の端末や古いクラウドの行で未学習の語が戻っていたら抜き直す（lib/workRemovalStore.js）。
   useEffect(() => {
     if (cloudVersion <= 0) return;
+    let saved = [];
+    try {
+      saved = JSON.parse(localStorage.getItem('cl_my_words') || '[]') || [];
+    } catch {
+      saved = [];
+    }
+    titlesReopenedBySaves(loadArchivedMap(), saved, sameWorkTitle).forEach((t) => unarchiveDrama(t));
+    titlesReopenedBySaves(loadRemovedWorksMap(), saved, sameWorkTitle).forEach((t) => unremoveWork(t));
     reapplyWorkRemovals(profileRef.current?.id)
       .then((n) => n && setWordbookVersion((v) => v + 1))
       .catch(() => {});

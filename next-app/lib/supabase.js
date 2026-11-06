@@ -332,6 +332,8 @@ export async function pullFromCloud(profileId = null) {
           example_ja: sentenceChanged ? '' : w.example_ja || '', // 例文の和訳（アプリが後埋め・2026-08-06〜）
           encounters: Array.isArray(w.encounters) ? w.encounters : null, // 遭遇ログ（v1.2.2・再会カードの場面つき表示用）
           savedAt: w.saved_at,
+          // 行を作った時刻（＝初めて保存した時刻）。棚から外す・消去の印より後に保存したかの判定に使う（lib/workRemoval.js）
+          createdAt: w.created_at || null,
           source: w.source,
           dramaTitle: scene.title,
           season: scene.season,

@@ -119,3 +119,21 @@ test('もう一度開いた作品で外す印: 完全一致と作品名の揺れ
   assert.deepEqual(titlesToReopen(['Suits LA'], 'Suits'), []);
   assert.deepEqual(titlesToReopen(['Iron Man'], ''), []);
 });
+
+test('拡張で保存した作品の印を外す: 印より後に保存した語があれば外す・前なら外さない', async () => {
+  const { titlesReopenedBySaves } = await import('../lib/workRemoval.js');
+  const at = Date.parse('2026-11-07T10:00:00Z');
+  const marks = { 'Iron Man': { on: true, at }, Suits: { on: true, at }, Lupin: { on: false, at } };
+  const same = (a, b) => (a === 'アイアンマン' && b === 'Iron Man') || (a === 'Iron Man' && b === 'アイアンマン');
+  // created_at（ミリ秒）があればそれで比べる
+  assert.deepEqual(titlesReopenedBySaves(marks, [{ word: 'a', dramaTitle: 'Iron Man', createdAt: '2026-11-07T10:00:01Z' }]), ['Iron Man']);
+  assert.deepEqual(titlesReopenedBySaves(marks, [{ word: 'a', dramaTitle: 'Iron Man', createdAt: '2026-11-07T09:59:59Z' }]), []);
+  // 作品名の揺れも寄せる
+  assert.deepEqual(titlesReopenedBySaves(marks, [{ word: 'a', dramaTitle: 'アイアンマン', createdAt: '2026-11-08T00:00:00Z' }], same), ['Iron Man']);
+  // created_at が無ければ saved_at（日付）。印と同じ日は外さない・翌日以降は外す・前日は外さない
+  assert.deepEqual(titlesReopenedBySaves(marks, [{ word: 'a', dramaTitle: 'Suits', savedAt: '2026-11-07' }]), []);
+  assert.deepEqual(titlesReopenedBySaves(marks, [{ word: 'a', dramaTitle: 'Suits', savedAt: '2026-11-08' }]), ['Suits']);
+  assert.deepEqual(titlesReopenedBySaves(marks, [{ word: 'a', dramaTitle: 'Suits', savedAt: '2026/11/6' }]), []);
+  // 外れている印（on:false）は対象外・作品名の無い語は数えない
+  assert.deepEqual(titlesReopenedBySaves(marks, [{ word: 'a', dramaTitle: 'Lupin', createdAt: '2026-12-01T00:00:00Z' }, { word: 'b', createdAt: '2026-12-01T00:00:00Z' }]), []);
+});

@@ -130,3 +130,31 @@ export function titlesToReopen(markedTitles, title, sameTitle = (a, b) => a === 
   if (!title) return [];
   return (markedTitles || []).filter((t) => t === title || sameTitle(t, title));
 }
+
+// 拡張で単語を保存した作品の印を外す（オーナー 2026-11-07「1：外す」）。単語帳（my_words）の取り込みのあとに使う。
+//   marks＝cl_archived / cl_removed_works の地図 { title: { on, at } }。words＝単語帳の語（dramaTitle・savedAt・createdAt）。
+//   印より後に保存した語があれば外す。古い語（印より前に保存）では外さない。
+//   * createdAt（my_words の created_at・行を作った時刻＝初めて保存した時刻）があればそれで比べる（ミリ秒）。
+//   * 無ければ savedAt（拡張が書く UTC の日付 YYYY-MM-DD）。日付しか無いので、印と同じ日は外さない（前後が分からない）。
+export function titlesReopenedBySaves(marks, words, sameTitle = (a, b) => a === b) {
+  const out = [];
+  const utcDay = (ms) => new Date(ms).toISOString().slice(0, 10);
+  const day = (v) => {
+    const m = String(v || '').match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
+    return m ? `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}` : '';
+  };
+  const savedAfter = (w, at) => {
+    const c = Date.parse(w?.createdAt || '');
+    if (Number.isFinite(c)) return c > at;
+    const d = day(w?.savedAt);
+    return !!d && d > utcDay(at);
+  };
+  for (const [title, v] of Object.entries(marks && typeof marks === 'object' ? marks : {})) {
+    if (!v?.on || !Number.isFinite(v.at)) continue;
+    const hit = (words || []).some(
+      (w) => w?.dramaTitle && (w.dramaTitle === title || sameTitle(w.dramaTitle, title)) && savedAfter(w, v.at)
+    );
+    if (hit) out.push(title);
+  }
+  return out;
+}
