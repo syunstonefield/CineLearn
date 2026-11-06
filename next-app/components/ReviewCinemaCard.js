@@ -9,14 +9,47 @@
 //   2026-11-07 オーナー実機: 例文の黒い字幕の帯は浮いて見えるのでやめ、カードの紙の上に置く。
 //   見た目は CSS だけ（画像ゼロ・app/style.css「復習カード（夕焼けシネマ）」）。動き・10枚の区切りの演出は後の段。
 
-import { useRef } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 import { aiExampleOf, isOtherSceneExample } from '@/lib/exampleBackfill';
 import { surfaceFormInExample, wordMatchRegex, normApostrophes } from '@/lib/subtitles';
 import { speak } from '@/lib/speak';
 import { chunkParts } from '@/lib/chunk';
 import { subtitleCredit } from '@/lib/storage';
+import { fitFontSize, FIT_MIN_PX } from '@/lib/fitWord';
 
 const FILM_FRAMES = 10; // 進み具合のフィルム＝1コマ1枚・10枚で次の10コマへ
+
+// 大きな語は折り返さず、1行に入るまで文字を縮める（オーナー 2026-11-07「長い単語が次の行にいっちゃうのはやめたい」）。
+//   CSS の大きさ（表48px・裏34px・画面幅で変わる）を最大に、実際の幅を測って縮める（計算は lib/fitWord.js）。
+//   下限（表22px・裏20px）でも入らない極端に長い句だけ、単語の切れ目で折り返す（1語だけで入らない時は語の途中で折る）。
+function useFitWord(ref, minPx, deps) {
+  useLayoutEffect(() => {
+    const el = ref.current;
+    const parent = el?.parentElement;
+    if (!el || !parent) return undefined;
+    const fit = () => {
+      el.style.fontSize = '';
+      el.classList.remove('is-wrap');
+      const max = parseFloat(getComputedStyle(el).fontSize);
+      const pcs = getComputedStyle(parent);
+      const avail = parent.clientWidth - parseFloat(pcs.paddingLeft) - parseFloat(pcs.paddingRight);
+      const { size, wrap } = fitFontSize(max, el.scrollWidth, avail, minPx);
+      if (size !== max) el.style.fontSize = `${size}px`;
+      if (wrap) el.classList.add('is-wrap');
+    };
+    fit();
+    // 書体（Playfair）の読み込みが後から終わると幅が変わる／画面の回転・幅の変化
+    let alive = true;
+    document.fonts?.ready?.then(() => alive && fit());
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => fit()) : null;
+    ro?.observe(parent);
+    return () => {
+      alive = false;
+      ro?.disconnect();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+}
 
 // 表に出す「どの作品・話で出会ったか」。出所表示（subtitleCredit）と同じ規則（別の話数の字幕なら話数を外す・plus 語は出さない）。
 function workLabelOf(w) {
@@ -104,9 +137,11 @@ export default function ReviewCinemaCard({ word: w, flipped, retryMode, onFlip, 
   const ex = w.example && credit ? highlightExample(w.example, w.word) : null;
   const plain = w.example && !credit ? highlightExample(w.example, w.word) : null;
   const sf = w.pos ? surfaceFormInExample(w.example, w.word) : null;
+  const wordRef = useRef(null);
+  useFitWord(wordRef, flipped ? FIT_MIN_PX.back : FIT_MIN_PX.front, [w.word, w.chunk, flipped]);
 
   const wordEl = (
-    <span className={'rc-word' + (flipped ? ' is-small' : '')}>
+    <span ref={wordRef} className={'rc-word' + (flipped ? ' is-small' : '')}>
       {cp && cp.hit ? (
         <>
           <span className="rc-word-side">{cp.before}</span>
