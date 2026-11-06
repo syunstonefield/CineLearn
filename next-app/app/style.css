@@ -7533,3 +7533,204 @@ body:has(.trial-flow) .app-tmdb-footer { padding-bottom: calc(12px + env(safe-ar
 /* 新規登録の同意の一文（AuthModal） */
 .auth-consent { margin-top: 8px; font-size: 11.5px; line-height: 1.6; color: var(--text-muted); text-align: center; }
 .auth-consent a { color: inherit; text-decoration: underline; }
+
+/* ── 復習カード（夕焼けシネマ・オーナー決定 2026-11-07）──────────────────────
+   復習タブのページ表示（ReviewModal asPage → .review-cinema）だけ。予習の重ね表示（.review-overlay）と
+   今夜の予習（.pw-*）には効かない＝見た目を分ける（オーナー「分けたい」）。部品は components/ReviewCinemaCard.js。
+   画像は使わない（背景＝CSS のグラデーションと光の点だけ）・全面のぼかし（backdrop-filter）なし・影は束に1つだけ。
+   実在の映画館・配給会社の名前・ロゴ・配色に似せない（法務 2026-11-07）。動き・10枚の区切りの演出は後の段。 */
+.review-cinema {
+  --rc-ink: #2a1d12;
+  --rc-soft: #4a3523;
+  --rc-muted: #6e5a46;
+  --rc-word: #8a4b1f;
+  --rc-paper: #fdf6ea;
+  --rc-paper-2: #f0dfc6;
+  --rc-paper-3: #e8d2b4;
+  --rc-perf: rgba(138, 75, 31, 0.22);
+  --rc-shadow: rgba(80, 45, 15, 0.22);
+  --rc-film: rgba(59, 36, 20, 0.8);
+  --rc-frame-off: rgba(248, 231, 210, 0.22);
+  --rc-frame-on: #f2b45f;
+  --rc-line: rgba(59, 36, 20, 0.16);
+  --rc-line-on: #b8732f;
+  --rc-flip-bg: #3b2414;
+  --rc-flip-ink: #fdf0dc;
+  --rc-sub-bg: #17110c;
+  --rc-sub-ink: #fffdf6;
+  --rc-sub-ja: #eadfcd;
+  --rc-sub-hit: #ffd27a;
+  --rc-plain-bg: rgba(255, 253, 249, 0.7);
+  --rc-plain-line: rgba(138, 75, 31, 0.25);
+  --rc-pos-ink: #5b4fd4;
+  --rc-pos-bg: rgba(91, 79, 212, 0.08);
+  --rc-speak-bg: #fffaf2;
+  --rc-speak-line: rgba(138, 75, 31, 0.3);
+  --rc-fail-bg: #fbe9ea; --rc-fail-line: #e3a3b0; --rc-fail-ink: #a3364d; --rc-fail-sub: #6b4a52;
+  --rc-hard-bg: #fcf1db; --rc-hard-line: #e6c37a; --rc-hard-ink: #8a5a00; --rc-hard-sub: #6b5530;
+  --rc-easy-bg: #e6f4ec; --rc-easy-line: #93cfb3; --rc-easy-ink: #1d6e4c; --rc-easy-sub: #3f5f50;
+}
+html[data-theme="dark"] .review-cinema {
+  --rc-ink: #f3efe8;
+  --rc-soft: #d8ccba;
+  --rc-muted: #c4b29a;
+  --rc-word: #f0b866;
+  --rc-paper: #3a2e21;
+  --rc-paper-2: #32271c;
+  --rc-paper-3: #2a2017;
+  --rc-perf: rgba(240, 184, 102, 0.22);
+  --rc-shadow: rgba(0, 0, 0, 0.5);
+  --rc-film: rgba(0, 0, 0, 0.55);
+  --rc-frame-off: rgba(243, 239, 232, 0.14);
+  --rc-frame-on: #e2a85a;
+  --rc-line: rgba(243, 239, 232, 0.12);
+  --rc-line-on: #e2a85a;
+  --rc-flip-bg: #e8b465;
+  --rc-flip-ink: #1c1813;
+  --rc-sub-bg: #0b0806;
+  --rc-sub-ja: #e2d7c6;
+  --rc-plain-bg: rgba(255, 255, 255, 0.04);
+  --rc-plain-line: rgba(255, 255, 255, 0.16);
+  --rc-pos-ink: #c3bcff;
+  --rc-pos-bg: rgba(139, 128, 255, 0.14);
+  --rc-speak-bg: #2d231a;
+  --rc-speak-line: rgba(240, 184, 102, 0.35);
+  --rc-fail-bg: #3a2324; --rc-fail-line: rgba(228, 112, 138, 0.55); --rc-fail-ink: #f2a0b2; --rc-fail-sub: #d8bfc4;
+  --rc-hard-bg: #3a2e1a; --rc-hard-line: rgba(224, 180, 80, 0.55); --rc-hard-ink: #f0cc7a; --rc-hard-sub: #d9cba8;
+  --rc-easy-bg: #1d332b; --rc-easy-line: rgba(76, 199, 155, 0.55); --rc-easy-ink: #86e0bd; --rc-easy-sub: #bdd8cc;
+}
+/* 背景＝夕焼けの映画館（グラデーションと光の点だけ） */
+.screen.review-screen.review-cinema {
+  background:
+    radial-gradient(circle at 12% 18%, rgba(255, 220, 160, 0.55), transparent 46px),
+    radial-gradient(circle at 86% 12%, rgba(255, 200, 140, 0.45), transparent 60px),
+    radial-gradient(circle at 78% 64%, rgba(255, 230, 190, 0.5), transparent 52px),
+    radial-gradient(circle at 8% 82%, rgba(255, 205, 150, 0.45), transparent 64px),
+    radial-gradient(circle at 50% 96%, rgba(255, 215, 170, 0.4), transparent 80px),
+    linear-gradient(170deg, #f8e7d2 0%, #efcfab 48%, #d9a57d 100%);
+  color: var(--rc-ink);
+}
+html[data-theme="dark"] .screen.review-screen.review-cinema {
+  background:
+    radial-gradient(circle at 12% 18%, rgba(232, 160, 70, 0.22), transparent 46px),
+    radial-gradient(circle at 86% 12%, rgba(240, 150, 60, 0.18), transparent 60px),
+    radial-gradient(circle at 78% 64%, rgba(255, 190, 110, 0.16), transparent 52px),
+    radial-gradient(circle at 8% 82%, rgba(230, 140, 60, 0.18), transparent 64px),
+    radial-gradient(circle at 50% 96%, rgba(240, 170, 90, 0.14), transparent 80px),
+    linear-gradient(170deg, #1b140e 0%, #241910 52%, #33210f 100%);
+}
+.review-cinema .review-content { padding: 10px 16px 16px; }
+
+/* 進み具合＝「12 / 125」＋フィルム10コマ（1コマ1枚）＋全体の細い線 */
+.rc-progress { padding: 10px 16px 0; display: flex; flex-direction: column; gap: 5px; flex-shrink: 0; }
+.rc-progress-row { display: flex; align-items: center; gap: 10px; }
+.rc-count { font-size: 14px; font-weight: 700; color: var(--rc-ink); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.rc-count-total { font-weight: 500; color: var(--rc-muted); }
+.rc-film { flex: 1; display: flex; gap: 3px; padding: 4px 5px; border-radius: 4px; background: var(--rc-film); }
+.rc-frame { flex: 1; height: 11px; border-radius: 2px; background: var(--rc-frame-off); transition: background-color 0.2s ease; }
+.rc-frame.is-lit { background: var(--rc-frame-on); }
+.rc-label { display: flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 500; color: var(--rc-soft); white-space: nowrap; }
+.rc-overall { height: 3px; border-radius: 999px; background: var(--rc-line); overflow: hidden; }
+.rc-overall span { display: block; height: 100%; background: var(--rc-line-on); transition: width 0.3s ease; }
+
+/* カード＝チケット形（両端の切り欠き＋ミシン目）・後ろに2枚重ねた束 */
+.rc-card { width: 100%; display: flex; flex-direction: column; gap: 12px; flex: 1; }
+.rc-deck { position: relative; flex: 1; display: flex; flex-direction: column; min-height: 380px; isolation: isolate; filter: drop-shadow(0 10px 18px var(--rc-shadow)); }
+.rc-deck::before, .rc-deck::after { content: ''; position: absolute; border-radius: 18px; z-index: -1; }
+.rc-deck::before { left: 10px; right: 10px; top: 14px; bottom: 6px; background: var(--rc-paper-3); transform: rotate(3deg); }
+.rc-deck::after { left: 6px; right: 6px; top: 10px; bottom: 10px; background: var(--rc-paper-2); transform: rotate(-2deg); }
+.rc-ticket {
+  --rc-notch-y: calc(100% - 121px);
+  position: relative; flex: 1; display: flex; flex-direction: column; min-height: 0;
+  border-radius: 18px; background: var(--rc-paper); color: var(--rc-ink); cursor: pointer;
+  -webkit-mask: radial-gradient(circle at 0 var(--rc-notch-y), transparent 13px, #000 13.5px) left / 51% 100% no-repeat,
+    radial-gradient(circle at 100% var(--rc-notch-y), transparent 13px, #000 13.5px) right / 51% 100% no-repeat;
+  mask: radial-gradient(circle at 0 var(--rc-notch-y), transparent 13px, #000 13.5px) left / 51% 100% no-repeat,
+    radial-gradient(circle at 100% var(--rc-notch-y), transparent 13px, #000 13.5px) right / 51% 100% no-repeat;
+}
+.rc-ticket.is-back { --rc-notch-y: 145px; cursor: default; }
+.rc-ticket-head { height: 40px; flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 14px 0 10px; }
+.rc-undo { border: none; background: none; padding: 6px 6px; font: inherit; font-size: 12px; color: var(--rc-muted); cursor: pointer; }
+.rc-undo:hover { color: var(--rc-word); }
+.rc-work { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--rc-muted); text-align: right; min-width: 0; }
+.rc-perf { flex: none; margin: 0 22px; border-top: 2px dashed var(--rc-perf); }
+
+.rc-word { font-family: 'Playfair Display', serif; font-size: 48px; font-weight: 700; line-height: 1.08; color: var(--rc-word); text-align: center; overflow-wrap: anywhere; }
+.rc-word.is-small { font-size: 34px; }
+.rc-word-side { font-size: 0.5em; font-weight: 600; color: var(--rc-muted); }
+.rc-word-meta { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
+.rc-pos { font-size: 12px; color: var(--rc-pos-ink); background: var(--rc-pos-bg); border-radius: 6px; padding: 3px 9px; }
+.rc-pos-surface { margin-left: 6px; color: var(--rc-muted); }
+.rc-speak {
+  height: 40px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--rc-speak-line); background: var(--rc-speak-bg);
+  display: inline-flex; align-items: center; gap: 6px; color: var(--rc-word); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer;
+}
+.rc-speak:active { transform: scale(0.96); }
+
+/* 表：語が主役・下半分は「思い出してから開く」誘導（大きな空白を残さない） */
+.rc-front-main { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 0 20px; }
+.rc-front-hint { height: 120px; flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; }
+.rc-hint-main { font-size: 14px; color: var(--rc-soft); }
+.rc-hint-sub { font-size: 13px; color: var(--rc-muted); }
+
+/* 裏：意味 → 字幕の帯（例文＋和訳） → 作品情報 */
+.rc-back-word { height: 104px; flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 0 16px; }
+.rc-back-body { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 14px 18px 12px; }
+.rc-def { font-size: 20px; font-weight: 700; line-height: 1.4; text-align: center; color: var(--rc-ink); }
+.rc-sub { border-radius: 10px; background: var(--rc-sub-bg); padding: 14px; display: flex; flex-direction: column; gap: 8px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06); }
+.rc-sub-en { font-size: 16px; line-height: 1.45; color: var(--rc-sub-ink); text-align: center; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8); }
+.rc-sub-hit { color: var(--rc-sub-hit); font-weight: 700; border-bottom: 2px solid rgba(255, 210, 122, 0.6); }
+.rc-sub-ja { font-size: 13px; line-height: 1.4; color: var(--rc-sub-ja); text-align: center; }
+.rc-ai { border-radius: 10px; background: var(--rc-plain-bg); border: 1px solid var(--rc-plain-line); padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+.rc-ai-en { font-size: 15px; line-height: 1.45; color: var(--rc-ink); text-align: center; }
+.rc-ai-hit { font-weight: 700; color: var(--rc-word); }
+.rc-ai-ja { font-size: 13px; color: var(--rc-soft); text-align: center; }
+.rc-src-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.rc-src { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.rc-src-line { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--rc-soft); }
+.rc-src-line svg { flex: none; }
+.rc-src-note { font-size: 11px; color: var(--rc-muted); }
+.rc-speak-sm { width: 44px; height: 44px; flex: none; border: none; background: none; color: var(--rc-word); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+
+/* 3択＝同じ幅と高さ・淡い色の地＋文字で区別（押す前に1つだけ光らせない＝正直な採点を歪めない） */
+.rc-actions { flex: none; }
+.rc-rates { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.rc-rate, .rc-flip {
+  height: 100px; border: none; border-radius: 14px; font: inherit; cursor: pointer;
+  -webkit-mask: radial-gradient(circle at 50% 0, transparent 7px, #000 7.5px) top / 100% 51% no-repeat,
+    radial-gradient(circle at 50% 100%, transparent 7px, #000 7.5px) bottom / 100% 51% no-repeat;
+  mask: radial-gradient(circle at 50% 0, transparent 7px, #000 7.5px) top / 100% 51% no-repeat,
+    radial-gradient(circle at 50% 100%, transparent 7px, #000 7.5px) bottom / 100% 51% no-repeat;
+}
+.rc-rate { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 0 4px; transition: transform 0.08s ease; }
+.rc-rate:active { transform: scale(0.97); }
+.rc-rate-emoji { font-size: 22px; line-height: 1; }
+.rc-rate-label { font-size: 15px; font-weight: 700; white-space: nowrap; }
+.rc-rate-sub { font-size: 12px; white-space: nowrap; }
+.rc-rate-fail { background: var(--rc-fail-bg); box-shadow: inset 0 0 0 1.5px var(--rc-fail-line); }
+.rc-rate-fail .rc-rate-label { color: var(--rc-fail-ink); }
+.rc-rate-fail .rc-rate-sub { color: var(--rc-fail-sub); }
+.rc-rate-hard { background: var(--rc-hard-bg); box-shadow: inset 0 0 0 1.5px var(--rc-hard-line); }
+.rc-rate-hard .rc-rate-label { color: var(--rc-hard-ink); }
+.rc-rate-hard .rc-rate-sub { color: var(--rc-hard-sub); }
+.rc-rate-easy { background: var(--rc-easy-bg); box-shadow: inset 0 0 0 1.5px var(--rc-easy-line); }
+.rc-rate-easy .rc-rate-label { color: var(--rc-easy-ink); }
+.rc-rate-easy .rc-rate-sub { color: var(--rc-easy-sub); }
+.rc-flip { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; background: var(--rc-flip-bg); color: var(--rc-flip-ink); font-size: 17px; font-weight: 700; }
+.rc-flip:active { transform: scale(0.99); }
+.review-cinema .review-swipe-hint, .review-cinema .review-key-hint { color: var(--rc-soft); }
+@media (hover: hover) and (pointer: fine) {
+  .rc-rate:hover, .rc-flip:hover { filter: brightness(1.04); }
+}
+@media (max-width: 768px) {
+  .review-cinema .rc-card { flex: 1; }
+  .review-cinema .rc-swipe-hint { display: block; }
+}
+@media (min-width: 769px) {
+  .rc-deck { min-height: 440px; }
+  .rc-word { font-size: 54px; }
+  .rc-word.is-small { font-size: 38px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rc-frame, .rc-overall span, .rc-rate { transition: none; }
+}

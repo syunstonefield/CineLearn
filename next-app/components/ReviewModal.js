@@ -18,6 +18,9 @@ import {
 import { addExp, levelInfo, expForReviewSession } from '@/lib/exp';
 import { awardReviewSession } from '@/lib/reviewAward';
 import ExpBlock from './ExpBlock';
+import ReviewCinemaCard, { CinemaProgress } from './ReviewCinemaCard';
+import { trackUsage } from '@/lib/usage';
+import { exitEventName, toDecile, reviewTimeEvent } from '@/lib/usageEvents';
 
 const KEYS_SEEN_KEY = 'cl_review_keys_seen';
 
@@ -185,6 +188,9 @@ function KeysHelp({ onClose }) {
 // 既存 startReview / renderReviewCard（SRSフラッシュカード）の再現。
 export default function ReviewModal({ asPage = false }) {
   const { reviewWords, reviewAll, closeReview, currentHistoryId } = useApp();
+  // 夕焼けシネマの見た目と復習の利用データは、復習タブのページ表示だけ（2026-11-07 オーナー決定）。
+  // 予習の「じっくり覚える」（重ね表示・asPage=false）は従来の見た目のまま・予習の利用データにも数えない。
+  const cinema = asPage;
 
   // ページ表示（スマホの復習タブ）の間はページ全体のスクロールを止める（CSS: html.cl-review-lock）。
   // 下の TMDB 表記の分だけページが画面からはみ出し、上下に触るとカードがずれていた（オーナー報告 2026-10-20）。
@@ -259,6 +265,48 @@ export default function ReviewModal({ asPage = false }) {
   }
 
   latestRef.current = { queue, idx, ratings, promo, retryMode, currentHistoryId };
+
+  // 利用データ（復習の流れ・lib/usage.js・法務 2026-11-07）: 始めた／終えた／何割で・どう抜けたか／答えの内訳／
+  //   1枚の時間の幅。固定の名前と回数だけ（語・作品・カード番号は送らない）。知らなかった語のもう一度は数えない。
+  const usageRef = useRef({ key: null, ended: true, shownAt: 0 });
+  const recordReviewExit = (how) => {
+    const u = usageRef.current;
+    if (!cinema || u.ended) return;
+    u.ended = true;
+    const st = latestRef.current;
+    trackUsage(exitEventName('review', toDecile(st.idx, st.queue.length), how));
+  };
+  const exitRef = useRef(recordReviewExit);
+  exitRef.current = recordReviewExit;
+  useEffect(() => {
+    if (!cinema || !builtKey || retryMode || !queue.length) return;
+    if (usageRef.current.key === builtKey) return; // 開発時の二重実行でも1回
+    usageRef.current = { key: builtKey, ended: false, shownAt: Date.now() };
+    trackUsage('review_start');
+  }, [cinema, builtKey, retryMode, queue.length]);
+  useEffect(() => {
+    usageRef.current.shownAt = Date.now(); // 1枚の時間＝カードが出てから答えるまで
+  }, [idx, builtKey]);
+  useEffect(() => {
+    const u = usageRef.current;
+    if (!cinema || retryMode || u.ended || !queue.length || idx < queue.length) return;
+    u.ended = true;
+    trackUsage('review_done');
+  }, [cinema, retryMode, idx, queue.length]);
+  const aliveRef = useRef(false);
+  useEffect(() => {
+    if (!cinema) return undefined;
+    aliveRef.current = true;
+    const onHide = () => exitRef.current('close');
+    window.addEventListener('pagehide', onHide);
+    return () => {
+      aliveRef.current = false;
+      window.removeEventListener('pagehide', onHide);
+      // ボトムナビ等で画面ごと離れた。開発時の二重実行（外して→付け直す）では数えない（予習カードと同じ作法）
+      setTimeout(() => !aliveRef.current && exitRef.current('nav'), 0);
+    };
+  }, [cinema]);
+
   useEffect(
     () => () => {
       const st = latestRef.current;
@@ -277,6 +325,7 @@ export default function ReviewModal({ asPage = false }) {
   const ratedCount = retryMode ? 0 : Object.keys(ratings).length;
   // ✕／オーバーレイ：途中で採点済みの語があれば成果画面へ。0語・完了後・再挑戦パスはそのまま閉じる。
   const requestClose = () => {
+    if (!done) recordReviewExit('x');
     if (!done && !partial && ratedCount > 0) setPartial(true);
     else closeReview();
   };
@@ -300,6 +349,11 @@ export default function ReviewModal({ asPage = false }) {
     // 取り消し用に採点前の状態を保存（SRSエントリは複製・新規語は undefined のまま）
     setUndoStack((st) => [...st, { word: w.word, before: before ? { ...before } : undefined, promo, ratings }]);
     reviewWord(w.word, q, w._src); // 出所（最初に出会った作品/話）を SRS に固定（拡張の再会表示用）
+    if (cinema) {
+      trackUsage(q === 0 ? 'review_ans_fail' : q === 3 ? 'review_ans_hard' : 'review_ans_easy');
+      const t = reviewTimeEvent((Date.now() - usageRef.current.shownAt) / 1000);
+      if (t) trackUsage(t);
+    }
     const after = loadSrs()[w.word.toLowerCase()];
     const newPromo = { learned: [...promo.learned], mastered: [...promo.mastered] };
     if (!wasLearned && isLearned(after)) newPromo.learned.push(w.word);
@@ -389,7 +443,7 @@ export default function ReviewModal({ asPage = false }) {
 
   return (
     <div
-      className={asPage ? 'screen active review-screen' : 'modal-overlay review-overlay'}
+      className={asPage ? 'screen active review-screen review-cinema' : 'modal-overlay review-overlay'}
       id={asPage ? 'screen-review' : undefined}
       style={asPage ? undefined : { display: 'flex' }}
       onClick={asPage ? undefined : overlayClick}
@@ -413,7 +467,8 @@ export default function ReviewModal({ asPage = false }) {
           </span>
         </div>
         {showKeys && <KeysHelp onClose={() => setShowKeys(false)} />}
-        {!showDone && (
+        {!showDone && cinema && <CinemaProgress idx={idx} total={queue.length} />}
+        {!showDone && !cinema && (
           <div className="review-progress" aria-hidden="true">
             <span className="review-progress-fill" style={{ width: `${pct}%` }} />
           </div>
@@ -442,6 +497,15 @@ export default function ReviewModal({ asPage = false }) {
                 setRetryMode(true);
               }}
               onDone={closeReview}
+            />
+          ) : cinema ? (
+            <ReviewCinemaCard
+              word={queue[idx]}
+              flipped={flipped}
+              retryMode={retryMode}
+              onFlip={() => setFlipped(true)}
+              onRate={rate}
+              onUndo={idx > 0 ? undo : null}
             />
           ) : (
             <ReviewCard

@@ -6,6 +6,19 @@
 //     設定画面の説明（components/SettingsScreen.js「利用統計を送る」）の文言で読めるかを確認する。読めなければ
 //     足す前に法務部へ（2026-11-04 法務回答・受付経由）。
 
+// 復習の1枚あたりの時間の幅（法務: 生の秒数は送らない・幅の名前はこの一覧で固定）。[名前, 上限の秒（未満）]
+export const REVIEW_TIME_BUCKETS = [
+  ['review_t_0_5', 5],
+  ['review_t_5_10', 10],
+  ['review_t_10_20', 20],
+  ['review_t_20p', Infinity],
+];
+export function reviewTimeEvent(sec) {
+  const s = Number(sec);
+  if (!Number.isFinite(s) || s < 0) return null;
+  return REVIEW_TIME_BUCKETS.find(([, max]) => s < max)[0];
+}
+
 export const USAGE_EVENTS = [
   'open', // アプリを開いた（ページの読み込みごと）
   'work_review', // 作品・話の復習を始めた
@@ -56,6 +69,15 @@ export const USAGE_EVENTS = [
   'trial_later', // 「あとで」を選んだ
   'trial_next', // 次の一歩の画面が出た
   'trial_later_band', // 「あとで」の人への帯が出た
+  // 復習カード（復習タブのページ表示だけ・2026-11-07 法務回答の条件つき）。固定の名前と回数だけ（語・作品・カード番号は入れない）。
+  //   ポリシー「復習で3つの答えのそれぞれを選んだ回数、復習の1枚あたりにかかったおよその時間（いくつかの幅に区分した値）」
+  //   「予習・復習をどこまで進めたか・どう終えたか」。集計（全体・週ごと）にだけ使う＝1人ごとの値で画面を変えない。
+  'review_start', // 復習を始めた（1回の復習＝カードの束1つ。知らなかった語のもう一度は数えない）
+  'review_done', // 最後のカードまで答えた
+  'review_ans_fail', // 「知らなかった」を選んだ
+  'review_ans_hard', // 「うろ覚え」を選んだ
+  'review_ans_easy', // 「知ってた！」を選んだ
+  ...REVIEW_TIME_BUCKETS.map(([name]) => name), // 1枚あたりの時間（カードが出てから答えるまで）の幅
 ];
 
 // 拡張で保存した語か。拡張は source に配信サイトの画面タイトル（Netflix 等）を入れ、アプリの保存は
@@ -71,11 +93,11 @@ export function hasExtSavedWord(words) {
 
 
 // 途中で抜けた: exit_<段階>_<何割まで 0〜10>_<抜け方>
-//   段階  list＝単語リスト（一覧のスクロール位置）／core＝重要語のカード／rest＝残りの語のカード
+//   段階  list＝単語リスト（一覧のスクロール位置）／core＝重要語のカード／rest＝残りの語のカード／review＝復習のカード（2026-11-07）
 //   抜け方 walk＝予習カードへ進んだ（一覧のみ）／x＝✕・Esc／later＝「あとで予習する」／nav＝別の画面へ／close＝タブ・アプリを閉じた
-export const EXIT_STAGES = ['list', 'core', 'rest'];
+export const EXIT_STAGES = ['list', 'core', 'rest', 'review'];
 export const EXIT_HOWS = ['walk', 'x', 'later', 'nav', 'close'];
-const EXIT_RE = /^exit_(list|core|rest)_(10|[0-9])_(walk|x|later|nav|close)$/;
+const EXIT_RE = /^exit_(list|core|rest|review)_(10|[0-9])_(walk|x|later|nav|close)$/;
 
 export function exitEventName(stage, decile, how) {
   const d = Math.min(10, Math.max(0, Math.floor(Number(decile) || 0)));

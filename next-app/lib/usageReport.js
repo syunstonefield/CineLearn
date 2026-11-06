@@ -59,6 +59,19 @@ export const TRIAL_STEPS = [
   ['trial_later_band', '次回の帯'],
 ];
 
+// ⑩ 復習の流れ（2026-11-07〜・復習タブのカード）。答えの内訳と1枚の時間は割合で（集計にだけ使う＝法務）。
+export const REVIEW_ANSWERS = [
+  ['review_ans_fail', '知らなかった'],
+  ['review_ans_hard', 'うろ覚え'],
+  ['review_ans_easy', '知ってた'],
+];
+export const REVIEW_TIMES = [
+  ['review_t_0_5', '〜5秒'],
+  ['review_t_5_10', '5〜10秒'],
+  ['review_t_10_20', '10〜20秒'],
+  ['review_t_20p', '20秒〜'],
+];
+
 // ゲスト→登録を同じ人として数える（集計側だけ・2026-11-05）。
 //   行の名前は「人の番号.端末の番号」で、端末の番号はゲスト行（人＝端末）にもログイン行にも入っている。
 //   同じ端末で後からログインした人の番号が分かれば、その端末のゲスト行をその人に寄せる。
@@ -120,6 +133,7 @@ export function buildUsageReport(rawRows, { today, weeks = 8 } = {}) {
   const onboarding = [];
   const entry = [];
   const trial = [];
+  const reviewFlow = [];
   for (const win of wins) {
     const rs = weekRows(rows, win);
     const label = `${win.from.slice(5)}〜${win.to.slice(5)}`;
@@ -183,11 +197,21 @@ export function buildUsageReport(rawRows, { today, weeks = 8 } = {}) {
       tr[name] = k === 'trial_start' ? `${u}人 / ${timesOf(k)}回` : `${u}人 ${pct(u, t0)} / ${timesOf(k)}回`;
     }
     trial.push(tr);
+
+    // ⑩ 復習の流れ（始めた回数に対する完了の%・抜けた回数／答えの内訳の%／1枚の時間の%）
+    const started = timesOf('review_start');
+    const exitsN = rs.reduce((n, r) => n + Object.entries(r.c).reduce((m, [k, v]) => (parseExitEvent(k)?.stage === 'review' ? m + v : m), 0), 0);
+    const rf = { 週: label, 始めた人: usersOf('review_start').size, 始めた回: started, 終えた回: `${timesOf('review_done')} ${pct(timesOf('review_done'), started)}`, 途中で抜けた回: exitsN };
+    const ans = REVIEW_ANSWERS.reduce((n, [k]) => n + timesOf(k), 0);
+    for (const [k, name] of REVIEW_ANSWERS) rf[name] = pct(timesOf(k), ans);
+    const tms = REVIEW_TIMES.reduce((n, [k]) => n + timesOf(k), 0);
+    for (const [k, name] of REVIEW_TIMES) rf[name] = pct(timesOf(k), tms);
+    reviewFlow.push(rf);
   }
 
   // ③の下: 抜けた場所（表示した全期間の合計）。段階×（何割まで／抜け方）
   const all = rows.filter((r) => r.day >= wins[wins.length - 1].from && r.day <= wins[0].to);
-  const STAGE = { list: '①一覧', core: '④までのカード', rest: '⑤残りのカード' };
+  const STAGE = { list: '①一覧', core: '④までのカード', rest: '⑤残りのカード', review: '⑩復習のカード' };
   const HOW = { walk: 'カードへ', x: '✕', later: 'あとで', nav: '別の画面', close: '閉じた' };
   const DEC = [
     [1, '0-1割'],
@@ -213,7 +237,7 @@ export function buildUsageReport(rawRows, { today, weeks = 8 } = {}) {
     }
   }
   const joined = rows.filter((r) => r.joined).length;
-  return { plus, funnel, exits, review, onboarding, entry, trial, newUsers: buildNewUsers(rows, wins, today), joinedRows: joined };
+  return { plus, funnel, exits, review, onboarding, entry, trial, reviewFlow, newUsers: buildNewUsers(rows, wins, today), joinedRows: joined };
 }
 
 // ⑦ 新規の人（初めて開いた週ごと）。rows の中で最初に現れた日＝初めて開いた日。
