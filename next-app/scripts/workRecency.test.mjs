@@ -11,15 +11,34 @@ test('作った日だけなら従来どおり新しい順', () => {
   assert.deepEqual(order(rec, ['Iron Man', 'Suits']), ['Suits', 'Iron Man']);
 });
 
-test('復習すると上がる（SRS の updatedAt・無ければ lastReview の日付）', () => {
+const im = { title: 'Iron Man' };
+
+test('復習すると上がる（その作品で初めて採点した語・SRS の updatedAt・無ければ lastReview の日付）', () => {
   const history = [row('Suits', '2026-11-05', ['a']), row('Iron Man', '2026-11-01', ['genius'])];
-  const rec = workRecency({ history, srs: { genius: { lastReview: '2026-11-07', updatedAt: '2026-11-07T03:00:00Z' } } });
+  const rec = workRecency({ history, srs: { genius: { origin: im, lastReview: '2026-11-07', updatedAt: '2026-11-07T03:00:00Z' } } });
   assert.deepEqual(order(rec, ['Suits', 'Iron Man']), ['Iron Man', 'Suits']);
-  const rec2 = workRecency({ history, srs: { genius: { lastReview: '2026-11-06' } } });
+  const rec2 = workRecency({ history, srs: { genius: { origin: im, lastReview: '2026-11-06' } } });
   assert.deepEqual(order(rec2, ['Suits', 'Iron Man']), ['Iron Man', 'Suits']);
   // 「知ってる」で飛ばしただけの語は数えない
-  const rec3 = workRecency({ history, srs: { genius: { skipped: true, updatedAt: '2026-11-07T03:00:00Z' } } });
+  const rec3 = workRecency({ history, srs: { genius: { origin: im, skipped: true, updatedAt: '2026-11-07T03:00:00Z' } } });
   assert.deepEqual(order(rec3, ['Suits', 'Iron Man']), ['Suits', 'Iron Man']);
+});
+
+test('よく出る語の復習で、その語が入った全作品が上がらない（初めて採点した作品だけ）', () => {
+  // like は Suits・Lupin・Iron Man の全部のリストにある。初めて採点したのは Lupin
+  const history = [row('Suits', '2026-11-05', ['like']), row('Lupin', '2026-11-04', ['like']), row('Iron Man', '2026-11-01', ['like'])];
+  const rec = workRecency({ history, srs: { like: { origin: { title: 'Lupin' }, lastReview: '2026-11-07', updatedAt: '2026-11-07T03:00:00Z' } } });
+  assert.deepEqual(order(rec, ['Suits', 'Lupin', 'Iron Man']), ['Lupin', 'Suits', 'Iron Man']);
+});
+
+test('日付だけの値は端末のその日の0時（時刻つきの今日の操作に負けない）', () => {
+  // 端末の今日（日付だけ）より、今日の朝の時刻つきの操作が上。どのタイムゾーンでも成り立つ
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const history = [row('Suits', today, ['a']), row('Iron Man', '2026-11-01', ['b'])];
+  const touchedAt = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 30).getTime(); // 今日の 0:30
+  const rec = workRecency({ history, srs: {}, myDramas: [{ title: 'Iron Man', touchedAt }] });
+  assert.deepEqual(order(rec, ['Suits', 'Iron Man']), ['Iron Man', 'Suits']);
 });
 
 test('拡張で保存・開いた/戻した時刻でも上がる（作品名の揺れは履歴の作品名へ寄せる）', () => {

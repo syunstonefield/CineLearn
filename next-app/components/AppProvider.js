@@ -761,7 +761,8 @@ export default function AppProvider({ children }) {
     setQuizData([]);
     setQuizReturn('review-hub');
     setScreen('quiz');
-  }, []);
+    if (entry.drama?.title) touchWorks([entry.drama.title]); // その作品のクイズも「最近触った」に
+  }, [touchWorks]);
 
   // 復習モーダルの開閉（ダッシュボード・単語リストの両方から呼ぶ）
   // opts.all=true で SRS の期日フィルタを通さず全語をカード化（半券のシーン記憶カード用）。
@@ -769,7 +770,10 @@ export default function AppProvider({ children }) {
     setReviewAll(!!(opts && opts.all));
     setReviewAsPage(true); // タブ/今日の復習＝ページ表示（横スワイプ移動可）
     setReviewWords(words || []);
-  }, []);
+    // その作品だけの復習（カードの出所が1作品）なら「最近触った」にする（並び・lib/workRecency.js）。今日の復習のように混ざる時は触らない。
+    const titles = [...new Set((words || []).map((w) => w?._src?.title).filter(Boolean))];
+    if (titles.length === 1) touchWorks(titles);
+  }, [touchWorks]);
   const closeReview = useCallback(() => {
     setReviewWords(null);
     setReviewAsPage(false);
