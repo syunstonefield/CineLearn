@@ -8,6 +8,8 @@ import {
   deleteMyWord,
   unstarWord,
   clearAllWords,
+  likeWord,
+  hideFromWordbook,
   saveWordTranslation,
   repairLongExamples,
 } from '@/lib/words';
@@ -15,6 +17,25 @@ import { loadSrs, loadHistory, skipWord, unskipWord, isLearned, isMastered, toda
 import CefrNote from './CefrNote';
 import { cefrHintOf } from '@/lib/cefrHint';
 import { cefrIndexFromHistory, withWordbookCefr } from '@/lib/wordbookCefr';
+import { likedWords, canLikeMore, LIKE_CAP_PER_EPISODE } from '@/lib/liked';
+
+// 初回の整理（2026-11-07 オーナー決定）: 単語帳を「覚えたい語の場所」にした時、既に入っている拡張/手入力の語を
+// 「このまま残す／★の語だけにする」から一度だけ選ぶ。選ばなければ何もしない。語は消えない（作品の単語リスト・復習に残る）。
+const WB_CHOICE_KEY = 'cl_wb_choice_v1';
+function readChoice() {
+  try {
+    return localStorage.getItem(WB_CHOICE_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+function writeChoice(v) {
+  try {
+    localStorage.setItem(WB_CHOICE_KEY, v);
+  } catch {
+    /* 保存不可なら次回また出る */
+  }
+}
 import { fillTranslations } from '@/lib/translateQueue';
 import { speak } from '@/lib/speak';
 import { secToTimeLabel } from '@/lib/subtitles';
@@ -52,6 +73,8 @@ export default function WordbookScreen() {
   const [syncing, setSyncing] = useState(false);
   const [exJa, setExJa] = useState({}); // word(小文字) → 例文の和訳（/api/translate）
   const [wordJa, setWordJa] = useState({}); // word(小文字) → 単語の和訳（意味を日本語に）
+  const [choiceClosed, setChoiceClosed] = useState(false); // 初回の整理を「あとで」で閉じた（この表示の間だけ）
+  const [choiceBusy, setChoiceBusy] = useState(false);
   // CEFR の目安（試作 2026-10-30）: 保存レコードは level を持たないので、端末の予習の記録（cl_history）から
   // 同じ語の level / levelShown を借りる（lib/wordbookCefr.js）。サーバへの照会はしない。
   const [cefrIndex, setCefrIndex] = useState(() => new Map());
@@ -160,24 +183,32 @@ export default function WordbookScreen() {
     };
   }, [words]);
 
+  // 2026-11-07: 単語帳＝★「覚えたい」の語（starList）＋ ♡ を付けた語（likedList・例文つき）。
+  //   ★の語の集計・絞り込みは starList だけ。♡の節は上に別枠で出す（語が見出し・例文は従＝法務の条件）。
+  const starList = words ? words.filter((w) => w.inWordbook !== false) : null;
+  const likedList = words ? likedWords(words) : [];
+  // 初回の整理の対象＝★以外の経路（拡張・手入力）で入っていて、まだ単語帳に出ている語
+  const legacy = words ? words.filter((w) => w.inWordbook !== false && w.source !== 'star') : [];
+  const showChoice = !!words && legacy.length > 0 && !choiceClosed && !readChoice();
+
   // 上部stats（単語/未学習/覚えた/マスター）。未学習＝まだ「覚えた」未到達（合計に一致させる）。
   const stats = (() => {
-    if (!words) return null;
+    if (!starList) return null;
     let mastered = 0;
     let learned = 0;
-    for (const w of words) {
+    for (const w of starList) {
       const e = srs[w.word.toLowerCase()];
       if (isMastered(e)) mastered++;
       else if (isLearned(e)) learned++;
     }
-    return { total: words.length, learned, mastered, unlearned: words.length - learned - mastered };
+    return { total: starList.length, learned, mastered, unlearned: starList.length - learned - mastered };
   })();
 
   // stats タイルで選んだ状態だけに絞り込む（分類＝stats と同じ isMastered/isLearned 基準）。
   const visibleWords = (() => {
-    if (!words) return words;
-    if (filter === 'all') return words;
-    return words.filter((w) => {
+    if (!starList) return starList;
+    if (filter === 'all') return starList;
+    return starList.filter((w) => {
       const e = srs[w.word.toLowerCase()];
       if (filter === 'mastered') return isMastered(e);
       if (filter === 'learned') return isLearned(e) && !isMastered(e);
@@ -201,10 +232,38 @@ export default function WordbookScreen() {
     bumpWordbook();
   };
   // ★を外す。視聴中に拾った語は作品の単語リストに残り、★でしか無い語は行ごと消える（lib/words.js）。
+  //   ♡の節の語（★なし）には付ける操作もある（saveWordTranslation で旗を立てるだけ）。
   const onStar = async (word, starred) => {
-    if (!starred) return; // 単語帳の行は常に★ON＝ここでは外す操作だけ
-    await unstarWord(pid, word);
+    if (starred) await unstarWord(pid, word);
+    else await saveWordTranslation(pid, word, { inWordbook: true });
     bumpWordbook();
+  };
+  // ♡ お気に入りの例文の印（2026-11-07）。1話あたり LIKE_CAP_PER_EPISODE 件まで。
+  const onLike = async (word, liked) => {
+    const w = (words || []).find((x) => String(x.word).toLowerCase() === String(word).toLowerCase());
+    if (!w) return;
+    if (!liked && !canLikeMore(words, { dramaTitle: w.dramaTitle, season: w.season ?? null, episode: w.episode ?? null }, sameWorkTitle)) {
+      alert(`この話の例文の ♡ は ${LIKE_CAP_PER_EPISODE} 件までです`);
+      return;
+    }
+    await likeWord(pid, w, !liked);
+    bumpWordbook();
+  };
+  // 初回の整理（2026-11-07）: 「このまま残す」＝旗を覚えるだけ／「★の語だけにする」＝拡張・手入力の語の旗を倒す（語は消えない）
+  const keepAll = () => {
+    writeChoice('kept');
+    setChoiceClosed(true);
+  };
+  const starredOnly = async () => {
+    setChoiceBusy(true);
+    try {
+      await hideFromWordbook(pid, legacy.map((w) => w.word));
+      writeChoice('starred');
+    } finally {
+      setChoiceBusy(false);
+      setChoiceClosed(true);
+      bumpWordbook();
+    }
   };
   const onClear = async () => {
     if (!confirm('保存した単語をすべて削除しますか？')) return;
@@ -223,7 +282,7 @@ export default function WordbookScreen() {
       <div className="wb-screen">
         <div className="wb-head">
           <h1 className="wb-h1">📖 マイ単語帳</h1>
-          <p className="wb-sub">字幕で単語をクリックした語と、単語リストで☆を付けた語がここに集まります（★を外すとリストには残ります）</p>
+          <p className="wb-sub">「★ 覚えたい」を付けた語と、「♡」を付けた例文つきの語が集まります（外しても作品の単語リストと復習には残ります）</p>
         </div>
 
         {words === null ? (
@@ -232,12 +291,12 @@ export default function WordbookScreen() {
           </div>
         ) : words.length === 0 ? (
           <div className="empty-state" style={{ margin: 24 }}>
-            まだ単語が保存されていません。
+            まだ単語がありません。
             <br />
             <br />
-            拡張機能をインストールして Netflix などで動画を再生すると、
+            単語リストや復習カードで「★ 覚えたい」を付けた語と、
             <br />
-            字幕の各単語をクリックしてここに保存できます。
+            例文に「♡」を付けた語がここに集まります。
             {!loggedIn && (
               <>
                 <br />
@@ -253,6 +312,62 @@ export default function WordbookScreen() {
           </div>
         ) : (
           <>
+            {showChoice && (
+              <div className="wb-choice" role="region" aria-label="単語帳の整理">
+                <div className="wb-choice-title">単語帳を「覚えたい語」の場所にしました</div>
+                <div className="wb-choice-text">
+                  今入っている {legacy.length} 語（拡張や手入力で保存した語）はどうしますか？ どちらを選んでも、語は作品の単語リストと復習に残ります。
+                </div>
+                <div className="wb-choice-actions">
+                  <button type="button" className="btn-secondary" disabled={choiceBusy} onClick={keepAll}>
+                    このまま残す
+                  </button>
+                  <button type="button" className="btn-secondary" disabled={choiceBusy} onClick={starredOnly}>
+                    {choiceBusy ? '整理中...' : '★の語だけにする'}
+                  </button>
+                  <button type="button" className="wb-choice-later" disabled={choiceBusy} onClick={() => setChoiceClosed(true)}>
+                    あとで
+                  </button>
+                </div>
+              </div>
+            )}
+            {/* ♡ を付けた語（例文つき）＝語が見出し・例文は “ ” と出所付きの従（法務 条件付きOK 2026-11-07）。例文が見えるよう開いた状態で出す */}
+            {likedList.length > 0 && (
+              <section className="wb-section">
+                <h2 className="wb-section-h">♡ を付けた語（例文つき）</h2>
+                <div className="vocab-list">
+                  {likedList.map((w) => (
+                    <VocabItem
+                      key={'liked-' + w.word}
+                      word={{
+                        ...withWordbookCefr(w, cefrIndex),
+                        definition: wordJa[w.word.toLowerCase()] || w.definition,
+                        example: w.example || w.sentence || '',
+                        example_ja: w.example_ja || exJa[w.word.toLowerCase()] || '',
+                      }}
+                      srs={srs}
+                      testTiers={testTiers}
+                      ts={w.tsSec != null ? { sec: w.tsSec, label: secToTimeLabel(w.tsSec) } : null}
+                      exampleSource={wordSource(w, isUnassignedTvWord(w, settings.myDramas || []))}
+                      showCefr
+                      defaultExpanded
+                      starred={w.inWordbook !== false}
+                      liked
+                      onSpeak={speak}
+                      onSkip={handleSkip}
+                      onCopyTime={handleCopyTime}
+                      onStar={onStar}
+                      onLike={onLike}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
+            {likedList.length > 0 && <h2 className="wb-section-h">★ 覚えたい語</h2>}
+            {starList.length === 0 ? (
+              <div className="wb-note">単語リストや復習カードで「★ 覚えたい」を付けた語がここに集まります。</div>
+            ) : (
+            <>
             {stats && (
               <div className="wb-stats">
                 <button
@@ -291,7 +406,7 @@ export default function WordbookScreen() {
             )}
             <div className="wb-toolbar">
               <span className="wb-count">
-                {filter === 'all' ? `${words.length}単語` : `${visibleWords.length}単語（絞り込み中）`}
+                {filter === 'all' ? `${starList.length}単語` : `${visibleWords.length}単語（絞り込み中）`}
               </span>
               <span className="wb-actions">
                 {loggedIn && (
@@ -351,16 +466,20 @@ export default function WordbookScreen() {
                       exampleSource={wordSource(w, unassigned)}
                       showCefr // 各語に「CEFR目安」（試作 2026-10-30・法務の回答まで本番に出さない）
                       starred
+                      liked={!!w.liked}
                       onSpeak={speak}
                       onSkip={handleSkip}
                       onCopyTime={handleCopyTime}
                       onStar={onStar}
+                      onLike={onLike}
                       onDelete={w.source !== 'star' ? onDelete : undefined}
                     />
                   </div>
                 );
               })}
             </div>
+            </>
+            )}
           </>
         )}
       </div>

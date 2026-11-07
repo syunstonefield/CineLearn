@@ -19,6 +19,10 @@ import { addExp, levelInfo, expForReviewSession } from '@/lib/exp';
 import { awardReviewSession } from '@/lib/reviewAward';
 import ExpBlock from './ExpBlock';
 import ReviewCinemaCard, { CinemaProgress } from './ReviewCinemaCard';
+import WordMarks from './WordMarks';
+import { getActiveWords, starWord, unstarWord, likeWord } from '@/lib/words';
+import { entryFromCard, sceneOf } from '@/lib/wordMarks';
+import { canLikeMore, LIKE_CAP_PER_EPISODE } from '@/lib/liked';
 import { trackUsage } from '@/lib/usage';
 import { exitEventName, toDecile, reviewTimeEvent } from '@/lib/usageEvents';
 
@@ -187,7 +191,65 @@ function KeysHelp({ onClose }) {
 
 // 既存 startReview / renderReviewCard（SRSフラッシュカード）の再現。
 export default function ReviewModal({ asPage = false }) {
-  const { reviewWords, reviewAll, closeReview, currentHistoryId } = useApp();
+  const { reviewWords, reviewAll, closeReview, currentHistoryId, profile, openWordbook } = useApp();
+  // ★ 覚えたい／♡ お気に入りの例文（2026-11-07 オーナー決定）: カードの裏に出す。my_words の行を語ごとに持ち、
+  // 付けた回数を数えて完了画面から単語帳へ案内する（付けた時だけ・押しつけない）。
+  const [marks, setMarks] = useState(() => new Map());
+  const [markedRun, setMarkedRun] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    getActiveWords(profile?.id)
+      .then((list) => {
+        if (!alive) return;
+        setMarks(new Map((list || []).map((w) => [String(w.word).toLowerCase(), w])));
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [profile?.id, reviewWords]);
+  const marksFor = (w) => {
+    if (!w) return null;
+    const row = marks.get(String(w.word).toLowerCase());
+    const canLike = !!w.example && !!subtitleCredit(w) && w.source !== 'plus';
+    return {
+      starred: !!row && row.inWordbook !== false,
+      liked: !!row?.liked,
+      canLike,
+      onStar: async (starred) => {
+        const lower = String(w.word).toLowerCase();
+        if (starred) {
+          const r = await unstarWord(profile?.id, w.word);
+          setMarks((m) => {
+            const n = new Map(m);
+            if (r === 'deleted') n.delete(lower);
+            else if (n.has(lower)) n.set(lower, { ...n.get(lower), inWordbook: false });
+            return n;
+          });
+          return;
+        }
+        const entry = entryFromCard(w);
+        const merged = await starWord(profile?.id, entry);
+        setMarks((m) => new Map(m).set(lower, merged || entry));
+        setMarkedRun((n) => n + 1);
+      },
+      onLike: async (liked) => {
+        const lower = String(w.word).toLowerCase();
+        if (!liked && !canLikeMore([...marks.values()], sceneOf(w))) {
+          alert(`この話の例文の ♡ は ${LIKE_CAP_PER_EPISODE} 件までです`);
+          return;
+        }
+        const r = await likeWord(profile?.id, entryFromCard(w), !liked);
+        setMarks((m) => {
+          const n = new Map(m);
+          if (r) n.set(lower, r);
+          else n.delete(lower);
+          return n;
+        });
+        if (!liked) setMarkedRun((n) => n + 1);
+      },
+    };
+  };
   // 夕焼けシネマの見た目と復習の利用データは、復習タブのページ表示だけ（2026-11-07 オーナー決定）。
   // 予習の「じっくり覚える」（重ね表示・asPage=false）は従来の見た目のまま・予習の利用データにも数えない。
   const cinema = asPage;
@@ -497,10 +559,13 @@ export default function ReviewModal({ asPage = false }) {
                 setRetryMode(true);
               }}
               onDone={closeReview}
+              markedRun={markedRun}
+              onOpenWordbook={openWordbook}
             />
           ) : cinema ? (
             <ReviewCinemaCard
               word={queue[idx]}
+              marks={marksFor(queue[idx])}
               flipped={flipped}
               retryMode={retryMode}
               onFlip={() => setFlipped(true)}
@@ -510,6 +575,7 @@ export default function ReviewModal({ asPage = false }) {
           ) : (
             <ReviewCard
               word={queue[idx]}
+              marks={marksFor(queue[idx])}
               idx={idx}
               total={queue.length}
               flipped={flipped}
@@ -525,7 +591,7 @@ export default function ReviewModal({ asPage = false }) {
   );
 }
 
-function ReviewCard({ word: w, idx, total, flipped, retryMode, onFlip, onRate, onUndo }) {
+function ReviewCard({ word: w, marks, idx, total, flipped, retryMode, onFlip, onRate, onUndo }) {
   // スワイプ採点：右=知ってた(5) / 左=知らなかった(0)。
   // うろ覚え(3)は3択ボタンで常時選べる（中間はSM-2の肝なのでジェスチャーに潰さない）。
   // 判定は意味を表示（flipped）してから有効。
@@ -648,6 +714,8 @@ function ReviewCard({ word: w, idx, total, flipped, retryMode, onFlip, onRate, o
                 <div className="review-example-source">AI 作例（ドラマのセリフではありません）</div>
               </div>
             )}
+            {/* ★ 覚えたい／♡ お気に入りの例文（2026-11-07）＝意味を見た後に。見た目の確認は復習・クイズ部門 */}
+            {marks && <WordMarks {...marks} compact />}
           </div>
         )}
       </div>
@@ -705,7 +773,7 @@ function ReviewCard({ word: w, idx, total, flipped, retryMode, onFlip, onRate, o
 
 // partial＝途中でやめた時の成果画面（queue は採点済みの語だけ）。文言はやった分だけを肯定的に
 // （「未完了」「あと○語」は出さない＝罪悪感UI禁止）。awardedRef＝親と共有する「記録済み」旗。
-function ReviewDone({ queue, partial = false, awardedRef, ratings, promo, currentHistoryId, sessionInfo, setSessionInfo, retryMode, onRetryFailed, onDone }) {
+function ReviewDone({ queue, partial = false, awardedRef, ratings, promo, currentHistoryId, sessionInfo, setSessionInfo, retryMode, onRetryFailed, onDone, markedRun = 0, onOpenWordbook }) {
   const failed = queue.filter((w) => ratings[w.word] === 0);
   const hard = queue.filter((w) => ratings[w.word] === 3);
   const easy = queue.filter((w) => (ratings[w.word] ?? 5) === 5);
@@ -794,6 +862,19 @@ function ReviewDone({ queue, partial = false, awardedRef, ratings, promo, curren
         </>
       )}
       {expGain && <ExpBlock earned={expGain.earned} lv={expGain.level} />}
+      {/* ★／♡ を付けた時だけ、単語帳への案内を一行（押しつけない・2026-11-07） */}
+      {markedRun > 0 && (
+        <button
+          type="button"
+          className="review-wordbook-link"
+          onClick={() => {
+            onDone();
+            onOpenWordbook?.();
+          }}
+        >
+          ★／♡ を付けた {markedRun} 語を単語帳で見る →
+        </button>
+      )}
       {(gotLearned || gotMaster) && (
         <div className="review-promotions">
           {gotLearned && <div className="review-promo learned">✅ {promo.learned.length}単語が「覚えた」に昇格！</div>}

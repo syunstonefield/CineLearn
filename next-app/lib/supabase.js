@@ -278,6 +278,8 @@ export async function pullFromCloud(profileId = null) {
     // ★単語帳メンバーシップ（in_wordbook）。列がまだ無いDBでは応答に載らない（undefined）ので、
     // その間はローカルの旗を残す（全量上書きで「外した」状態が毎回 true に戻らないように）。
     const prevInWordbook = new Map();
+    // ♡（liked / likedAt・2026-11-07）。列が無い DB ではクラウドに載らないのでローカルの印を残す。
+    const prevLiked = new Map();
     // 例文の注記（example_note: AI 作例／この回の別の場面・2026-10-31）。列がまだ無い DB では応答に載らない
     // （undefined）ので、その間はローカルの注記を残す（AI 作例が pull のたびに消えないように）。
     const prevNote = new Map();
@@ -291,6 +293,7 @@ export async function pullFromCloud(profileId = null) {
         if (p.exampleFail) prevFail.set(k, { reason: p.exampleFail, at: p.exampleFailAt || '' });
         if (p.dramaTitle) prevTitle.set(k, { title: p.dramaTitle, season: p.season ?? null, episode: p.episode ?? null });
         if (p.inWordbook === false) prevInWordbook.set(k, false);
+        if (p.liked === true) prevLiked.set(k, { liked: true, likedAt: p.likedAt || null });
         if (p.exampleNote) prevNote.set(k, p.exampleNote);
       });
     } catch {
@@ -346,6 +349,9 @@ export async function pullFromCloud(profileId = null) {
           exampleFailAt: sentence ? '' : prevFail.get(key)?.at || '',
           // ★単語帳に入っているか。クラウドが列を持てばそれが正、無ければローカルの旗を残す。
           inWordbook: typeof w.in_wordbook === 'boolean' ? w.in_wordbook : prevInWordbook.get(key) ?? true,
+          // ♡ お気に入りの例文の印（supabase_my_words_wordbook.sql）。クラウドが列を持てばそれが正、無ければローカルの印を残す。
+          liked: typeof w.liked === 'boolean' ? w.liked : prevLiked.get(key)?.liked ?? false,
+          likedAt: typeof w.liked === 'boolean' ? w.liked_at || null : prevLiked.get(key)?.likedAt ?? null,
           // 例文の注記。クラウドが列を持てばそれが正（null 含む）、無ければローカルの注記を残す。
           exampleNote: w.example_note !== undefined ? normalizeExampleNote(w.example_note) : prevNote.get(key) ?? null,
         };
@@ -654,6 +660,12 @@ function isMissingTsSec(res) {
 // in_wordbook（★単語帳メンバーシップ・supabase_my_words_in_wordbook.sql）も同じ作法。
 // 列が無いDBでは PGRST204 で行ごと弾かれるので、一度弾かれたらセッション中は送らない。
 let _inWordbookUnsupported = false;
+// liked / liked_at（♡・supabase_my_words_wordbook.sql）も同じ作法。
+let _likedUnsupported = false;
+function isMissingLiked(res) {
+  const msg = `${res?.code || ''} ${res?.message || ''}`;
+  return /PGRST204/.test(msg) && /liked/.test(msg);
+}
 let _exampleNoteUnsupported = false;
 function isMissingExampleNote(res) {
   const msg = `${res?.code || ''} ${res?.message || ''}`;
@@ -697,6 +709,11 @@ export async function pushMyWord(w) {
   if (Array.isArray(w.encounters) && w.encounters.length) row.encounters = w.encounters; // 遭遇ログ（拡張と同じ）
   // ★単語帳に入っているか。boolean で明示された時だけ送る（省略＝据え置き・DB既定は true）。
   if (typeof w.inWordbook === 'boolean' && !_inWordbookUnsupported) row.in_wordbook = w.inWordbook;
+  // ♡ お気に入りの例文の印（2026-11-07）。boolean で明示された時だけ送る（省略＝据え置き・DB 既定は false）。
+  if (typeof w.liked === 'boolean' && !_likedUnsupported) {
+    row.liked = w.liked;
+    row.liked_at = w.liked ? w.likedAt || null : null;
+  }
   // 例文の注記（AI 作例／この回の別の場面）。持っている時だけ送り、消す時だけ null（送らない＝据え置き）。
   //   AI 作例は sentence 列には入れない＝字幕の出所表示（字幕：OpenSubtitles）が付かない。列が無い DB では外して再送
   //   ＝AI 作例はその端末だけに残る（同期は壊れない）。
@@ -722,11 +739,16 @@ export async function pushMyWord(w) {
   // ts_sec 列がまだ無いDB（supabase_my_words_tssec.sql 未実行）では PostgREST が
   // PGRST204 を返して行ごと保存されない。列を外して1回だけ再送し、以後は送らない
   // （＝migration 前後どちらの順でデプロイしても単語の同期自体は壊れない）。
-  // 列が足りない時は1列ずつ外して再送する（最大3回＝in_wordbook / ts_sec / example_note）。
+  // 列が足りない時は1列ずつ外して再送する（最大4回＝liked / in_wordbook / ts_sec / example_note）。
   let cur = res;
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 4; i++) {
     let retry = false;
-    if (isMissingInWordbook(cur) && 'in_wordbook' in row) {
+    if (isMissingLiked(cur) && 'liked' in row) {
+      _likedUnsupported = true;
+      delete row.liked;
+      delete row.liked_at;
+      retry = true;
+    } else if (isMissingInWordbook(cur) && 'in_wordbook' in row) {
       _inWordbookUnsupported = true;
       delete row.in_wordbook;
       retry = true;
@@ -745,6 +767,25 @@ export async function pushMyWord(w) {
       headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
       body: JSON.stringify([row]),
     });
+  }
+  return true;
+}
+
+// 単語帳の旗だけを複数語まとめてクラウドへ（初回の整理「★の語だけにする」・2026-11-07）。
+//   行は (user_id, word) で merge-duplicates＝送った列だけ更新。500 語ずつ。列が無い DB（PGRST204）は黙って諦める
+//   （端末の旗は lib/words.js が先に倒している＝次の pull でクラウドの true に戻るが、SQL 適用後の整理で直せる）。
+export async function pushWordbookFlags(wordTexts, inWordbook) {
+  if (!(await ensureSessionForSync())) return false;
+  const uid = getCurrentUser()?.id;
+  if (!uid || !Array.isArray(wordTexts) || !wordTexts.length) return false;
+  for (let i = 0; i < wordTexts.length; i += 500) {
+    const rows = wordTexts.slice(i, i + 500).map((word) => ({ user_id: uid, word, in_wordbook: !!inWordbook }));
+    const res = await sbFetch('/rest/v1/my_words', {
+      method: 'POST',
+      headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify(rows),
+    });
+    if (isMissingInWordbook(res)) return false;
   }
   return true;
 }

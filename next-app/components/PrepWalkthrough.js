@@ -9,6 +9,9 @@ import { chunkParts } from '@/lib/chunk';
 // 読み上げは lib/speak に一本化（独自コピーは cancel 直後 speak で無音になる既知バグ持ちだった）
 import { speak } from '@/lib/speak';
 import { trackUsage, flushUsage } from '@/lib/usage';
+import WordMarks from './WordMarks';
+import { getActiveWords, starWord, unstarWord } from '@/lib/words';
+import { entryFromCard } from '@/lib/wordMarks';
 import { exitEventName, toDecile } from '@/lib/usageEvents';
 
 // 「1枚ずつめくって見る」ウォークスルー。生成直後の予習（「予習する →」）と、あとから見直す
@@ -58,7 +61,21 @@ function clearPos(key) {
 }
 
 export default function PrepWalkthrough() {
-  const { prepWalk, closePrepWalk } = useApp();
+  const { prepWalk, closePrepWalk, profile } = useApp();
+  // ★ 覚えたい（2026-11-07 オーナー決定）: 予習カードからも単語帳へ入れられる。作品が分かる時だけ（初回体験は出さない）。
+  const [stars, setStars] = useState(() => new Set());
+  useEffect(() => {
+    let alive = true;
+    getActiveWords(profile?.id)
+      .then((list) => {
+        if (!alive) return;
+        setStars(new Set((list || []).filter((w) => w?.inWordbook !== false).map((w) => String(w.word).toLowerCase())));
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [profile?.id, prepWalk]);
   const words = useMemo(() => prepWalk?.words || [], [prepWalk]);
   const meta = prepWalk?.meta || null;
   const single = !!meta?.single;
@@ -281,6 +298,29 @@ export default function PrepWalkthrough() {
               </span>
             )}
             {w.definition && <div className="pw-def">{w.definition}</div>}
+            {!trial && (meta?.drama?.title || meta?.title) && (
+              <WordMarks
+                compact
+                starred={stars.has(String(w.word).toLowerCase())}
+                onStar={async (starred) => {
+                  const lower = String(w.word).toLowerCase();
+                  if (starred) {
+                    await unstarWord(profile?.id, w.word);
+                    setStars((s) => {
+                      const n = new Set(s);
+                      n.delete(lower);
+                      return n;
+                    });
+                    return;
+                  }
+                  await starWord(
+                    profile?.id,
+                    entryFromCard(w, { title: meta.drama?.title || meta.title, season: meta.season, episode: meta.episode, isMovie: !!meta.isMovie })
+                  );
+                  setStars((s) => new Set(s).add(lower));
+                }}
+              />
+            )}
             {w.example && (
               <div className="pw-ex">
                 <div className="pw-ex-en">

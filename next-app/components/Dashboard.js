@@ -30,6 +30,7 @@ import { speak } from '@/lib/speak';
 import { fetchCtxJa } from '@/lib/ctxtranslate';
 import { fetchJa } from '@/lib/jatranslate';
 import { getActiveWords, normTitleForMatch, prewarmTitleAliases, sameWorkTitle } from '@/lib/words';
+import { pickTodayWord } from '@/lib/liked';
 import {
   toIsoDate,
   loadStatsDaily,
@@ -88,6 +89,7 @@ export default function Dashboard() {
     loggedIn,
     openAuth,
     sessionExpired,
+    openWordbook,
   } = useApp();
   // 今日の復習1回の語数＝復習タブ・ボトムナビのバッジと同じ（設定の語数・既定20語・無料）
   const plan = usePlan(loggedIn);
@@ -180,6 +182,8 @@ export default function Dashboard() {
   // マイ単語帳の語（拡張クリック保存・手動追加）。累計ゲージの母数に足すため state で保持する
   // （getActiveWords は非同期＝クラウド取り込みを含むので data の useMemo からは呼べない）。
   const [myWords, setMyWords] = useState([]);
+  // 「今日の語」（2026-11-07・法務の条件＝語が見出し・例文は従）: ♡ を付けた語から日付で1つ。無ければ出さない。
+  const todayWord = useMemo(() => pickTodayWord(myWords, new Date().toISOString().slice(0, 10)), [myWords]);
   const [myWordsLoaded, setMyWordsLoaded] = useState(false); // 円の記録は単語帳の語が揃ってから（途中の小さい値を残さない）
   // 切り替え前（2026-07-03 より前）に拡張で保存した語の例文＝画面字幕の行を、OpenSubtitles の1文に
   // 取り直す（ログイン時のみ・1回 8 語まで・済んだ語は端末に記録＝lib/preDomExamples.js）。
@@ -812,6 +816,21 @@ export default function Dashboard() {
           );
         }}
       />
+
+      {todayWord && (
+        <button type="button" className="home-today-word" onClick={openWordbook} title="単語帳で見る">
+          <span className="htw-label">♡ 今日の語</span>
+          <span className="htw-word">{todayWord.word}</span>
+          {(todayWord.ja || todayWord.definition) && <span className="htw-def">{todayWord.ja || todayWord.definition}</span>}
+          <span className="htw-ex">“{todayWord.sentence || todayWord.example}”</span>
+          {todayWord.dramaTitle && (
+            <span className="htw-src">
+              📺 {todayWord.dramaTitle}
+              {todayWord.season != null && todayWord.episode != null ? ` S${todayWord.season}E${todayWord.episode}` : ''}（字幕：OpenSubtitles）
+            </span>
+          )}
+        </button>
+      )}
 
       {/* 学習した日（草）。ホームでは表示幅に収まる直近の週だけ（オーナー 2026-10-08）。
           今日の復習・草・続きから学習（最低1枚）が、スマホでも PC でも最初の1画面に収まる並びにする。 */}

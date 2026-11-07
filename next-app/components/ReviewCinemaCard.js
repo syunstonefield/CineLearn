@@ -15,6 +15,7 @@ import { surfaceFormInExample, wordMatchRegex, normApostrophes } from '@/lib/sub
 import { speak } from '@/lib/speak';
 import { chunkParts } from '@/lib/chunk';
 import { subtitleCredit } from '@/lib/storage';
+import WordMarks from './WordMarks';
 import { fitLongestWord, fitPhraseLines, PHRASE_MIN_PX } from '@/lib/fitWord';
 
 const FILM_FRAMES = 10; // 進み具合のフィルム＝1コマ1枚・10枚で次の10コマへ
@@ -121,7 +122,7 @@ const FilmIcon = () => (
   </svg>
 );
 
-export default function ReviewCinemaCard({ word: w, flipped, retryMode, onFlip, onRate, onUndo }) {
+export default function ReviewCinemaCard({ word: w, marks, flipped, retryMode, onFlip, onRate, onUndo }) {
   // スワイプ採点：右=知ってた(5) / 左=知らなかった(0)。意味を開いてから有効（従来の ReviewCard と同じ）。
   const touch = useRef({ x: 0, y: 0 });
   const onTouchStart = (e) => {
@@ -307,6 +308,8 @@ export default function ReviewCinemaCard({ word: w, flipped, retryMode, onFlip, 
                     例文を聞く
                   </button>
                 )}
+                {/* ★ 覚えたい／♡ お気に入りの例文（2026-11-07）＝例文の再生の下。見た目の確認は復習・クイズ部門 */}
+                {marks && <WordMarks {...marks} compact />}
                 </div>
               </div>
               {/* 出所の行＝カードの一番下に固定（スクロールしない）。例文より一段控えめだが読める濃さ（4.5:1 以上）を保つ。

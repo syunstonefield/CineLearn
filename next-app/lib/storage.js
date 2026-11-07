@@ -351,9 +351,9 @@ export function deletedWordsKey(profileId) {
 // ヘッダーバッジ用の件数（削除済みを除く）。
 // 既存 getActiveWords と同じ判定で、削除リストにあっても再保存された単語が
 // あれば全件を有効扱いにする（こちらは読み取りのみで書き戻しはしない）。
-// ★を外した語（inWordbook:false・2026-09-22）は単語帳に出ないので数えない。
+// ★を外した語（inWordbook:false・2026-09-22）は単語帳に出ないので数えない。♡の語（liked・2026-11-07）は数える。
 export function getActiveWordCount(profileId) {
-  const all = readJson(myWordsKey(profileId), []).filter((w) => w?.inWordbook !== false);
+  const all = readJson(myWordsKey(profileId), []).filter((w) => w?.inWordbook !== false || w?.liked === true);
   const deleted = readJson(deletedWordsKey(profileId), []);
   if (!deleted.length) return all.length;
   const resaved = all.some((w) => deleted.includes(w.word));
