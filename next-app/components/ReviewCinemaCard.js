@@ -224,6 +224,9 @@ export default function ReviewCinemaCard({ word: w, marks, flipped, retryMode, o
             ) : (
               <span />
             )}
+            {/* 裏の右上＝★ 覚えたい／♡ この例文を保存（アイコンだけ・押せる領域 44px）。「例文を聞く」と離して押し間違いを減らす（オーナー 2026-11-07）。
+                裏では「○○ で出会った表現」を出さない（作品名は下の出所の行にある）ので右上は空いている */}
+            {flipped && marks && <WordMarks {...marks} icon />}
             {!flipped && work && (
               <span className="rc-work" title={`${work} で出会った表現`}>
                 <FilmIcon />
@@ -294,25 +297,19 @@ export default function ReviewCinemaCard({ word: w, marks, flipped, retryMode, o
                     {ai.ja && <div className="rc-ai-ja">{ai.ja}</div>}
                   </div>
                 )}
-                {/* 例文の再生＋★ 覚えたい／♡（2026-11-07）を1行に（SE 375×667 でも裏の下端に収まる＝復習・クイズ部門の確認）。
-                    例文の再生＝和訳のすぐ下・中央に、押しやすい大きさ（高さ44px）で（オーナー 2026-11-07） */}
-                {(ex || plain || ai || marks) && (
-                  <div className="rc-ex-actions">
-                    {(ex || plain || ai) && (
-                      <button
-                        type="button"
-                        className="rc-speak-ex"
-                        onClick={(ev) => {
-                          ev.stopPropagation();
-                          speak(ex || plain ? w.example : ai.en);
-                        }}
-                      >
-                        <SpeakIcon />
-                        例文を聞く
-                      </button>
-                    )}
-                    {marks && <WordMarks {...marks} compact short />}
-                  </div>
+                {/* 例文の再生＝和訳のすぐ下・中央に、押しやすい大きさ（高さ44px）で（オーナー 2026-11-07）。★／♡ は右上へ移した */}
+                {(ex || plain || ai) && (
+                  <button
+                    type="button"
+                    className="rc-speak-ex"
+                    onClick={(ev) => {
+                      ev.stopPropagation();
+                      speak(ex || plain ? w.example : ai.en);
+                    }}
+                  >
+                    <SpeakIcon />
+                    例文を聞く
+                  </button>
                 )}
                 </div>
               </div>

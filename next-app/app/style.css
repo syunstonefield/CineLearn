@@ -7894,16 +7894,20 @@ html[data-theme="dark"] .btn-like-example.is-on {
   background: rgba(244, 143, 177, 0.12);
 }
 html[data-theme="dark"] .htw-label { color: #f48fb1; }
-/* ①② 夕焼けシネマ: 例文の再生と ★／♡ を1行に（SE 375×667 で裏の下端に収める）・高さ44px・形と色を夕焼けに合わせる */
-.rc-ex-actions { display: flex; flex-wrap: nowrap; justify-content: center; align-items: center; gap: 6px; margin-top: 8px; }
-.rc-ex-actions .rc-speak-ex { margin-top: 0; padding: 0 12px; white-space: nowrap; }
-.rc-ex-actions .word-marks { margin: 0; flex-wrap: nowrap; gap: 6px; }
-.review-cinema .word-marks .btn-srs-skip {
-  height: 44px; padding: 0 10px; font-size: 13px; border-radius: 999px; white-space: nowrap;
-  border: 1px solid var(--rc-speak-line); background: var(--rc-speak-bg); color: var(--rc-word);
+/* 夕焼けシネマの裏: ★ 覚えたい／♡ この例文を保存＝カードの右上（「↩ 戻る」の反対側）にアイコンだけで（オーナー 2026-11-07）。
+   押せる領域は 44×44・間 8px。上段の高さ（40px）は変えない＝上下 4px ずつはみ出させる（余白をためない）。
+   付けた色は .btn-wordbook-star.is-on／.btn-like-example.is-on の値（コントラスト確認済み）をそのまま使う */
+.rc-ticket-head .word-marks.is-icon { margin: -4px -6px -4px auto; flex-wrap: nowrap; gap: 8px; }
+.word-marks.is-icon button {
+  width: 44px; height: 44px; padding: 0; margin: 0; border: 0; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; color: var(--rc-muted, var(--text-muted)); cursor: pointer;
 }
-.review-cinema .word-marks .btn-srs-skip:disabled { opacity: 0.6; cursor: default; }
-.review-cinema .word-marks .btn-like-example { margin-top: 0; }
+.word-marks.is-icon button:hover { color: var(--rc-word, var(--text)); }
+.word-marks.is-icon button:active { transform: scale(0.92); }
+.word-marks.is-icon button:disabled { opacity: 0.6; cursor: default; }
+/* 付けた状態は塗りの色だけで示す（ダークの ♥ の地の色の円も出さない＝★と見た目をそろえる） */
+.word-marks.is-icon button.is-on, html[data-theme="dark"] .word-marks.is-icon button.is-on { background: transparent; border-width: 0; }
 /* 従来カード・予習カードの ★／♡ も高さ 44px に（② タップしやすさ） */
 .word-marks.is-compact .btn-srs-skip { min-height: 44px; padding: 0 12px; font-size: 13px; }
 .word-marks .btn-like-example { border-radius: 999px; }
