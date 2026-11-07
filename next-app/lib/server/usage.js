@@ -34,7 +34,7 @@ export function usageDayAllowed(day, now = Date.now()) {
 export async function writeUsage(u, { uid = null, env = process.env } = {}) {
   const ids = usageIds({ uid, device: u.device }, env);
   const key = usageDayKey(u.day);
-  const val = JSON.stringify({ L: uid ? 1 : 0, c: u.c, ...(u.r ? { r: u.r } : {}) });
+  const val = JSON.stringify({ L: uid ? 1 : 0, c: u.c, ...(u.r ? { r: u.r } : {}), ...(u.s ? { S: 1 } : {}) }); // S＝運営の端末の印
   const cmds = [
     ['HSET', key, `${ids.person}.${ids.device}`, val],
     ['EXPIRE', key, String(USAGE_TTL_SEC), 'NX'],
@@ -47,7 +47,7 @@ const parseRow = (day, field, raw) => {
   const [p, d] = String(field).split('.');
   try {
     const v = JSON.parse(raw);
-    return { day, p, d, L: v.L ? 1 : 0, c: v.c || {}, r: v.r || null };
+    return { day, p, d, L: v.L ? 1 : 0, c: v.c || {}, r: v.r || null, ...(v.S ? { S: 1 } : {}) };
   } catch {
     return null;
   }

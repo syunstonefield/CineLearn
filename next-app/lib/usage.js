@@ -65,8 +65,30 @@ export function reviewNumbers(srs = loadSrs(), today = todayStr()) {
   return { n, c, l };
 }
 
+// 運営の端末の印（2026-11-07）。/app?cl_staff=1 を1回開くとこの端末に付く（cl_staff=0 で外す）。ログアウトでは消えない
+//   （cl_usage_* は deviceAccount の消去対象外）。付いている端末の行は週次の表で過去の分も含めて外す。利用者には見せない。
+export const USAGE_STAFF_KEY = 'cl_usage_staff';
+function isStaffDevice() {
+  try {
+    return localStorage.getItem(USAGE_STAFF_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+function noteStaffParam() {
+  try {
+    const url = new URL(window.location.href);
+    const v = url.searchParams.get('cl_staff');
+    if (v !== '1' && v !== '0') return;
+    if (v === '1') localStorage.setItem(USAGE_STAFF_KEY, '1');
+    else localStorage.removeItem(USAGE_STAFF_KEY);
+    url.searchParams.delete('cl_staff');
+    window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+  } catch {}
+}
+
 function send(t, { keepalive = false } = {}) {
-  const body = JSON.stringify({ day: t.day, device: getDeviceKey(), c: t.c, r: t.r || undefined });
+  const body = JSON.stringify({ day: t.day, device: getDeviceKey(), c: t.c, r: t.r || undefined, ...(isStaffDevice() ? { staff: 1 } : {}) });
   return fetch('/api/usage', { method: 'POST', headers: authHeaders(), body, keepalive, cache: 'no-store' })
     .then((r) => r.ok || r.status === 400 || r.status === 413) // 400/413 は送り直しても同じ＝送れた扱い
     .catch(() => false);
@@ -151,6 +173,7 @@ function noteEntryParam() {
 // アプリの起動時に1回（AppProvider）。開いた回数を数え、送るきっかけを仕掛ける。戻り値＝後片付け。
 export function initUsage() {
   if (typeof window === 'undefined') return () => {};
+  noteStaffParam();
   trackUsage('open');
   noteEntryParam();
   const onVis = () => {
