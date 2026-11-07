@@ -7784,3 +7784,11 @@ html.cl-review-lock .app-tmdb-footer { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .rc-frame, .rc-overall span, .rc-rate { transition: none; }
 }
+
+/* 【試し・オーナー 2026-11-07】3択を3つとも「うろ覚え」の色にそろえる（文言・絵文字・補助説明・並び・押した時の反応はそのまま）。
+   ライト・ダークとも、知らなかった／知ってた の色の指定をうろ覚えの色に読み替えるだけ。戻す時はこの塊を消す。 */
+.review-cinema,
+html[data-theme="dark"] .review-cinema {
+  --rc-fail-bg: var(--rc-hard-bg); --rc-fail-line: var(--rc-hard-line); --rc-fail-ink: var(--rc-hard-ink); --rc-fail-sub: var(--rc-hard-sub);
+  --rc-easy-bg: var(--rc-hard-bg); --rc-easy-line: var(--rc-hard-line); --rc-easy-ink: var(--rc-hard-ink); --rc-easy-sub: var(--rc-hard-sub);
+}
