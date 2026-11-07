@@ -246,9 +246,9 @@ export default function PrepWalkthrough() {
           )}
           {/* key で語が変わるたびカードを再生成＝めくり感（reduced-motion では無効化） */}
           <div className="pw-card" key={w.word}>
-            {/* #19: チャンクがあれば連語で表示（対象語を強調）・🔊もチャンクを読む */}
+            {/* #19: チャンクがあれば連語で表示（対象語を強調）・🔊もチャンクを読む。出さない組は語だけを表示・読み上げ（lib/chunk.js） */}
             {(() => {
-              const cp = chunkParts(w.chunk, w.word);
+              const cp = chunkParts(w.chunk, w.word, w.pos);
               const label = cp ? w.chunk : w.word;
               return (
                 <div className="pw-card-top">

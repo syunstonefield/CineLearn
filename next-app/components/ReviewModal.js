@@ -570,7 +570,7 @@ function ReviewCard({ word: w, idx, total, flipped, retryMode, onFlip, onRate, o
         {/* #19: チャンクがあれば「look forward to」のような連語で表示（対象語を強調）。
             単語単体より実際の使われ方の塊で覚える方が応用が効く。無い語は従来どおり単語のみ。 */}
         {(() => {
-          const cp = chunkParts(w.chunk, w.word);
+          const cp = chunkParts(w.chunk, w.word, w.pos);
           const label = cp ? w.chunk : w.word;
           return (
             // チャンク表示: 対象語はフルサイズ・accent のまま、周辺語だけ小さく淡く

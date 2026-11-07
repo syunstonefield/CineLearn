@@ -136,7 +136,7 @@ export default function ReviewCinemaCard({ word: w, flipped, retryMode, onFlip, 
     if (Math.abs(dx) > 64 && Math.abs(dx) > Math.abs(dy)) onRate(retryMode ? null : dx > 0 ? 5 : 0);
   };
 
-  const cp = chunkParts(w.chunk, w.word);
+  const cp = chunkParts(w.chunk, w.word, w.pos);
   const label = cp ? w.chunk : w.word;
   const work = workLabelOf(w);
   const credit = subtitleCredit(w);
