@@ -294,22 +294,26 @@ export default function ReviewCinemaCard({ word: w, marks, flipped, retryMode, o
                     {ai.ja && <div className="rc-ai-ja">{ai.ja}</div>}
                   </div>
                 )}
-                {(ex || plain || ai) && (
-                  /* 例文の再生＝和訳のすぐ下・中央に、押しやすい大きさ（高さ44px）で（オーナー 2026-11-07） */
-                  <button
-                    type="button"
-                    className="rc-speak-ex"
-                    onClick={(ev) => {
-                      ev.stopPropagation();
-                      speak(ex || plain ? w.example : ai.en);
-                    }}
-                  >
-                    <SpeakIcon />
-                    例文を聞く
-                  </button>
+                {/* 例文の再生＋★ 覚えたい／♡（2026-11-07）を1行に（SE 375×667 でも裏の下端に収まる＝復習・クイズ部門の確認）。
+                    例文の再生＝和訳のすぐ下・中央に、押しやすい大きさ（高さ44px）で（オーナー 2026-11-07） */}
+                {(ex || plain || ai || marks) && (
+                  <div className="rc-ex-actions">
+                    {(ex || plain || ai) && (
+                      <button
+                        type="button"
+                        className="rc-speak-ex"
+                        onClick={(ev) => {
+                          ev.stopPropagation();
+                          speak(ex || plain ? w.example : ai.en);
+                        }}
+                      >
+                        <SpeakIcon />
+                        例文を聞く
+                      </button>
+                    )}
+                    {marks && <WordMarks {...marks} compact short />}
+                  </div>
                 )}
-                {/* ★ 覚えたい／♡ お気に入りの例文（2026-11-07）＝例文の再生の下。見た目の確認は復習・クイズ部門 */}
-                {marks && <WordMarks {...marks} compact />}
                 </div>
               </div>
               {/* 出所の行＝カードの一番下に固定（スクロールしない）。例文より一段控えめだが読める濃さ（4.5:1 以上）を保つ。

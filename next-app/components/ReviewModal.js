@@ -195,7 +195,15 @@ export default function ReviewModal({ asPage = false }) {
   // ★ 覚えたい／♡ お気に入りの例文（2026-11-07 オーナー決定）: カードの裏に出す。my_words の行を語ごとに持ち、
   // 付けた回数を数えて完了画面から単語帳へ案内する（付けた時だけ・押しつけない）。
   const [marks, setMarks] = useState(() => new Map());
-  const [markedRun, setMarkedRun] = useState(0);
+  const [markedWords, setMarkedWords] = useState(() => new Set()); // この回に★/♡を付けた語（外したら抜く）
+  const markedRun = markedWords.size;
+  const markWord = (word, on) =>
+    setMarkedWords((s) => {
+      const n = new Set(s);
+      if (on) n.add(word);
+      else n.delete(word);
+      return n;
+    });
   useEffect(() => {
     let alive = true;
     getActiveWords(profile?.id)
@@ -226,12 +234,13 @@ export default function ReviewModal({ asPage = false }) {
             else if (n.has(lower)) n.set(lower, { ...n.get(lower), inWordbook: false });
             return n;
           });
+          if (!marks.get(lower)?.liked) markWord(lower, false); // ♡も無ければ「付けた語」から抜く
           return;
         }
         const entry = entryFromCard(w);
         const merged = await starWord(profile?.id, entry);
         setMarks((m) => new Map(m).set(lower, merged || entry));
-        setMarkedRun((n) => n + 1);
+        markWord(lower, true);
       },
       onLike: async (liked) => {
         const lower = String(w.word).toLowerCase();
@@ -246,7 +255,8 @@ export default function ReviewModal({ asPage = false }) {
           else n.delete(lower);
           return n;
         });
-        if (!liked) setMarkedRun((n) => n + 1);
+        if (!liked) markWord(lower, true);
+        else if (!(r && r.inWordbook !== false)) markWord(lower, false); // ★も無ければ抜く
       },
     };
   };

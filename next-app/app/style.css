@@ -6100,9 +6100,13 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
 
 /* ★マイ単語帳トグル（VocabItem の詳細アクション内・発音/Skip の横） */
 .btn-wordbook-star.is-on {
-  color: #b8860b !important;
+  color: #8a6400 !important; /* ライト 4.5:1 以上（復習・クイズ部門 2026-11-07・旧 #b8860b は 2.89:1） */
   border-color: rgba(245, 197, 24, 0.55) !important;
   background: rgba(245, 197, 24, 0.10);
+}
+html[data-theme="dark"] .btn-wordbook-star.is-on {
+  color: #e6b84a !important;
+  border-color: rgba(230, 184, 74, 0.55) !important;
 }
 .btn-wordbook-star.is-on:hover { background: rgba(245, 197, 24, 0.18); }
 
@@ -7882,3 +7886,24 @@ html[data-theme="dark"] .review-cinema {
 .htw-def { font-size: 13px; color: var(--text); }
 .htw-ex { font-size: 13px; color: var(--text-muted); line-height: 1.5; margin-top: 4px; }
 .htw-src { font-size: 11px; color: var(--text-muted); }
+
+/* ③ ダークのコントラスト（復習・クイズ部門 2026-11-07）: ♥ #c2185b は 2.05:1 → #f48fb1 */
+html[data-theme="dark"] .btn-like-example.is-on {
+  color: #f48fb1 !important;
+  border-color: rgba(244, 143, 177, 0.5) !important;
+  background: rgba(244, 143, 177, 0.12);
+}
+html[data-theme="dark"] .htw-label { color: #f48fb1; }
+/* ①② 夕焼けシネマ: 例文の再生と ★／♡ を1行に（SE 375×667 で裏の下端に収める）・高さ44px・形と色を夕焼けに合わせる */
+.rc-ex-actions { display: flex; flex-wrap: nowrap; justify-content: center; align-items: center; gap: 6px; margin-top: 8px; }
+.rc-ex-actions .rc-speak-ex { margin-top: 0; padding: 0 12px; white-space: nowrap; }
+.rc-ex-actions .word-marks { margin: 0; flex-wrap: nowrap; gap: 6px; }
+.review-cinema .word-marks .btn-srs-skip {
+  height: 44px; padding: 0 10px; font-size: 13px; border-radius: 999px; white-space: nowrap;
+  border: 1px solid var(--rc-speak-line); background: var(--rc-speak-bg); color: var(--rc-word);
+}
+.review-cinema .word-marks .btn-srs-skip:disabled { opacity: 0.6; cursor: default; }
+.review-cinema .word-marks .btn-like-example { margin-top: 0; }
+/* 従来カード・予習カードの ★／♡ も高さ 44px に（② タップしやすさ） */
+.word-marks.is-compact .btn-srs-skip { min-height: 44px; padding: 0 12px; font-size: 13px; }
+.word-marks .btn-like-example { border-radius: 999px; }
