@@ -336,8 +336,24 @@ export default function AppProvider({ children }) {
       setLoggedIn(true);
       refreshFromCloud();
     };
+    // 通信が戻った時（機内モード解除など）: オフライン中の更新失敗は失効ではないので、ここで更新をやり直してクラウドから取り直す。
+    const onOnline = () => {
+      if (!getSession()?.access_token) return;
+      ensureFreshSession()
+        .then((ok) => {
+          if (!ok) return;
+          setSessionExpired(false);
+          setLoggedIn(true);
+          refreshFromCloud();
+        })
+        .catch(() => {});
+    };
     window.addEventListener(SESSION_UPDATED_EVENT, onUpdated);
-    return () => window.removeEventListener(SESSION_UPDATED_EVENT, onUpdated);
+    window.addEventListener('online', onOnline);
+    return () => {
+      window.removeEventListener(SESSION_UPDATED_EVENT, onUpdated);
+      window.removeEventListener('online', onOnline);
+    };
   }, [refreshFromCloud]);
 
   // タブ復帰時に自動で再取得（10秒スロットル）。

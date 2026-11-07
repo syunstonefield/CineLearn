@@ -16,7 +16,7 @@ let fetchLog = [];
 let fetchImpl = async () => new Response('{}', { status: 200 });
 globalThis.fetch = (...a) => { fetchLog.push(a[0]); return fetchImpl(...a); };
 
-const { ensureFreshSession, ensureSessionForSync, SESSION_EXPIRED_EVENT, getSession, sessionRetry } = await import('../lib/supabase.js');
+const { ensureFreshSession, ensureSessionForSync, SESSION_EXPIRED_EVENT, getSession, sessionRetry, sbFetch } = await import('../lib/supabase.js');
 sessionRetry.delayMs = 20; // 拡張の書き戻しを待つ時間（本番 1.5 秒）を短く
 
 const now = () => Math.floor(Date.now() / 1000);
@@ -85,5 +85,51 @@ test('更新に失敗した直後は古いままでも、少し待つ間に拡�
   setTimeout(() => store.set('cl_sb_session', JSON.stringify(session({ access_token: 'ext2', refresh_token: 'r7', expires_at: now() + 3000 }))), 5);
   assert.equal(await ensureFreshSession(), true);
   assert.equal(getSession().access_token, 'ext2');
+  assert.deepEqual(events, []);
+});
+
+test('オフライン（fetch 失敗）・5xx・429 は失効ではない: false を返すが知らせず、セッションも残す', async () => {
+  reset();
+  store.set('cl_sb_session', JSON.stringify(session()));
+  fetchImpl = async () => { throw new TypeError('Failed to fetch'); };
+  assert.equal(await ensureFreshSession(), false);
+  assert.deepEqual(events, []);
+  assert.equal(getSession().access_token, 'old');
+  for (const status of [500, 503, 429]) {
+    reset();
+    store.set('cl_sb_session', JSON.stringify(session()));
+    fetchImpl = async () => new Response('oops', { status });
+    assert.equal(await ensureFreshSession(), false);
+    assert.deepEqual(events, [], String(status));
+  }
+  // 通信が戻って更新が通れば、そのまま続く
+  fetchImpl = async () => new Response(JSON.stringify({ access_token: 'new', refresh_token: 'r2', expires_at: now() + 3600, user: { id: 'u1' } }), { status: 200 });
+  assert.equal(await ensureFreshSession(), true);
+});
+
+test('REST の 401: 更新を1回試して同じ要求をやり直す。更新後も 401 なら失効、更新が通信エラーなら失効にしない', async () => {
+  // 期限は先だがサーバが 401（トークンが無効化された想定）→ 更新成功 → やり直しが 200
+  reset();
+  store.set('cl_sb_session', JSON.stringify(session({ expires_at: now() + 3600 })));
+  const calls = [];
+  fetchImpl = async (url) => {
+    calls.push(String(url));
+    if (String(url).includes('/auth/v1/token')) return new Response(JSON.stringify({ access_token: 'new', refresh_token: 'r2', expires_at: now() + 3600, user: { id: 'u1' } }), { status: 200 });
+    return calls.filter((u) => u.includes('/rest/')).length === 1 ? new Response('{"msg":"JWT expired"}', { status: 401 }) : new Response('[{"ok":1}]', { status: 200 });
+  };
+  assert.deepEqual(await sbFetch('/rest/v1/user_state?select=key'), [{ ok: 1 }]);
+  assert.deepEqual(events, []);
+  assert.equal(calls.filter((u) => u.includes('/auth/v1/token')).length, 1);
+  // 更新後も 401 → 失効
+  reset();
+  store.set('cl_sb_session', JSON.stringify(session({ expires_at: now() + 3600 })));
+  fetchImpl = async (url) => (String(url).includes('/auth/v1/token') ? new Response(JSON.stringify({ access_token: 'new2', refresh_token: 'r3', expires_at: now() + 3600, user: { id: 'u1' } }), { status: 200 }) : new Response('{}', { status: 401 }));
+  assert.deepEqual(await sbFetch('/rest/v1/user_state?select=key'), {}); // やり直し後の 401 の本文がそのまま返る
+  assert.deepEqual(events, [SESSION_EXPIRED_EVENT]);
+  // 更新が通信エラー → 失効にしない（帯なし）
+  reset();
+  store.set('cl_sb_session', JSON.stringify(session({ expires_at: now() + 3600 })));
+  fetchImpl = async (url) => { if (String(url).includes('/auth/v1/token')) throw new TypeError('Failed to fetch'); return new Response('{}', { status: 401 }); };
+  await sbFetch('/rest/v1/user_state?select=key');
   assert.deepEqual(events, []);
 });
