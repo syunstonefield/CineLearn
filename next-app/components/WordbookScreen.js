@@ -369,6 +369,10 @@ export default function WordbookScreen() {
                 <span className="wb-tile-ic" aria-hidden="true">★</span>
                 <span className="wb-tile-t">{starTile.title}</span>
                 <span className="wb-tile-d">{starTile.desc}</span>
+                {/* 語数だけ戻す（オーナー 2026-11-07）。「今日 +N」と★一覧の集計タイルは外したまま */}
+                <span className="wb-tile-n">
+                  <b>{starList.length}</b> 語
+                </span>
               </button>
               <button
                 type="button"
@@ -379,6 +383,9 @@ export default function WordbookScreen() {
                 <span className="wb-tile-ic" aria-hidden="true">♡</span>
                 <span className="wb-tile-t">例文つきの語</span>
                 <span className="wb-tile-d">気に入った例文を、語といっしょに残す</span>
+                <span className="wb-tile-n">
+                  <b>{likedList.length}</b> 語
+                </span>
               </button>
             </div>
 
