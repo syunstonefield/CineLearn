@@ -249,6 +249,7 @@ async function getFreshSession() {
 // my_words.ts_sec（📍場面時刻）が実DBにまだ無い時に true。列が無いまま送ると行ごと弾かれるため、
 // 一度弾かれたらこのサービスワーカーが生きている間は送らない（下の再送を参照）。
 let tsSecUnsupported = false;
+let inWordbookUnsupported = false; // in_wordbook 列が無い DB（ts_sec と同じ作法）
 
 // ── 未送信キュー（2026-10-02 ワンダヴィジョン S1E4 で実害）─────────────────────────
 //   旧実装はセッションが無い（未ログイン・refresh 失効）と黙って return し、通信失敗も握り潰していた。
@@ -335,6 +336,8 @@ async function queuePendingSync(word, owner) {
   const rec = { ...word, _clOwner: word._clOwner || owner || null };
   const { [SYNC_PENDING_KEY]: cur = [] } = await chrome.storage.local.get(SYNC_PENDING_KEY);
   const key = pendingKeyOf(rec);
+  // 同じ語は最新の姿で置き換えるが、★（単語帳にも入れる）は送れるまで引き継ぐ＝後のただの保存で★が消えない
+  if (cur.some((w) => pendingKeyOf(w) === key && w._clStar === true)) rec._clStar = true;
   const next = cur.filter((w) => pendingKeyOf(w) !== key);
   next.push(rec);
   await chrome.storage.local.set({ [SYNC_PENDING_KEY]: next.slice(-SYNC_PENDING_MAX) });
@@ -475,6 +478,8 @@ async function syncWordToSupabase(word, { fromFlush = false } = {}) {
     // 送っていなかったため、クリック保存した語はアプリ側で必ず時刻なし＝末尾に落ちていた。
     if (!tsSecUnsupported) row.ts_sec = word.tsSec ?? null;
   }
+  // 「★ 覚えたい」で保存した時だけ単語帳に入れる（v1.2.12）。拡張からは外さない（false は送らない・外すのはアプリ）。
+  if (word._clStar === true && !inWordbookUnsupported) row.in_wordbook = true;
 
   const post = () =>
     fetch(`${SUPABASE_URL}/rest/v1/my_words`, {
@@ -498,22 +503,28 @@ async function syncWordToSupabase(word, { fromFlush = false } = {}) {
   // ts_sec 列がまだ無いDB（supabase_my_words_tssec.sql 未実行）では PostgREST が 400 を返し、
   // 行ごと保存されない。列を外して1回だけ再送し、以後このワーカーでは送らない
   // （＝SQL 実行前に拡張を更新しても、単語の同期そのものは壊れない）。
-  if (!res.ok && 'ts_sec' in row) {
-    let missing = false;
+  // 列が無い DB（SQL 未実行）では PostgREST が 400（PGRST204）を返し、行ごと保存されない。弾かれた列を外して
+  //   再送し、以後このワーカーでは送らない（＝SQL 実行前に拡張を更新しても、単語の同期そのものは壊れない）。
+  //   列名が本文に無い PGRST204 は従来どおり ts_sec とみなす。
+  for (let i = 0; i < 2 && res && !res.ok; i++) {
+    let msg = '';
     try {
       const body = await res.clone().json();
-      missing = /PGRST204/.test(body?.code || '') || /ts_sec/.test(body?.message || '');
+      msg = `${body?.code || ''} ${body?.message || ''}`;
     } catch {
-      /* 本文が読めない時は列不足と決めつけない */
+      break; // 本文が読めない時は列不足と決めつけない
     }
-    if (missing) {
-      tsSecUnsupported = true;
-      delete row.ts_sec;
-      try {
-        res = await post();
-      } catch {
-        res = null;
-      }
+    const col =
+      ['in_wordbook', 'ts_sec'].find((c) => c in row && msg.includes(c)) ||
+      (/PGRST204/.test(msg) && 'ts_sec' in row ? 'ts_sec' : null);
+    if (!col) break;
+    if (col === 'ts_sec') tsSecUnsupported = true;
+    else inWordbookUnsupported = true;
+    delete row[col];
+    try {
+      res = await post();
+    } catch {
+      res = null;
     }
   }
   if (!res?.ok) {

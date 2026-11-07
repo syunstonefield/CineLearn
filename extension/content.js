@@ -1572,6 +1572,12 @@ let _saveChain = Promise.resolve();
 
 function saveWord(entry, opts = {}) {
   if (!chrome.runtime?.id) return; // 接続切れ（リロード後の残留タブ）では何もしない
+  // ★（単語帳にも入れる）はこの保存の操作だけの印。台帳に残すと、後でただ保存し直した時にアプリで外した★を付け直す。
+  const star = entry._clStar === true;
+  if ('_clStar' in entry) {
+    entry = { ...entry };
+    delete entry._clStar;
+  }
   _saveChain = _saveChain.then(() => new Promise((resolve) => {
     let settled = false;
     const done = () => { if (!settled) { settled = true; clearTimeout(guard); resolve(); } };
@@ -1652,7 +1658,7 @@ function saveWord(entry, opts = {}) {
             rec._clearExampleJa = true;
           }
           try {
-            chrome.runtime.sendMessage({ type: 'SAVE_WORD_TO_CLOUD', word: rec }).catch(() => {});
+            chrome.runtime.sendMessage({ type: 'SAVE_WORD_TO_CLOUD', word: star ? { ...rec, _clStar: true } : rec }).catch(() => {});
           } catch {}
         });
       });
@@ -1829,6 +1835,9 @@ async function showWordPopup(word, sentence, rect) {
       <button id="cl-save-btn" style="flex:1;background:${ACCENT};color:#fff;
         border:none;padding:9px;border-radius:10px;font-size:13px;font-weight:500;
         cursor:pointer;font-family:inherit;">✓ 保存</button>
+      <button id="cl-star-btn" title="保存して、アプリの単語帳にも入れます" style="flex:1;background:#fff;color:${ACCENT};
+        border:1px solid ${ACCENT};padding:8px;border-radius:10px;font-size:13px;font-weight:500;
+        cursor:pointer;font-family:inherit;">★ 覚えたい</button>
       <button id="cl-cancel-btn" style="background:#f0f0f0;color:#888;
         border:none;padding:9px 14px;border-radius:10px;font-size:13px;
         cursor:pointer;font-family:inherit;">✕</button>
@@ -1866,7 +1875,9 @@ async function showWordPopup(word, sentence, rect) {
     });
   }
 
-  document.getElementById('cl-save-btn').addEventListener('click', (e) => {
+  // 「✓ 保存」＝その話の単語リストへ／「★ 覚えたい」＝保存して単語帳にも入れる（v1.2.12・オーナー決定 2026-11-07）。
+  //   単語帳の既定は「入れない」（my_words.in_wordbook の既定 false）。★は押した時だけ送り、端末の台帳には残さない。
+  const onSave = (star) => (e) => {
     e.stopImmediatePropagation();
     e.preventDefault();
     // 拡張機能のリロード後は古いタブとの接続が切れ保存できない。
@@ -1903,7 +1914,7 @@ async function showWordPopup(word, sentence, rect) {
       entry.season = lastKnownSE.season;
       entry.episode = lastKnownSE.episode;
     }
-    saveWord(entry); // クラウド同期は saveWord がマージ後の姿で行う
+    saveWord(star ? { ...entry, _clStar: true } : entry); // クラウド同期は saveWord がマージ後の姿で行う
     const queued = queuePendingSEWord(entry, sentence); // Disney+でS/E不明のまま保存 → 確定時に自己修復
     if (queued) {
       // S/E不明: すぐ映画扱いで照会すると誤作品（例: The Mandalorian and Grogu）に解決し得る。
@@ -1917,8 +1928,10 @@ async function showWordPopup(word, sentence, rect) {
     }
     closePopupAndResume();
     const epInfo = entry.season != null ? ` S${entry.season}E${entry.episode}` : '';
-    showToast(`「${word}」を保存しました${epInfo} ✓`);
-  });
+    showToast(star ? `「${word}」を単語帳に入れました${epInfo} ★` : `「${word}」を保存しました${epInfo} ✓`);
+  };
+  document.getElementById('cl-save-btn').addEventListener('click', onSave(false));
+  document.getElementById('cl-star-btn').addEventListener('click', onSave(true));
 
   document.getElementById('cl-cancel-btn').addEventListener('click', () => {
     closePopupAndResume();
@@ -2608,7 +2621,7 @@ function createStatusBadge() {
   clHint.innerHTML =
     '<div class="cl-hint-title">CineLearn 起動中</div>' +
     '<div class="cl-hint-body">字幕の単語をクリックして「✓ 保存」を押すと、その話の単語リストに残ります。' +
-    'アプリで★を付けた語が単語帳に入ります。' +
+    '「★ 覚えたい」を押すと単語帳にも入ります。' +
     'バッジをクリックすると ON / OFF を切り替えられます。</div>' +
     '<button type="button" class="cl-hint-ok">OK</button>';
 

@@ -82,7 +82,7 @@ export async function world(initial = {}, preset = {}) {
   const posts = [];
   const gets = [];
   // 偽の Supabase。GET は PostgREST と同じく1回の応答を maxRows 行で黙って打ち切る（order=word.asc・offset 対応）。
-  const cloud = { my_words: [], srs_data: [], maxRows: 1000, failGet: null, refresh: null };
+  const cloud = { my_words: [], srs_data: [], maxRows: 1000, failGet: null, failPost: null, refresh: null };
   Object.assign(cloud, preset);
   const fakeFetch = async (url, o = {}) => {
     const u = new URL(String(url));
@@ -90,7 +90,10 @@ export async function world(initial = {}, preset = {}) {
     if (u.pathname === '/auth/v1/token') return cloud.refresh ? cloud.refresh(JSON.parse(o.body)) : new Response('{}', { status: 400 });
     const table = u.pathname.split('/rest/v1/')[1];
     if ((o.method || 'GET') === 'POST') {
-      posts.push({ as, table: table + u.search, body: JSON.parse(o.body) });
+      const body = JSON.parse(o.body);
+      posts.push({ as, table: table + u.search, body });
+      const rejected = cloud.failPost?.(table, body); // 列が無い DB の応答などを返させる（{ status, json }）
+      if (rejected) return new Response(JSON.stringify(rejected.json), { status: rejected.status });
       return new Response('', { status: 201 });
     }
     gets.push({ table, search: u.search });
