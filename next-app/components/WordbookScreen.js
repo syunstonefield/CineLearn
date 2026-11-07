@@ -13,7 +13,7 @@ import {
   saveWordTranslation,
   repairLongExamples,
 } from '@/lib/words';
-import { loadSrs, loadHistory, skipWord, unskipWord, isLearned, isMastered, todayStr, toIsoDate, isEpisodeMismatch } from '@/lib/storage';
+import { loadSrs, loadHistory, skipWord, unskipWord, todayStr, toIsoDate, isEpisodeMismatch } from '@/lib/storage';
 import CefrNote from './CefrNote';
 import { cefrHintOf } from '@/lib/cefrHint';
 import { cefrIndexFromHistory, withWordbookCefr } from '@/lib/wordbookCefr';
@@ -73,7 +73,6 @@ export default function WordbookScreen() {
   const pid = profile?.id;
   const [words, setWords] = useState(null); // null=読み込み中
   const [srs, setSrs] = useState({});
-  const [filter, setFilter] = useState('all'); // all|unlearned|learned|mastered（stats タイルで切替）
   const [syncing, setSyncing] = useState(false);
   const [exJa, setExJa] = useState({}); // word(小文字) → 例文の和訳（/api/translate）
   const [wordJa, setWordJa] = useState({}); // word(小文字) → 単語の和訳（意味を日本語に）
@@ -224,40 +223,15 @@ export default function WordbookScreen() {
       .slice(0, 5);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [words]);
-  const starToday = (starList || []).filter((w) => toIsoDate(w.savedAt || '') === today).length;
-  const likedToday = (likedList || []).filter((w) => toIsoDate(w.likedAt || '') === today).length;
   const todayWord = useMemo(() => pickTodayWord(words || [], today), [words, today]);
   // ★のタイルの名前: 「自動で入れない」（v1.2.12 の旗）の前は拡張で保存した語も★の一覧に入るので、名前もそれに合わせる
   const starTile = CURATION_ON
     ? { title: '覚えたい語', desc: '学びたい表現を集める' }
     : { title: '保存した語', desc: '字幕で保存した語と「★ 覚えたい」の語' };
 
-  // 上部stats（単語/未学習/覚えた/マスター）。未学習＝まだ「覚えた」未到達（合計に一致させる）。
-  const stats = (() => {
-    if (!starList) return null;
-    let mastered = 0;
-    let learned = 0;
-    for (const w of starList) {
-      const e = srs[w.word.toLowerCase()];
-      if (isMastered(e)) mastered++;
-      else if (isLearned(e)) learned++;
-    }
-    return { total: starList.length, learned, mastered, unlearned: starList.length - learned - mastered };
-  })();
-
-  // stats タイルで選んだ状態だけに絞り込む（分類＝stats と同じ isMastered/isLearned 基準）。
-  const visibleWords = (() => {
-    if (!starList) return starList;
-    if (filter === 'all') return starList;
-    return starList.filter((w) => {
-      const e = srs[w.word.toLowerCase()];
-      if (filter === 'mastered') return isMastered(e);
-      if (filter === 'learned') return isLearned(e) && !isMastered(e);
-      return !isLearned(e) && !isMastered(e); // unlearned
-    });
-  })();
-  // タイルクリックで絞り込みトグル（同じタイルを再度押すと全件へ戻る）。
-  const toggleFilter = (key) => setFilter((f) => (f === key ? 'all' : key));
+  // 語数・未学習／覚えた／マスターの数（stats タイル）と、それによる絞り込みは外した（オーナー 2026-11-07「一旦消去していい」）。
+  //   各語の状態はカードを開いた時のバッジ（🌱 未学習 など）で見える。
+  const visibleWords = starList || [];
 
   const testTiers = settings.testTiers || ['core', 'advanced'];
   const handleSkip = (word, isSkip) => {
@@ -395,9 +369,6 @@ export default function WordbookScreen() {
                 <span className="wb-tile-ic" aria-hidden="true">★</span>
                 <span className="wb-tile-t">{starTile.title}</span>
                 <span className="wb-tile-d">{starTile.desc}</span>
-                <span className="wb-tile-n">
-                  <b>{starList.length}</b> 語{starToday > 0 ? ` ・ 今日 +${starToday}` : ''}
-                </span>
               </button>
               <button
                 type="button"
@@ -408,9 +379,6 @@ export default function WordbookScreen() {
                 <span className="wb-tile-ic" aria-hidden="true">♡</span>
                 <span className="wb-tile-t">例文つきの語</span>
                 <span className="wb-tile-d">気に入った例文を、語といっしょに残す</span>
-                <span className="wb-tile-n">
-                  <b>{likedList.length}</b> 語{likedToday > 0 ? ` ・ 今日 +${likedToday}` : ''}
-                </span>
               </button>
             </div>
 
@@ -527,46 +495,8 @@ export default function WordbookScreen() {
               <div className="wb-note">単語リストや復習カードで「★ 覚えたい」を付けた語がここに集まります。</div>
             ) : (
             <>
-            {stats && (
-              <div className="wb-stats">
-                <button
-                  type="button"
-                  className={'wb-stat' + (filter === 'all' ? ' is-active' : '')}
-                  onClick={() => setFilter('all')}
-                >
-                  <span className="wb-stat-num">{stats.total}</span>
-                  <span className="wb-stat-label">単語</span>
-                </button>
-                <button
-                  type="button"
-                  className={'wb-stat' + (filter === 'unlearned' ? ' is-active' : '')}
-                  onClick={() => toggleFilter('unlearned')}
-                >
-                  <span className="wb-stat-num">{stats.unlearned}</span>
-                  <span className="wb-stat-label">未学習</span>
-                </button>
-                <button
-                  type="button"
-                  className={'wb-stat wb-stat-learned' + (filter === 'learned' ? ' is-active' : '')}
-                  onClick={() => toggleFilter('learned')}
-                >
-                  <span className="wb-stat-num">{stats.learned}</span>
-                  <span className="wb-stat-label">覚えた</span>
-                </button>
-                <button
-                  type="button"
-                  className={'wb-stat wb-stat-mastered' + (filter === 'mastered' ? ' is-active' : '')}
-                  onClick={() => toggleFilter('mastered')}
-                >
-                  <span className="wb-stat-num">{stats.mastered}</span>
-                  <span className="wb-stat-label">マスター</span>
-                </button>
-              </div>
-            )}
-            <div className="wb-toolbar">
-              <span className="wb-count">
-                {filter === 'all' ? `${starList.length}単語` : `${visibleWords.length}単語（絞り込み中）`}
-              </span>
+            {/* 語数の表示は外した（オーナー 2026-11-07）。再読込・すべて削除は右寄せで残す */}
+            <div className="wb-toolbar" style={{ justifyContent: 'flex-end' }}>
               <span className="wb-actions">
                 {loggedIn && (
                   <button className="btn-secondary wb-sync" disabled={syncing} onClick={onSync}>
@@ -583,7 +513,7 @@ export default function WordbookScreen() {
             <div className="vocab-list">
               {visibleWords.length === 0 && (
                 <div className="empty-state" style={{ padding: '24px 8px' }}>
-                  この分類の単語はまだありません。
+                  まだ単語がありません。
                 </div>
               )}
               {visibleWords.map((w) => {
