@@ -59,11 +59,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       const uid = session.user.id;
       const headers = { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${session.access_token}` };
       const get = (path) => fetchAllRows(path, headers); // 1000 行で切れないよう最後まで読む（v1.2.12）
-      // ① 単語帳
-      let mw = await get(`my_words?user_id=eq.${uid}&in_wordbook=is.true&select=word,ja,pos,drama_title,season,episode`);
-      if (!mw.ok && /in_wordbook/.test(mw.body)) {
-        mw = await get(`my_words?user_id=eq.${uid}&select=word,ja,pos,drama_title,season,episode`);
-      }
+      // ① 保存した語ぜんぶ（★の有無で絞らない・v1.2.12）。単語帳の既定が「入れない」になり（オーナー決定 2026-11-07 A案）、
+      //   拡張で保存しただけの語は★が付かない。端末の中の印も元から★と関係なく保存語ぜんぶなので、クラウドの分も揃える。
+      const mw = await get(`my_words?user_id=eq.${uid}&select=word,ja,pos,drama_title,season,episode`);
       // ② 覚えた以上（出所つき）
       let srs = await get(`srs_data?user_id=eq.${uid}&repetitions=gte.2&skipped=is.false&select=word,repetitions,interval,ease_factor,origin_title,origin_season,origin_episode`);
       if (!srs.ok && /origin_/.test(srs.body)) {

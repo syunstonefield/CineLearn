@@ -55,6 +55,7 @@ test('再会の印: 単語帳と覚えた語が 1000 を超えても全部取る
   const res = await w.sendToBackground({ type: 'CL_FETCH_KNOWN_WORDS' });
   assert.equal(res.found, true);
   assert.equal(res.words.length, 2700);
+  assert.ok(w.gets.filter((g) => g.table === 'my_words').every((g) => !g.search.includes('in_wordbook')), '★の有無で絞らない（単語帳の既定が「入れない」でも拡張の保存語に印が付く）');
   w.cloud.failGet = (table, q) => q.get('offset') === '1000';
   const failed = await w.sendToBackground({ type: 'CL_FETCH_KNOWN_WORDS' });
   assert.equal(failed.found, false, '途中までの結果で印を作らない');

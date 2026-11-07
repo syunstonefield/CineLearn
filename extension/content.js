@@ -48,7 +48,7 @@ let clAutoMarksMissed = false; // いま観ている話がまだ未生成だっ�
 const CL_VOCAB_MARKS_MAX = 60; // 保持する話数の上限（古い順に落とす）
 
 // ── 他の作品で出会った語（視聴中の再会・2026-10-08 オーナー決定）────────────────────────
-//   対象＝クラウドの単語帳（★）＋復習で「覚えた」以上の語（出所つき）＋この端末で他作品で保存した語。
+//   対象＝クラウドの保存語（★の有無を問わない・v1.2.12）＋復習で「覚えた」以上の語（出所つき）＋この端末で他作品で保存した語。
 //   見え方＝同じクリーム色に細い点線（色は1つのまま・点線が「よそで会った」の合図）。
 //   記録＝ホバー訳/ポップアップが出た時に1話1回だけ（画面に出ただけでは記録しない）。
 const CL_KNOWN_KEY = 'cl_known_words';            // { at, uid, words:[{w,ja,pos,title,season,episode,kind}] }
@@ -2607,7 +2607,8 @@ function createStatusBadge() {
   clHint.style.display = 'none';
   clHint.innerHTML =
     '<div class="cl-hint-title">CineLearn 起動中</div>' +
-    '<div class="cl-hint-body">字幕の単語をクリックすると単語帳に保存できます。' +
+    '<div class="cl-hint-body">字幕の単語をクリックして「✓ 保存」を押すと、その話の単語リストに残ります。' +
+    'アプリで★を付けた語が単語帳に入ります。' +
     'バッジをクリックすると ON / OFF を切り替えられます。</div>' +
     '<button type="button" class="cl-hint-ok">OK</button>';
 
