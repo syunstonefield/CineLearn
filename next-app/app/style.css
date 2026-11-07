@@ -2955,6 +2955,13 @@ header {
     flex: 1 1 100%;
     order: -1;
   }
+  /* 2段目（ボタンと ✕）は右に寄せて同じ段に並べる。ボタンが無い帯では ✕ だけが右へ（2026-11-07 オーナー指摘） */
+  .ext-banner > button:first-of-type {
+    margin-left: auto;
+  }
+  .ext-banner-info > button:first-of-type {
+    margin-left: 0; /* 右上に固定する帯は対象外 */
+  }
 }
 
 /* ─────────────────────────────────────────

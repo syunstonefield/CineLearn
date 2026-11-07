@@ -53,10 +53,16 @@ function sbHeaders(extra = {}) {
   return h;
 }
 
-async function sbFetch(path, opts = {}) {
+// REST の 401（トークンが無効）は、まず更新を1回試して同じ要求をやり直し、それでも 401 の時だけ失効を知らせる（案C・2026-11-07）。
+//   更新が通信エラーで失敗した時は失効ではないので知らせない（ensureFreshSession が区別する）。
+export async function sbFetch(path, opts = {}) {
+  const { _retried, ...init } = opts;
   try {
-    const res = await fetch(`${SUPABASE_URL}${path}`, { ...opts, headers: sbHeaders(opts.headers || {}) });
-    if (res.status === 401 && getSession()?.access_token && !path.startsWith('/auth/')) notifySessionExpired(); // トークンが無効＝失効を知らせる
+    const res = await fetch(`${SUPABASE_URL}${path}`, { ...init, headers: sbHeaders(init.headers || {}) });
+    if (res.status === 401 && getSession()?.access_token && !path.startsWith('/auth/')) {
+      if (!_retried && (await ensureFreshSession({ force: true }))) return sbFetch(path, { ...init, _retried: true });
+      if (_retried) notifySessionExpired(); // 更新後も 401＝本当に無効
+    }
     if (res.status === 204 || res.status === 201) return null;
     return await res.json();
   } catch {
@@ -105,11 +111,12 @@ let _refreshing = null;
 export const sessionRetry = { delayMs: 1500 };
 // 拡張が localStorage へ書き戻した直後に出すイベント名（同じタブでは storage イベントが来ないため）。AppProvider が受けて判定し直す。
 export const SESSION_UPDATED_EVENT = 'cl-session-updated';
-export async function ensureFreshSession() {
+//   force: 期限がまだ先でも更新する（REST が 401 を返した＝サーバ側で無効になった／端末の時計がずれている時）。
+export async function ensureFreshSession({ force = false } = {}) {
   const s = getSession();
   if (!s?.access_token) return false;
   const now = Date.now() / 1000;
-  if (s.expires_at && s.expires_at - now > 600) return true;
+  if (!force && s.expires_at && s.expires_at - now > 600) return true;
   if (!s.refresh_token) {
     notifySessionExpired();
     return false;
@@ -117,14 +124,31 @@ export async function ensureFreshSession() {
   if (!_refreshing) {
     _refreshing = (async () => {
       try {
-        const d = await sbFetch('/auth/v1/token?grant_type=refresh_token', {
-          method: 'POST',
-          body: JSON.stringify({ refresh_token: s.refresh_token }),
-        });
+        // 更新は HTTP の結果を自分で見る: 通信エラー（オフライン・fetch 失敗）と 5xx／429 は「失効」ではない＝帯を出さず、
+        // 通信が戻った時（online・タブ復帰・次の送信）にやり直す。帯を出すのは、サーバが refresh_token を明確に拒否した時だけ。
+        let d = null;
+        let rejected = false;
+        try {
+          const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+            method: 'POST',
+            headers: sbHeaders(),
+            body: JSON.stringify({ refresh_token: s.refresh_token }),
+          });
+          if (res.status >= 500 || res.status === 429) return false; // 一時的な不調
+          try {
+            d = await res.json();
+          } catch {
+            d = null;
+          }
+          rejected = !res.ok; // 400/401/403＝トークンが無効（used / invalid / revoked）
+        } catch {
+          return false; // オフライン・通信エラー
+        }
         if (d?.access_token) {
           setSession(d);
           return true;
         }
+        if (!rejected) return false; // 2xx なのに access_token が無い（想定外）＝失効とは言い切れない
         // 失敗。Chrome 拡張（bridge.js v1.2.12〜）が先に更新して新しいセッションを localStorage に書き戻していれば、それを採る
         // （同じ refresh_token を拡張が先に使うと、こちらの更新は「使用済み」で拒否される）。ほぼ同時に更新した場合の救済として
         // 少し待ってから読み直す。セッションは消さない。古い拡張（書き戻さない）でも動きは従来どおり（失敗→失効の通知）。
@@ -554,9 +578,11 @@ async function sendStateKey(key) {
 export function queueStatePush(key, delayMs = 3000) {
   if (typeof window === 'undefined' || !getSession()?.access_token) return; // 期限切れでも積む（送る時に更新を試す）
   if (stateTimers[key]) return;
-  stateTimers[key] = setTimeout(() => {
+  stateTimers[key] = setTimeout(async () => {
     delete stateTimers[key];
-    sendStateKey(key);
+    const ok = await sendStateKey(key).catch(() => false);
+    // 送れなかった（オフライン・失効の更新待ち）時は 60 秒後にもう一度（失効が確定していれば isLoggedIn が false でも積む＝通信復帰で送れる）
+    if (!ok && getSession()?.access_token) queueStatePush(key, 60 * 1000);
   }, delayMs);
 }
 // 待ちになっている同期を今すぐ送る（ログアウトの直前に呼ぶ＝消す前に失わない・2026-11-05 lib/deviceAccount.js）。

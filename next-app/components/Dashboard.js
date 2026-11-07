@@ -732,7 +732,7 @@ export default function Dashboard() {
       {/* ログインの期限切れ（起動時にログイン画面を出さない代わりの案内・初回体験の修正 D） */}
       {sessionExpired && !loggedIn && !expiredBandClosed && (
         <div className="ext-banner">
-          <span className="ext-banner-text">ログインの期限が切れました。ログインし直すと、単語や履歴の同期を再開できます</span>
+          <span className="ext-banner-text">同期が止まっています。ログインし直すと再開します（この端末の記録は消えません）</span>
           <button className="ext-banner-btn" onClick={() => openAuth({ mode: 'login' })}>
             ログイン →
           </button>
