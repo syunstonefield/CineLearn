@@ -22,6 +22,10 @@ import { likedWords, canLikeMore, LIKE_CAP_PER_EPISODE } from '@/lib/liked';
 // 初回の整理（2026-11-07 オーナー決定）: 単語帳を「覚えたい語の場所」にした時、既に入っている拡張/手入力の語を
 // 「このまま残す／★の語だけにする」から一度だけ選ぶ。選ばなければ何もしない。語は消えない（作品の単語リスト・復習に残る）。
 const WB_CHOICE_KEY = 'cl_wb_choice_v1';
+// 「拡張で保存した語は単語帳に自動で入らない」段（in_wordbook の DB 既定 false）は、拡張 v1.2.12 と案内の文言の公開に
+// 合わせて出す（オーナー決定 2026-11-07・受付）。それまでは初回の整理画面と、その前提の文言を出さない。
+// 出す時: Vercel の環境変数 NEXT_PUBLIC_WORDBOOK_CURATION=on ＋再デプロイ（SQL supabase_my_words_wordbook_default.sql も同時）。
+const CURATION_ON = process.env.NEXT_PUBLIC_WORDBOOK_CURATION === 'on';
 function readChoice() {
   try {
     return localStorage.getItem(WB_CHOICE_KEY) || '';
@@ -189,7 +193,7 @@ export default function WordbookScreen() {
   const likedList = words ? likedWords(words) : [];
   // 初回の整理の対象＝★以外の経路（拡張・手入力）で入っていて、まだ単語帳に出ている語
   const legacy = words ? words.filter((w) => w.inWordbook !== false && w.source !== 'star') : [];
-  const showChoice = !!words && legacy.length > 0 && !choiceClosed && !readChoice();
+  const showChoice = CURATION_ON && !!words && legacy.length > 0 && !choiceClosed && !readChoice();
 
   // 上部stats（単語/未学習/覚えた/マスター）。未学習＝まだ「覚えた」未到達（合計に一致させる）。
   const stats = (() => {
@@ -282,7 +286,11 @@ export default function WordbookScreen() {
       <div className="wb-screen">
         <div className="wb-head">
           <h1 className="wb-h1">📖 マイ単語帳</h1>
-          <p className="wb-sub">「★ 覚えたい」を付けた語と、「♡」を付けた例文つきの語が集まります（外しても作品の単語リストと復習には残ります）</p>
+          <p className="wb-sub">
+            {CURATION_ON
+              ? '「★ 覚えたい」を付けた語と、「♡」を付けた例文つきの語が集まります（外しても作品の単語リストと復習には残ります）'
+              : '字幕で単語をクリックして保存した語と、「★ 覚えたい」を付けた語、「♡」を付けた例文つきの語が集まります（★を外してもリストには残ります）'}
+          </p>
         </div>
 
         {words === null ? (
@@ -294,9 +302,21 @@ export default function WordbookScreen() {
             まだ単語がありません。
             <br />
             <br />
-            単語リストや復習カードで「★ 覚えたい」を付けた語と、
-            <br />
-            例文に「♡」を付けた語がここに集まります。
+            {CURATION_ON ? (
+              <>
+                単語リストや復習カードで「★ 覚えたい」を付けた語と、
+                <br />
+                例文に「♡」を付けた語がここに集まります。
+              </>
+            ) : (
+              <>
+                拡張機能をインストールして Netflix などで動画を再生すると、
+                <br />
+                字幕の各単語をクリックしてここに保存できます。
+                <br />
+                単語リストや復習カードの「★ 覚えたい」「♡」でも入ります。
+              </>
+            )}
             {!loggedIn && (
               <>
                 <br />
@@ -363,7 +383,7 @@ export default function WordbookScreen() {
                 </div>
               </section>
             )}
-            {likedList.length > 0 && <h2 className="wb-section-h">★ 覚えたい語</h2>}
+            {likedList.length > 0 && <h2 className="wb-section-h">{CURATION_ON ? '★ 覚えたい語' : '単語'}</h2>}
             {starList.length === 0 ? (
               <div className="wb-note">単語リストや復習カードで「★ 覚えたい」を付けた語がここに集まります。</div>
             ) : (
