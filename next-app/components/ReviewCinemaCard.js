@@ -172,10 +172,11 @@ export default function ReviewCinemaCard({ word: w, flipped, retryMode, onFlip, 
       ro?.disconnect();
     };
   }, [flipped, w.word]);
-  useFitWord(wordRef, flipped ? PHRASE_MIN_PX.back : PHRASE_MIN_PX.front, [w.word, w.chunk, flipped]);
+  // 裏も表と同じ大きさ・同じ規則（オーナー 2026-11-07「回答画面の英単語を大きく」）
+  useFitWord(wordRef, PHRASE_MIN_PX.front, [w.word, w.chunk, flipped]);
 
   const wordEl = (
-    <span ref={wordRef} className={'rc-word' + (flipped ? ' is-small' : '')}>
+    <span ref={wordRef} className="rc-word">
       {cp && cp.hit ? (
         <>
           <span className="rc-word-side">{cp.before}</span>
