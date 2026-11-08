@@ -9,12 +9,14 @@ import { cefrHintOf, cefrHintTitle } from '@/lib/cefrHint';
 // 1単語カード。モバイルは折りたたみ（語＋和訳＋状態ドット＋📍時刻のみ）→タップで詳細展開。
 // PCでは常時展開（display制御は style.css のメディアクエリ）。
 // 詳細は常にDOMに描画し、開閉は is-expanded クラスで切り替える（PC常時表示を両立するため）。
-// starred/onStar: ★マイ単語帳メンバーシップ（2026-09-22）。onStar(word, starred) を渡した文脈でだけ
-// 発音・Skip の横に「★ 単語帳 / ☆ 単語帳に入れる」トグルを出す（単語リスト・単語帳の両方）。
+// starred/onStar: ★「覚えたい」（単語帳メンバーシップ・2026-09-22・名前は 2026-11-07 オーナー決定）。onStar(word, starred) を
+// 渡した文脈でだけ発音・Skip の横に「★ 覚えたい / ☆ 覚えたい」トグルを出す（単語リスト・単語帳の両方）。
+// liked/onLike: ♡ お気に入りの例文の印（2026-11-07・法務 条件付きOK）。字幕由来の例文（出所あり）の下に「♡ この例文を保存」。
+//   語に付く印＝語が見出し・例文は従（見た目は今のカードのまま）。文は書き換えない。
 // defaultExpanded: 最初から開いておく（スマホの初回体験の1語目・PC は CSS で常に開いている）。
 // readOnly: 初回体験の5語（components/TrialFlow.js）。SRS を持たない人に状態の印と Skip を出さない＝書き込む操作なし。
 // showCefr: 各語に CEFR の目安（段階だけ）を出すか（単語リストだけ true・2026-10-30）。値は lib/cefrHint.js（複数語は出さない）。
-export default function VocabItem({ word, srs, testTiers, ts, exampleSource, added, starred, showCefr, readOnly, defaultExpanded, onSpeak, onSkip, onCopyTime, onDelete, onStar }) {
+export default function VocabItem({ word, srs, testTiers, ts, exampleSource, added, starred, liked, showCefr, readOnly, defaultExpanded, onSpeak, onSkip, onCopyTime, onDelete, onStar, onLike }) {
   const [expanded, setExpanded] = useState(!!defaultExpanded);
   const w = word;
   const e = srs[w.word.toLowerCase()];
@@ -161,6 +163,18 @@ export default function VocabItem({ word, srs, testTiers, ts, exampleSource, add
             {exampleSource && <span className="word-example-source">{exampleSource}</span>}
             {/* 保存した場面では見つからず、この回の別の場面の台詞を引いた（2026-10-31）。📍は保存した場面のまま。 */}
             {isOtherSceneExample(w) && <span className="word-example-source">この回の別の場面のセリフです</span>}
+            {/* ♡ お気に入りの例文の印（2026-11-07）: 字幕由来の例文（出所あり）にだけ。おすすめ語（plus）の作例には付けない */}
+            {onLike && exampleSource && w.source !== 'plus' && (
+              <button
+                type="button"
+                className={'btn-like-example' + (liked ? ' is-on' : '')}
+                aria-pressed={!!liked}
+                title={liked ? 'お気に入りの印を外す' : 'この例文を保存'}
+                onClick={() => onLike(w.word, !!liked)}
+              >
+                {liked ? '♥ 保存した例文' : '♡ この例文を保存'}
+              </button>
+            )}
           </div>
         )}
 
@@ -225,11 +239,11 @@ export default function VocabItem({ word, srs, testTiers, ts, exampleSource, add
             <button
               type="button"
               className={'btn-srs-skip btn-wordbook-star' + (starred ? ' is-on' : '')}
-              title={starred ? 'マイ単語帳から外す（作品の単語リストには残ります）' : 'マイ単語帳に入れる'}
+              title={starred ? '覚えたい語から外す（作品の単語リストには残ります）' : '覚えたい語として単語帳に入れる'}
               aria-pressed={!!starred}
               onClick={() => onStar(w.word, !!starred)}
             >
-              {starred ? '★ 単語帳' : '☆ 単語帳に入れる'}
+              {starred ? '★ 覚えたい' : '☆ 覚えたい'}
             </button>
           )}
           {/* 🗑完全削除＝視聴中に拾った語の誤保存/タイポ救済（単語帳から外すだけなら★） */}

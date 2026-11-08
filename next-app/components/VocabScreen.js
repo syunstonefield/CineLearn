@@ -23,6 +23,7 @@ import {
   episodeCredit,
   isEpisodeMismatch,
 } from '@/lib/storage';
+import { isPrunedRow } from '@/lib/workRemoval';
 import {
   fetchTitleCandidatesFromTMDb,
   resolveTitleCandidate,
@@ -46,6 +47,7 @@ import {
   getActiveWords,
   starWord,
   unstarWord,
+  likeWord,
 } from '@/lib/words';
 import { pushMyWord, ensureFreshSession } from '@/lib/supabase';
 import { fetchJa } from '@/lib/jatranslate';
@@ -54,6 +56,7 @@ import { getDeviceKey } from '@/lib/device';
 import { selectQuizWords, buildQuizQuestions, prepIntegrity, orderWordsForPrep, getPrepped } from '@/lib/prep';
 // 読み上げは lib/speak に一本化（独自コピーは cancel 直後 speak で無音になる既知バグ持ちだった）
 import { speak } from '@/lib/speak';
+import { canLikeMore, LIKE_CAP_PER_EPISODE } from '@/lib/liked';
 import { backfillMissingExamples } from '@/lib/exampleBackfill';
 import { useListUsage } from '@/lib/useListUsage';
 
@@ -276,7 +279,8 @@ export default function VocabScreen() {
         if (cancelled) return;
         const m = new Map();
         (words || []).forEach((w) => {
-          if (w?.word && w.inWordbook !== false) m.set(String(w.word).toLowerCase(), w);
+          // 2026-11-07: 旗に関係なく全行を持つ（★＝inWordbook・♡＝liked を同じ集合から描く）
+          if (w?.word) m.set(String(w.word).toLowerCase(), w);
         });
         setWordbookMap(m);
       })
@@ -368,7 +372,9 @@ export default function VocabScreen() {
       const entry = history.find(
         (h) => h.drama?.title === drama.title && h.season === se && h.episode === ep
       );
-      if (entry?.words?.length) {
+      // コレクションから消去して語を抜いた話（drama.prunedAt）は保存済みとして出さず作り直す（lib/workRemoval.js）。
+      //   作り直した行は同じ id のまま全部の語に置き換わる（saveHistoryEntry）。共有の単語リストがあれば生成の枠も使わない。
+      if (entry?.words?.length && !isPrunedRow(entry)) {
         setVocab(entry.words);
         setHistoryId(entry.id);
         // テスト画面用に履歴IDを共有。クイズは QuizScreen がローカルで毎回組み直すので
@@ -606,12 +612,14 @@ export default function VocabScreen() {
           setSeasons([{ season: 1, episodes: 10 }, { season: 2, episodes: 10 }, { season: 3, episodes: 10 }]);
         }
       }
-      const md = (settings.myDramas || []).map((d) =>
-        d.title === drama.title
-          ? { ...d, type: drama.type, mediaType: drama.mediaType, tmdbId: drama.tmdbId, englishTitle: drama.englishTitle, posterPath: drama.posterPath || d.posterPath }
-          : d
-      );
-      updateSettings({ myDramas: md });
+      // 最新の settings から作る（描画時点の値で丸ごと書き戻すと、戻した作品の touchedAt などが消える）。
+      updateSettings((prev) => ({
+        myDramas: (prev.myDramas || []).map((d) =>
+          d.title === drama.title
+            ? { ...d, type: drama.type, mediaType: drama.mediaType, tmdbId: drama.tmdbId, englishTitle: drama.englishTitle, posterPath: drama.posterPath || d.posterPath }
+            : d
+        ),
+      }));
       setDrama({ ...drama });
     },
     [drama, settings, updateSettings]
@@ -1195,6 +1203,7 @@ export default function VocabScreen() {
       dramaTitle: drama.title,
       season: isMovie ? null : season,
       episode: isMovie ? null : episode,
+      inWordbook: true, // 手動追加は本人の意思＝単語帳に入れる（拡張保存は入れない・DB 既定 false・2026-11-07）
     };
     const merged = await addManualWord(pid, entry);
     pushMyWord(merged || entry); // マージ後の姿をクラウドへ（遭遇ログ・既存値保護をローカルと一致させる）
@@ -1293,22 +1302,12 @@ export default function VocabScreen() {
   // ★マイ単語帳に入れる/外す（2026-09-22）。
   //   入れる: 生成語の意味・例文・訳・📍・S/E をそのまま my_words へ（単語帳側で取り直さない）。
   //   外す  : ★でしか無い語は行ごと消え、視聴中に拾った語（ext/manual）は旗だけ倒れてリストに残る。
-  const handleStar = async (word, starred) => {
-    const lower = String(word).toLowerCase();
-    if (starred) {
-      await unstarWord(pid, word);
-      setWordbookMap((m) => {
-        const n = new Map(m);
-        n.delete(lower);
-        return n;
-      });
-      app.bumpWordbook();
-      return;
-    }
+  // ★／♡ で my_words へ入れる記録（復習カード側の lib/wordMarks.js と同じ列）。
+  const entryForSave = (lower) => {
     const src =
-      [...sortedVocab, ...extWords].find((x) => x.word.toLowerCase() === lower) || { word };
+      [...sortedVocab, ...extWords].find((x) => x.word.toLowerCase() === lower) || { word: lower };
     const t = tsFor(src);
-    const entry = {
+    return {
       word: src.word,
       sentence: src.example || src.sentence || '',
       phonetic: src.phonetic || '',
@@ -1323,11 +1322,49 @@ export default function VocabScreen() {
       season: isMovie ? null : season,
       episode: isMovie ? null : episode,
     };
+  };
+  const handleStar = async (word, starred) => {
+    const lower = String(word).toLowerCase();
+    if (starred) {
+      const r = await unstarWord(pid, word);
+      setWordbookMap((m) => {
+        const n = new Map(m);
+        if (r === 'deleted') n.delete(lower);
+        else if (n.has(lower)) n.set(lower, { ...n.get(lower), inWordbook: false });
+        return n;
+      });
+      app.bumpWordbook();
+      return;
+    }
+    const entry = entryForSave(lower);
     const merged = await starWord(pid, entry);
     setWordbookMap((m) => new Map(m).set(lower, merged || entry));
     app.bumpWordbook();
   };
-  const isStarred = (w) => wordbookMap.has(String(w.word).toLowerCase());
+  // ♡ お気に入りの例文の印（2026-11-07・法務 条件付きOK）: 語に付ける印。1話あたり LIKE_CAP_PER_EPISODE 件まで。
+  const handleLike = async (word, liked) => {
+    const lower = String(word).toLowerCase();
+    if (!liked) {
+      const scene = { dramaTitle: drama.title, season: isMovie ? null : season, episode: isMovie ? null : episode };
+      if (!canLikeMore([...wordbookMap.values()], scene)) {
+        alert(`この話の例文の ♡ は ${LIKE_CAP_PER_EPISODE} 件までです`);
+        return;
+      }
+    }
+    const r = await likeWord(pid, entryForSave(lower), !liked);
+    setWordbookMap((m) => {
+      const n = new Map(m);
+      if (r) n.set(lower, r);
+      else n.delete(lower);
+      return n;
+    });
+    app.bumpWordbook();
+  };
+  const isStarred = (w) => {
+    const r = wordbookMap.get(String(w.word).toLowerCase());
+    return !!r && r.inWordbook !== false;
+  };
+  const isLiked = (w) => !!wordbookMap.get(String(w.word).toLowerCase())?.liked;
   // 🗑（完全削除）は視聴中に拾った語すべて（拡張のクリック保存＋手動追加）。誤クリック保存の救済
   //   （オーナー要望 2026-10-02・旧: 手動追加語だけ）。生成語は my_words に行が無いので対象外＝★で出し入れ。
   const deleteFor = (w) => (w.source === 'ext' && w.origin !== 'star' ? handleDeleteExtWord : undefined);
@@ -1452,6 +1489,8 @@ export default function VocabScreen() {
               onSkip={handleSkip}
               onCopyTime={handleCopyTime}
               onStar={handleStar}
+              liked={isLiked(w)}
+              onLike={handleLike}
               onDelete={deleteFor(w)}
             />
           ))}
@@ -1959,6 +1998,8 @@ export default function VocabScreen() {
                     onSkip={handleSkip}
                     onCopyTime={handleCopyTime}
                     onStar={handleStar}
+                    liked={isLiked(w)}
+                    onLike={handleLike}
                     onDelete={deleteFor(w)}
                   />
                 ))}
@@ -1983,6 +2024,8 @@ export default function VocabScreen() {
                         onSkip={handleSkip}
                         onCopyTime={handleCopyTime}
                         onStar={handleStar}
+                        liked={isLiked(w)}
+                        onLike={handleLike}
                       />
                     ))}
                   </div>

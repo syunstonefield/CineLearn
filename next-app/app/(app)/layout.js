@@ -1,5 +1,6 @@
 import '../style.css';
 import { Analytics } from '@vercel/analytics/next';
+import { CURATION_ON } from '@/lib/curation';
 
 export const metadata = {
   // OGP画像URLを絶対化する基準。画像は public/og-image.png を明示指定
@@ -10,7 +11,9 @@ export const metadata = {
   openGraph: {
     title: 'CineLearn — ドラマで英語を学ぶ',
     description:
-      'Netflix・Amazon Prime Video の字幕から、クリックだけで単語帳へ。間隔反復で復習まで。',
+      CURATION_ON
+        ? 'Netflix・Amazon Prime Video の字幕から、クリックで単語を保存。間隔反復で復習まで。'
+        : 'Netflix・Amazon Prime Video の字幕から、クリックだけで単語帳へ。間隔反復で復習まで。',
     siteName: 'CineLearn',
     type: 'website',
     locale: 'ja_JP',

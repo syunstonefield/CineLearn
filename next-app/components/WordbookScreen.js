@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useApp } from './AppProvider';
 import VocabItem from './VocabItem';
 import {
@@ -8,13 +8,39 @@ import {
   deleteMyWord,
   unstarWord,
   clearAllWords,
+  likeWord,
+  hideFromWordbook,
   saveWordTranslation,
   repairLongExamples,
 } from '@/lib/words';
-import { loadSrs, loadHistory, skipWord, unskipWord, isLearned, isMastered, todayStr, isEpisodeMismatch } from '@/lib/storage';
+import { loadSrs, loadHistory, skipWord, unskipWord, todayStr, toIsoDate, isEpisodeMismatch } from '@/lib/storage';
 import CefrNote from './CefrNote';
 import { cefrHintOf } from '@/lib/cefrHint';
 import { cefrIndexFromHistory, withWordbookCefr } from '@/lib/wordbookCefr';
+import { likedWords, canLikeMore, pickTodayWord, LIKE_CAP_PER_EPISODE } from '@/lib/liked';
+import { CURATION_ON } from '@/lib/curation';
+
+// 初回の整理（2026-11-07 オーナー決定）: 単語帳を「覚えたい語の場所」にした時、既に入っている拡張/手入力の語を
+// 「このまま残す／★の語だけにする」から一度だけ選ぶ。選ばなければ何もしない。語は消えない（作品の単語リスト・復習に残る）。
+const WB_CHOICE_KEY = 'cl_wb_choice_v1';
+// 「拡張で保存した語は単語帳に自動で入らない」段（in_wordbook の DB 既定 false）は、拡張 v1.2.12 と案内の文言の公開に
+// 合わせて出す（オーナー決定 2026-11-07・受付）。それまでは初回の整理画面と、その前提の文言を出さない。
+// 出す時: Vercel の環境変数 NEXT_PUBLIC_WORDBOOK_CURATION=on ＋再デプロイ（SQL supabase_my_words_wordbook_default.sql も同時）。
+// 旗の定義は lib/curation.js（案内の文言も同じ旗で切り替わる）
+function readChoice() {
+  try {
+    return localStorage.getItem(WB_CHOICE_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+function writeChoice(v) {
+  try {
+    localStorage.setItem(WB_CHOICE_KEY, v);
+  } catch {
+    /* 保存不可なら次回また出る */
+  }
+}
 import { fillTranslations } from '@/lib/translateQueue';
 import { speak } from '@/lib/speak';
 import { secToTimeLabel } from '@/lib/subtitles';
@@ -48,10 +74,24 @@ export default function WordbookScreen() {
   const pid = profile?.id;
   const [words, setWords] = useState(null); // null=読み込み中
   const [srs, setSrs] = useState({});
-  const [filter, setFilter] = useState('all'); // all|unlearned|learned|mastered（stats タイルで切替）
   const [syncing, setSyncing] = useState(false);
   const [exJa, setExJa] = useState({}); // word(小文字) → 例文の和訳（/api/translate）
   const [wordJa, setWordJa] = useState({}); // word(小文字) → 単語の和訳（意味を日本語に）
+  const [choiceClosed, setChoiceClosed] = useState(false); // 初回の整理を「あとで」で閉じた（この表示の間だけ）
+  const [choiceBusy, setChoiceBusy] = useState(false);
+  // 画面の一新（オーナー決定 2026-11-07）: 'home'＝2タイル＋今日の語＋最近入れた語／'star'＝★の語の一覧／'liked'＝♡の語の一覧
+  const [view, setView] = useState('home');
+  const [focusWord, setFocusWord] = useState(null); // 最近の行・今日の語から開いた語（その一覧で開いて見せる）
+  const openView = (v, word = null) => {
+    setFocusWord(word);
+    setView(v);
+    if (!word && typeof window !== 'undefined') window.scrollTo(0, 0);
+  };
+  useEffect(() => {
+    if (!focusWord) return;
+    const el = document.getElementById('wb-w-' + focusWord.toLowerCase());
+    if (el) el.scrollIntoView({ block: 'center' });
+  }, [focusWord, view]);
   // CEFR の目安（試作 2026-10-30）: 保存レコードは level を持たないので、端末の予習の記録（cl_history）から
   // 同じ語の level / levelShown を借りる（lib/wordbookCefr.js）。サーバへの照会はしない。
   const [cefrIndex, setCefrIndex] = useState(() => new Map());
@@ -160,32 +200,39 @@ export default function WordbookScreen() {
     };
   }, [words]);
 
-  // 上部stats（単語/未学習/覚えた/マスター）。未学習＝まだ「覚えた」未到達（合計に一致させる）。
-  const stats = (() => {
-    if (!words) return null;
-    let mastered = 0;
-    let learned = 0;
-    for (const w of words) {
-      const e = srs[w.word.toLowerCase()];
-      if (isMastered(e)) mastered++;
-      else if (isLearned(e)) learned++;
-    }
-    return { total: words.length, learned, mastered, unlearned: words.length - learned - mastered };
-  })();
+  // 2026-11-07: 単語帳＝★「覚えたい」の語（starList）＋ ♡ を付けた語（likedList・例文つき）。
+  //   ★の語の集計・絞り込みは starList だけ。♡の節は上に別枠で出す（語が見出し・例文は従＝法務の条件）。
+  const starList = words ? words.filter((w) => w.inWordbook !== false) : null;
+  const likedList = words ? likedWords(words) : [];
+  // 初回の整理の対象＝★以外の経路（拡張・手入力）で入っていて、まだ単語帳に出ている語
+  const legacy = words ? words.filter((w) => w.inWordbook !== false && w.source !== 'star') : [];
+  const showChoice = CURATION_ON && !!words && legacy.length > 0 && !choiceClosed && !readChoice();
+  // 最近入れた語（★と♡をまとめて新しい順・5語）。♡の語は付けた日、★の語は保存した日で並べる。
+  const today = todayStr();
+  const dayOf = (w) => toIsoDate(w.liked ? w.likedAt || w.savedAt || '' : w.savedAt || '') || '';
+  const recent = useMemo(() => {
+    if (!words) return [];
+    const seen = new Set();
+    return [...(likedList || []), ...(starList || [])]
+      .filter((w) => {
+        const k = String(w.word).toLowerCase();
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      })
+      .sort((a, b) => (dayOf(b) > dayOf(a) ? 1 : dayOf(b) < dayOf(a) ? -1 : 0))
+      .slice(0, 5);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [words]);
+  const todayWord = useMemo(() => pickTodayWord(words || [], today), [words, today]);
+  // ★のタイルの名前: 「自動で入れない」（v1.2.12 の旗）の前は拡張で保存した語も★の一覧に入るので、名前もそれに合わせる
+  const starTile = CURATION_ON
+    ? { title: '覚えたい語', desc: '学びたい表現を集める' }
+    : { title: '保存した語', desc: '字幕で保存した語と「★ 覚えたい」の語' };
 
-  // stats タイルで選んだ状態だけに絞り込む（分類＝stats と同じ isMastered/isLearned 基準）。
-  const visibleWords = (() => {
-    if (!words) return words;
-    if (filter === 'all') return words;
-    return words.filter((w) => {
-      const e = srs[w.word.toLowerCase()];
-      if (filter === 'mastered') return isMastered(e);
-      if (filter === 'learned') return isLearned(e) && !isMastered(e);
-      return !isLearned(e) && !isMastered(e); // unlearned
-    });
-  })();
-  // タイルクリックで絞り込みトグル（同じタイルを再度押すと全件へ戻る）。
-  const toggleFilter = (key) => setFilter((f) => (f === key ? 'all' : key));
+  // 語数・未学習／覚えた／マスターの数（stats タイル）と、それによる絞り込みは外した（オーナー 2026-11-07「一旦消去していい」）。
+  //   各語の状態はカードを開いた時のバッジ（🌱 未学習 など）で見える。
+  const visibleWords = starList || [];
 
   const testTiers = settings.testTiers || ['core', 'advanced'];
   const handleSkip = (word, isSkip) => {
@@ -201,10 +248,38 @@ export default function WordbookScreen() {
     bumpWordbook();
   };
   // ★を外す。視聴中に拾った語は作品の単語リストに残り、★でしか無い語は行ごと消える（lib/words.js）。
+  //   ♡の節の語（★なし）には付ける操作もある（saveWordTranslation で旗を立てるだけ）。
   const onStar = async (word, starred) => {
-    if (!starred) return; // 単語帳の行は常に★ON＝ここでは外す操作だけ
-    await unstarWord(pid, word);
+    if (starred) await unstarWord(pid, word);
+    else await saveWordTranslation(pid, word, { inWordbook: true });
     bumpWordbook();
+  };
+  // ♡ お気に入りの例文の印（2026-11-07）。1話あたり LIKE_CAP_PER_EPISODE 件まで。
+  const onLike = async (word, liked) => {
+    const w = (words || []).find((x) => String(x.word).toLowerCase() === String(word).toLowerCase());
+    if (!w) return;
+    if (!liked && !canLikeMore(words, { dramaTitle: w.dramaTitle, season: w.season ?? null, episode: w.episode ?? null }, sameWorkTitle)) {
+      alert(`この話の例文の ♡ は ${LIKE_CAP_PER_EPISODE} 件までです`);
+      return;
+    }
+    await likeWord(pid, w, !liked);
+    bumpWordbook();
+  };
+  // 初回の整理（2026-11-07）: 「このまま残す」＝旗を覚えるだけ／「★の語だけにする」＝拡張・手入力の語の旗を倒す（語は消えない）
+  const keepAll = () => {
+    writeChoice('kept');
+    setChoiceClosed(true);
+  };
+  const starredOnly = async () => {
+    setChoiceBusy(true);
+    try {
+      await hideFromWordbook(pid, legacy.map((w) => w.word));
+      writeChoice('starred');
+    } finally {
+      setChoiceBusy(false);
+      setChoiceClosed(true);
+      bumpWordbook();
+    }
   };
   const onClear = async () => {
     if (!confirm('保存した単語をすべて削除しますか？')) return;
@@ -223,7 +298,7 @@ export default function WordbookScreen() {
       <div className="wb-screen">
         <div className="wb-head">
           <h1 className="wb-h1">📖 マイ単語帳</h1>
-          <p className="wb-sub">字幕で単語をクリックした語と、単語リストで☆を付けた語がここに集まります（★を外すとリストには残ります）</p>
+          <p className="wb-en">Words you met on screen</p>
         </div>
 
         {words === null ? (
@@ -232,12 +307,24 @@ export default function WordbookScreen() {
           </div>
         ) : words.length === 0 ? (
           <div className="empty-state" style={{ margin: 24 }}>
-            まだ単語が保存されていません。
+            まだ単語がありません。
             <br />
             <br />
-            拡張機能をインストールして Netflix などで動画を再生すると、
-            <br />
-            字幕の各単語をクリックしてここに保存できます。
+            {CURATION_ON ? (
+              <>
+                単語リストや復習カードで「★ 覚えたい」を付けた語と、
+                <br />
+                例文に「♡」を付けた語がここに集まります。
+              </>
+            ) : (
+              <>
+                拡張機能をインストールして Netflix などで動画を再生すると、
+                <br />
+                字幕の各単語をクリックしてここに保存できます。
+                <br />
+                単語リストや復習カードの「★ 覚えたい」「♡」でも入ります。
+              </>
+            )}
             {!loggedIn && (
               <>
                 <br />
@@ -253,46 +340,171 @@ export default function WordbookScreen() {
           </div>
         ) : (
           <>
-            {stats && (
-              <div className="wb-stats">
-                <button
-                  type="button"
-                  className={'wb-stat' + (filter === 'all' ? ' is-active' : '')}
-                  onClick={() => setFilter('all')}
-                >
-                  <span className="wb-stat-num">{stats.total}</span>
-                  <span className="wb-stat-label">単語</span>
-                </button>
-                <button
-                  type="button"
-                  className={'wb-stat' + (filter === 'unlearned' ? ' is-active' : '')}
-                  onClick={() => toggleFilter('unlearned')}
-                >
-                  <span className="wb-stat-num">{stats.unlearned}</span>
-                  <span className="wb-stat-label">未学習</span>
-                </button>
-                <button
-                  type="button"
-                  className={'wb-stat wb-stat-learned' + (filter === 'learned' ? ' is-active' : '')}
-                  onClick={() => toggleFilter('learned')}
-                >
-                  <span className="wb-stat-num">{stats.learned}</span>
-                  <span className="wb-stat-label">覚えた</span>
-                </button>
-                <button
-                  type="button"
-                  className={'wb-stat wb-stat-mastered' + (filter === 'mastered' ? ' is-active' : '')}
-                  onClick={() => toggleFilter('mastered')}
-                >
-                  <span className="wb-stat-num">{stats.mastered}</span>
-                  <span className="wb-stat-label">マスター</span>
-                </button>
+            {showChoice && view === 'home' && (
+              <div className="wb-choice" role="region" aria-label="単語帳の整理">
+                <div className="wb-choice-title">単語帳を「覚えたい語」の場所にしました</div>
+                <div className="wb-choice-text">
+                  今入っている {legacy.length} 語（拡張や手入力で保存した語）はどうしますか？ どちらを選んでも、語は作品の単語リストと復習に残ります。
+                </div>
+                <div className="wb-choice-actions">
+                  <button type="button" className="btn-secondary" disabled={choiceBusy} onClick={keepAll}>
+                    このまま残す
+                  </button>
+                  <button type="button" className="btn-secondary" disabled={choiceBusy} onClick={starredOnly}>
+                    {choiceBusy ? '整理中...' : '★の語だけにする'}
+                  </button>
+                  <button type="button" className="wb-choice-later" disabled={choiceBusy} onClick={() => setChoiceClosed(true)}>
+                    あとで
+                  </button>
+                </div>
               </div>
             )}
-            <div className="wb-toolbar">
-              <span className="wb-count">
-                {filter === 'all' ? `${words.length}単語` : `${visibleWords.length}単語（絞り込み中）`}
-              </span>
+            {/* 2タイル（オーナー決定 2026-11-07）: ★の語／♡の語の一覧を開く。今開いている方をもう一度押すとホームへ */}
+            <div className="wb-tiles">
+              <button
+                type="button"
+                className={'wb-tile is-star' + (view === 'star' ? ' is-active' : '')}
+                aria-pressed={view === 'star'}
+                onClick={() => openView(view === 'star' ? 'home' : 'star')}
+              >
+                <span className="wb-tile-ic" aria-hidden="true">★</span>
+                <span className="wb-tile-t">{starTile.title}</span>
+                <span className="wb-tile-d">{starTile.desc}</span>
+                {/* 語数だけ戻す（オーナー 2026-11-07）。「今日 +N」と★一覧の集計タイルは外したまま */}
+                <span className="wb-tile-n">
+                  <b>{starList.length}</b> 語
+                </span>
+              </button>
+              <button
+                type="button"
+                className={'wb-tile is-heart' + (view === 'liked' ? ' is-active' : '')}
+                aria-pressed={view === 'liked'}
+                onClick={() => openView(view === 'liked' ? 'home' : 'liked')}
+              >
+                <span className="wb-tile-ic" aria-hidden="true">♡</span>
+                <span className="wb-tile-t">例文つきの語</span>
+                <span className="wb-tile-d">気に入った例文を、語といっしょに残す</span>
+                <span className="wb-tile-n">
+                  <b>{likedList.length}</b> 語
+                </span>
+              </button>
+            </div>
+
+            {view === 'home' && (
+              <>
+                {/* ♡ 今日の語（ホームと同じ・語が見出し・例文は “ ” と出所付きの従）。♡ が無ければ出さない */}
+                {todayWord && (
+                  <button type="button" className="home-today-word wb-today" onClick={() => openView('liked', todayWord.word)}>
+                    <span className="htw-label">♡ 今日の語</span>
+                    <span className="htw-word">{todayWord.word}</span>
+                    {(wordJa[todayWord.word.toLowerCase()] || todayWord.ja || todayWord.definition) && (
+                      <span className="htw-def">{wordJa[todayWord.word.toLowerCase()] || todayWord.ja || todayWord.definition}</span>
+                    )}
+                    <span className="htw-ex">“{todayWord.sentence || todayWord.example}”</span>
+                    <span className="htw-src">{wordSource(todayWord)}</span>
+                  </button>
+                )}
+                {recent.length > 0 && (
+                  <section className="wb-section">
+                    <h2 className="wb-section-h wb-recent-h">
+                      最近入れた語
+                      <button type="button" className="wb-seeall" onClick={() => openView(starList.length ? 'star' : 'liked')}>
+                        すべて見る ›
+                      </button>
+                    </h2>
+                    <div className="wb-recent">
+                      {recent.map((w) => {
+                        const lower = w.word.toLowerCase();
+                        const def = wordJa[lower] || w.ja || w.definition || '';
+                        const src = wordSource(w, isUnassignedTvWord(w, settings.myDramas || []));
+                        return (
+                          <button
+                            type="button"
+                            key={'recent-' + w.word}
+                            className="wb-recent-row"
+                            onClick={() => openView(w.liked ? 'liked' : 'star', w.word)}
+                          >
+                            <span className={'wb-recent-ic' + (w.liked ? ' is-heart' : ' is-star')} aria-hidden="true">
+                              {w.liked ? '♥' : '★'}
+                            </span>
+                            <span className="wb-recent-body">
+                              <span className="wb-recent-w">{w.word}</span>
+                              {def && <span className="wb-recent-def">{def}</span>}
+                              {/* ♡ の語だけ例文を従として添える（語が見出し・“ ” と出所つき＝法務の条件） */}
+                              {w.liked && (w.sentence || w.example) && (
+                                <>
+                                  <span className="wb-recent-ex">“{w.sentence || w.example}”</span>
+                                  {(w.example_ja || exJa[lower]) && <span className="wb-recent-ja">{w.example_ja || exJa[lower]}</span>}
+                                </>
+                              )}
+                              {src && (
+                                <span className="wb-recent-src">{w.liked ? src : src.replace(/（字幕：[^）]*）\s*$/, '')}</span>
+                              )}
+                            </span>
+                            <span className="wb-recent-chev" aria-hidden="true">›</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
+                )}
+                <p className="wb-foot">
+                  {CURATION_ON
+                    ? '★ は単語リストや復習カードの「★ 覚えたい」、♡ は例文の下の「♡ この例文を保存」で入ります。外しても作品の単語リストと復習には残ります。'
+                    : '字幕で保存した語と、単語リストや復習カードの「★ 覚えたい」を付けた語は ★ に、例文の下の「♡ この例文を保存」を押した語は ♡ に入ります。外しても作品の単語リストと復習には残ります。'}
+                </p>
+              </>
+            )}
+
+            {view !== 'home' && (
+              <button type="button" className="wb-back" onClick={() => openView('home')}>
+                ← マイ単語帳
+              </button>
+            )}
+
+            {/* ♡ を付けた語（例文つき）＝語が見出し・例文は “ ” と出所付きの従（法務 条件付きOK 2026-11-07）。例文が見えるよう開いた状態で出す */}
+            {view === 'liked' && likedList.length === 0 && (
+              <div className="wb-note">気に入った例文は、例文の下の「♡ この例文を保存」で、語といっしょに残せます。</div>
+            )}
+            {view === 'liked' && likedList.length > 0 && (
+              <section className="wb-section">
+                <h2 className="wb-section-h">♡ 例文つきの語</h2>
+                <div className="vocab-list">
+                  {likedList.map((w) => (
+                    <div key={'liked-' + w.word} id={'wb-w-' + w.word.toLowerCase()}>
+                    <VocabItem
+                      word={{
+                        ...withWordbookCefr(w, cefrIndex),
+                        definition: wordJa[w.word.toLowerCase()] || w.definition,
+                        example: w.example || w.sentence || '',
+                        example_ja: w.example_ja || exJa[w.word.toLowerCase()] || '',
+                      }}
+                      srs={srs}
+                      testTiers={testTiers}
+                      ts={w.tsSec != null ? { sec: w.tsSec, label: secToTimeLabel(w.tsSec) } : null}
+                      exampleSource={wordSource(w, isUnassignedTvWord(w, settings.myDramas || []))}
+                      showCefr
+                      defaultExpanded
+                      starred={w.inWordbook !== false}
+                      liked
+                      onSpeak={speak}
+                      onSkip={handleSkip}
+                      onCopyTime={handleCopyTime}
+                      onStar={onStar}
+                      onLike={onLike}
+                    />
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+            {view === 'star' && <h2 className="wb-section-h">★ {starTile.title}</h2>}
+            {view !== 'star' ? null : starList.length === 0 ? (
+              <div className="wb-note">単語リストや復習カードで「★ 覚えたい」を付けた語がここに集まります。</div>
+            ) : (
+            <>
+            {/* 語数の表示は外した（オーナー 2026-11-07）。再読込・すべて削除は右寄せで残す */}
+            <div className="wb-toolbar" style={{ justifyContent: 'flex-end' }}>
               <span className="wb-actions">
                 {loggedIn && (
                   <button className="btn-secondary wb-sync" disabled={syncing} onClick={onSync}>
@@ -309,7 +521,7 @@ export default function WordbookScreen() {
             <div className="vocab-list">
               {visibleWords.length === 0 && (
                 <div className="empty-state" style={{ padding: '24px 8px' }}>
-                  この分類の単語はまだありません。
+                  まだ単語がありません。
                 </div>
               )}
               {visibleWords.map((w) => {
@@ -318,7 +530,7 @@ export default function WordbookScreen() {
                 const unassigned = isUnassignedTvWord(w, settings.myDramas || []);
                 const wc = withWordbookCefr(w, cefrIndex); // CEFR の目安の値（履歴から借りる・試作）
                 return (
-                  <div key={w.word} style={unassigned ? { position: 'relative' } : undefined}>
+                  <div key={w.word} id={'wb-w-' + w.word.toLowerCase()} style={unassigned ? { position: 'relative' } : undefined}>
                     {unassigned && (
                       <span
                         className="vocab-added-chip"
@@ -350,17 +562,22 @@ export default function WordbookScreen() {
                       ts={w.tsSec != null ? { sec: w.tsSec, label: secToTimeLabel(w.tsSec) } : null}
                       exampleSource={wordSource(w, unassigned)}
                       showCefr // 各語に「CEFR目安」（試作 2026-10-30・法務の回答まで本番に出さない）
+                      defaultExpanded={focusWord === w.word}
                       starred
+                      liked={!!w.liked}
                       onSpeak={speak}
                       onSkip={handleSkip}
                       onCopyTime={handleCopyTime}
                       onStar={onStar}
+                      onLike={onLike}
                       onDelete={w.source !== 'star' ? onDelete : undefined}
                     />
                   </div>
                 );
               })}
             </div>
+            </>
+            )}
           </>
         )}
       </div>

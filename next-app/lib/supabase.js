@@ -13,6 +13,8 @@
 // - my_words: pull のみ（書込は拡張が直接 Supabase へ）。
 import { PROFILES_AT_KEY, mergeProfileArrays, cloudWins } from './profileMerge';
 import { ticketEpKey, trimTickets } from './ticketRules';
+import { mergeActivityDates, mergeReviewLog, mergeQuizAwarded, mergeTitleToggles, mergeRingMetReset } from './stateMergeRules';
+import { fetchAllSrs, mergeSrs } from './srsMerge';
 
 const SUPABASE_URL = 'https://mndyexwdevkpdssglwpl.supabase.co';
 const SUPABASE_ANON_KEY =
@@ -51,9 +53,16 @@ function sbHeaders(extra = {}) {
   return h;
 }
 
-async function sbFetch(path, opts = {}) {
+// REST の 401（トークンが無効）は、まず更新を1回試して同じ要求をやり直し、それでも 401 の時だけ失効を知らせる（案C・2026-11-07）。
+//   更新が通信エラーで失敗した時は失効ではないので知らせない（ensureFreshSession が区別する）。
+export async function sbFetch(path, opts = {}) {
+  const { _retried, ...init } = opts;
   try {
-    const res = await fetch(`${SUPABASE_URL}${path}`, { ...opts, headers: sbHeaders(opts.headers || {}) });
+    const res = await fetch(`${SUPABASE_URL}${path}`, { ...init, headers: sbHeaders(init.headers || {}) });
+    if (res.status === 401 && getSession()?.access_token && !path.startsWith('/auth/')) {
+      if (!_retried && (await ensureFreshSession({ force: true }))) return sbFetch(path, { ...init, _retried: true });
+      if (_retried) notifySessionExpired(); // 更新後も 401＝本当に無効
+    }
     if (res.status === 204 || res.status === 201) return null;
     return await res.json();
   } catch {
@@ -85,21 +94,87 @@ export async function supaSignOut() {
 }
 
 // セッションを有効に保つ（オートログインの核）。戻り値: ログイン維持できたか。
-export async function ensureFreshSession() {
+// セッション失効の通知（2026-11-07・候補C）。更新に失敗した／401 を受けた時に window へ出し、AppProvider が
+// 「ログイン表示を落として期限切れの帯を出す」。以前は失敗しても黙って古いままで、送信は捨てられ取り込みも止まっていた。
+export const SESSION_EXPIRED_EVENT = 'cl:session-expired';
+function notifySessionExpired() {
+  try {
+    if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT));
+  } catch {
+    /* ignore */
+  }
+}
+
+// 更新を一本化（同時に複数の送信が失効を見ても refresh_token を二度使わない＝使い捨てトークンの再利用拒否を避ける）
+let _refreshing = null;
+// 更新に失敗した時、拡張（bridge v1.2.12〜）の書き戻しを待つ時間（テストから短くできる）
+export const sessionRetry = { delayMs: 1500 };
+// 拡張が localStorage へ書き戻した直後に出すイベント名（同じタブでは storage イベントが来ないため）。AppProvider が受けて判定し直す。
+export const SESSION_UPDATED_EVENT = 'cl-session-updated';
+//   force: 期限がまだ先でも更新する（REST が 401 を返した＝サーバ側で無効になった／端末の時計がずれている時）。
+export async function ensureFreshSession({ force = false } = {}) {
   const s = getSession();
   if (!s?.access_token) return false;
   const now = Date.now() / 1000;
-  if (s.expires_at && s.expires_at - now > 600) return true;
-  if (!s.refresh_token) return false;
-  const d = await sbFetch('/auth/v1/token?grant_type=refresh_token', {
-    method: 'POST',
-    body: JSON.stringify({ refresh_token: s.refresh_token }),
-  });
-  if (d?.access_token) {
-    setSession(d);
-    return true;
+  if (!force && s.expires_at && s.expires_at - now > 600) return true;
+  if (!s.refresh_token) {
+    notifySessionExpired();
+    return false;
   }
-  return false;
+  if (!_refreshing) {
+    _refreshing = (async () => {
+      try {
+        // 更新は HTTP の結果を自分で見る: 通信エラー（オフライン・fetch 失敗）と 5xx／429 は「失効」ではない＝帯を出さず、
+        // 通信が戻った時（online・タブ復帰・次の送信）にやり直す。帯を出すのは、サーバが refresh_token を明確に拒否した時だけ。
+        let d = null;
+        let rejected = false;
+        try {
+          const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+            method: 'POST',
+            headers: sbHeaders(),
+            body: JSON.stringify({ refresh_token: s.refresh_token }),
+          });
+          if (res.status >= 500 || res.status === 429) return false; // 一時的な不調
+          try {
+            d = await res.json();
+          } catch {
+            d = null;
+          }
+          rejected = !res.ok; // 400/401/403＝トークンが無効（used / invalid / revoked）
+        } catch {
+          return false; // オフライン・通信エラー
+        }
+        if (d?.access_token) {
+          setSession(d);
+          return true;
+        }
+        if (!rejected) return false; // 2xx なのに access_token が無い（想定外）＝失効とは言い切れない
+        // 失敗。Chrome 拡張（bridge.js v1.2.12〜）が先に更新して新しいセッションを localStorage に書き戻していれば、それを採る
+        // （同じ refresh_token を拡張が先に使うと、こちらの更新は「使用済み」で拒否される）。ほぼ同時に更新した場合の救済として
+        // 少し待ってから読み直す。セッションは消さない。古い拡張（書き戻さない）でも動きは従来どおり（失敗→失効の通知）。
+        const fresher = () => {
+          const s2 = getSession();
+          return !!(s2?.access_token && s2.refresh_token !== s.refresh_token && s2.expires_at && s2.expires_at - Date.now() / 1000 > 60);
+        };
+        if (fresher()) return true;
+        await new Promise((r) => setTimeout(r, sessionRetry.delayMs));
+        if (fresher()) return true;
+        notifySessionExpired();
+        return false;
+      } finally {
+        _refreshing = null;
+      }
+    })();
+  }
+  return _refreshing;
+}
+
+// 送信・削除の前に呼ぶ: ログイン中ならそのまま、期限切れなら更新を試し、だめなら失効を知らせて false。
+//   旧: isLoggedIn() が false だと何もせず捨てていた（失効に気づけない）。セッション自体が無い（未ログイン）時は静かに false。
+export async function ensureSessionForSync() {
+  if (isLoggedIn()) return true;
+  if (!getSession()?.access_token) return false;
+  return ensureFreshSession();
 }
 
 // my_words を created_at 降順で末尾までページ送りして集める（2026-09-22）。
@@ -183,63 +258,23 @@ export async function pullFromCloud(profileId = null) {
     );
   }
 
-  // srs（語単位マージ: lastReview が新しい方を採用・同日/欠落はローカル優先）。
-  // 丸ごと上書きにしないのは、この端末で育てたローカル SRS（lastQuality/reviewCount 等の
-  // 拡張フィールド含む）を、古いクラウド行で吹き飛ばさないため。
-  // マージ後、ローカル側が勝った/ローカルにしか無い語はクラウドへ吸い上げる
-  // （初回ログイン時の移行と、オフライン期間の追いつきを兼ねる）。
-  const srs = await sbFetch(`/rest/v1/srs_data?user_id=eq.${uid}&select=*&limit=5000`);
-  if (Array.isArray(srs)) {
+  // srs（語単位マージ・2026-11-07 lib/srsMerge.js に集約）。
+  //   word 順に 1000 行ずつ全部読む（旧: limit=5000 の1回取得＝Supabase の行数上限で途中で切れ、取り込みに入らなかった語が
+  //   端末の古い値のまま残り、さらにクラウドへ書き戻されていた）。クラウドの last_review が新しい方を採用、同じ日なら
+  //   updated_at が新しい方、どちらも無ければ端末優先。全件取れた時だけ「ローカルにしか無い語」をクラウドへ吸い上げる。
+  const { rows: srsRows, complete: srsComplete } = await fetchAllSrs((offset, limit) =>
+    sbFetch(`/rest/v1/srs_data?user_id=eq.${uid}&select=*&order=word.asc&limit=${limit}&offset=${offset}`)
+  );
+  if (srsRows.length || srsComplete) {
     let local = {};
     try {
       local = JSON.parse(localStorage.getItem('cl_srs') || '{}') || {};
     } catch {
       local = {};
     }
-    const merged = { ...local };
-    const cloudByWord = {};
-    srs.forEach((e) => {
-      cloudByWord[e.word] = e;
-      const cloudEntry = {
-        interval: e.interval,
-        repetitions: e.repetitions,
-        easeFactor: parseFloat(e.ease_factor),
-        dueDate: e.due_date,
-        lastReview: e.last_review,
-        skipped: e.skipped,
-      };
-      // 出所（最初に出会った作品/話）。列が無いDBでは undefined＝付けない
-      if (e.origin_title) cloudEntry.origin = { title: e.origin_title, season: e.origin_season ?? null, episode: e.origin_episode ?? null };
-      // 初回の答え（first_quality・supabase_srs_first_quality.sql）。先に入った値を優先・null は上書きしない
-      if (e.first_quality != null) cloudEntry.firstQuality = e.first_quality;
-      const l = local[e.word];
-      // クラウドの方が新しい復習日を持つ場合のみ採用（YYYY-MM-DD の文字列比較）。
-      if (!l || (e.last_review || '') > (l.lastReview || '')) {
-        // ローカルだけが出所を持っていれば引き継ぐ（クラウド行が古い＝出所列が空のことがある）
-        if (!cloudEntry.origin && l?.origin?.title) cloudEntry.origin = l.origin;
-        if (cloudEntry.firstQuality == null && l?.firstQuality != null) cloudEntry.firstQuality = l.firstQuality;
-        merged[e.word] = cloudEntry;
-      } else {
-        const fill = {};
-        if (!l.origin?.title && cloudEntry.origin) fill.origin = cloudEntry.origin; // ローカル優先でも出所だけは補う
-        if (l.firstQuality == null && cloudEntry.firstQuality != null) fill.firstQuality = cloudEntry.firstQuality;
-        if (Object.keys(fill).length) merged[e.word] = { ...l, ...fill };
-      }
-    });
-    const pushBack = {};
-    Object.entries(merged).forEach(([w, e]) => {
-      const c = cloudByWord[w];
-      if (
-        !c ||
-        (e.lastReview || '') > (c.last_review || '') ||
-        !!e.skipped !== !!c.skipped ||
-        // 列はあるのにクラウド側が空＝ローカルだけが初回の答えを持つ（列が無いDBでは c に key 自体が無い＝送らない）
-        ('first_quality' in c && c.first_quality == null && e.firstQuality != null)
-      ) {
-        pushBack[w] = e;
-      }
-    });
+    const { merged, pushBack } = mergeSrs(local, srsRows, { complete: srsComplete });
     localStorage.setItem('cl_srs', JSON.stringify(merged));
+    if (!srsComplete) console.warn('[CL:SYNC] srs の取り込みが途中で切れた（吸い上げは見送り）', srsRows.length);
     if (Object.keys(pushBack).length) pushSrsWords(pushBack); // fire-and-forget
   }
 
@@ -267,6 +302,8 @@ export async function pullFromCloud(profileId = null) {
     // ★単語帳メンバーシップ（in_wordbook）。列がまだ無いDBでは応答に載らない（undefined）ので、
     // その間はローカルの旗を残す（全量上書きで「外した」状態が毎回 true に戻らないように）。
     const prevInWordbook = new Map();
+    // ♡（liked / likedAt・2026-11-07）。列が無い DB ではクラウドに載らないのでローカルの印を残す。
+    const prevLiked = new Map();
     // 例文の注記（example_note: AI 作例／この回の別の場面・2026-10-31）。列がまだ無い DB では応答に載らない
     // （undefined）ので、その間はローカルの注記を残す（AI 作例が pull のたびに消えないように）。
     const prevNote = new Map();
@@ -280,6 +317,7 @@ export async function pullFromCloud(profileId = null) {
         if (p.exampleFail) prevFail.set(k, { reason: p.exampleFail, at: p.exampleFailAt || '' });
         if (p.dramaTitle) prevTitle.set(k, { title: p.dramaTitle, season: p.season ?? null, episode: p.episode ?? null });
         if (p.inWordbook === false) prevInWordbook.set(k, false);
+        if (p.liked === true) prevLiked.set(k, { liked: true, likedAt: p.likedAt || null });
         if (p.exampleNote) prevNote.set(k, p.exampleNote);
       });
     } catch {
@@ -321,6 +359,8 @@ export async function pullFromCloud(profileId = null) {
           example_ja: sentenceChanged ? '' : w.example_ja || '', // 例文の和訳（アプリが後埋め・2026-08-06〜）
           encounters: Array.isArray(w.encounters) ? w.encounters : null, // 遭遇ログ（v1.2.2・再会カードの場面つき表示用）
           savedAt: w.saved_at,
+          // 行を作った時刻（＝初めて保存した時刻）。棚から外す・消去の印より後に保存したかの判定に使う（lib/workRemoval.js）
+          createdAt: w.created_at || null,
           source: w.source,
           dramaTitle: scene.title,
           season: scene.season,
@@ -333,6 +373,9 @@ export async function pullFromCloud(profileId = null) {
           exampleFailAt: sentence ? '' : prevFail.get(key)?.at || '',
           // ★単語帳に入っているか。クラウドが列を持てばそれが正、無ければローカルの旗を残す。
           inWordbook: typeof w.in_wordbook === 'boolean' ? w.in_wordbook : prevInWordbook.get(key) ?? true,
+          // ♡ お気に入りの例文の印（supabase_my_words_wordbook.sql）。クラウドが列を持てばそれが正、無ければローカルの印を残す。
+          liked: typeof w.liked === 'boolean' ? w.liked : prevLiked.get(key)?.liked ?? false,
+          likedAt: typeof w.liked === 'boolean' ? w.liked_at || null : prevLiked.get(key)?.likedAt ?? null,
           // 例文の注記。クラウドが列を持てばそれが正（null 含む）、無ければローカルの注記を残す。
           exampleNote: w.example_note !== undefined ? normalizeExampleNote(w.example_note) : prevNote.get(key) ?? null,
         };
@@ -385,9 +428,12 @@ function toIsoDateLite(v) {
 
 // ── 学習データ同期のヘルパ ──────────────────────────────────────
 
-// 同期対象の localStorage キー（user_state 1行=1キー）。
-const STATE_KEY_RE =
-  /^(cl_tickets|cl_fav_dramas|cl_study_sec|cl_study_drama|cl_watch_log|cl_frame_best)(_|$)|^cl_prepped$|^cl_seat_counter$|^cl_exp_ledger$|^cl_archived$|^cl_stats_daily$/;
+// 同期対象の localStorage キー（user_state 1行=1キー）。★足したら lib/deviceAccount.js LEARNING_KEY_RE にも足す（ログアウトで消す対象）。
+//   2026-11-07: cl_removed_works（コレクションから消去した印）・cl_ring_met_reset（円の「出会った」を数え直す起点）を追加。
+//   2026-11-05: cl_activity_dates（学習した日）・cl_review_log（復習の記録）・cl_quiz_exp_awarded（クイズ EXP の台帳）を追加
+//   （ログアウトで端末から消すようにしたため、写しが無いと同じアカウントの入り直しで戻らない。規則は lib/stateMergeRules.js）。
+export const STATE_KEY_RE =
+  /^(cl_tickets|cl_fav_dramas|cl_study_sec|cl_study_drama|cl_watch_log|cl_frame_best)(_|$)|^cl_prepped$|^cl_seat_counter$|^cl_exp_ledger$|^cl_archived$|^cl_stats_daily$|^cl_activity_dates$|^cl_review_log$|^cl_quiz_exp_awarded$|^cl_removed_works$|^cl_ring_met_reset$/;
 
 function localStateKeys() {
   try {
@@ -462,6 +508,12 @@ function mergeStateValue(key, localV, cloudV) {
     });
     return out;
   }
+  if (key === 'cl_activity_dates') return mergeActivityDates(localV, cloudV);
+  if (key === 'cl_review_log') return mergeReviewLog(localV, cloudV);
+  if (key === 'cl_quiz_exp_awarded') return mergeQuizAwarded(localV, cloudV);
+  // コレクションから消去した印（作品ごとに新しい方）と、円の「出会った」を数え直す起点（2026-11-07・lib/workRemoval.js）。
+  if (key === 'cl_removed_works') return mergeTitleToggles(localV, cloudV);
+  if (key === 'cl_ring_met_reset') return mergeRingMetReset(localV, cloudV);
   if (key === 'cl_stats_daily') {
     // 日ごとの学習記録（storage.js STATS_DAILY_KEY）: 「日付|端末キー」の行ごと・フィールドごとの max。
     // 行はその端末だけが書き、各フィールドは単調増加＝max で正しい（cl_exp_ledger の数値 max は入れ子に効かない）。
@@ -506,20 +558,52 @@ function mergeStateValue(key, localV, cloudV) {
 // デバウンスだと学習時間ティックのような定期書込で永久に飢餓するため、
 // 既にタイマーが走っていれば延長しない）。値は flush 時点の localStorage を読む。
 const stateTimers = {};
-export function queueStatePush(key, delayMs = 3000) {
-  if (typeof window === 'undefined' || !isLoggedIn()) return;
-  if (stateTimers[key]) return;
-  stateTimers[key] = setTimeout(() => {
-    delete stateTimers[key];
-    const uid = getCurrentUser()?.id;
-    const v = readStateLocal(key);
-    if (!uid || v == null) return;
-    sbFetch('/rest/v1/user_state', {
+// 戻り値＝送れたか（送るものが無い時も true）。sbFetch は 204 と失敗をどちらも null で返すので、ここだけ HTTP の結果を見る。
+async function sendStateKey(key) {
+  if (!(await ensureSessionForSync())) return false;
+  const uid = getCurrentUser()?.id;
+  const v = readStateLocal(key);
+  if (!uid || v == null) return true;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/user_state`, {
       method: 'POST',
-      headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+      headers: sbHeaders({ Prefer: 'resolution=merge-duplicates,return=minimal' }),
       body: JSON.stringify([{ user_id: uid, key, value: v, updated_at: new Date().toISOString() }]),
     });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+export function queueStatePush(key, delayMs = 3000) {
+  if (typeof window === 'undefined' || !getSession()?.access_token) return; // 期限切れでも積む（送る時に更新を試す）
+  if (stateTimers[key]) return;
+  stateTimers[key] = setTimeout(async () => {
+    delete stateTimers[key];
+    const ok = await sendStateKey(key).catch(() => false);
+    // 送れなかった（オフライン・失効の更新待ち）時は 60 秒後にもう一度（失効が確定していれば isLoggedIn が false でも積む＝通信復帰で送れる）
+    if (!ok && getSession()?.access_token) queueStatePush(key, 60 * 1000);
   }, delayMs);
+}
+// 待ちになっている同期を今すぐ送る（ログアウトの直前に呼ぶ＝消す前に失わない・2026-11-05 lib/deviceAccount.js）。
+//   セッションが有効なうちに送る必要があるので、supaSignOut / clearSession より前に await する。
+//   戻り値 { sent:[送れたキー], failed:[送れなかったキー] }。送れなかったキーは待ちに戻す（ログアウトを止めた時に次の契機で再送できる）。
+export async function flushStatePushQueue() {
+  const keys = Object.keys(stateTimers);
+  for (const k of keys) {
+    clearTimeout(stateTimers[k]);
+    delete stateTimers[k];
+  }
+  const sent = [];
+  const failed = [];
+  await Promise.all(
+    keys.map(async (k) => {
+      if (await sendStateKey(k)) sent.push(k);
+      else failed.push(k);
+    })
+  );
+  for (const k of failed) queueStatePush(k, 3000);
+  return { sent, failed };
 }
 
 // SRS を語単位でクラウドへ upsert（entries = { word: srsEntry }）。
@@ -538,7 +622,7 @@ function missingSrsColumn(res) {
 }
 
 export async function pushSrsWords(entries) {
-  if (!isLoggedIn()) return;
+  if (!(await ensureSessionForSync())) return;
   const uid = getCurrentUser()?.id;
   if (!uid || !entries) return;
   const build = () =>
@@ -554,7 +638,8 @@ export async function pushSrsWords(entries) {
           due_date: e.dueDate ?? null,
           last_review: e.lastReview ?? null,
           skipped: !!e.skipped,
-          updated_at: new Date().toISOString(),
+          // 採点した時刻（storage.js が付ける・無ければ今）。同じ日に別の端末でも採点した語の決着に使う（lib/srsMerge.js）
+          updated_at: e.updatedAt || new Date().toISOString(),
         };
         // 出所は持っている時だけ送る（省略＝据え置き・merge-duplicates）。最初に出会った作品を上書きしない
         if (!_srsOriginUnsupported && e.origin?.title) {
@@ -601,6 +686,12 @@ function isMissingTsSec(res) {
 // in_wordbook（★単語帳メンバーシップ・supabase_my_words_in_wordbook.sql）も同じ作法。
 // 列が無いDBでは PGRST204 で行ごと弾かれるので、一度弾かれたらセッション中は送らない。
 let _inWordbookUnsupported = false;
+// liked / liked_at（♡・supabase_my_words_wordbook.sql）も同じ作法。
+let _likedUnsupported = false;
+function isMissingLiked(res) {
+  const msg = `${res?.code || ''} ${res?.message || ''}`;
+  return /PGRST204/.test(msg) && /liked/.test(msg);
+}
 let _exampleNoteUnsupported = false;
 function isMissingExampleNote(res) {
   const msg = `${res?.code || ''} ${res?.message || ''}`;
@@ -623,7 +714,7 @@ function isMissingInWordbook(res) {
 }
 
 export async function pushMyWord(w) {
-  if (!isLoggedIn()) return false;
+  if (!(await ensureSessionForSync())) return false;
   const uid = getCurrentUser()?.id;
   if (!uid || !w?.word) return false;
   // 「取れなかった値は列ごと省く」＝拡張 background.js と同じ規則に揃える（2026-08-08）。
@@ -644,6 +735,11 @@ export async function pushMyWord(w) {
   if (Array.isArray(w.encounters) && w.encounters.length) row.encounters = w.encounters; // 遭遇ログ（拡張と同じ）
   // ★単語帳に入っているか。boolean で明示された時だけ送る（省略＝据え置き・DB既定は true）。
   if (typeof w.inWordbook === 'boolean' && !_inWordbookUnsupported) row.in_wordbook = w.inWordbook;
+  // ♡ お気に入りの例文の印（2026-11-07）。boolean で明示された時だけ送る（省略＝据え置き・DB 既定は false）。
+  if (typeof w.liked === 'boolean' && !_likedUnsupported) {
+    row.liked = w.liked;
+    row.liked_at = w.liked ? w.likedAt || null : null;
+  }
   // 例文の注記（AI 作例／この回の別の場面）。持っている時だけ送り、消す時だけ null（送らない＝据え置き）。
   //   AI 作例は sentence 列には入れない＝字幕の出所表示（字幕：OpenSubtitles）が付かない。列が無い DB では外して再送
   //   ＝AI 作例はその端末だけに残る（同期は壊れない）。
@@ -669,11 +765,16 @@ export async function pushMyWord(w) {
   // ts_sec 列がまだ無いDB（supabase_my_words_tssec.sql 未実行）では PostgREST が
   // PGRST204 を返して行ごと保存されない。列を外して1回だけ再送し、以後は送らない
   // （＝migration 前後どちらの順でデプロイしても単語の同期自体は壊れない）。
-  // 列が足りない時は1列ずつ外して再送する（最大3回＝in_wordbook / ts_sec / example_note）。
+  // 列が足りない時は1列ずつ外して再送する（最大4回＝liked / in_wordbook / ts_sec / example_note）。
   let cur = res;
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 4; i++) {
     let retry = false;
-    if (isMissingInWordbook(cur) && 'in_wordbook' in row) {
+    if (isMissingLiked(cur) && 'liked' in row) {
+      _likedUnsupported = true;
+      delete row.liked;
+      delete row.liked_at;
+      retry = true;
+    } else if (isMissingInWordbook(cur) && 'in_wordbook' in row) {
       _inWordbookUnsupported = true;
       delete row.in_wordbook;
       retry = true;
@@ -696,11 +797,30 @@ export async function pushMyWord(w) {
   return true;
 }
 
+// 単語帳の旗だけを複数語まとめてクラウドへ（初回の整理「★の語だけにする」・2026-11-07）。
+//   行は (user_id, word) で merge-duplicates＝送った列だけ更新。500 語ずつ。列が無い DB（PGRST204）は黙って諦める
+//   （端末の旗は lib/words.js が先に倒している＝次の pull でクラウドの true に戻るが、SQL 適用後の整理で直せる）。
+export async function pushWordbookFlags(wordTexts, inWordbook) {
+  if (!(await ensureSessionForSync())) return false;
+  const uid = getCurrentUser()?.id;
+  if (!uid || !Array.isArray(wordTexts) || !wordTexts.length) return false;
+  for (let i = 0; i < wordTexts.length; i += 500) {
+    const rows = wordTexts.slice(i, i + 500).map((word) => ({ user_id: uid, word, in_wordbook: !!inWordbook }));
+    const res = await sbFetch('/rest/v1/my_words', {
+      method: 'POST',
+      headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify(rows),
+    });
+    if (isMissingInWordbook(res)) return false;
+  }
+  return true;
+}
+
 // 単語の削除をクラウドへ伝搬（🗑削除ボタン用）。ローカル削除だけだと、pull がクラウド全量で
 // cl_my_words を上書き→getActiveWords の「再保存された語は削除リストから外す」掃除が発動し、
 // 削除した語（タイポ等）が必ず復活する。ユーザーの明示削除は行ごと消すのが正。
 export async function deleteMyWordCloud(word) {
-  if (!isLoggedIn()) return false;
+  if (!(await ensureSessionForSync())) return false;
   const uid = getCurrentUser()?.id;
   if (!uid || !word) return false;
   // ilike（ワイルドカード無し＝大小無視の完全一致）: PK は case-sensitive のため、
@@ -716,7 +836,7 @@ export async function deleteMyWordCloud(word) {
 // updatedAt にはローカル保存時の時刻（cl_profiles_updated_at と同値）を渡す。
 // pull 側が同じ時刻軸で「新しい方が勝つ」比較をするため、push 時に時刻を作り直さない。
 export async function pushProfiles(profiles, updatedAt = null) {
-  if (!isLoggedIn()) return;
+  if (!(await ensureSessionForSync())) return;
   const uid = getCurrentUser()?.id;
   if (!uid || !Array.isArray(profiles) || !profiles.length) return;
   await sbFetch('/rest/v1/profiles', {
@@ -737,7 +857,7 @@ export async function pushProfiles(profiles, updatedAt = null) {
 
 // プロフィール削除をクラウドへ反映（upsert だけだと次回 pull で復活してしまう）。
 export async function deleteProfileRow(id) {
-  if (!isLoggedIn() || !id) return;
+  if (!id || !(await ensureSessionForSync())) return;
   const uid = getCurrentUser()?.id;
   if (!uid) return;
   await sbFetch(`/rest/v1/profiles?id=eq.${encodeURIComponent(id)}&user_id=eq.${uid}`, {
@@ -805,7 +925,7 @@ export async function migrateLocalToCloudAfterLogin() {
 // drama/season/episode は schema 上 NOT NULL なので、必ず「完全なエントリ」を渡すこと
 // （部分更新を merge-duplicates で送ると NOT NULL を壊す）。
 export async function pushHistoryEntry(entry) {
-  if (!isLoggedIn() || !entry?.id) return;
+  if (!entry?.id || !(await ensureSessionForSync())) return;
   const uid = getCurrentUser()?.id;
   if (!uid) return;
   await sbFetch('/rest/v1/history', {
@@ -835,7 +955,7 @@ export async function pushHistoryEntry(entry) {
 // 採点取り消しで「新規語の初採点」を戻す時だけ使う（行が無かった状態に戻す）。
 // pushSrsWords は upsert のみで削除できないため専用に用意。GRANT DELETE は supabase_user_state.sql 済み。
 export async function deleteSrsWord(word) {
-  if (!isLoggedIn() || !word) return;
+  if (!word || !(await ensureSessionForSync())) return;
   const uid = getCurrentUser()?.id;
   if (!uid) return;
   await sbFetch(`/rest/v1/srs_data?user_id=eq.${uid}&word=eq.${encodeURIComponent(word)}`, {
@@ -847,7 +967,7 @@ export async function deleteSrsWord(word) {
 // 作品の単語リスト（履歴）をクラウドから作品名でまとめて削除（全エピソード一括削除用）。
 // drama は JSONB なので drama->>title で絞る。端末に無いクラウド側の同作品行も消す＝次の pull で生き返らない。
 export async function deleteHistoryRowsByTitle(title) {
-  if (!isLoggedIn() || !title) return;
+  if (!title || !(await ensureSessionForSync())) return;
   const uid = getCurrentUser()?.id;
   if (!uid) return;
   await sbFetch(`/rest/v1/history?user_id=eq.${uid}&drama->>title=eq.${encodeURIComponent(title)}`, {
@@ -857,7 +977,7 @@ export async function deleteHistoryRowsByTitle(title) {
 }
 
 export async function deleteHistoryRow(id) {
-  if (!isLoggedIn() || !id) return;
+  if (!id || !(await ensureSessionForSync())) return;
   const uid = getCurrentUser()?.id;
   if (!uid) return;
   await sbFetch(`/rest/v1/history?id=eq.${encodeURIComponent(id)}&user_id=eq.${uid}`, {

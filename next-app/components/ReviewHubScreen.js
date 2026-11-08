@@ -18,6 +18,7 @@ import {
   backfillSrsOrigins,
   overallVocabStats,
   loadArchived,
+  loadRemovedWorks,
   DAILY_REVIEW_CAP,
 } from '@/lib/storage';
 import { usePlan, featureAccess } from '@/lib/plan';
@@ -25,6 +26,7 @@ import { dailyReviewCap } from '@/lib/reviewCount';
 import PlusNote from './PlusNote';
 import { trackUsage } from '@/lib/usage';
 import { rememberHubScroll, takeHubScroll } from '@/lib/hubScroll';
+import { workRecency, byRecency } from '@/lib/workRecency';
 
 // 復習一覧の一番上の「覚えた・マスター」全体バー。2026-10-31 オーナー判断で一旦非表示（true で復活）。
 const SHOW_HUB_OVERALL = false;
@@ -154,7 +156,8 @@ export default function ReviewHubScreen() {
   //   今日の復習・マスター手前からも外す（lib/storage.js getDueReviewWords）。SRS の記録は消さない＝棚に戻せば再び出る。
   const groups = useMemo(() => {
     const m = new Map();
-    const archived = loadArchived();
+    // コレクションから消去した作品（cl_removed_works）も出さない。学習した語は今日の復習・ランダムで続く。
+    const archived = [...loadArchived(), ...loadRemovedWorks()];
     const isArchived = (t) => archived.some((a) => sameWorkTitle(a, t));
     history.forEach((h) => {
       const title = h.drama?.title;
@@ -189,8 +192,11 @@ export default function ReviewHubScreen() {
         (a, b) => (a.entry.season || 0) - (b.entry.season || 0) || (a.entry.episode || 0) - (b.entry.episode || 0)
       )
     );
-    return [...m.values()];
-  }, [history, srs, movieTitles]);
+    // 最近触った順（作った日・復習・拡張の保存・開いた/戻した時刻の新しい方・lib/workRecency.js。オーナー 2026-11-07）。
+    //   ホームの「続きから学習」と同じ並び。sort は安定なので同じ時刻の作品は今までどおり履歴の順。
+    const recency = workRecency({ history, srs, myWords, myDramas: settings.myDramas, sameTitle: sameWorkTitle });
+    return [...m.values()].sort(byRecency(recency, (g) => g.title));
+  }, [history, srs, movieTitles, settings.myDramas, myWords]);
 
   // ホームの「今日の復習」と同じ母集団にする（myWords を渡す）。渡さないと同じ名前の入口が
   // 画面ごとに別の数字を出す（ホーム=本編+保存語／ここ=本編のみ）＝どちらかが嘘になる。

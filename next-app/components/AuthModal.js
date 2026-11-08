@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useApp } from './AppProvider';
-import { supaSignIn, supaSignUp, pullFromCloud, migrateLocalToCloudAfterLogin } from '@/lib/supabase';
+import { supaSignIn, supaSignUp, pullFromCloud, migrateLocalToCloudAfterLogin, getSession } from '@/lib/supabase';
+import { prepareDeviceForAccount } from '@/lib/deviceAccount';
 import { isExtInstallEntry } from '@/lib/extEntry';
 import { shouldClearSeenFlagsOnSignup } from '@/lib/firstRun';
 import { loadProfiles } from '@/lib/storage';
@@ -36,11 +37,16 @@ export default function AuthModal() {
     }
     setBusy(true);
     setError('');
+    // ログインの前に端末に残っていたセッションの持ち主（期限切れのまま別の人が入る時の見分けに使う・lib/deviceAccount.js）
+    const prevSessionUid = getSession()?.user?.id || null;
     const result = mode === 'login' ? await supaSignIn(email.trim(), password) : await supaSignUp(email.trim(), password);
     setBusy(false);
 
     if (result?.access_token) {
       trackUsage(mode === 'signup' ? 'auth_signup' : 'auth_login');
+      // 前回この端末で使っていたアカウントと違う人なら、合算（pull）と引き継ぎの前に端末の学習データを消す。
+      //   同じアカウントの入り直し・ゲストや体験からの初めての登録（前回のアカウントが無い）は消さない。
+      prepareDeviceForAccount(result.user?.id || getSession()?.user?.id, { prevSessionUid });
       // 新規登録＝まっさらなアカウント。「一度見た」系フラグを消して初回の流れを必ず出す。
       // 前アカウントの残留フラグでスキップされる事故の防止（signOut と同じリセット）。
       // ただし体験中・体験後・利用中のゲストは消さない＝旧アンケートと使い方を復活させない（lib/firstRun.js）。
@@ -113,6 +119,11 @@ export default function AuthModal() {
             className="auth-input"
             placeholder="メールアドレス"
             autoComplete="email"
+            // iPhone でメール欄のキーボードが日本語で出る件（2026-11-05 オーナー）: Web からキーボードの言語は指定できないので、
+            // 先頭の大文字化・自動修正・スペルチェックを切って入力ミスを減らす。type=email と autoComplete=email はそのまま。
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && submit()}
@@ -121,7 +132,8 @@ export default function AuthModal() {
             type="password"
             className="auth-input"
             placeholder="パスワード（6文字以上）"
-            autoComplete="current-password"
+            // 新規登録は new-password（iPhone の強いパスワードの提案が出る）・ログインは current-password（保存済みの候補が出る）
+            autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && submit()}

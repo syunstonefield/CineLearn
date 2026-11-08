@@ -2,9 +2,9 @@
 // 拡張機能・Supabase が無い試作環境でも localStorage だけで完結するよう、
 // chrome.storage / cloudSync 依存は app.js 同様にガードして無効化する。
 import { tmdb } from './api';
-import { deleteMyWordCloud, pushMyWord, MY_WORDS_MAX } from './supabase';
+import { deleteMyWordCloud, pushMyWord, pushWordbookFlags, MY_WORDS_MAX } from './supabase';
 import { fillTranslations } from './translateQueue';
-import { myWordsKey, deletedWordsKey } from './storage';
+import { myWordsKey, deletedWordsKey, todayStr } from './storage';
 import { trimExampleToSentence, EXAMPLE_MAX_CHARS } from './subtitles';
 
 // ── ストレージ抽象化（chrome.storage があれば使う・無ければ localStorage）──
@@ -142,10 +142,12 @@ export async function addManualWord(profileId, entry) {
 //     単語リストには残る。★でしか存在しない語（source:'star'）は行ごと消す（生成語は history 側に残る）
 // 復習対象（ホーム/今日の復習）は従来どおり出会った語すべて＝★の有無で変えない（オーナー判断1）。
 
-// 単語帳に表示する語（外した語を除く）。
+// 単語帳に表示する語＝★「覚えたい」の語（inWordbook）と ♡ の語（liked・2026-11-07）。
+//   2026-11-07 オーナー決定: 拡張で保存した語は自動では入らない（DB の in_wordbook 既定を false に・
+//   supabase_my_words_wordbook.sql）。語は作品の単語リスト・復習・円には残る（getActiveWords は旗を見ない）。
 export async function getWordbookWords(profileId) {
   const all = await getActiveWords(profileId);
-  return all.filter((w) => w.inWordbook !== false);
+  return all.filter((w) => w.inWordbook !== false || w.liked === true);
 }
 
 async function findMyWord(profileId, wordText) {
@@ -173,12 +175,58 @@ export async function starWord(profileId, entry) {
 export async function unstarWord(profileId, wordText) {
   const existing = await findMyWord(profileId, wordText);
   if (!existing) return null;
-  if (existing.source === 'star') {
+  if (existing.source === 'star' && existing.liked !== true) {
     await deleteMyWord(profileId, wordText);
     return 'deleted';
   }
   await setWordbookFlag(profileId, wordText, false);
   return 'hidden';
+}
+
+// ── ♡ お気に入りの例文の印（2026-11-07・オーナー決定・法務 条件付きOK）──
+//   語に付ける印（my_words.liked / liked_at）。文は既存の sentence をそのまま使い、書き換えも新しい文の保存もしない。
+//   行が無い生成語は ★ と同じ情報で行を作る（source 'star'・inWordbook は立てない＝★とは別の印）。
+//   ♡を外す時、♡でしか無い行（source 'star' で ★ も無い）は行ごと消す。上限（1話10件）は呼び出し側が lib/liked.js で見る。
+export async function likeWord(profileId, entry, liked) {
+  if (!entry?.word) return null;
+  const existing = await findMyWord(profileId, entry.word);
+  const likedAt = liked ? todayStr() : null;
+  if (existing) {
+    if (!liked && existing.source === 'star' && existing.inWordbook === false) {
+      await deleteMyWord(profileId, entry.word);
+      return null;
+    }
+    const ok = await saveWordTranslation(profileId, entry.word, { liked: !!liked, likedAt });
+    return ok ? findMyWord(profileId, entry.word) : existing;
+  }
+  if (!liked) return null;
+  const rec = { ...entry, source: entry.source || 'star', inWordbook: false, liked: true, likedAt };
+  const merged = await addManualWord(profileId, rec);
+  pushMyWord(merged || rec); // ログイン時のみクラウドへ（未ログインは内部 no-op）
+  return merged || rec;
+}
+
+// 単語帳から一括で外す（初回の整理「★の語だけにする」・2026-11-07）。語は消さない（作品の単語リスト・復習に残る）。
+//   ローカル両キーを書き、ログイン時はクラウドへ配列で1回送る（lib/supabase.js pushWordbookFlags）。
+export function hideFromWordbook(profileId, wordTexts) {
+  const set = new Set((wordTexts || []).map((t) => String(t || '').toLowerCase()));
+  if (!set.size) return Promise.resolve(false);
+  return queueWrite(async () => {
+    const keys = [myWordsKey(null)];
+    if (profileId) keys.push(myWordsKey(profileId));
+    for (const key of keys) {
+      const words = (await store.get(key)) || [];
+      let changed = false;
+      const next = words.map((w) => {
+        if (!set.has(String(w?.word || '').toLowerCase()) || w.inWordbook === false) return w;
+        changed = true;
+        return { ...w, inWordbook: false };
+      });
+      if (changed) await store.set(key, next);
+    }
+    await pushWordbookFlags([...set], false);
+    return true;
+  });
 }
 
 // 旗だけを書き換える（ローカル両キー＋ログイン時はクラウド）。書き込みは saveWordTranslation の
@@ -204,11 +252,13 @@ export async function clearAllWords(profileId) {
 // 📍の修復と例文の後埋めが同時に走った実測で、3語のうち1語の修正が失われた（2026-08-08）。
 // 拡張側の saveWord が _saveChain で直列化しているのと同じ方式で、書き込みを1本の鎖に並べる。
 let _writeChain = Promise.resolve();
-export function saveWordTranslation(profileId, wordText, patch) {
-  const run = () => saveWordTranslationInner(profileId, wordText, patch);
+function queueWrite(run) {
   const next = _writeChain.then(run, run);
   _writeChain = next.catch(() => {});
   return next;
+}
+export function saveWordTranslation(profileId, wordText, patch) {
+  return queueWrite(() => saveWordTranslationInner(profileId, wordText, patch));
 }
 
 async function saveWordTranslationInner(profileId, wordText, patch) {

@@ -25,6 +25,7 @@ import {
   posterUrl,
   trialDrama,
 } from '@/lib/trial';
+import { CURATION_ON, SAVE_STAR_SENTENCE } from '@/lib/curation';
 
 // 初回体験（登録前に試す流れ・docs/design-first-run-trial-2026-11-05.md）。
 //   ようこそ → レベル → チュートリアルの案内 → 作品 → 5語 → 予習5枚 → クイズ3問 → 完了（登録／あとで）→ 次の一歩。
@@ -463,7 +464,9 @@ export default function TrialFlow() {
         <h1 className="trial-h">次は、<span className="trial-nowrap">観ながら単語を集めましょう</span></h1>
         <p className="trial-sub">
           {loggedIn
-            ? '動画の字幕の単語をクリックして「✓ 保存」を押すと、単語帳に入ります。'
+            ? CURATION_ON
+              ? `動画の${SAVE_STAR_SENTENCE}`
+              : '動画の字幕の単語をクリックして「✓ 保存」を押すと、単語帳に入ります。'
             : '保存した単語をアプリに届けるにはログインが必要です。'}
         </p>
         {!loggedIn && (

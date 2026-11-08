@@ -6,24 +6,37 @@ import {
   saveProfiles,
   patchProfileSettings,
   unarchiveDrama,
+  unremoveWork,
+  loadArchived,
+  loadRemovedWorks,
+  loadArchivedMap,
+  loadRemovedWorksMap,
   cleanupLegacySubtitleCache,
 } from '@/lib/storage';
+import { reapplyWorkRemovals } from '@/lib/workRemovalStore';
+import { titlesToReopen, titlesReopenedBySaves, touchDramas } from '@/lib/workRemoval';
+import { sameWorkTitle } from '@/lib/words';
 import { addStudySeconds, addDramaStudySeconds } from '@/lib/studytime';
 import { applyTheme, getThemePref } from '@/lib/theme';
 import { initUsage, trackUsage, noteExtWordsOnce } from '@/lib/usage';
 import {
   ensureFreshSession,
+  SESSION_EXPIRED_EVENT,
+  SESSION_UPDATED_EVENT,
   pullFromCloud,
   isLoggedIn,
   getSession,
   supaSignOut,
   clearSession,
   deleteProfileRow,
+  flushStatePushQueue,
+  getCurrentUser,
 } from '@/lib/supabase';
 import { recommendedToDrama } from '@/lib/recommended';
 import { forgetHubScroll } from '@/lib/hubScroll';
 import { PROFILES_AT_KEY } from '@/lib/profileMerge';
-import { markTrialFinished, hasFinishedTrial, TRIAL_KEYS } from '@/lib/trialState';
+import { markTrialFinished, hasFinishedTrial } from '@/lib/trialState';
+import { wipeLearningData, forgetAccount, rememberAccount } from '@/lib/deviceAccount';
 import { firstRunScreen, startupAuth, trialSourceOf } from '@/lib/firstRun';
 import { isExtInstallEntry } from '@/lib/extEntry';
 
@@ -182,6 +195,27 @@ export default function AppProvider({ children }) {
   useEffect(() => {
     if (cloudVersion > 0) noteExtWordsOnce();
   }, [cloudVersion]);
+  // 取り込みのあと（cloudVersion）:
+  //   1) 拡張で、棚から外した／消去した作品の語を印より後に保存していたら、その作品の印を外す（オーナー 2026-11-07）。
+  //      単語帳は pull がグローバルキー cl_my_words に入れる。印を外した消去の作品は、下の抜き直しの対象から外れる。
+  //   2) コレクションから消去した作品に、別の端末や古いクラウドの行で未学習の語が戻っていたら抜き直す（lib/workRemovalStore.js）。
+  useEffect(() => {
+    if (cloudVersion <= 0) return;
+    let saved = [];
+    try {
+      saved = JSON.parse(localStorage.getItem('cl_my_words') || '[]') || [];
+    } catch {
+      saved = [];
+    }
+    const a = titlesReopenedBySaves(loadArchivedMap(), saved, sameWorkTitle);
+    const r = titlesReopenedBySaves(loadRemovedWorksMap(), saved, sameWorkTitle);
+    a.forEach((t) => unarchiveDrama(t));
+    r.forEach((t) => unremoveWork(t));
+    if (a.length || r.length) touchWorks([...a, ...r]); // 定義は下（effect は描画後に走るので参照できる）
+    reapplyWorkRemovals(profileRef.current?.id)
+      .then((n) => n && setWordbookVersion((v) => v + 1))
+      .catch(() => {});
+  }, [cloudVersion]);
 
   useEffect(() => {
     setMounted(true);
@@ -192,10 +226,12 @@ export default function AppProvider({ children }) {
     (async () => {
       try {
         if (await ensureFreshSession()) {
+          rememberAccount(getCurrentUser()?.id); // この端末で使っているアカウント（別のアカウントで入った時に見分ける）
           await pullFromCloud();
           setLoggedIn(true);
           setCloudVersion((v) => v + 1);
         } else if (isLoggedIn()) {
+          rememberAccount(getCurrentUser()?.id);
           setLoggedIn(true);
         } else {
           // 未ログイン：起動時にログイン画面は出さない（初回体験の修正 D・lib/firstRun.js）。
@@ -219,11 +255,20 @@ export default function AppProvider({ children }) {
         setBootstrapping(false);
       }
     })();
-    // タブを開いている間は期限が近づいたら自動更新（約1時間で失効するため）
+    // タブを開いている間は期限が近づいたら自動更新（約1時間で失効するため）。更新に失敗すると lib/supabase.js が
+    // SESSION_EXPIRED_EVENT を出し、下のリスナーがログイン表示を落として期限切れの帯を出す（以前は黙って古いままだった・2026-11-07）。
     const timer = setInterval(() => {
       ensureFreshSession().catch(() => {});
     }, 10 * 60 * 1000);
-    return () => clearInterval(timer);
+    const onExpired = () => {
+      setLoggedIn(false);
+      setSessionExpired(true);
+    };
+    window.addEventListener(SESSION_EXPIRED_EVENT, onExpired);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired);
+    };
   }, []);
 
   // ログイン成功時（AuthModal から呼ぶ）：pull 済みデータを反映
@@ -282,6 +327,35 @@ export default function AppProvider({ children }) {
     profileRef.current = profile;
   }, [profile]);
 
+  // 拡張（bridge v1.2.12〜）が新しいセッションを localStorage に書き戻した合図。起動時に期限切れと判定した後で届くことがあるので、
+  // ログイン状態を判定し直し、生きていれば帯を下ろしてクラウドから取り直す（2026-11-07 候補C）。
+  useEffect(() => {
+    const onUpdated = () => {
+      if (!isLoggedIn()) return;
+      setSessionExpired(false);
+      setLoggedIn(true);
+      refreshFromCloud();
+    };
+    // 通信が戻った時（機内モード解除など）: オフライン中の更新失敗は失効ではないので、ここで更新をやり直してクラウドから取り直す。
+    const onOnline = () => {
+      if (!getSession()?.access_token) return;
+      ensureFreshSession()
+        .then((ok) => {
+          if (!ok) return;
+          setSessionExpired(false);
+          setLoggedIn(true);
+          refreshFromCloud();
+        })
+        .catch(() => {});
+    };
+    window.addEventListener(SESSION_UPDATED_EVENT, onUpdated);
+    window.addEventListener('online', onOnline);
+    return () => {
+      window.removeEventListener(SESSION_UPDATED_EVENT, onUpdated);
+      window.removeEventListener('online', onOnline);
+    };
+  }, [refreshFromCloud]);
+
   // タブ復帰時に自動で再取得（10秒スロットル）。
   // Netflixタブで単語を保存 → このタブに戻る、の典型動線をカバーする。
   useEffect(() => {
@@ -317,28 +391,36 @@ export default function AppProvider({ children }) {
       )
     )
       return;
+    // 待ちになっている同期（user_state のトロットル）をセッションが生きているうちに送ってから抜ける。
+    // 送れなかった（オフライン・通信失敗）なら、この端末だけにある分が消えることを伝えて止められるようにする。
+    let unsent = [];
+    try {
+      unsent = (await flushStatePushQueue()).failed;
+    } catch {
+      unsent = ['?'];
+    }
+    const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+    if (unsent.length || offline) {
+      if (
+        !confirm(
+          'まだ同期できていない学習データがあります（通信を確認してください）。\n\nこのままログアウトすると、この端末だけにある分は消えます。\nログアウトしますか？'
+        )
+      )
+        return; // 送れなかった分は待ちに戻してあるので、次の契機で再送される
+    }
     try {
       await supaSignOut();
     } catch {
       /* ignore */
     }
     clearSession();
-    // cl_profiles_updated_at も一緒に消す（古い時刻が残ると次のログインの
-    // 「新しい方が勝つ」比較に前ユーザーの時刻が混ざるため）。
-    // 「一度見た」系フラグ（オンボ/チュートリアル/拡張バナー）もリセットする：
-    // 残すと次に入る別アカウント・新規ゲストが初回体験（アンケート等）を一切見られない。
-    // 既存アカウントの再ログインはクラウドの settings.onboarded が生きるので二重表示にならない。
-    [
-      'cl_profiles',
-      'cl_profiles_updated_at',
-      'cl_history',
-      'cl_srs',
-      'cl_my_words',
-      'cl_onboarded',
-      'cl_tutorial_seen',
-      'cl_ext_banner_dismissed',
-      ...TRIAL_KEYS,
-    ].forEach((k) => localStorage.removeItem(k));
+    // この端末の学習データを全部消す（lib/deviceAccount.js）。従来は cl_profiles・cl_history・cl_srs・cl_my_words と
+    // 「一度見た」系フラグ・体験の印だけで、user_state に同期する項目（学習した日・EXP・コレクション・学習時間 …）や
+    // プロフィール別キーが残り、次に入った別のアカウントの pull で合算されてクラウドへ書き戻されていた（2026-11-05 オーナー報告）。
+    // cl_profiles_updated_at も消す（古い時刻が残ると次のログインの「新しい方が勝つ」比較に前ユーザーの時刻が混ざるため）。
+    // 「一度見た」系フラグも消す（残すと次に入る別アカウント・新規ゲストが初回の流れを見られない）。
+    wipeLearningData();
+    forgetAccount(); // ログアウト後の端末はまっさら＝次のログイン・登録では消さない（ゲストの引き継ぎを守る）
     setLoggedIn(false);
     setSessionExpired(false);
     setProfile(null);
@@ -487,8 +569,10 @@ export default function AppProvider({ children }) {
     setSettings((prev) => ({ ...prev, ...(patch || {}), onboarded: true }));
   }, []);
 
+  // patch は関数でもよい（prev → 部分）。描画時点の settings から作った myDramas を丸ごと書き戻すと、
+  //   その間に入った変更（戻した作品の touchedAt など）を消すため、最新の値から作る時に使う。
   const updateSettings = useCallback((patch) => {
-    setSettings((prev) => ({ ...prev, ...patch }));
+    setSettings((prev) => ({ ...prev, ...(typeof patch === 'function' ? patch(prev) : patch) }));
   }, []);
 
   // 単語リスト/サービス選択の「戻る」の行き先（'main' | 'search'）。
@@ -499,6 +583,32 @@ export default function AppProvider({ children }) {
   // ライブラリのカード/検索結果をクリック → サービス選択画面へ。
   // clearService=true（新規追加時）は前回の視聴サービスをクリアする（既存 selectDrama 準拠）。
   // opts.returnTo: 戻るボタンの行き先（検索経由なら 'search'・省略時 'main'）。
+  // 作品をもう一度開いたら「棚から外す」と「コレクションから消去」の印を外す（作品名の揺れも寄せる）。
+  //   openDrama のほか、単語リストの画面に入った時（コレクションの話の行・復習ハブなど openDrama を通らない入口）にも呼ぶ。
+  //   2026-11-07 オーナー報告: 続きから学習で棚から外した作品を、コレクションの話の行から開いて復習しても戻らなかった。
+  //   戻した作品は「最近触った」扱いにして、続きから学習・復習の作品一覧の一番上へ（myDramas.touchedAt・オーナー 2026-11-07）。
+  const touchWorks = useCallback((titles) => {
+    if (!titles?.length) return;
+    setSettings((prev) => {
+      const myDramas = touchDramas(prev.myDramas, titles, Date.now(), sameWorkTitle);
+      return myDramas === prev.myDramas ? prev : { ...prev, myDramas };
+    });
+  }, []);
+  const reopenWork = useCallback((title) => {
+    const a = titlesToReopen(loadArchived(), title, sameWorkTitle);
+    const r = titlesToReopen(loadRemovedWorks(), title, sameWorkTitle);
+    a.forEach((t) => unarchiveDrama(t));
+    r.forEach((t) => unremoveWork(t));
+    if (a.length || r.length) touchWorks([title, ...a, ...r]);
+  }, [touchWorks]);
+  // 単語リストの画面に入ったら、その作品の印を外し（openDrama を通らない入口の分・reopenWork）、
+  //   「最近触った」時刻も今にする（続きから学習・復習の作品一覧の並び・lib/workRecency.js・オーナー 2026-11-07）。
+  useEffect(() => {
+    if (screen !== 'vocab' || !drama?.title) return;
+    reopenWork(drama.title);
+    touchWorks([drama.title]);
+  }, [screen, drama?.title, reopenWork, touchWorks]);
+
   const openDrama = useCallback((d, clearService = false, opts) => {
     trackUsage('work_select'); // 利用データ: 作品を選んだ（入口はここに一本化されている）
     setVocabReturn(opts?.returnTo || 'main');
@@ -509,8 +619,8 @@ export default function AppProvider({ children }) {
     const saved = (settingsRef.current.myDramas || []).find((x) => x.title === d.title);
     setSeason(saved?.lastSeason || 1);
     setEpisode(saved?.lastEpisode || 1);
-    // 棚から外していた作品を開き直したら自動で棚に戻す（アーカイブ解除）
-    unarchiveDrama(d.title);
+    // 棚から外していた作品・コレクションから消去した作品を開き直したら戻す（語を抜いた話は開いた時に作り直す・VocabScreen）
+    reopenWork(d.title);
     // 2回目以降（ライブラリから再オープン＝clearService=false）で、前回の視聴サービスが
     // 分かっていればサービス選択を省略して直接 vocab へ。新規追加時(clearService)は従来どおり選択させる。
     const remembered = !clearService && d.viewingService ? d.viewingService : null;
@@ -667,7 +777,8 @@ export default function AppProvider({ children }) {
     setQuizData([]);
     setQuizReturn('review-hub');
     setScreen('quiz');
-  }, []);
+    if (entry.drama?.title) touchWorks([entry.drama.title]); // その作品のクイズも「最近触った」に
+  }, [touchWorks]);
 
   // 復習モーダルの開閉（ダッシュボード・単語リストの両方から呼ぶ）
   // opts.all=true で SRS の期日フィルタを通さず全語をカード化（半券のシーン記憶カード用）。
@@ -675,7 +786,10 @@ export default function AppProvider({ children }) {
     setReviewAll(!!(opts && opts.all));
     setReviewAsPage(true); // タブ/今日の復習＝ページ表示（横スワイプ移動可）
     setReviewWords(words || []);
-  }, []);
+    // その作品だけの復習（カードの出所が1作品）なら「最近触った」にする（並び・lib/workRecency.js）。今日の復習のように混ざる時は触らない。
+    const titles = [...new Set((words || []).map((w) => w?._src?.title).filter(Boolean))];
+    if (titles.length === 1) touchWorks(titles);
+  }, [touchWorks]);
   const closeReview = useCallback(() => {
     setReviewWords(null);
     setReviewAsPage(false);

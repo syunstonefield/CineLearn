@@ -59,6 +59,61 @@ export const TRIAL_STEPS = [
   ['trial_later_band', '次回の帯'],
 ];
 
+// ⑩ 復習の流れ（2026-11-07〜・復習タブのカード）。答えの内訳と1枚の時間は割合で（集計にだけ使う＝法務）。
+export const REVIEW_ANSWERS = [
+  ['review_ans_fail', '知らなかった'],
+  ['review_ans_hard', 'うろ覚え'],
+  ['review_ans_easy', '知ってた'],
+];
+export const REVIEW_TIMES = [
+  ['review_t_0_5', '〜5秒'],
+  ['review_t_5_10', '5〜10秒'],
+  ['review_t_10_20', '10〜20秒'],
+  ['review_t_20p', '20秒〜'],
+];
+
+// 運営の端末・アカウントを外す（2026-11-07・オーナー依頼）。
+//   起点＝印（S）が付いた行の端末と、seed から渡す運営の利用者の番号（excludePersons）。そこから
+//   「端末でログインした人 → その人がログインした別の端末 → …」とたどり、つながった端末と人の行を全部外す。
+//   端末の番号はログアウトでも変わらない（cl_device_key は消去対象外）ので、印を1回付けるだけで、その端末の過去の行
+//   （印を付ける前の日・ゲストの行・テスト用に作ったアカウントの行）もまとめて外れる。
+//   devices＝端末の番号の除外リスト（seed/.env CL_STATS_EXCLUDE_DEVICES・印を付けられない使い捨ての確認用ブラウザ・2026-11-08）。
+export function staffComponent(rows, { persons = [], devices = [] } = {}) {
+  const devs = new Set(devices || []);
+  const ppl = new Set(persons || []);
+  for (const r of rows || []) {
+    if (!r?.S) continue;
+    devs.add(r.d);
+    if (r.p !== r.d) ppl.add(r.p);
+  }
+  for (let changed = true; changed; ) {
+    changed = false;
+    for (const r of rows || []) {
+      if (!r) continue;
+      if (ppl.has(r.p) && !devs.has(r.d)) {
+        devs.add(r.d);
+        changed = true;
+      }
+      if (devs.has(r.d) && r.p !== r.d && !ppl.has(r.p)) {
+        ppl.add(r.p);
+        changed = true;
+      }
+    }
+  }
+  return { devices: devs, persons: ppl };
+}
+export function excludeStaff(rows, { persons = [], devices: seedDevices = [] } = {}) {
+  const { devices, persons: ppl } = staffComponent(rows, { persons, devices: seedDevices });
+  const kept = [];
+  let removed = 0;
+  for (const r of rows || []) {
+    if (devices.has(r.d) || ppl.has(r.p)) removed++;
+    else kept.push(r);
+  }
+  const seen = new Set((rows || []).map((r) => r?.d));
+  return { rows: kept, excluded: { rows: removed, devices: [...devices].filter((d) => seen.has(d)).length, persons: ppl.size } };
+}
+
 // ゲスト→登録を同じ人として数える（集計側だけ・2026-11-05）。
 //   行の名前は「人の番号.端末の番号」で、端末の番号はゲスト行（人＝端末）にもログイン行にも入っている。
 //   同じ端末で後からログインした人の番号が分かれば、その端末のゲスト行をその人に寄せる。
@@ -111,8 +166,9 @@ function weekRows(rows, win) {
   return rows.filter((r) => r.day >= win.from && r.day <= win.to);
 }
 
-export function buildUsageReport(rawRows, { today, weeks = 8 } = {}) {
-  const rows = joinGuestRows(rawRows); // ゲスト→登録を同じ人に（⑦の「2人に数える」誤差の解消）
+export function buildUsageReport(rawRows, { today, weeks = 8, excludePersons = [], excludeDevices = [], includeStaff = false } = {}) {
+  const staff = includeStaff ? { rows: rawRows, excluded: null } : excludeStaff(rawRows, { persons: excludePersons, devices: excludeDevices });
+  const rows = joinGuestRows(staff.rows); // ゲスト→登録を同じ人に（⑦の「2人に数える」誤差の解消）
   const wins = weekWindows(today, weeks);
   const plus = [];
   const funnel = [];
@@ -120,6 +176,7 @@ export function buildUsageReport(rawRows, { today, weeks = 8 } = {}) {
   const onboarding = [];
   const entry = [];
   const trial = [];
+  const reviewFlow = [];
   for (const win of wins) {
     const rs = weekRows(rows, win);
     const label = `${win.from.slice(5)}〜${win.to.slice(5)}`;
@@ -183,11 +240,21 @@ export function buildUsageReport(rawRows, { today, weeks = 8 } = {}) {
       tr[name] = k === 'trial_start' ? `${u}人 / ${timesOf(k)}回` : `${u}人 ${pct(u, t0)} / ${timesOf(k)}回`;
     }
     trial.push(tr);
+
+    // ⑩ 復習の流れ（始めた回数に対する完了の%・抜けた回数／答えの内訳の%／1枚の時間の%）
+    const started = timesOf('review_start');
+    const exitsN = rs.reduce((n, r) => n + Object.entries(r.c).reduce((m, [k, v]) => (parseExitEvent(k)?.stage === 'review' ? m + v : m), 0), 0);
+    const rf = { 週: label, 始めた人: usersOf('review_start').size, 始めた回: started, 終えた回: `${timesOf('review_done')} ${pct(timesOf('review_done'), started)}`, 途中で抜けた回: exitsN };
+    const ans = REVIEW_ANSWERS.reduce((n, [k]) => n + timesOf(k), 0);
+    for (const [k, name] of REVIEW_ANSWERS) rf[name] = pct(timesOf(k), ans);
+    const tms = REVIEW_TIMES.reduce((n, [k]) => n + timesOf(k), 0);
+    for (const [k, name] of REVIEW_TIMES) rf[name] = pct(timesOf(k), tms);
+    reviewFlow.push(rf);
   }
 
   // ③の下: 抜けた場所（表示した全期間の合計）。段階×（何割まで／抜け方）
   const all = rows.filter((r) => r.day >= wins[wins.length - 1].from && r.day <= wins[0].to);
-  const STAGE = { list: '①一覧', core: '④までのカード', rest: '⑤残りのカード' };
+  const STAGE = { list: '①一覧', core: '④までのカード', rest: '⑤残りのカード', review: '⑩復習のカード' };
   const HOW = { walk: 'カードへ', x: '✕', later: 'あとで', nav: '別の画面', close: '閉じた' };
   const DEC = [
     [1, '0-1割'],
@@ -213,7 +280,7 @@ export function buildUsageReport(rawRows, { today, weeks = 8 } = {}) {
     }
   }
   const joined = rows.filter((r) => r.joined).length;
-  return { plus, funnel, exits, review, onboarding, entry, trial, newUsers: buildNewUsers(rows, wins, today), joinedRows: joined };
+  return { plus, funnel, exits, review, onboarding, entry, trial, reviewFlow, newUsers: buildNewUsers(rows, wins, today), joinedRows: joined, staffExcluded: staff.excluded };
 }
 
 // ⑦ 新規の人（初めて開いた週ごと）。rows の中で最初に現れた日＝初めて開いた日。
@@ -280,8 +347,8 @@ export function genMonthTable(genMonth, { free = 5, plus = 30 } = {}) {
 }
 
 // 判断の目安（直近の週＝表の先頭）
-export function usageHints(report, rawRows, { today } = {}) {
-  const rows = joinGuestRows(rawRows);
+export function usageHints(report, rawRows, { today, excludePersons = [], excludeDevices = [], includeStaff = false } = {}) {
+  const rows = joinGuestRows(includeStaff ? rawRows : excludeStaff(rawRows, { persons: excludePersons, devices: excludeDevices }).rows);
   const [w0] = weekWindows(today, 1);
   const rs = weekRows(rows, w0);
   const people = new Set(rs.map((r) => r.p)).size;
@@ -308,6 +375,10 @@ export function usageHints(report, rawRows, { today } = {}) {
     lines.push(
       `直近の週の初回体験: 最初の画面 ${num('最初の画面')}人 → 作品 ${num('作品')} → 予習5枚 ${num('予習5枚')} → 完了画面 ${num('完了画面')} → 登録へ ${num('登録へ')}／あとで ${num('あとで')}`
     );
+  }
+  if (report.staffExcluded?.rows) {
+    const x = report.staffExcluded;
+    lines.push(`運営の端末・アカウントを外した: 端末 ${x.devices}・人 ${x.persons}・行 ${x.rows}（--include-staff で含める）`);
   }
   if (report.joinedRows) lines.push(`ゲスト→登録を同じ人に寄せた行: ${report.joinedRows}（同じ端末でログインした人のゲスト時代の行）`);
   return lines;

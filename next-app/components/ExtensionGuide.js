@@ -9,6 +9,7 @@
 
 import { useApp } from './AppProvider';
 import { isMobileDevice } from '@/lib/device';
+import { CURATION_ON } from '@/lib/curation';
 
 // ストアURL（LP app/(marketing)/page.js の STORE_URL と同じものを指す。変える時は両方）。
 const STORE_URL = 'https://chromewebstore.google.com/detail/cinelearn/jdhgbdpaeoihopelnnganoojpnplkiie';
@@ -45,7 +46,9 @@ const STEPS = [
     short: <>動画を再生し、字幕の知らない単語をクリックして保存します。</>,
     body: (
       <>
-        動画を再生し、字幕の知らない単語をクリックするだけ。辞書ポップアップから単語帳に保存でき、このアプリへ自動同期されます。
+        {CURATION_ON
+          ? '動画を再生し、字幕の知らない単語をクリック。辞書ポップアップの「✓ 保存」でその話の単語リストに残り、「★ 覚えたい」で単語帳にも入ります。このアプリへ自動同期されます。'
+          : '動画を再生し、字幕の知らない単語をクリックするだけ。辞書ポップアップから単語帳に保存でき、このアプリへ自動同期されます。'}
         Disney+ は単語保存・例文・セリフコピー対応（◀▶ナビのみ非対応）。
       </>
     ),

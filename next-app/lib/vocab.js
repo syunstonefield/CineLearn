@@ -257,16 +257,18 @@ ${tierGuide}
 - e が見つからない場合は e を空文字 "" にすること（作文禁止）
 - plus の e のみ自由に作文してよいが、必ず w を含めること
 - 例文の日本語訳は出力しないこと（別処理で行う）
-- c（チャンク）= w を含む「他の場面でもそのまま使い回せる定型連語」2〜4語。品詞で基準を変える:
-  【動詞】決まった前置詞・パーティクル・目的語型を取るなら必ず c を出す（owe → 'owe you',
-  aim → 'aim for', encode → 'encode in', rely → 'rely on', accuse → 'accuse A of'）。
-  句動詞はそれ自体が c（pull it off, get away with）。動詞で c が空なのは
-  単独他動詞で型が無い場合だけにすること。
-  【形容詞】定型の前置詞パターンがあれば出す（familiar with, guilty of, capable of）。
+- c（チャンク）= w を含む「他の場面でもそのまま使い回せる定型連語」2〜4語。w の結びつきが意味に効く時だけ出し、
+  迷ったら空文字（組の簡単な語で思い出せてしまい、w 単体で覚えたと勘違いさせるため）。w が句なら c にも句全体を含める。品詞で基準を変える:
+  【動詞】決まった前置詞・パーティクルを取るなら必ず c を出す（aim → 'aim for', encode → 'encode in',
+  rely → 'rely on', accuse → 'accuse A of'）。句動詞はそれ自体が c（pull it off, get away with）。
+  目的語は、決まった言い回しの時だけ含める（owe → 'owe you', make → 'make a decision'）。ありふれた目的語を足しただけの組
+  （'trigger an alert', 'open the door'）は出さない。
+  【形容詞】定型の前置詞パターンがある時だけ出す（familiar with, guilty of, capable of）。形容詞＋名詞の組
+  （'quantum realm', 'catastrophic failure'）は出さない。
   【名詞】一般常識レベルの定型の動詞コロケーションがある場合のみ（lawsuit → 'file a lawsuit',
   objection → 'raise an objection'）。無ければ空文字。名詞は迷ったら空
   （誤った定型を教えるより単語単体の方が良い）。
-  【禁止（全品詞）】場面限定の修飾語＋名詞の組（'tracking beacon', 'last shipment' のような
+  【禁止（全品詞）】場面限定の修飾語＋名詞の組（'tracking beacon', 'last shipment', 'demonic possession' のような
   一時的な組み合わせ）・固有名詞や作品固有語を含むもの（'Mandalorian creed' は絶対に禁止）
 
 {

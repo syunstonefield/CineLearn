@@ -51,6 +51,8 @@ export function collectExportRows({ history = [], srs = {}, myWords = [], movies
       });
     });
 
+  // ♡（お気に入りの例文の印・2026-11-07）は語の印として列に出す（法務: ♡の有無の列は可・文と訳は出さない）
+  const likedSet = new Set((myWords || []).filter((w) => w?.liked === true).map((w) => String(w.word || '').toLowerCase().trim()));
   (myWords || []).forEach((w) => {
     const k = String(w?.word || '').toLowerCase().trim();
     const hasEp = w?.season != null && w?.episode != null;
@@ -91,6 +93,7 @@ export function collectExportRows({ history = [], srs = {}, myWords = [], movies
       season: src.type === 'movie' ? null : src.season,
       episode: src.type === 'movie' ? null : src.episode,
       via,
+      liked: likedSet.has(k),
       status: statusOf(e),
       easeFactor: typeof e?.easeFactor === 'number' ? Math.round(e.easeFactor * 100) / 100 : '',
       interval: e?.interval ?? '',
@@ -126,6 +129,7 @@ const COLUMNS = [
   ['シーズン', (r) => r.season ?? ''],
   ['話', (r) => r.episode ?? ''],
   ['入手元', (r) => r.via],
+  ['お気に入り', (r) => (r.liked ? '♡' : '')],
   ['状態', (r) => r.status],
   ['easeFactor', (r) => r.easeFactor],
   ['interval(日)', (r) => r.interval],

@@ -6,8 +6,10 @@
 //    「もう一度挑戦する」の連打でも同じ問題に2回付かない。
 //  - 合格ボーナス（EXP_QUIZ_PASS_BONUS）は従来どおり「その話の初回合格」だけ（完了時・quizPassBonus）。
 //    旧仕様の「合格時に語数×2＋20」は、語数×2 を答えた時点に前倒ししただけで初回の合計は同じ。
-//  - 台帳は端末ローカル（同期しない）。別端末で同じ問題を答えると、その端末で1回だけ付く。
+//  - 台帳は user_state で同期する（2026-11-05〜・historyId ごとの語の和集合＝lib/stateMergeRules.js）。入り直し・別端末でも同じ問題に二重に付かない。
+//    （従来は端末ローカルで、別端末では1回ずつ付いていた。ログアウトで端末から消すようにしたのに合わせて同期に変えた。）
 import { addExp, EXP_PER_QUIZ_WORD, EXP_QUIZ_PASS_BONUS, QUIZ_PASS_PCT } from './exp';
+import { queueStatePush } from './supabase';
 
 export const QUIZ_EXP_AWARDED_KEY = 'cl_quiz_exp_awarded';
 
@@ -34,6 +36,7 @@ export function awardQuizAnswer(historyId, word) {
   } catch {
     return 0; // 台帳に書けない時は付けない（二重加算を防ぐ側に倒す）
   }
+  queueStatePush(QUIZ_EXP_AWARDED_KEY, 500); // クラウドへ（未ログイン時は no-op）
   addExp(EXP_PER_QUIZ_WORD);
   return EXP_PER_QUIZ_WORD;
 }

@@ -1,0 +1,392 @@
+'use client';
+
+// 復習カード（夕焼けシネマ・オーナー決定 2026-11-07）。復習タブのページ表示（ReviewModal asPage）だけで使う。
+//   予習の「じっくり覚える」（同じ ReviewModal の重ね表示）は従来の ReviewCard のまま＝見た目を分ける（オーナー「分けたい」）。
+//   変えない: 表→タップで裏→3択の流れ・3択の文言と意味・採点（SRS）・スワイプとキー操作・押し間違いの「戻る」。
+//   中身の改善（オーナー資料 2026-11-07）: 裏の読む順＝意味→例文と和訳（紙の上・対象語を強調）→作品情報／3択は同じ大きさで
+//   淡い色の地＋文字で区別（押す前に1つだけ光らせない）／表の下に「思い出してから開く」誘導／意味を確認するボタンは
+//   3択と同じ位置・同じ高さ。場面の画像は出さない（法務の線）＝場面は実際のセリフと作品・話で見せる。
+//   2026-11-07 オーナー実機: 例文の黒い字幕の帯は浮いて見えるのでやめ、カードの紙の上に置く。
+//   見た目は CSS だけ（画像ゼロ・app/style.css「復習カード（夕焼けシネマ）」）。動き・10枚の区切りの演出は後の段。
+
+import { useLayoutEffect, useRef } from 'react';
+import { aiExampleOf, isOtherSceneExample } from '@/lib/exampleBackfill';
+import { surfaceFormInExample, wordMatchRegex, normApostrophes } from '@/lib/subtitles';
+import { speak } from '@/lib/speak';
+import { chunkParts } from '@/lib/chunk';
+import { subtitleCredit } from '@/lib/storage';
+import WordMarks from './WordMarks';
+import { fitLongestWord, fitPhraseLines, PHRASE_MIN_PX } from '@/lib/fitWord';
+
+const FILM_FRAMES = 10; // 進み具合のフィルム＝1コマ1枚・10枚で次の10コマへ
+
+// 大きな語は語の途中で切らない（オーナー 2026-11-07「reconnaissan / ce」の実例・訂正込み）。
+//   句は今の大きさのまま空白でだけ折り返す。いちばん長い1語がカードの幅に入らない時だけ、その語が
+//   1行に入るまで縮める（計算は lib/fitWord.js）。書体の読み込み後・画面の幅が変わった時も測り直す。
+//   句（空白を含む）は、さらに2行に収まる大きさまで縮める（下限は表28px・裏22px・オーナー 2026-11-07）。
+function useFitWord(ref, phraseMinPx, deps) {
+  useLayoutEffect(() => {
+    const el = ref.current;
+    const parent = el?.parentElement;
+    if (!el || !parent) return undefined;
+    const fit = () => {
+      el.style.fontSize = '';
+      const max = parseFloat(getComputedStyle(el).fontSize);
+      const pcs = getComputedStyle(parent);
+      const avail = parent.clientWidth - parseFloat(pcs.paddingLeft) - parseFloat(pcs.paddingRight);
+      // 空白でだけ折り返す設定なので、幅を超えるのは「1語だけで幅に入らない語」がある時だけ
+      let size = fitLongestWord(max, el.scrollWidth, avail);
+      if (/\s/.test((el.textContent || '').trim())) {
+        // 実際にその大きさで描いて行数を数える（行の高さは CSS の line-height から）
+        const linesAt = (px) => {
+          el.style.fontSize = `${px}px`;
+          const lh = parseFloat(getComputedStyle(el).lineHeight) || px * 1.08;
+          return Math.round(el.getBoundingClientRect().height / lh);
+        };
+        size = fitPhraseLines(size, phraseMinPx, linesAt);
+      }
+      el.style.fontSize = size !== max ? `${size}px` : '';
+    };
+    fit();
+    // 書体（Playfair）の読み込みが後から終わると幅が変わる／画面の回転・幅の変化
+    let alive = true;
+    document.fonts?.ready?.then(() => alive && fit());
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => fit()) : null;
+    ro?.observe(parent);
+    return () => {
+      alive = false;
+      ro?.disconnect();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+}
+
+// 表に出す「どの作品・話で出会ったか」。出所表示（subtitleCredit）と同じ規則（別の話数の字幕なら話数を外す・plus 語は出さない）。
+function workLabelOf(w) {
+  const c = subtitleCredit(w);
+  return c ? c.replace(/^📺\s*/, '').replace(/（字幕：[^）]*）$/, '') : '';
+}
+
+// 例文の中の対象語（活用形・分離込み）を強調する。見つからなければ全文をそのまま。
+export function highlightExample(example, word) {
+  const text = String(example || '');
+  const re = word ? wordMatchRegex(word, 'i') : null;
+  const m = re && normApostrophes(text).match(re);
+  if (!m || m.index == null) return { before: text, hit: '', after: '' };
+  return { before: text.slice(0, m.index), hit: text.slice(m.index, m.index + m[0].length), after: text.slice(m.index + m[0].length) };
+}
+
+// 「12 / 125」＋フィルム10コマ（今の10枚のうち答えた枚数が点く）＋全体の細い線。見出しは「今日の復習」（チケット形の横で上映の券と紛れないよう「上映」は使わない・法務 2026-11-07）。
+export function CinemaProgress({ idx, total }) {
+  const blockStart = Math.floor(idx / FILM_FRAMES) * FILM_FRAMES;
+  const frames = Math.max(1, Math.min(FILM_FRAMES, total - blockStart));
+  const lit = idx - blockStart;
+  const overall = total ? Math.min(100, (idx / total) * 100) : 0;
+  return (
+    <div className="rc-progress">
+      <div className="rc-progress-row">
+        <span className="rc-count">
+          {Math.min(idx + 1, total)} <span className="rc-count-total">/ {total}</span>
+        </span>
+        <span className="rc-film" aria-hidden="true">
+          {Array.from({ length: frames }, (_, i) => (
+            <span key={i} className={'rc-frame' + (i < lit ? ' is-lit' : '')} />
+          ))}
+        </span>
+        <span className="rc-label">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true">
+            <path d="M3 10h18v10H3z" />
+            <path d="M3 10l2-5 16-1-1 5" />
+            <path d="M8 5l2 4.5M13 4.6l2 4.5" />
+          </svg>
+          今日の復習
+        </span>
+      </div>
+      <div className="rc-overall" aria-hidden="true">
+        <span style={{ width: `${overall}%` }} />
+      </div>
+    </div>
+  );
+}
+
+const SpeakIcon = ({ size = 18 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M4 9v6h4l5 4V5L8 9H4z" />
+    <path d="M16.5 8.5a5 5 0 0 1 0 7" />
+  </svg>
+);
+const FilmIcon = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+    <rect x="3" y="5" width="18" height="14" rx="2" />
+    <path d="M7 5v14M17 5v14M3 9h4M3 15h4M17 9h4M17 15h4" />
+  </svg>
+);
+
+export default function ReviewCinemaCard({ word: w, marks, flipped, retryMode, onFlip, onRate, onUndo }) {
+  // スワイプ採点：右=知ってた(5) / 左=知らなかった(0)。意味を開いてから有効（従来の ReviewCard と同じ）。
+  const touch = useRef({ x: 0, y: 0 });
+  const onTouchStart = (e) => {
+    const t = e.changedTouches[0];
+    touch.current = { x: t.clientX, y: t.clientY };
+  };
+  const onTouchEnd = (e) => {
+    if (!flipped) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touch.current.x;
+    const dy = t.clientY - touch.current.y;
+    if (Math.abs(dx) > 64 && Math.abs(dx) > Math.abs(dy)) onRate(retryMode ? null : dx > 0 ? 5 : 0);
+  };
+
+  const cp = chunkParts(w.chunk, w.word, w.pos);
+  const label = cp ? w.chunk : w.word;
+  const work = workLabelOf(w);
+  const credit = subtitleCredit(w);
+  const ai = !w.example ? aiExampleOf(w) : null;
+  // “…” と出所（作品・話・字幕元）を付けるのは出所を出せる例文だけ＝字幕の引用。出所の無い例文（plus 語の生成例文など）は
+  // セリフに見せないよう、AI 作例と同じく “…” も出所も付けない。
+  const ex = w.example && credit ? highlightExample(w.example, w.word) : null;
+  const plain = w.example && !credit ? highlightExample(w.example, w.word) : null;
+  const sf = w.pos ? surfaceFormInExample(w.example, w.word) : null;
+  const wordRef = useRef(null);
+  // 裏は点線より上（語の場所）が伸びて、点線より下は中身の高さ（オーナー 2026-11-07「下に余白ができすぎるのは避けたい」）。
+  //   点線の位置が中身で変わるので、両端の切り欠きを点線の高さに合わせる（表は CSS の固定位置のまま）。
+  const ticketRef = useRef(null);
+  const backPerfRef = useRef(null);
+  useLayoutEffect(() => {
+    const t = ticketRef.current;
+    if (!t) return undefined;
+    if (!flipped) {
+      t.style.removeProperty('--rc-notch-y');
+      return undefined;
+    }
+    const set = () => {
+      const p = backPerfRef.current;
+      if (p) t.style.setProperty('--rc-notch-y', `${p.offsetTop + 1}px`);
+    };
+    set();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(set) : null;
+    ro?.observe(t);
+    let alive = true;
+    document.fonts?.ready?.then(() => alive && set());
+    return () => {
+      alive = false;
+      ro?.disconnect();
+    };
+  }, [flipped, w.word]);
+  // 裏も表と同じ大きさ・同じ規則（オーナー 2026-11-07「回答画面の英単語を大きく」）
+  useFitWord(wordRef, PHRASE_MIN_PX.front, [w.word, w.chunk, flipped]);
+
+  const wordEl = (
+    <span ref={wordRef} className="rc-word">
+      {cp && cp.hit ? (
+        <>
+          <span className="rc-word-side">{cp.before}</span>
+          {cp.hit}
+          <span className="rc-word-side">{cp.after}</span>
+        </>
+      ) : (
+        w.word
+      )}
+    </span>
+  );
+  const speakBtn = (
+    <button
+      type="button"
+      className="rc-speak"
+      aria-label="発音を聞く"
+      onClick={(ev) => {
+        ev.stopPropagation();
+        speak(label);
+      }}
+    >
+      <SpeakIcon />
+      聞く
+    </button>
+  );
+
+  return (
+    <div className="rc-card" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+      <div className="rc-deck">
+        <div
+          ref={ticketRef}
+          className={'rc-ticket' + (flipped ? ' is-back' : ' is-front')}
+          onClick={(e) => {
+            if (flipped || e.target.closest('button')) return;
+            onFlip();
+          }}
+        >
+          <div className="rc-ticket-head">
+            {onUndo ? (
+              <button type="button" className="rc-undo" onClick={onUndo} aria-label="前のカードに戻る">
+                {/* ↩︎＝文字として出す（iOS で青い絵文字の箱にしない）。上段を1行に収めるため短く（オーナー 2026-11-07） */}
+                ↩︎ 戻る
+              </button>
+            ) : (
+              <span />
+            )}
+            {/* 裏の右上＝★ 覚えたい／♡ この例文を保存（アイコンだけ・押せる領域 44px）。「例文を聞く」と離して押し間違いを減らす（オーナー 2026-11-07）。
+                裏では「○○ で出会った表現」を出さない（作品名は下の出所の行にある）ので右上は空いている */}
+            {flipped && marks && <WordMarks {...marks} icon />}
+            {!flipped && work && (
+              <span className="rc-work" title={`${work} で出会った表現`}>
+                <FilmIcon />
+                {/* 作品名が長い時は作品名だけを1行で「…」に省略（「で出会った表現」は残す） */}
+                <span className="rc-work-title">{work}</span>
+                <span className="rc-work-suffix">で出会った表現</span>
+              </span>
+            )}
+          </div>
+
+          {!flipped ? (
+            <>
+              <div className="rc-front-main">
+                {wordEl}
+                <div className="rc-word-meta">
+                  {w.pos && <span className="rc-pos">{w.pos}</span>}
+                  {speakBtn}
+                </div>
+              </div>
+              <div className="rc-perf" aria-hidden="true" />
+              <div className="rc-front-hint">
+                <span className="rc-hint-main">意味を思い浮かべてから</span>
+                <span className="rc-hint-sub">カードのどこを押しても開きます</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="rc-back-word">
+                {wordEl}
+                <div className="rc-word-meta">
+                  {w.pos && (
+                    <span className="rc-pos">
+                      {w.pos}
+                      {sf && <span className="rc-pos-surface">例文では {sf}</span>}
+                    </span>
+                  )}
+                  {speakBtn}
+                </div>
+              </div>
+              <div ref={backPerfRef} className="rc-perf" aria-hidden="true" />
+              <div className="rc-back-body">
+                {/* 意味は点線のすぐ下。並び＝意味→例文→和訳→例文の再生（出所は下の rc-src-foot でカードの一番下）。長い時だけここがスクロール */}
+                <div className="rc-back-inner">
+                <div className="rc-def">{w.definition || ''}</div>
+                {ex && (
+                  <div className="rc-sub">
+                    <div className="rc-sub-en">
+                      “{ex.before}
+                      {ex.hit && <span className="rc-sub-hit">{ex.hit}</span>}
+                      {ex.after}”
+                    </div>
+                    {w.example_ja && <div className="rc-sub-ja">{w.example_ja}</div>}
+                  </div>
+                )}
+                {plain && (
+                  <div className="rc-ai">
+                    <div className="rc-ai-en">
+                      {plain.before}
+                      {plain.hit && <span className="rc-ai-hit">{plain.hit}</span>}
+                      {plain.after}
+                    </div>
+                    {w.example_ja && <div className="rc-ai-ja">{w.example_ja}</div>}
+                  </div>
+                )}
+                {ai && (
+                  <div className="rc-ai">
+                    <div className="rc-ai-en">{ai.en}</div>
+                    {ai.ja && <div className="rc-ai-ja">{ai.ja}</div>}
+                  </div>
+                )}
+                {/* 例文の再生＝和訳のすぐ下・中央に、押しやすい大きさ（高さ44px）で（オーナー 2026-11-07）。★／♡ は右上へ移した */}
+                {(ex || plain || ai) && (
+                  <button
+                    type="button"
+                    className="rc-speak-ex"
+                    onClick={(ev) => {
+                      ev.stopPropagation();
+                      speak(ex || plain ? w.example : ai.en);
+                    }}
+                  >
+                    <SpeakIcon />
+                    例文を聞く
+                  </button>
+                )}
+                </div>
+              </div>
+              {/* 出所の行＝カードの一番下に固定（スクロールしない）。例文より一段控えめだが読める濃さ（4.5:1 以上）を保つ。
+                  出所明示（著作権法48条）：作品名・話・字幕元は省略しない */}
+              {((ex && credit) || (ex && isOtherSceneExample(w)) || ai) && (
+                <div className="rc-src-foot">
+                  {ex && credit && (
+                    <span className="rc-src-line">
+                      <FilmIcon />
+                      <span>{credit.replace(/^📺\s*/, '')}</span>
+                    </span>
+                  )}
+                  {ex && isOtherSceneExample(w) && <span className="rc-src-note">この回の別の場面のセリフです</span>}
+                  {/* AI 作例（2026-10-31）: 字幕の引用ではないので “…” と出所を付けず、注記で明示する */}
+                  {ai && <span className="rc-src-note">AI 作例（ドラマのセリフではありません）</span>}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="rc-actions">
+        {!flipped ? (
+          <>
+            <button type="button" className="rc-flip" onClick={onFlip}>
+              意味を確認する
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+            </button>
+            {/* 裏の3択の下に出るスワイプの案内と同じ高さを空けておく＝表のボタンと3択が同じ位置（親指を動かさない） */}
+            <div className="review-swipe-hint rc-swipe-hint rc-hint-spacer" aria-hidden="true">
+              ← 知らなかった　｜　知ってた →
+            </div>
+            <div className="review-key-hint" aria-hidden="true">
+              <kbd>Shift</kbd> / <kbd>Space</kbd> で意味を確認
+            </div>
+          </>
+        ) : retryMode ? (
+          <>
+            <button type="button" className="rc-flip" onClick={() => onRate(null)}>
+              次へ →
+            </button>
+            <div className="review-key-hint" aria-hidden="true">
+              <kbd>Shift</kbd> / <kbd>Space</kbd> / <kbd>→</kbd> 次へ　<kbd>↑</kbd> 戻る
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="rc-rates">
+              <button type="button" className="rc-rate rc-rate-fail" onClick={() => onRate(0)}>
+                <span className="rc-rate-emoji" aria-hidden="true">😟</span>
+                <span className="rc-rate-label">知らなかった</span>
+                <span className="rc-rate-sub">覚え直す</span>
+              </button>
+              <button type="button" className="rc-rate rc-rate-hard" onClick={() => onRate(3)}>
+                <span className="rc-rate-emoji" aria-hidden="true">🙂</span>
+                <span className="rc-rate-label">うろ覚え</span>
+                <span className="rc-rate-sub">あとで復習</span>
+              </button>
+              <button type="button" className="rc-rate rc-rate-easy" onClick={() => onRate(5)}>
+                <span className="rc-rate-emoji" aria-hidden="true">🔥</span>
+                <span className="rc-rate-label">知ってた！</span>
+                <span className="rc-rate-sub">次へ進む</span>
+              </button>
+            </div>
+            <div className="review-swipe-hint rc-swipe-hint" aria-hidden="true">
+              ← 知らなかった　｜　知ってた →
+            </div>
+            <div className="review-key-hint" aria-hidden="true">
+              <kbd>←</kbd> 知らなかった　<kbd>↓</kbd> うろ覚え　<kbd>→</kbd> 知ってた　<kbd>↑</kbd> 戻る
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

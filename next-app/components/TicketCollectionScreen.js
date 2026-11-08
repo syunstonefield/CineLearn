@@ -8,6 +8,8 @@ import { loadFavorites, toggleFavorite } from '@/lib/favorites';
 import { fetchSeasons, getCachedSeasons, fullRangeLabel } from '@/lib/collection';
 import TicketDetailView from './TicketDetailView';
 import TicketPoster from './TicketPoster';
+import { previewWorkRemoval, removeWork, undoWorkRemoval, UNDO_MS } from '@/lib/workRemovalStore';
+import { removalConfirmLines } from '@/lib/workRemoval';
 import { FRAME_TIERS, frameTierOf, raiseFrameBest, loadFrameBest, saveFrameBest } from '@/lib/ticketFrame';
 
 // 半券コレクション（Phase 1：一覧画面）。
@@ -40,6 +42,7 @@ export default function TicketCollectionScreen() {
     cloudVersion,
     wordbookVersion,
     collectionTabTick,
+    bumpWordbook,
   } = useApp();
 
   const [favs, setFavs] = useState([]);
@@ -65,6 +68,31 @@ export default function TicketCollectionScreen() {
     window.scrollTo(0, listScrollY.current);
     listScrollY.current = null;
   }, [detailTitle]);
+  // コレクションから消去（lib/workRemovalStore.js）。確認 → 消去（詳細を閉じて一覧へ）→ 8秒「元に戻す」。
+  const [removeAsk, setRemoveAsk] = useState(null); // { title, lines } 確認画面
+  const [undoBar, setUndoBar] = useState(null); // { title, id } 元に戻すの帯
+  const askRemove = async (title) => {
+    const plan = await previewWorkRemoval(title, profile?.id);
+    setRemoveAsk({ title, lines: removalConfirmLines(plan.counts) });
+  };
+  const doRemove = async () => {
+    const title = removeAsk?.title;
+    setRemoveAsk(null);
+    if (!title) return;
+    await removeWork(title, profile?.id);
+    setDetailTitle(null);
+    bumpWordbook();
+    setUndoBar({ title, id: Date.now() });
+  };
+  const doUndo = () => {
+    if (undoWorkRemoval()) bumpWordbook();
+    setUndoBar(null);
+  };
+  useEffect(() => {
+    if (!undoBar) return undefined;
+    const t = setTimeout(() => setUndoBar(null), UNDO_MS);
+    return () => clearTimeout(t);
+  }, [undoBar]);
   const attemptedPosters = useRef(new Set()); // 重複fetch防止
   const [posterOverrides, setPosterOverrides] = useState({}); // title → posterPath（表示補完）
 
@@ -342,8 +370,46 @@ export default function TicketCollectionScreen() {
   // 作品詳細（Phase 2）：カードタップで開くサブ画面。お気に入り等と同期させるため
   // タイトルで decorated から引き直す（スナップショットにしない）。
   const detailEntry = detailTitle ? decorated.find((e) => e.title === detailTitle) : null;
+  // 確認画面と「元に戻す」の帯（詳細・一覧のどちらにも重ねる）。
+  const overlays = (
+    <>
+      {removeAsk && (
+        <div className="modal-overlay wr-overlay" onClick={(e) => e.target === e.currentTarget && setRemoveAsk(null)}>
+          <div className="modal-panel wr-panel" role="dialog" aria-modal="true" aria-labelledby="wr-title">
+            <h2 className="wr-title" id="wr-title">
+              『{removeAsk.title}』をコレクションから消去しますか？
+            </h2>
+            <ul className="wr-lines">
+              {removeAsk.lines.map((l) => (
+                <li key={l}>{l}</li>
+              ))}
+            </ul>
+            <div className="wr-actions">
+              <button type="button" className="btn-secondary" onClick={() => setRemoveAsk(null)}>
+                やめる
+              </button>
+              <button type="button" className="btn-primary" onClick={doRemove}>
+                消去する
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {undoBar && (
+        <div className="wr-undo" role="status" key={undoBar.id}>
+          <span className="wr-undo-text">『{undoBar.title}』を消去しました</span>
+          <button type="button" className="wr-undo-btn" onClick={doUndo}>
+            元に戻す
+          </button>
+        </div>
+      )}
+    </>
+  );
+
   if (detailEntry) {
     return (
+      <>
+      {overlays}
       <TicketDetailView
         entry={detailEntry}
         seasons={
@@ -356,13 +422,16 @@ export default function TicketCollectionScreen() {
         onBack={() => setDetailTitle(null)}
         onFav={onFav}
         onStudy={() => openDrama(detailEntry.drama)}
+        onRemove={() => askRemove(detailEntry.title)}
         profileId={profile?.id}
       />
+      </>
     );
   }
 
   return (
     <div className="screen active" id="screen-collection">
+      {overlays}
       <div className="tc-screen">
         <div className="tc-head">
           <h1 className="tc-h1">🎟 コレクション</h1>

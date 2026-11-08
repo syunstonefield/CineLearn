@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
 import TodayPanel from './TodayPanel';
+import { CURATION_ON, SAVE_STAR_SENTENCE } from '@/lib/curation';
 import VocabProgress from './VocabProgress';
 import GrassCard from './GrassCard';
 import PlusNote from './PlusNote';
@@ -20,6 +21,8 @@ import { clearExtInstallEntry, isExtInstallEntry } from '@/lib/extEntry';
 import { tmdb } from '@/lib/api';
 import { computeRecap, computeWatchGroup } from '@/lib/reunion';
 import { settleRingValues } from '@/lib/rings';
+import { recencyMs } from '@/lib/workRemoval';
+import { workRecency, byRecency } from '@/lib/workRecency';
 import { refetchPreDomExamples } from '@/lib/preDomExamples';
 import { usePlan, featureAccess } from '@/lib/plan';
 import { dailyReviewCap } from '@/lib/reviewCount';
@@ -28,6 +31,7 @@ import { speak } from '@/lib/speak';
 import { fetchCtxJa } from '@/lib/ctxtranslate';
 import { fetchJa } from '@/lib/jatranslate';
 import { getActiveWords, normTitleForMatch, prewarmTitleAliases, sameWorkTitle } from '@/lib/words';
+import { pickTodayWord } from '@/lib/liked';
 import {
   toIsoDate,
   loadStatsDaily,
@@ -86,6 +90,7 @@ export default function Dashboard() {
     loggedIn,
     openAuth,
     sessionExpired,
+    openWordbook,
   } = useApp();
   // 今日の復習1回の語数＝復習タブ・ボトムナビのバッジと同じ（設定の語数・既定20語・無料）
   const plan = usePlan(loggedIn);
@@ -178,6 +183,8 @@ export default function Dashboard() {
   // マイ単語帳の語（拡張クリック保存・手動追加）。累計ゲージの母数に足すため state で保持する
   // （getActiveWords は非同期＝クラウド取り込みを含むので data の useMemo からは呼べない）。
   const [myWords, setMyWords] = useState([]);
+  // 「今日の語」（2026-11-07・法務の条件＝語が見出し・例文は従）: ♡ を付けた語から日付で1つ。無ければ出さない。
+  const todayWord = useMemo(() => pickTodayWord(myWords, new Date().toISOString().slice(0, 10)), [myWords]);
   const [myWordsLoaded, setMyWordsLoaded] = useState(false); // 円の記録は単語帳の語が揃ってから（途中の小さい値を残さない）
   // 切り替え前（2026-07-03 より前）に拡張で保存した語の例文＝画面字幕の行を、OpenSubtitles の1文に
   // 取り直す（ログイン時のみ・1回 8 語まで・済んだ語は端末に記録＝lib/preDomExamples.js）。
@@ -325,8 +332,11 @@ export default function Dashboard() {
     // 保存語の作品名は日英で揺れるので名寄せ込みの sameWorkTitle で判定する。
     const activeKeys = activeWordKeys(history, myWords, sameWorkTitle);
     const overall = overallVocabStats(history, myWords, loadSrs(), activeKeys);
+    // 作品の「最近触った」時刻（作った日・復習・保存・開いた/戻した）。続きから学習の並びに使う（lib/workRecency.js）。
+    const recency = workRecency({ history, srs: loadSrs(), myWords, myDramas, sameTitle: sameWorkTitle });
     return {
       history,
+      recency,
       entries: buildLibraryEntries(history, myDramas).filter((e) => !archived.has(e.drama.title)),
       learnStats,
       totalLearned: overall.learned,
@@ -463,10 +473,11 @@ export default function Dashboard() {
     };
   });
 
-  // サブスク風に「続き（学習中）」と「マイリスト（未着手）」へ二分し、続きは最終学習日の新しい順。
+  // サブスク風に「続き（学習中）」と「マイリスト（未着手）」へ二分し、続きは最近触った順
+  //   （作った日・復習・拡張の保存・開いた/戻した時刻の新しい方・lib/workRecency.js。オーナー 2026-11-07）。
   const continueEntries = entries
     .filter((e) => e.episodes.length > 0)
-    .sort((a, b) => String(b.lastDate || '').localeCompare(String(a.lastDate || '')));
+    .sort(byRecency(data.recency || new Map(), (e) => e.drama.title, (e) => recencyMs(e.lastDate, e.drama?.touchedAt)));
   const listEntries = entries.filter((e) => e.episodes.length === 0);
 
   // 空のダッシュボード（履歴・ライブラリ0件）で中央に出すおすすめ6件
@@ -722,7 +733,7 @@ export default function Dashboard() {
       {/* ログインの期限切れ（起動時にログイン画面を出さない代わりの案内・初回体験の修正 D） */}
       {sessionExpired && !loggedIn && !expiredBandClosed && (
         <div className="ext-banner">
-          <span className="ext-banner-text">ログインの期限が切れました。ログインし直すと、単語や履歴の同期を再開できます</span>
+          <span className="ext-banner-text">同期が止まっています。ログインし直すと再開します（この端末の記録は消えません）</span>
           <button className="ext-banner-btn" onClick={() => openAuth({ mode: 'login' })}>
             ログイン →
           </button>
@@ -736,7 +747,9 @@ export default function Dashboard() {
           <span className="ext-banner-icon" aria-hidden="true">🧩</span>
           <span className="ext-banner-text">
             {loggedIn
-              ? '拡張機能を追加しました。動画の字幕の単語をクリックして「✓ 保存」を押すと、単語帳に入ります'
+              ? CURATION_ON
+                ? `拡張機能を追加しました。${SAVE_STAR_SENTENCE}`
+                : '拡張機能を追加しました。動画の字幕の単語をクリックして「✓ 保存」を押すと、単語帳に入ります'
               : '拡張機能を追加しました。保存した単語をアプリに届けるにはログインが必要です'}
           </span>
           {!loggedIn && (
@@ -806,6 +819,21 @@ export default function Dashboard() {
           );
         }}
       />
+
+      {todayWord && (
+        <button type="button" className="home-today-word" onClick={openWordbook} title="単語帳で見る">
+          <span className="htw-label">♡ 今日の語</span>
+          <span className="htw-word">{todayWord.word}</span>
+          {(todayWord.ja || todayWord.definition) && <span className="htw-def">{todayWord.ja || todayWord.definition}</span>}
+          <span className="htw-ex">“{todayWord.sentence || todayWord.example}”</span>
+          {todayWord.dramaTitle && (
+            <span className="htw-src">
+              📺 {todayWord.dramaTitle}
+              {todayWord.season != null && todayWord.episode != null ? ` S${todayWord.season}E${todayWord.episode}` : ''}（字幕：OpenSubtitles）
+            </span>
+          )}
+        </button>
+      )}
 
       {/* 学習した日（草）。ホームでは表示幅に収まる直近の週だけ（オーナー 2026-10-08）。
           今日の復習・草・続きから学習（最低1枚）が、スマホでも PC でも最初の1画面に収まる並びにする。 */}
