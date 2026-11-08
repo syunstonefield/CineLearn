@@ -16,17 +16,21 @@ const STORE_URL = 'https://chromewebstore.google.com/detail/cinelearn/jdhgbdpaeo
 const LP = CURATION_ON
   ? {
       featH3: 'ドラマを観ながら、字幕の単語をその場で保存',
+      featP1: 'Chrome拡張機能を使えば、字幕に表示される単語をクリックして、その場で辞書を開けます。',
       featP: '辞書検索と意味の確認から保存まで、その場で済みます。保存した語はその話の単語リストに残り、「★ 覚えたい」を押した語は単語帳にも入ります。',
       popupBtns: '<button class="popup-save">✓ 保存</button><button class="popup-save popup-star">★ 覚えたい</button>',
       storeCaption: 'Netflix・Prime Video の字幕をクリックで保存。予習・復習は Web アプリで。',
+      popupNote: '← 字幕の単語をクリック',
       step3P: '動画を再生し、字幕に表示される単語をクリック。辞書ポップアップの「✓ 保存」でその話の単語リストに残り、「★ 覚えたい」で単語帳にも入ります。',
       psBtns: '<button class="ps">✓ 保存</button><button class="ps ps-star">★ 覚えたい</button>',
     }
   : {
       featH3: 'ドラマ視聴中に単語を1クリック保存',
+      featP1: 'Chrome拡張機能を使えば、字幕に表示される単語をクリックするだけで保存。',
       featP: '辞書検索・意味確認・単語帳への追加がワンアクションで完了します。',
       popupBtns: '<button class="popup-save">✓ 単語帳に保存</button>',
       storeCaption: 'Netflix・Prime Video の字幕をクリックで単語帳へ。予習・復習は Web アプリで。',
+      popupNote: '← 字幕をクリックするだけ',
       step3P: '動画を再生し、字幕に表示される単語をクリックするだけ。辞書ポップアップが表示され、ワンクリックで単語帳に保存できます。',
       psBtns: '<button class="ps">✓ 単語帳に保存</button>',
     };
@@ -266,7 +270,7 @@ const MARKUP = `
           <span class="feat-tag">Chrome Extension</span>
           <h3>${LP.featH3}</h3>
           <p>
-            Chrome拡張機能を使えば、字幕に表示される単語をクリックするだけで保存。
+            ${LP.featP1}
             ${LP.featP}
             <strong style="color:var(--text)">ログインしておけば、保存した単語はクラウド同期されてスマホでも確認できます。</strong>
           </p>
@@ -281,7 +285,7 @@ const MARKUP = `
               <div class="popup-def">the power to influence a person or situation to achieve a particular outcome</div>
               ${LP.popupBtns}
             </div>
-            <div style="text-align:center;font-size:12px;color:var(--text-light);margin-top:12px">← 字幕をクリックするだけ</div>
+            <div style="text-align:center;font-size:12px;color:var(--text-light);margin-top:12px">${LP.popupNote}</div>
           </div>
         </div>
       </div>
