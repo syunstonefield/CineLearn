@@ -77,8 +77,9 @@ export const REVIEW_TIMES = [
 //   「端末でログインした人 → その人がログインした別の端末 → …」とたどり、つながった端末と人の行を全部外す。
 //   端末の番号はログアウトでも変わらない（cl_device_key は消去対象外）ので、印を1回付けるだけで、その端末の過去の行
 //   （印を付ける前の日・ゲストの行・テスト用に作ったアカウントの行）もまとめて外れる。
-export function staffComponent(rows, { persons = [] } = {}) {
-  const devs = new Set();
+//   devices＝端末の番号の除外リスト（seed/.env CL_STATS_EXCLUDE_DEVICES・印を付けられない使い捨ての確認用ブラウザ・2026-11-08）。
+export function staffComponent(rows, { persons = [], devices = [] } = {}) {
+  const devs = new Set(devices || []);
   const ppl = new Set(persons || []);
   for (const r of rows || []) {
     if (!r?.S) continue;
@@ -101,15 +102,16 @@ export function staffComponent(rows, { persons = [] } = {}) {
   }
   return { devices: devs, persons: ppl };
 }
-export function excludeStaff(rows, { persons = [] } = {}) {
-  const { devices, persons: ppl } = staffComponent(rows, { persons });
+export function excludeStaff(rows, { persons = [], devices: seedDevices = [] } = {}) {
+  const { devices, persons: ppl } = staffComponent(rows, { persons, devices: seedDevices });
   const kept = [];
   let removed = 0;
   for (const r of rows || []) {
     if (devices.has(r.d) || ppl.has(r.p)) removed++;
     else kept.push(r);
   }
-  return { rows: kept, excluded: { rows: removed, devices: devices.size, persons: ppl.size } };
+  const seen = new Set((rows || []).map((r) => r?.d));
+  return { rows: kept, excluded: { rows: removed, devices: [...devices].filter((d) => seen.has(d)).length, persons: ppl.size } };
 }
 
 // ゲスト→登録を同じ人として数える（集計側だけ・2026-11-05）。
@@ -164,8 +166,8 @@ function weekRows(rows, win) {
   return rows.filter((r) => r.day >= win.from && r.day <= win.to);
 }
 
-export function buildUsageReport(rawRows, { today, weeks = 8, excludePersons = [], includeStaff = false } = {}) {
-  const staff = includeStaff ? { rows: rawRows, excluded: null } : excludeStaff(rawRows, { persons: excludePersons });
+export function buildUsageReport(rawRows, { today, weeks = 8, excludePersons = [], excludeDevices = [], includeStaff = false } = {}) {
+  const staff = includeStaff ? { rows: rawRows, excluded: null } : excludeStaff(rawRows, { persons: excludePersons, devices: excludeDevices });
   const rows = joinGuestRows(staff.rows); // ゲスト→登録を同じ人に（⑦の「2人に数える」誤差の解消）
   const wins = weekWindows(today, weeks);
   const plus = [];
@@ -345,8 +347,8 @@ export function genMonthTable(genMonth, { free = 5, plus = 30 } = {}) {
 }
 
 // 判断の目安（直近の週＝表の先頭）
-export function usageHints(report, rawRows, { today, excludePersons = [], includeStaff = false } = {}) {
-  const rows = joinGuestRows(includeStaff ? rawRows : excludeStaff(rawRows, { persons: excludePersons }).rows);
+export function usageHints(report, rawRows, { today, excludePersons = [], excludeDevices = [], includeStaff = false } = {}) {
+  const rows = joinGuestRows(includeStaff ? rawRows : excludeStaff(rawRows, { persons: excludePersons, devices: excludeDevices }).rows);
   const [w0] = weekWindows(today, 1);
   const rs = weekRows(rows, w0);
   const people = new Set(rs.map((r) => r.p)).size;
