@@ -13,6 +13,7 @@
 //     利用データは表より1週ぶん前から読む（docs/research-2026-11-new-user-dropoff.md）。
 //   2026-11-07: ⑩ 復習の流れ（始めた・終えた・抜けた・答えの内訳・1枚の時間の幅）を追加。
 //   2026-11-07: 運営の端末・アカウントを既定で外す（/app?cl_staff=1 の印・seed/.env CL_STATS_EXCLUDE_UIDS・--include-staff で含める）。
+//   2026-11-08: seed/.env CL_STATS_EXCLUDE_DEVICES（端末の番号・カンマ区切り）でも外す（印を付けられない使い捨ての確認用ブラウザ）。
 //   2026-11-05: ⑨ 初回体験の流れを追加。ゲスト→登録を同じ端末なら同じ人に寄せる（lib/usageReport.js joinGuestRows・集計側のみ）。
 
 import { writeFileSync } from 'node:fs';
@@ -28,6 +29,11 @@ const csvArg = args.find((a) => a === '--csv' || a.startsWith('--csv='));
 // 公開リポジトリに入れない）。端末は /app?cl_staff=1 を1回開いた端末と、そこでログインした人がつながる端末（lib/usageReport.js）。
 const includeStaff = args.includes('--include-staff');
 const excludeUids = String(process.env.CL_STATS_EXCLUDE_UIDS || '').trim();
+// 端末の番号（行の device と同じ形）で外す（印を付けられない使い捨ての確認用ブラウザ・2026-11-08）。行は消さず集計から外すだけ。
+const excludeDevices = String(process.env.CL_STATS_EXCLUDE_DEVICES || '')
+  .split(',')
+  .map((x) => x.trim())
+  .filter((x) => /^[0-9a-f]{16}$/.test(x));
 if (!API_BASE) {
   console.error('CINELEARN_API_BASE 未設定（seed/.env を --env-file で渡す）');
   process.exit(1);
@@ -50,7 +56,7 @@ if (!res.ok) {
   process.exit(1);
 }
 const { daily, weeklyUsers, osDailyCap, osQuotaLast, usageRows = [], genMonth = [], excludePersons = [] } = await res.json();
-const staffOpts = { excludePersons, includeStaff };
+const staffOpts = { excludePersons, excludeDevices, includeStaff };
 
 const pct = (a, b) => (b > 0 ? `${Math.round((a / b) * 100)}%` : '-');
 const rows = [];
@@ -118,6 +124,6 @@ if (csvArg) {
     console.error('CSV をリポジトリの中には書かない（--csv=~/… など外を指定）');
     process.exit(1);
   }
-  writeFileSync(path, usageCsv(includeStaff ? usageRows : excludeStaff(usageRows, { persons: excludePersons }).rows), { mode: 0o600 });
+  writeFileSync(path, usageCsv(includeStaff ? usageRows : excludeStaff(usageRows, { persons: excludePersons, devices: excludeDevices }).rows), { mode: 0o600 });
   console.log(`CSV: ${path}（共有しない・120日以内に消す）`);
 }

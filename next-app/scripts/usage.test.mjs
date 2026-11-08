@@ -337,3 +337,17 @@ test('運営の端末・アカウントを外す: 印の端末→そこでログ
   assert.ok(all.entry[0].開いた人 > rep.entry[0].開いた人);
   assert.ok(usageHints(rep, rows, { today: '2026-11-07' }).some((l) => l.includes('運営の端末・アカウントを外した: 端末 3・人 2・行 6')));
 });
+
+test('端末の番号の除外リスト: 印を付けられない確認用ブラウザの行だけを外す（行に無い番号は数えない）', () => {
+  const rows = [
+    { day: '2026-11-07', p: 'e1', d: 'e1', L: 0, c: { open: 1, ext_install_open: 1 } },
+    { day: '2026-11-07', p: 'e2', d: 'e2', L: 0, c: { open: 1, ext_install_open: 1 } },
+    { day: '2026-11-07', p: 'u1', d: 'u1', L: 0, c: { open: 1 } },
+  ];
+  const x = excludeStaff(rows, { devices: ['e1', 'e2', 'zz'] });
+  assert.deepEqual(x.rows.map((r) => r.p), ['u1']);
+  assert.deepEqual(x.excluded, { rows: 2, devices: 2, persons: 0 });
+  const rep = buildUsageReport(rows, { today: '2026-11-07', weeks: 1, excludeDevices: ['e1', 'e2'] });
+  assert.equal(rep.newUsers[0].新規の人, 1);
+  assert.equal(rep.newUsers[0]['拡張から来た'], '0 0%');
+});
