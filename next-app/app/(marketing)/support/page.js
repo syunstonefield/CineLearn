@@ -3,6 +3,7 @@
 // 見た目は landing.css に依存せずインラインスタイルで自己完結（privacy/terms と同じ作法）。
 
 import { NON_AFFILIATION } from '@/lib/legal';
+import { CURATION_ON } from '@/lib/curation';
 
 const CONTACT_EMAIL = 'cinelearn.202606@gmail.com';
 // ストアURL（LP page.js・ExtensionGuide.js と同じものを指す。変える時は3箇所）。
@@ -59,7 +60,16 @@ export default function SupportPage() {
           ※ ログインした状態で学習アプリを一度開くと、拡張機能にログインが引き継がれます（拡張側での入力は不要です）。
         </li>
         <li style={li}>
-          Netflix などで動画を再生し、字幕の知らない単語を<strong>クリック</strong>すると単語帳に保存されます。
+          {CURATION_ON ? (
+            <>
+              Netflix などで動画を再生し、字幕の知らない単語を<strong>クリック</strong>して「✓ 保存」を押すと、その話の単語リストに残ります。
+              「★ 覚えたい」を押すと単語帳にも入ります。
+            </>
+          ) : (
+            <>
+              Netflix などで動画を再生し、字幕の知らない単語を<strong>クリック</strong>すると単語帳に保存されます。
+            </>
+          )}
         </li>
         <li style={li}>
           学習アプリの「単語帳」「復習」で、保存した単語を間隔反復で復習できます。

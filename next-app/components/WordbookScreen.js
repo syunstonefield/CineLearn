@@ -18,6 +18,7 @@ import CefrNote from './CefrNote';
 import { cefrHintOf } from '@/lib/cefrHint';
 import { cefrIndexFromHistory, withWordbookCefr } from '@/lib/wordbookCefr';
 import { likedWords, canLikeMore, pickTodayWord, LIKE_CAP_PER_EPISODE } from '@/lib/liked';
+import { CURATION_ON } from '@/lib/curation';
 
 // 初回の整理（2026-11-07 オーナー決定）: 単語帳を「覚えたい語の場所」にした時、既に入っている拡張/手入力の語を
 // 「このまま残す／★の語だけにする」から一度だけ選ぶ。選ばなければ何もしない。語は消えない（作品の単語リスト・復習に残る）。
@@ -25,7 +26,7 @@ const WB_CHOICE_KEY = 'cl_wb_choice_v1';
 // 「拡張で保存した語は単語帳に自動で入らない」段（in_wordbook の DB 既定 false）は、拡張 v1.2.12 と案内の文言の公開に
 // 合わせて出す（オーナー決定 2026-11-07・受付）。それまでは初回の整理画面と、その前提の文言を出さない。
 // 出す時: Vercel の環境変数 NEXT_PUBLIC_WORDBOOK_CURATION=on ＋再デプロイ（SQL supabase_my_words_wordbook_default.sql も同時）。
-const CURATION_ON = process.env.NEXT_PUBLIC_WORDBOOK_CURATION === 'on';
+// 旗の定義は lib/curation.js（案内の文言も同じ旗で切り替わる）
 function readChoice() {
   try {
     return localStorage.getItem(WB_CHOICE_KEY) || '';

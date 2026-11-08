@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
 import TodayPanel from './TodayPanel';
+import { CURATION_ON, SAVE_STAR_SENTENCE } from '@/lib/curation';
 import VocabProgress from './VocabProgress';
 import GrassCard from './GrassCard';
 import PlusNote from './PlusNote';
@@ -746,7 +747,9 @@ export default function Dashboard() {
           <span className="ext-banner-icon" aria-hidden="true">🧩</span>
           <span className="ext-banner-text">
             {loggedIn
-              ? '拡張機能を追加しました。動画の字幕の単語をクリックして「✓ 保存」を押すと、単語帳に入ります'
+              ? CURATION_ON
+                ? `拡張機能を追加しました。${SAVE_STAR_SENTENCE}`
+                : '拡張機能を追加しました。動画の字幕の単語をクリックして「✓ 保存」を押すと、単語帳に入ります'
               : '拡張機能を追加しました。保存した単語をアプリに届けるにはログインが必要です'}
           </span>
           {!loggedIn && (

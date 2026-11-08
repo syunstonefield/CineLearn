@@ -467,3 +467,7 @@ footer a { color: var(--gold-bg); text-decoration: none; font-size: 13px; }
   .cta-ext-mobile { display: inline-block; }
   footer { flex-direction: column; text-align: center; }
 }
+
+/* 拡張の「★ 覚えたい」（旗 NEXT_PUBLIC_WORDBOOK_CURATION=on の時だけ出る・2026-11-08） */
+.popup-save.popup-star { margin: -8px 16px 16px; background: transparent; color: #8a6400; border: 1px solid rgba(245, 197, 24, 0.6); }
+.netflix-popup .ps.ps-star { margin-top: 5px; background: transparent; color: #8a6400; border: 1px solid rgba(245, 197, 24, 0.6); }

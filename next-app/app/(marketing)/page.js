@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { NON_AFFILIATION } from '@/lib/legal';
+import { CURATION_ON } from '@/lib/curation';
 
 // landing.html を忠実に移植したマーケLP。
 // 静的マークアップは dangerouslySetInnerHTML でそのまま描画し（SSR されるため SEO も維持）、
@@ -10,6 +11,25 @@ import { NON_AFFILIATION } from '@/lib/legal';
 // 拡張機能は Chrome Web Store 公開済み（zip/デベロッパーモード手順は廃止）。
 // ストアURLは ExtensionGuide.js と同じものを指す（変える時は両方）。
 const STORE_URL = 'https://chromewebstore.google.com/detail/cinelearn/jdhgbdpaeoihopelnnganoojpnplkiie';
+
+// 拡張の保存の言い方（旗 lib/curation.js で切り替え・拡張 v1.2.12 のふきだしと同じ）。旗 off の間は今の文言のまま。
+const LP = CURATION_ON
+  ? {
+      featH3: 'ドラマを観ながら、字幕の単語をその場で保存',
+      featP: '辞書検索と意味の確認から保存まで、その場で済みます。保存した語はその話の単語リストに残り、「★ 覚えたい」を押した語は単語帳にも入ります。',
+      popupBtns: '<button class="popup-save">✓ 保存</button><button class="popup-save popup-star">★ 覚えたい</button>',
+      storeCaption: 'Netflix・Prime Video の字幕をクリックで保存。予習・復習は Web アプリで。',
+      step3P: '動画を再生し、字幕に表示される単語をクリック。辞書ポップアップの「✓ 保存」でその話の単語リストに残り、「★ 覚えたい」で単語帳にも入ります。',
+      psBtns: '<button class="ps">✓ 保存</button><button class="ps ps-star">★ 覚えたい</button>',
+    }
+  : {
+      featH3: 'ドラマ視聴中に単語を1クリック保存',
+      featP: '辞書検索・意味確認・単語帳への追加がワンアクションで完了します。',
+      popupBtns: '<button class="popup-save">✓ 単語帳に保存</button>',
+      storeCaption: 'Netflix・Prime Video の字幕をクリックで単語帳へ。予習・復習は Web アプリで。',
+      step3P: '動画を再生し、字幕に表示される単語をクリックするだけ。辞書ポップアップが表示され、ワンクリックで単語帳に保存できます。',
+      psBtns: '<button class="ps">✓ 単語帳に保存</button>',
+    };
 
 const MARKUP = `
 <!-- NAV -->
@@ -244,10 +264,10 @@ const MARKUP = `
       <div class="feat-row">
         <div>
           <span class="feat-tag">Chrome Extension</span>
-          <h3>ドラマ視聴中に単語を1クリック保存</h3>
+          <h3>${LP.featH3}</h3>
           <p>
             Chrome拡張機能を使えば、字幕に表示される単語をクリックするだけで保存。
-            辞書検索・意味確認・単語帳への追加がワンアクションで完了します。
+            ${LP.featP}
             <strong style="color:var(--text)">ログインしておけば、保存した単語はクラウド同期されてスマホでも確認できます。</strong>
           </p>
         </div>
@@ -259,7 +279,7 @@ const MARKUP = `
                 <div class="popup-phon">/ˈliːvərɪdʒ/ · noun</div>
               </div>
               <div class="popup-def">the power to influence a person or situation to achieve a particular outcome</div>
-              <button class="popup-save">✓ 単語帳に保存</button>
+              ${LP.popupBtns}
             </div>
             <div style="text-align:center;font-size:12px;color:var(--text-light);margin-top:12px">← 字幕をクリックするだけ</div>
           </div>
@@ -450,7 +470,7 @@ const MARKUP = `
               </div>
               <div class="store-add-btn">Chrome に追加</div>
             </div>
-            <div style="margin-top:12px;font-size:12px;color:#5f6368;line-height:1.7">Netflix・Prime Video の字幕をクリックで単語帳へ。予習・復習は Web アプリで。</div>
+            <div style="margin-top:12px;font-size:12px;color:#5f6368;line-height:1.7">${LP.storeCaption}</div>
           </div>
         </div>
       </div>
@@ -492,7 +512,7 @@ const MARKUP = `
         <div>
           <span class="step-badge">STEP 3</span>
           <h3>Netflix / Prime Video で再生して字幕の単語をクリック</h3>
-          <p>動画を再生し、字幕に表示される単語をクリックするだけ。辞書ポップアップが表示され、ワンクリックで単語帳に保存できます。</p>
+          <p>${LP.step3P}</p>
           <div class="note"><strong>🔄 自動同期：</strong>ログイン済みなら、保存した単語は Web アプリとスマホに自動で同期されます（未ログインでの保存は同期されません）。Disney+ は単語保存・例文・セリフコピー対応（◀▶ナビのみ非対応）。</div>
         </div>
         <div class="illus" style="overflow:hidden">
@@ -507,7 +527,7 @@ const MARKUP = `
                 <div class="pw">leverage</div>
                 <div class="pm">/ˈliːvərɪdʒ/ · noun</div>
                 <div class="pd">the power to influence a person or situation</div>
-                <button class="ps">✓ 単語帳に保存</button>
+                ${LP.psBtns}
               </div>
               <div class="netflix-sub">
                 You don't have enough <span class="cl-word">leverage</span> to win this case.

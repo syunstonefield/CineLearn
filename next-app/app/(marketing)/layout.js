@@ -1,5 +1,6 @@
 import './landing.css';
 import { Analytics } from '@vercel/analytics/next';
+import { CURATION_ON } from '@/lib/curation';
 
 // route group (marketing) 用のルートレイアウト。
 // アプリ本体 (app) とは別ルートレイアウトなので、グループ間の遷移は
@@ -15,7 +16,9 @@ export const metadata = {
   openGraph: {
     title: 'CineLearn — ドラマで英語を学ぶ',
     description:
-      'Netflix・Amazon Prime Video の字幕から、クリックだけで単語帳へ。間隔反復で復習まで。',
+      CURATION_ON
+        ? 'Netflix・Amazon Prime Video の字幕から、クリックで単語を保存。間隔反復で復習まで。'
+        : 'Netflix・Amazon Prime Video の字幕から、クリックだけで単語帳へ。間隔反復で復習まで。',
     siteName: 'CineLearn',
     type: 'website',
     locale: 'ja_JP',
