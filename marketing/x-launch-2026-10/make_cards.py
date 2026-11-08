@@ -88,7 +88,7 @@ def make_x_cards():
 # 使い方: python3 make_cards.py cws   → ../cws-screenshots-v1.2.10/{A-listing,B-launch}/0N-*.png
 # 注意: ホーム画面は TMDB ポスターが写るので下端を切って使う（crop_h）。配信サービスのロゴ・映像は入れない。
 LW,LH=1280,800
-CWS_OUT=os.path.abspath(HERE+'/../cws-screenshots-v1.2.10')
+CWS_OUT=os.path.abspath(HERE+'/../cws-screenshots-v1.2.12')  # v1.2.10 の画像は cws-screenshots-v1.2.10 に残す
 L_HEAD=F(50); L_SUB=F(24); L_TAG=F(22)
 
 def l_background():
@@ -167,7 +167,7 @@ def make_cws():
     # A2 字幕クリック→意味→保存（UI主役・映像なし）
     panel_card('字幕の単語を、\nクリックして保存','動画を止めなくていい。意味はマウスを乗せるだけ。',
         [('日本語の意味がすぐ出る','同梱の英和辞書・通信なし'),('「★ 覚えたい」で単語帳にも','✓ 保存はその話の単語リストへ')],
-        f'{A}/02-subtitle-click-save.png','extension-landscape.png',(400,735,1600,1145),panel_y=322,panel_w=1080)
+        f'{A}/02-subtitle-click-save.png','extension-popup-star-v1.2.12.png',(470,625,1530,1022),panel_y=322,panel_w=1080,light=True)  # v1.2.12: ★ありのポップアップ（オーナー実機 2026-11-08・映像は配信側の保護で白）
     # A3 予習画面
     shot_card('観る前に3分。\nこの話で覚えるべき語だけ','作品と話数を選ぶだけで、重要語のリストに。',
         [('基礎単語は自動でスキップ','覚えるべき語だけに絞る'),('予習・復習は学習アプリで','拡張で保存した語と同期')],
@@ -175,7 +175,7 @@ def make_cws():
     # A4 字幕マーカー（クリーム色＋点線）
     panel_card('他の作品で覚えた単語に、\n字幕の中で再会','控えめな印。設定でオフにもできる。',
         [('淡いクリーム色の印','保存した語・この話の予習語'),('細い点線の印','他の作品で出会った語。出所も分かる')],
-        f'{A}/04-subtitle-markers.png','extension-landscape.png',(420,978,1580,1142),panel_y=420,panel_w=1160,chip_w=520)
+        f'{A}/04-subtitle-markers.png','extension-popup-star-v1.2.12.png',(470,861,1530,1022),panel_y=420,panel_w=1160,chip_w=520,light=True)
     # A5 復習カード（3段階採点）
     shot_card('忘れる前のタイミングで\n復習を提案','間隔反復（SM-2）。3段階で採点するだけ。',
         [('知ってた／うろ覚え／知らなかった','採点で次に出る間隔が変わる'),('例文はあのセリフ','出典つきで文脈ごと思い出す')],
