@@ -72,6 +72,46 @@ export const REVIEW_TIMES = [
   ['review_t_20p', '20秒〜'],
 ];
 
+// 運営の端末・アカウントを外す（2026-11-07・オーナー依頼）。
+//   起点＝印（S）が付いた行の端末と、seed から渡す運営の利用者の番号（excludePersons）。そこから
+//   「端末でログインした人 → その人がログインした別の端末 → …」とたどり、つながった端末と人の行を全部外す。
+//   端末の番号はログアウトでも変わらない（cl_device_key は消去対象外）ので、印を1回付けるだけで、その端末の過去の行
+//   （印を付ける前の日・ゲストの行・テスト用に作ったアカウントの行）もまとめて外れる。
+export function staffComponent(rows, { persons = [] } = {}) {
+  const devs = new Set();
+  const ppl = new Set(persons || []);
+  for (const r of rows || []) {
+    if (!r?.S) continue;
+    devs.add(r.d);
+    if (r.p !== r.d) ppl.add(r.p);
+  }
+  for (let changed = true; changed; ) {
+    changed = false;
+    for (const r of rows || []) {
+      if (!r) continue;
+      if (ppl.has(r.p) && !devs.has(r.d)) {
+        devs.add(r.d);
+        changed = true;
+      }
+      if (devs.has(r.d) && r.p !== r.d && !ppl.has(r.p)) {
+        ppl.add(r.p);
+        changed = true;
+      }
+    }
+  }
+  return { devices: devs, persons: ppl };
+}
+export function excludeStaff(rows, { persons = [] } = {}) {
+  const { devices, persons: ppl } = staffComponent(rows, { persons });
+  const kept = [];
+  let removed = 0;
+  for (const r of rows || []) {
+    if (devices.has(r.d) || ppl.has(r.p)) removed++;
+    else kept.push(r);
+  }
+  return { rows: kept, excluded: { rows: removed, devices: devices.size, persons: ppl.size } };
+}
+
 // ゲスト→登録を同じ人として数える（集計側だけ・2026-11-05）。
 //   行の名前は「人の番号.端末の番号」で、端末の番号はゲスト行（人＝端末）にもログイン行にも入っている。
 //   同じ端末で後からログインした人の番号が分かれば、その端末のゲスト行をその人に寄せる。
@@ -124,8 +164,9 @@ function weekRows(rows, win) {
   return rows.filter((r) => r.day >= win.from && r.day <= win.to);
 }
 
-export function buildUsageReport(rawRows, { today, weeks = 8 } = {}) {
-  const rows = joinGuestRows(rawRows); // ゲスト→登録を同じ人に（⑦の「2人に数える」誤差の解消）
+export function buildUsageReport(rawRows, { today, weeks = 8, excludePersons = [], includeStaff = false } = {}) {
+  const staff = includeStaff ? { rows: rawRows, excluded: null } : excludeStaff(rawRows, { persons: excludePersons });
+  const rows = joinGuestRows(staff.rows); // ゲスト→登録を同じ人に（⑦の「2人に数える」誤差の解消）
   const wins = weekWindows(today, weeks);
   const plus = [];
   const funnel = [];
@@ -237,7 +278,7 @@ export function buildUsageReport(rawRows, { today, weeks = 8 } = {}) {
     }
   }
   const joined = rows.filter((r) => r.joined).length;
-  return { plus, funnel, exits, review, onboarding, entry, trial, reviewFlow, newUsers: buildNewUsers(rows, wins, today), joinedRows: joined };
+  return { plus, funnel, exits, review, onboarding, entry, trial, reviewFlow, newUsers: buildNewUsers(rows, wins, today), joinedRows: joined, staffExcluded: staff.excluded };
 }
 
 // ⑦ 新規の人（初めて開いた週ごと）。rows の中で最初に現れた日＝初めて開いた日。
@@ -304,8 +345,8 @@ export function genMonthTable(genMonth, { free = 5, plus = 30 } = {}) {
 }
 
 // 判断の目安（直近の週＝表の先頭）
-export function usageHints(report, rawRows, { today } = {}) {
-  const rows = joinGuestRows(rawRows);
+export function usageHints(report, rawRows, { today, excludePersons = [], includeStaff = false } = {}) {
+  const rows = joinGuestRows(includeStaff ? rawRows : excludeStaff(rawRows, { persons: excludePersons }).rows);
   const [w0] = weekWindows(today, 1);
   const rs = weekRows(rows, w0);
   const people = new Set(rs.map((r) => r.p)).size;
@@ -332,6 +373,10 @@ export function usageHints(report, rawRows, { today } = {}) {
     lines.push(
       `直近の週の初回体験: 最初の画面 ${num('最初の画面')}人 → 作品 ${num('作品')} → 予習5枚 ${num('予習5枚')} → 完了画面 ${num('完了画面')} → 登録へ ${num('登録へ')}／あとで ${num('あとで')}`
     );
+  }
+  if (report.staffExcluded?.rows) {
+    const x = report.staffExcluded;
+    lines.push(`運営の端末・アカウントを外した: 端末 ${x.devices}・人 ${x.persons}・行 ${x.rows}（--include-staff で含める）`);
   }
   if (report.joinedRows) lines.push(`ゲスト→登録を同じ人に寄せた行: ${report.joinedRows}（同じ端末でログインした人のゲスト時代の行）`);
   return lines;

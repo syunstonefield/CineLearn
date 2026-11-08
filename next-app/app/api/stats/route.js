@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 
 import { createHash, timingSafeEqual } from 'crypto';
 import { readStats } from '@/lib/server/stats';
-import { readUsageRows, readGenMonthDist, deleteUsageFor } from '@/lib/server/usage';
+import { readUsageRows, readGenMonthDist, deleteUsageFor, usageIds } from '@/lib/server/usage';
 import { readOsQuotaLast } from '@/lib/server/opensubtitles';
 import { OS_DL_DAILY_CAP } from '@/lib/server/constants';
 
@@ -30,7 +30,15 @@ export async function GET(req) {
   try {
     const stats = await readStats(days);
     const [usageRows, genMonth] = await Promise.all([readUsageRows(days), readGenMonthDist(4)]);
-    return json({ ...stats, usageRows, genMonth, osDailyCap: OS_DL_DAILY_CAP, osQuotaLast: await readOsQuotaLast() });
+    // 週次の表から外す運営の利用者（seed/.env CL_STATS_EXCLUDE_UIDS をヘッダ x-cinelearn-exclude-uids で受ける・2026-11-07）。
+    //   人の番号は鍵（ペッパー）がサーバーにしか無いのでここで作る。返すのは番号だけ（usageRows の p と同じ形）。
+    const excludeUids = String(req.headers.get('x-cinelearn-exclude-uids') || '')
+      .split(',')
+      .map((x) => x.trim())
+      .filter((x) => /^[0-9a-f-]{36}$/i.test(x))
+      .slice(0, 20);
+    const excludePersons = excludeUids.map((uid) => usageIds({ uid, device: '_' }).person);
+    return json({ ...stats, usageRows, genMonth, excludePersons, osDailyCap: OS_DL_DAILY_CAP, osQuotaLast: await readOsQuotaLast() });
   } catch (err) {
     return json({ error: 'unavailable', detail: String(err?.message || err).slice(0, 120) }, 503);
   }

@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { sanitizeUsage, exitEventName, parseExitEvent, toDecile, isUsageEvent, isExtSavedWord, hasExtSavedWord } from '../lib/usageEvents.js';
-import { buildUsageReport, genMonthTable, usageCsv, weekWindows, usageHints, joinGuestRows } from '../lib/usageReport.js';
+import { buildUsageReport, genMonthTable, usageCsv, weekWindows, usageHints, joinGuestRows, staffComponent, excludeStaff } from '../lib/usageReport.js';
 import { writeUsage, readUsageRows, usageIds, usageDayAllowed, deleteUsageFor } from '../lib/server/usage.js';
 import { genMonthKey } from '../lib/server/constants.js';
 
@@ -278,4 +278,62 @@ test('週次の表: 初回体験の流れ（⑨）', () => {
   assert.equal(t['次回の帯'], '0人 0% / 0回');
   const hint = usageHints(rep, rows, { today }).find((l) => l.includes('初回体験'));
   assert.match(hint, /最初の画面 3人 → 作品 2 → 予習5枚 1 → 完了画面 1 → 登録へ 1／あとで 1/);
+});
+
+test('運営の端末の印: 送られてきた staff を s として通す（無ければ付けない）・保存と読み出しで S が残る', async () => {
+  assert.equal(sanitizeUsage({ day: '2026-11-07', device: 'd_abc123', c: { open: 1 }, staff: 1 }).s, 1);
+  assert.equal(sanitizeUsage({ day: '2026-11-07', device: 'd_abc123', c: { open: 1 }, staff: true }).s, 1);
+  assert.equal('s' in sanitizeUsage({ day: '2026-11-07', device: 'd_abc123', c: { open: 1 }, staff: 'yes' }), false);
+  assert.equal('s' in sanitizeUsage({ day: '2026-11-07', device: 'd_abc123', c: { open: 1 } }), false);
+  const r = fakeRedis();
+  const orig = globalThis.fetch;
+  globalThis.fetch = r.fetchImpl;
+  try {
+    await writeUsage(sanitizeUsage({ day: '2026-11-07', device: 'd_staff1', c: { open: 1 }, staff: 1 }), { env: ENV });
+    await writeUsage(sanitizeUsage({ day: '2026-11-07', device: 'd_user1', c: { open: 1 } }), { env: ENV });
+    const rows = await readUsageRows(3, { now: Date.parse('2026-11-07T03:00:00Z'), env: ENV });
+    const staff = rows.find((x) => x.S);
+    assert.ok(staff);
+    assert.equal(rows.filter((x) => x.S).length, 1);
+    assert.equal(staff.d, usageIds({ device: 'd_staff1' }, ENV).device);
+  } finally {
+    globalThis.fetch = orig;
+  }
+});
+
+test('運営の端末・アカウントを外す: 印の端末→そこでログインした人→その人の別の端末→そこのテスト用アカウント…とたどり、過去の行も外す', () => {
+  const rows = [
+    // オーナーの PC（11/7 に印）。10/30 は印の無い行・11/5 はテスト用アカウント t1 でログイン
+    { day: '2026-10-30', p: 'pc', d: 'pc', L: 0, c: { open: 1 } },
+    { day: '2026-11-05', p: 't1', d: 'pc', L: 1, c: { open: 1, auth_signup: 1 } },
+    { day: '2026-11-07', p: 'owner', d: 'pc', L: 1, c: { open: 1 }, S: 1 },
+    // オーナーの iPhone（印なし）だが owner でログインしたことがある → 外れる。そこのゲストの行も外れる
+    { day: '2026-11-06', p: 'iphone', d: 'iphone', L: 0, c: { open: 1, trial_start: 1 } },
+    { day: '2026-11-06', p: 'owner', d: 'iphone', L: 1, c: { open: 1 } },
+    // テスト用アカウント t1 が別の端末でもログイン → その端末も外れる
+    { day: '2026-11-06', p: 't1', d: 'phone2', L: 1, c: { open: 1 } },
+    // 本当の利用者（つながらない）
+    { day: '2026-11-04', p: 'u9', d: 'u9', L: 0, c: { open: 1, trial_start: 1 } },
+    { day: '2026-11-07', p: 'real', d: 'devR', L: 1, c: { open: 1, auth_signup: 1 } },
+  ];
+  const comp = staffComponent(rows);
+  assert.deepEqual([...comp.devices].sort(), ['iphone', 'pc', 'phone2']);
+  assert.deepEqual([...comp.persons].sort(), ['owner', 't1']);
+  const x = excludeStaff(rows);
+  assert.deepEqual(x.rows.map((r) => r.p), ['u9', 'real']);
+  assert.deepEqual(x.excluded, { rows: 6, devices: 3, persons: 2 });
+  // 印が無くても、seed から渡す運営の番号（excludePersons）から同じようにたどる
+  const noFlag = rows.map(({ S, ...r }) => r);
+  assert.deepEqual(excludeStaff(noFlag, { persons: ['owner'] }).rows.map((r) => r.p), ['u9', 'real']);
+  // 何も渡さなければ何も外さない
+  assert.equal(excludeStaff(noFlag).rows.length, rows.length);
+  // 週次の表: 既定で外す・--include-staff 相当で含める
+  const rep = buildUsageReport(rows, { today: '2026-11-07', weeks: 1 });
+  assert.equal(rep.newUsers[0].新規の人, 2);
+  assert.equal(rep.newUsers[0]['新規登録'], '1 50%');
+  assert.deepEqual(rep.staffExcluded, { rows: 6, devices: 3, persons: 2 });
+  const all = buildUsageReport(rows, { today: '2026-11-07', weeks: 1, includeStaff: true });
+  assert.equal(all.staffExcluded, null);
+  assert.ok(all.entry[0].開いた人 > rep.entry[0].開いた人);
+  assert.ok(usageHints(rep, rows, { today: '2026-11-07' }).some((l) => l.includes('運営の端末・アカウントを外した: 端末 3・人 2・行 6')));
 });

@@ -148,5 +148,7 @@ export function sanitizeUsage(body) {
     const l = clampInt(body.r.l, USAGE_WORDS_MAX);
     if (n != null && cc != null && l != null) r = { n, c: cc, l };
   }
-  return { day, device, c, r };
+  // 運営の端末の印（オーナー・部門の確認用ブラウザ・2026-11-07）。週次の表がこの端末の全ての行を外す（lib/usageReport.js excludeStaff）。
+  const staff = body.staff === 1 || body.staff === true;
+  return { day, device, c, r, ...(staff ? { s: 1 } : {}) };
 }
