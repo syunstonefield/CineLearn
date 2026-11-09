@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { aiExampleOf, isOtherSceneExample } from '@/lib/exampleBackfill';
 import { useApp } from './AppProvider';
 import { surfaceFormInExample } from '@/lib/subtitles';
@@ -545,7 +545,7 @@ export default function ReviewModal({ asPage = false }) {
             <span className="review-progress-fill" style={{ width: `${pct}%` }} />
           </div>
         )}
-        <div className="review-content">
+        <div className={'review-content' + (showDone ? ' is-done' : '')}>
           {showDone ? (
             <ReviewDone
               queue={partial ? queue.slice(0, idx) : queue}
@@ -783,6 +783,59 @@ function ReviewCard({ word: w, marks, idx, total, flipped, retryMode, onFlip, on
 
 // partial＝途中でやめた時の成果画面（queue は採点済みの語だけ）。文言はやった分だけを肯定的に
 // （「未完了」「あと○語」は出さない＝罪悪感UI禁止）。awardedRef＝親と共有する「記録済み」旗。
+// 完了画面（2026-11-09 オーナー OK のモックどおり＝reports/review-complete-redesign-2026-11-09/）:
+//   主役は「復習完了！」・一般的なカチンコの線画・EXP とレベルを白いカード1枚に・結果は同じ形のタイル3枚（淡い色のまま）・
+//   単語一覧と今日の記録は折りたたみ（最初は閉じる）・ボタンは画面の下に固定。途中でやめた時・見直し完了も同じ形。
+//   罪悪感UI禁止: 「知らなかった」を赤や怖がる顔で強調しない（くすんだ淡い色・顔の絵文字なし）。
+function DoneClapper() {
+  // 一般的なカチンコの線画（実在のロゴ・配色に寄せない）
+  return (
+    <svg className="rd-clap" width="54" height="49" viewBox="0 0 64 58" aria-hidden="true">
+      <g transform="rotate(-12 10 22)">
+        <rect x="6" y="12" width="50" height="11" rx="2.5" className="rd-clap-body" />
+        <path d="M13 12l-5 11M24 12l-5 11M35 12l-5 11M46 12l-5 11M57 12l-5 11" className="rd-clap-stripe" strokeWidth="4.2" />
+      </g>
+      <rect x="6" y="24" width="52" height="30" rx="4" className="rd-clap-body" />
+      <path d="M6 31h52" className="rd-clap-stripe" strokeWidth="2" opacity=".85" />
+      <path d="M28 37.5v10l8.5-5z" className="rd-clap-play" />
+      <circle cx="9.5" cy="24" r="2.6" className="rd-clap-pin" />
+    </svg>
+  );
+}
+
+const Sparkle = ({ className, size }) => (
+  <svg className={'rd-spark ' + className} width={size} height={size} viewBox="0 0 14 14" aria-hidden="true">
+    <path d="M7 0l1.6 5.4L14 7l-5.4 1.6L7 14l-1.6-5.4L0 7l5.4-1.6z" fill="currentColor" />
+  </svg>
+);
+
+function DoneHero({ title, sub }) {
+  return (
+    <section className="rd-hero">
+      <DoneClapper />
+      <Sparkle className="s1" size={14} />
+      <Sparkle className="s2" size={10} />
+      <Sparkle className="s3" size={7} />
+      <h2 className="rd-title">{title}</h2>
+      {sub && <p className="rd-sub">{sub}</p>}
+    </section>
+  );
+}
+
+const CheckIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+    <circle cx="12" cy="12" r="10" fill="currentColor" opacity=".18" />
+    <path d="M7 12.5l3.2 3.2L17 9" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+const StarIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M12 3.2l2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 17l-5.4 2.9 1.1-6.1-4.5-4.2 6.1-.8z" fill="currentColor" />
+  </svg>
+);
+
+// partial＝途中でやめた時の成果画面（queue は採点済みの語だけ）。文言はやった分だけを肯定的に
+// （「未完了」「あと○語」は出さない＝罪悪感UI禁止）。awardedRef＝親と共有する「記録済み」旗。
 function ReviewDone({ queue, partial = false, awardedRef, ratings, promo, currentHistoryId, sessionInfo, setSessionInfo, retryMode, onRetryFailed, onDone, markedRun = 0, onOpenWordbook }) {
   const failed = queue.filter((w) => ratings[w.word] === 0);
   const hard = queue.filter((w) => ratings[w.word] === 3);
@@ -815,137 +868,137 @@ function ReviewDone({ queue, partial = false, awardedRef, ratings, promo, curren
   const allPerfect = failed.length === 0 && hard.length === 0;
   const gotMaster = promo.mastered.length > 0;
   const gotLearned = promo.learned.length > 0;
-  const heroEmoji = gotMaster ? '⭐' : gotLearned || !allPerfect ? '🎉' : '🌟';
 
-  const group = (words, icon, label, cls) =>
-    words.length > 0 && (
-      <div className="review-summary-group">
-        <div className={`review-summary-label ${cls}`}>
-          {icon} {label}（{words.length}単語）
-        </div>
-        {words.map((w) => (
-          <div className="review-summary-item" key={w.word}>
-            <span className="review-summary-word">{w.word}</span>
-            <span className="review-summary-def">{w.definition || ''}</span>
-          </div>
-        ))}
-      </div>
-    );
+  // ボタン＝画面の下に固定（スクロールしなくても押せる）
+  const actions = (withRetry) => (
+    <div className="rd-actions">
+      {withRetry && failed.length > 0 && (
+        <button type="button" className="rd-btn2" onClick={() => onRetryFailed(failed)}>
+          知らなかった {failed.length}単語をもう一度
+        </button>
+      )}
+      <button type="button" className="rd-btn1" onClick={onDone}>
+        {/* 戻り先は入口によって変わる（単語リスト/ホーム/復習ハブ）ので行き先を名指ししない */}
+        復習を終える
+      </button>
+    </div>
+  );
 
   if (retryMode) {
     return (
-      <div className="review-done">
-        <div className="review-hero-emoji" style={{ fontSize: 48, marginBottom: 8 }}>
-          👀
+      <div className="rd">
+        <div className="rd-body">
+          <DoneHero title="見直し完了！" sub={`知らなかった ${queue.length}単語をもう一度確認しました`} />
+          {expGain && <ExpBlock earned={expGain.earned} lv={expGain.level} />}
+          <p className="rd-note">次の復習日は変わりません（明日また出ます）</p>
         </div>
-        <div style={{ fontSize: 19, fontWeight: 600, marginBottom: 4 }}>見直し完了！</div>
-        <div style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 8 }}>
-          知らなかった {queue.length}単語をもう一度確認しました
-        </div>
-        {expGain && <ExpBlock earned={expGain.earned} lv={expGain.level} />}
-        <div style={{ color: 'var(--text-muted)', fontSize: 12, margin: '4px 0 14px' }}>
-          次の復習日は変わりません（明日また出ます）
-        </div>
-        <button className="btn-primary" style={{ maxWidth: '100%', width: '100%' }} onClick={onDone}>
-          復習を終える
-        </button>
+        {actions(false)}
       </div>
     );
   }
 
+  const group = (words, dot, label) =>
+    words.length > 0 && (
+      <details className="rd-group">
+        <summary>
+          <i className={'rd-dot ' + dot} aria-hidden="true" />
+          {label}
+          <span className="rd-cnt">{words.length}</span>
+          <span className="rd-chev" aria-hidden="true">›</span>
+        </summary>
+        <div className="rd-words">
+          {words.map((w) => (
+            <div className="rd-w" key={w.word}>
+              <b>{w.word}</b>
+              <span>{w.definition || ''}</span>
+            </div>
+          ))}
+        </div>
+      </details>
+    );
+
+  const log =
+    sessions.length > 1 ? (
+      <details className="rd-group">
+        <summary>
+          <i className="rd-dot d-log" aria-hidden="true" />
+          今日の復習の記録
+          <span className="rd-cnt">{sessions.length}回</span>
+          <span className="rd-chev" aria-hidden="true">›</span>
+        </summary>
+        <div className="rd-log">
+          <span />
+          <span>知ってた</span>
+          <span>うろ覚え</span>
+          <span>知らなかった</span>
+          {sessions.map((s) => (
+            <Fragment key={s.sessionNum}>
+              <b>{s.sessionNum}回目</b>
+              <span>{s.easy}</span>
+              <span>{s.hard}</span>
+              <span>{s.fail}</span>
+            </Fragment>
+          ))}
+        </div>
+      </details>
+    ) : null;
+
+  const listRows = allPerfect ? [log] : [group(failed, 'd-fail', '知らなかった語'), group(hard, 'd-hard', 'うろ覚えの語'), group(easy, 'd-easy', '知ってた語'), log];
+  const hasList = listRows.some(Boolean);
+
   return (
-    <div className={'review-done' + (gotMaster ? ' review-done-gold' : '')}>
-      <div className="review-hero-emoji" style={{ fontSize: 48, marginBottom: 8 }}>
-        {heroEmoji}
-      </div>
-      {partial ? (
-        <>
-          <div style={{ fontSize: 19, fontWeight: 600, marginBottom: 4 }}>ここまでで {queue.length}単語 復習しました</div>
-          <div style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 8 }}>今日{sessionNum}回目の復習</div>
-        </>
-      ) : (
-        <>
-          <div style={{ fontSize: 19, fontWeight: 600, marginBottom: 4 }}>復習完了！（今日{sessionNum}回目）</div>
-          <div style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 8 }}>
-            {queue.length}単語を復習しました
+    <div className="rd">
+      <div className="rd-body">
+        {partial ? (
+          <DoneHero title="ここまで復習しました" sub={`今日 ${sessionNum}回目 ・ ${queue.length}単語を復習しました`} />
+        ) : (
+          <DoneHero title="復習完了！" sub={`今日 ${sessionNum}回目 ・ ${queue.length}単語を復習しました`} />
+        )}
+        {expGain && <ExpBlock earned={expGain.earned} lv={expGain.level} />}
+        {gotLearned && (
+          <div className="rd-promo">
+            <CheckIcon />
+            {promo.learned.length}単語が「覚えた」に昇格！
           </div>
-        </>
-      )}
-      {expGain && <ExpBlock earned={expGain.earned} lv={expGain.level} />}
-      {/* ★／♡ を付けた時だけ、単語帳への案内を一行（押しつけない・2026-11-07） */}
-      {markedRun > 0 && (
-        <button
-          type="button"
-          className="review-wordbook-link"
-          onClick={() => {
-            onDone();
-            onOpenWordbook?.();
-          }}
-        >
-          ★／♡ を付けた {markedRun} 語を単語帳で見る →
-        </button>
-      )}
-      {(gotLearned || gotMaster) && (
-        <div className="review-promotions">
-          {gotLearned && <div className="review-promo learned">✅ {promo.learned.length}単語が「覚えた」に昇格！</div>}
-          {gotMaster && <div className="review-promo mastered">⭐ {promo.mastered.length}単語がマスターに到達！</div>}
-        </div>
-      )}
-      <div className="review-session-badges" style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 16 }}>
-        <span className="badge-easy">✅ 知ってた {easy.length}</span>
-        <span className="badge-hard">🤔 うろ覚え {hard.length}</span>
-        <span className="badge-fail">😰 知らなかった {failed.length}</span>
+        )}
+        {gotMaster && (
+          <div className="rd-promo is-master">
+            <StarIcon />
+            {promo.mastered.length}単語がマスターに到達！
+          </div>
+        )}
+        <section className="rd-tiles" aria-label="今回の答え">
+          <div className="rd-tile t-easy">
+            <b>{easy.length}</b>
+            <span>知ってた</span>
+          </div>
+          <div className="rd-tile t-hard">
+            <b>{hard.length}</b>
+            <span>うろ覚え</span>
+          </div>
+          <div className="rd-tile t-fail">
+            <b>{failed.length}</b>
+            <span>知らなかった</span>
+          </div>
+        </section>
+        {allPerfect && <div className="rd-perfect">全問正解！すばらしい</div>}
+        {hasList && <section className="rd-list">{listRows}</section>}
+        {/* ★／♡ を付けた時だけ、単語帳への案内を一行（押しつけない・2026-11-07） */}
+        {markedRun > 0 && (
+          <button
+            type="button"
+            className="rd-link"
+            onClick={() => {
+              onDone();
+              onOpenWordbook?.();
+            }}
+          >
+            ★／♡ を付けた {markedRun} 語を単語帳で見る →
+          </button>
+        )}
+        {partial && <p className="rd-note">残りの単語は、また復習に出てきます</p>}
       </div>
-      {sessions.length > 1 && (
-        <details className="review-history-details" style={{ marginBottom: 12 }}>
-          <summary style={{ cursor: 'pointer', fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>
-            今日の復習履歴（{sessions.length}回）
-          </summary>
-          <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ color: 'var(--text-muted)' }}>
-                <th style={{ padding: '4px 8px', textAlign: 'left' }}>回数</th>
-                <th style={{ padding: '4px 8px' }}>知ってた</th>
-                <th style={{ padding: '4px 8px' }}>うろ覚え</th>
-                <th style={{ padding: '4px 8px' }}>知らなかった</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sessions.map((s) => (
-                <tr key={s.sessionNum}>
-                  <td style={{ padding: '4px 8px', color: 'var(--text-muted)' }}>{s.sessionNum}回目</td>
-                  <td style={{ padding: '4px 8px', textAlign: 'center' }}>✅ {s.easy}</td>
-                  <td style={{ padding: '4px 8px', textAlign: 'center' }}>🤔 {s.hard}</td>
-                  <td style={{ padding: '4px 8px', textAlign: 'center' }}>😰 {s.fail}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </details>
-      )}
-      {allPerfect ? (
-        <div className="review-all-perfect">全問正解！すばらしい 🎊</div>
-      ) : (
-        <div className="review-summary">
-          {group(failed, '😰', '知らなかった', 'label-fail')}
-          {group(hard, '🤔', 'うろ覚え', 'label-hard')}
-          {group(easy, '✅', '完璧！', 'label-easy')}
-        </div>
-      )}
-      {failed.length > 0 && (
-        <button className="btn-secondary" style={{ marginBottom: 8, width: '100%' }} onClick={() => onRetryFailed(failed)}>
-          😰 知らなかった {failed.length}単語をもう一度
-        </button>
-      )}
-      {partial && (
-        <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 10 }}>
-          残りの単語は、また復習に出てきます
-        </div>
-      )}
-      <button className="btn-primary" style={{ maxWidth: '100%', width: '100%' }} onClick={onDone}>
-        {/* 戻り先は入口によって変わる（単語リスト/ホーム/復習ハブ）ので行き先を名指ししない */}
-        復習を終える
-      </button>
+      {actions(true)}
     </div>
   );
 }

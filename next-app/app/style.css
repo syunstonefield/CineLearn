@@ -7959,3 +7959,115 @@ html[data-theme="dark"] .wb-recent-ic.is-heart { color: #f48fb1; }
 .wb-foot { font-size: 11px; color: var(--text-muted); line-height: 1.6; margin: 14px 2px 4px; }
 .wb-back { background: none; border: none; color: var(--text-muted); font: inherit; font-size: 13px; cursor: pointer; padding: 4px 2px 10px; }
 @media (min-width: 769px) { .wb-tiles { gap: 14px; } .wb-tile { min-height: 124px; padding: 14px 16px; } }
+
+/* ── 復習の完了画面（2026-11-09 オーナー OK のモック＝reports/review-complete-redesign-2026-11-09/）──
+   主役＝「復習完了！」・カチンコの線画・EXP とレベルを白いカード1枚・結果は同じ形のタイル3枚（淡い色）・
+   一覧と記録は折りたたみ・ボタンは下に固定。復習タブ（夕焼け）と予習の重ね表示の両方で同じ形。
+   「知らなかった」は今より強めない（くすんだ淡いローズ・顔の絵文字なし＝罪悪感UI禁止）。 */
+.rd {
+  --rd-ink: #2a1d12; --rd-muted: #6e5a46; --rd-word: #8a4b1f;
+  --rd-card: #fffdf9; --rd-line: rgba(59, 36, 20, 0.08); --rd-shadow: 0 8px 24px rgba(90, 52, 20, 0.12);
+  --rd-gold-a: #c58a3e; --rd-gold-b: #e8bf6a; --rd-track: #efe4d4; --rd-row: #fbf1e3;
+  --rd-easy-bg: #e9f5ee; --rd-easy-ink: #1d6e4c; --rd-easy-sub: #3f5f50;
+  --rd-hard-bg: #fcf3e0; --rd-hard-ink: #8a5a00; --rd-hard-sub: #6b5530;
+  --rd-fail-bg: #f8ecec; --rd-fail-ink: #8c4a57; --rd-fail-sub: #6b4a52;
+  --rd-promo-bg: #e3f1e7; --rd-promo-ink: #1d6e4c; --rd-master-bg: #fbf0d6; --rd-master-ink: #7a5300;
+  --rd-btn: #3b2414; --rd-btn-ink: #fdf0dc; --rd-btn2-line: rgba(59, 36, 20, 0.22);
+  --rd-spark: #d9a557; --rd-clap: #4a3426; --rd-clap-2: #f6ead8;
+  --rd-actions-bg: rgba(236, 201, 163, 0.72);
+  min-height: 100%; display: flex; flex-direction: column; color: var(--rd-ink); text-align: left;
+}
+html[data-theme="dark"] .rd {
+  --rd-ink: #f3efe8; --rd-muted: #c4b29a; --rd-word: #f0b866;
+  --rd-card: #3a2e21; --rd-line: rgba(255, 240, 220, 0.08); --rd-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --rd-gold-b: #f0c875; --rd-track: #2a2017; --rd-row: #2e2419;
+  --rd-easy-bg: #23392d; --rd-easy-ink: #8fd6b1; --rd-easy-sub: #b6cfc1;
+  --rd-hard-bg: #3d3220; --rd-hard-ink: #f0c875; --rd-hard-sub: #d9c7a3;
+  --rd-fail-bg: #3d2a2c; --rd-fail-ink: #e6a9b4; --rd-fail-sub: #d1b6ba;
+  --rd-promo-bg: #23392d; --rd-promo-ink: #8fd6b1; --rd-master-bg: #3d3220; --rd-master-ink: #f0c875;
+  --rd-btn: #f0b866; --rd-btn-ink: #2a1d12; --rd-btn2-line: rgba(255, 240, 220, 0.22);
+  --rd-spark: #c9944a; --rd-clap: #7d5c41;
+  --rd-actions-bg: rgba(40, 28, 17, 0.78);
+}
+/* 予習の重ね表示（モーダル）は地の色が面の色 */
+.review-overlay .rd { --rd-actions-bg: var(--surface); }
+.review-content.is-done { --rd-pad: 20px; padding-bottom: 0; display: flex; flex-direction: column; align-items: stretch; }
+.review-cinema .review-content.is-done { --rd-pad: 16px; }
+@media (min-width: 769px) { .review-overlay .review-content.is-done { --rd-pad: 28px; } }
+.review-content.is-done > .rd { flex: 1; }
+.rd-body { flex: 1; width: 100%; max-width: 560px; margin: 0 auto; padding: 6px 0 16px; display: flex; flex-direction: column; gap: 12px; }
+
+/* ① 主役 */
+.rd-hero { position: relative; text-align: center; padding: 6px 0 2px; }
+.rd-clap { display: block; margin: 0 auto 6px; }
+.rd-clap-body { fill: var(--rd-clap); }
+.rd-clap-stripe { stroke: var(--rd-clap-2); fill: none; }
+.rd-clap-play { fill: var(--rd-clap-2); }
+.rd-clap-pin { fill: #c58a3e; }
+.rd-spark { position: absolute; color: var(--rd-spark); opacity: 0.75; }
+.rd-spark.s1 { left: 18%; top: 6px; }
+.rd-spark.s2 { right: 20%; top: 20px; }
+.rd-spark.s3 { right: 28%; top: -2px; opacity: 0.45; }
+.rd-title { margin: 0; font-size: 28px; font-weight: 800; letter-spacing: 0.02em; color: var(--rd-ink); }
+.rd-sub { margin: 6px 0 0; font-size: 13px; color: var(--rd-muted); }
+.rd-note { margin: 0; font-size: 12px; color: var(--rd-muted); text-align: center; }
+
+/* ② EXP とレベル＝白いカード1枚（ExpBlock の中身はそのまま・見た目だけここで） */
+.rd .exp-block { margin: 0; padding: 14px 20px 12px; border-radius: 20px; background: var(--rd-card); border: 1px solid var(--rd-line); box-shadow: var(--rd-shadow); }
+.rd .exp-gain { margin: 0 auto; padding: 0; border: 0; background: none; justify-content: center; }
+.rd .exp-gain-num { font-size: 48px; color: var(--rd-word); }
+.rd .exp-gain-unit { font-size: 15px; color: var(--rd-muted); }
+.rd .exp-level { max-width: none; margin: 12px 0 0; padding: 10px 0 0; border: 0; border-top: 1px solid var(--rd-line); border-radius: 0; background: none; }
+.rd .exp-level-name { font-size: 16px; color: var(--rd-ink); }
+.rd .exp-level-total { font-size: 13px; color: var(--rd-muted); }
+.rd .exp-level-bar { height: 10px; margin-top: 8px; background: var(--rd-track); }
+.rd .exp-level-fill { background: linear-gradient(90deg, var(--rd-gold-a), var(--rd-gold-b)); }
+.rd .exp-level-next { margin-top: 6px; font-size: 12px; color: var(--rd-muted); text-align: right; }
+
+/* 昇格（ある時だけ） */
+.rd-promo { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 14px; border-radius: 14px; background: var(--rd-promo-bg); color: var(--rd-promo-ink); font-size: 14px; font-weight: 700; text-align: center; }
+.rd-promo.is-master { background: var(--rd-master-bg); color: var(--rd-master-ink); }
+.rd-perfect { padding: 10px 14px; border-radius: 14px; background: var(--rd-promo-bg); color: var(--rd-promo-ink); font-size: 14px; font-weight: 700; text-align: center; }
+
+/* 結果の3つ＝同じ形・淡い色 */
+.rd-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.rd-tile { border-radius: 14px; padding: 10px 4px 9px; text-align: center; display: flex; flex-direction: column; gap: 2px; }
+.rd-tile b { font-size: 22px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.rd-tile span { font-size: 12px; }
+.rd-tile.t-easy { background: var(--rd-easy-bg); } .rd-tile.t-easy b { color: var(--rd-easy-ink); } .rd-tile.t-easy span { color: var(--rd-easy-sub); }
+.rd-tile.t-hard { background: var(--rd-hard-bg); } .rd-tile.t-hard b { color: var(--rd-hard-ink); } .rd-tile.t-hard span { color: var(--rd-hard-sub); }
+.rd-tile.t-fail { background: var(--rd-fail-bg); } .rd-tile.t-fail b { color: var(--rd-fail-ink); } .rd-tile.t-fail span { color: var(--rd-fail-sub); }
+
+/* ③ 一覧と今日の記録＝折りたたみ（最初は閉じる） */
+.rd-list { border-radius: 20px; background: var(--rd-card); border: 1px solid var(--rd-line); box-shadow: var(--rd-shadow); overflow: hidden; }
+.rd-group + .rd-group { border-top: 1px solid var(--rd-line); }
+.rd-group summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 0 16px; font-size: 14px; color: var(--rd-ink); }
+.rd-group summary::-webkit-details-marker { display: none; }
+.rd-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.rd-dot.d-fail { background: #d79aa6; } .rd-dot.d-hard { background: #e2bd6b; } .rd-dot.d-easy { background: #7cc3a0; } .rd-dot.d-log { background: var(--rd-muted); opacity: 0.5; }
+.rd-cnt { color: var(--rd-muted); font-size: 13px; }
+.rd-chev { margin-left: auto; color: var(--rd-muted); transition: transform 0.15s; }
+.rd-group[open] .rd-chev { transform: rotate(90deg); }
+.rd-words { padding: 0 12px 12px; display: flex; flex-direction: column; gap: 6px; }
+.rd-w { display: flex; gap: 12px; align-items: baseline; padding: 10px 12px; border-radius: 12px; background: var(--rd-row); }
+.rd-w b { font-weight: 700; min-width: 108px; overflow-wrap: anywhere; }
+.rd-w span { color: var(--rd-muted); font-size: 13px; }
+.rd-log { padding: 0 16px 14px; font-size: 13px; color: var(--rd-muted); display: grid; grid-template-columns: auto 1fr 1fr 1fr; gap: 6px 10px; text-align: center; }
+.rd-log b { color: var(--rd-ink); font-weight: 500; text-align: left; }
+.rd-link { width: 100%; min-height: 44px; padding: 10px 14px; border-radius: 14px; border: 1px solid var(--rd-line); background: var(--rd-card); color: var(--rd-ink); font-family: inherit; font-size: 13px; cursor: pointer; }
+
+/* ボタン＝画面の下に固定 */
+.rd-actions {
+  position: sticky; bottom: 0; z-index: 1; margin: 0 calc(-1 * var(--rd-pad, 16px)); padding: 12px var(--rd-pad, 16px) calc(14px + env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; gap: 8px; align-items: center;
+  border-top: 1px solid var(--rd-line); background: var(--rd-actions-bg); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+}
+.rd-actions > button { width: 100%; max-width: 560px; font-family: inherit; cursor: pointer; }
+.rd-btn2 { height: 48px; border-radius: 14px; border: 1.5px solid var(--rd-btn2-line); background: transparent; color: var(--rd-ink); font-size: 15px; font-weight: 700; }
+.rd-btn1 { height: 54px; border-radius: 14px; border: 0; background: var(--rd-btn); color: var(--rd-btn-ink); font-size: 16px; font-weight: 700; box-shadow: 0 6px 14px rgba(59, 36, 20, 0.22); }
+@media (min-width: 900px) { .rd-title { font-size: 32px; } }
+/* PC: 下の固定ボタンの地は帯にせず、上をぼかして溶かす（パネルの中に四角い帯が浮かないように） */
+@media (min-width: 769px) {
+  .review-cinema .rd-actions { border-top: 0; -webkit-backdrop-filter: none; backdrop-filter: none; background: linear-gradient(to bottom, transparent 0, rgba(236, 201, 163, 0.92) 22px); }
+  html[data-theme="dark"] .review-cinema .rd-actions { background: linear-gradient(to bottom, transparent 0, rgba(40, 28, 17, 0.94) 22px); }
+}
