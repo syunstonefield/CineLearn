@@ -3893,6 +3893,9 @@ header {
      上=0 / 左右=中央寄せ余白 / 下=セーフエリア。 */
   padding: 0 max(0px, calc((100% - 640px) / 2)) env(safe-area-inset-bottom);
   box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.05);
+  /* 独立した描画の層にする＝iPhone の WebKit でページのスクロール止め（cl-review-lock）を外した後も画面の下に固定される
+     （ページと一緒に動いて途中に浮いた・オーナー実機 2026-11-09） */
+  transform: translateZ(0);
 }
 /* 固定ナビの高さ分、本文末尾に余白（フッターがナビ裏に隠れないように） */
 .bottom-nav-spacer {

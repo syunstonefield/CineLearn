@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { aiExampleOf, isOtherSceneExample } from '@/lib/exampleBackfill';
 import { useApp } from './AppProvider';
 import { surfaceFormInExample } from '@/lib/subtitles';
@@ -267,7 +267,10 @@ export default function ReviewModal({ asPage = false }) {
   // ページ表示（スマホの復習タブ）の間はページ全体のスクロールを止める（CSS: html.cl-review-lock）。
   // 下の TMDB 表記の分だけページが画面からはみ出し、上下に触るとカードがずれていた（オーナー報告 2026-10-20）。
   // 長いカードは .review-content の中だけでスクロールする。
-  useEffect(() => {
+  //   ★外すのは useLayoutEffect の後始末で＝復習を閉じた同じ描画の中で、下のタブバーが差し込まれる前に外す
+  //   （useEffect だと「止めたままのページにタブバーを差し込み→あとで止めを外す」順になり、iPhone の WebKit で
+  //    固定のタブバーがページと一緒にスクロールして途中に浮いた・オーナー実機 2026-11-09）。
+  useLayoutEffect(() => {
     if (!asPage) return;
     const root = document.documentElement;
     window.scrollTo(0, 0);
