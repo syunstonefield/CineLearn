@@ -3,6 +3,7 @@
 // chrome.storage / cloudSync 依存は app.js 同様にガードして無効化する。
 import { tmdb } from './api';
 import { deleteMyWordCloud, pushMyWord, pushWordbookFlags, MY_WORDS_MAX } from './supabase';
+import { exactWordsToFlag } from './wordbookFlags';
 import { fillTranslations } from './translateQueue';
 import { myWordsKey, deletedWordsKey, todayStr } from './storage';
 import { trimExampleToSentence, EXAMPLE_MAX_CHARS } from './subtitles';
@@ -214,6 +215,7 @@ export function hideFromWordbook(profileId, wordTexts) {
   return queueWrite(async () => {
     const keys = [myWordsKey(null)];
     if (profileId) keys.push(myWordsKey(profileId));
+    const lists = [];
     for (const key of keys) {
       const words = (await store.get(key)) || [];
       let changed = false;
@@ -223,8 +225,11 @@ export function hideFromWordbook(profileId, wordTexts) {
         return { ...w, inWordbook: false };
       });
       if (changed) await store.set(key, next);
+      lists.push(words);
     }
-    await pushWordbookFlags([...set], false);
+    // クラウドへは端末の語そのまま（大文字小文字を変えない）を送る。小文字にして送ると、大文字を含む語で
+    // 小文字の空の行が新しくできていた（2026-11-10・⑤の連絡）。送り方も行を作らない PATCH（supabase.js）。
+    await pushWordbookFlags(exactWordsToFlag(lists, wordTexts), false);
     return true;
   });
 }

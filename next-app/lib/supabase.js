@@ -15,6 +15,7 @@ import { PROFILES_AT_KEY, mergeProfileArrays, cloudWins } from './profileMerge';
 import { ticketEpKey, trimTickets } from './ticketRules';
 import { mergeActivityDates, mergeReviewLog, mergeQuizAwarded, mergeTitleToggles, mergeRingMetReset } from './stateMergeRules';
 import { fetchAllSrs, mergeSrs } from './srsMerge';
+import { pgrstInFilter } from './wordbookFlags';
 
 const SUPABASE_URL = 'https://mndyexwdevkpdssglwpl.supabase.co';
 const SUPABASE_ANON_KEY =
@@ -798,18 +799,20 @@ export async function pushMyWord(w) {
 }
 
 // 単語帳の旗だけを複数語まとめてクラウドへ（初回の整理「★の語だけにする」・2026-11-07）。
-//   行は (user_id, word) で merge-duplicates＝送った列だけ更新。500 語ずつ。列が無い DB（PGRST204）は黙って諦める
-//   （端末の旗は lib/words.js が先に倒している＝次の pull でクラウドの true に戻るが、SQL 適用後の整理で直せる）。
+//   既にある行だけを PATCH で書き換える（行は作らない）。語は端末の綴りそのまま（大文字小文字を変えない）を渡すこと。
+//   ⚠ 以前は upsert（POST＋merge-duplicates）で、小文字にした語を送っていた → (user_id, word) は大文字小文字を区別するため
+//   大文字を含む語で「小文字の空の行」が新しくでき、取り込み後に今保存された語に見えていた（2026-11-10・⑤の連絡）。
+//   100 語ずつ（URL の長さ）。列が無い DB（PGRST204）は黙って諦める。
 export async function pushWordbookFlags(wordTexts, inWordbook) {
   if (!(await ensureSessionForSync())) return false;
   const uid = getCurrentUser()?.id;
   if (!uid || !Array.isArray(wordTexts) || !wordTexts.length) return false;
-  for (let i = 0; i < wordTexts.length; i += 500) {
-    const rows = wordTexts.slice(i, i + 500).map((word) => ({ user_id: uid, word, in_wordbook: !!inWordbook }));
-    const res = await sbFetch('/rest/v1/my_words', {
-      method: 'POST',
-      headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-      body: JSON.stringify(rows),
+  for (let i = 0; i < wordTexts.length; i += 100) {
+    const filter = pgrstInFilter(wordTexts.slice(i, i + 100));
+    const res = await sbFetch(`/rest/v1/my_words?user_id=eq.${uid}&word=${encodeURIComponent(filter)}`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({ in_wordbook: !!inWordbook }),
     });
     if (isMissingInWordbook(res)) return false;
   }
