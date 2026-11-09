@@ -14,7 +14,7 @@ import {
   cleanupLegacySubtitleCache,
 } from '@/lib/storage';
 import { reapplyWorkRemovals } from '@/lib/workRemovalStore';
-import { titlesToReopen, titlesReopenedBySaves, touchDramas } from '@/lib/workRemoval';
+import { titlesToReopen, titlesReopenedBySaves, touchDramas, REOPEN_REMOVED_BY_SAVES } from '@/lib/workRemoval';
 import { sameWorkTitle } from '@/lib/words';
 import { addStudySeconds, addDramaStudySeconds } from '@/lib/studytime';
 import { applyTheme, getThemePref } from '@/lib/theme';
@@ -207,8 +207,9 @@ export default function AppProvider({ children }) {
     } catch {
       saved = [];
     }
-    const a = titlesReopenedBySaves(loadArchivedMap(), saved, sameWorkTitle);
-    const r = titlesReopenedBySaves(loadRemovedWorksMap(), saved, sameWorkTitle);
+    // 保存した日（saved_at）で・作品名の完全一致で判定する（lib/workRemoval.js・2026-11-10 の事故の再発防止）。
+    const a = titlesReopenedBySaves(loadArchivedMap(), saved);
+    const r = REOPEN_REMOVED_BY_SAVES ? titlesReopenedBySaves(loadRemovedWorksMap(), saved) : [];
     a.forEach((t) => unarchiveDrama(t));
     r.forEach((t) => unremoveWork(t));
     if (a.length || r.length) touchWorks([...a, ...r]); // 定義は下（effect は描画後に走るので参照できる）

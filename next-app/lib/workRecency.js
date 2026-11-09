@@ -3,7 +3,8 @@
 //   * 単語リストを作った・作り直した日（履歴の date）
 //   * その作品で初めて採点した語（SRS の origin）を復習した時刻（SRS の updatedAt・無ければ lastReview の日付）
 //     ＝よく出る語が多くの作品のリストに入っていても、復習1回で全作品が上がらないように（2026-11-07 実データ: 25作品が同点）
-//   * その作品で拡張から語を保存した時刻（単語帳の createdAt・無ければ savedAt の日付）
+//   * その作品で拡張から語を保存した時刻（単語帳の savedAt の日付。createdAt はその日に行ができた時だけ使う
+//     ＝遅れて届いた語や、単語帳の整理で後から作られた行（saved_at が空）で上がらないように・2026-11-10）
 //   * 単語リストを開いた・その作品だけの復習やクイズを始めた・棚から外す／消去から戻した時刻（myDramas の touchedAt）
 // 以前は「単語リストを作った日」だけで並べていたので、復習しても順番が変わらなかった。
 // 日付だけの値（YYYY-MM-DD）は、端末の時刻でその日の0時として読む（履歴の date・SRS の lastReview は端末の日付）。
@@ -40,7 +41,13 @@ export function workRecency({ history, srs, myWords, myDramas, sameTitle = (a, b
   // 単語帳と myDramas の作品名は邦題/英題で揺れるので、履歴の作品名へ寄せる。
   const titles = [...m.keys()];
   const canon = (t) => (t ? titles.find((x) => x === t) || titles.find((x) => sameTitle(x, t)) || t : null);
-  (myWords || []).forEach((w) => bump(canon(w?.dramaTitle), Math.max(isoMs(w?.createdAt), dayMs(w?.savedAt))));
+  (myWords || []).forEach((w) => {
+    const saved = dayMs(w?.savedAt);
+    if (!saved) return; // saved_at の無い行＝拡張で保存した語ではない（整理で後から作られた行など）
+    const created = isoMs(w?.createdAt);
+    const sameDay = created && new Date(created).toISOString().slice(0, 10) === String(w.savedAt).slice(0, 10);
+    bump(canon(w?.dramaTitle), Math.max(saved, sameDay ? created : 0));
+  });
   (myDramas || []).forEach((d) => bump(canon(d?.title), Number(d?.touchedAt) || 0));
   return m;
 }

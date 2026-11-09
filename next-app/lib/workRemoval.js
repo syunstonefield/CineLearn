@@ -132,32 +132,33 @@ export function titlesToReopen(markedTitles, title, sameTitle = (a, b) => a === 
 }
 
 // 拡張で単語を保存した作品の印を外す（オーナー 2026-11-07「1：外す」）。単語帳（my_words）の取り込みのあとに使う。
-//   marks＝cl_archived / cl_removed_works の地図 { title: { on, at } }。words＝単語帳の語（dramaTitle・savedAt・createdAt）。
-//   印より後に保存した語があれば外す。古い語（印より前に保存）では外さない。
-//   * createdAt（my_words の created_at・行を作った時刻＝初めて保存した時刻）があればそれで比べる（ミリ秒）。
-//   * 無ければ savedAt（拡張が書く UTC の日付 YYYY-MM-DD）。日付しか無いので、印と同じ日は外さない（前後が分からない）。
-export function titlesReopenedBySaves(marks, words, sameTitle = (a, b) => a === b) {
+//   marks＝cl_archived / cl_removed_works の地図 { title: { on, at } }。words＝単語帳の語（dramaTitle・savedAt）。
+//   印の日より後の日に保存した語が、同じ作品名（完全一致）にあれば外す。古い語（印の日以前に保存）では外さない。
+//   * 比べるのは saved_at（拡張が保存した日・UTC の日付）。created_at（クラウドに行ができた時刻）は使わない。
+//     2026-11-10 の事故: 単語帳の整理（★の語だけにする）が小文字の語を送り、大文字の語の小文字版の行が
+//     「今」作られた（作品名は取り込みで端末から引き継ぎ・saved_at は空）→ created_at で判定していたため、
+//     消去・棚から外した作品がまとめて戻った。拡張の未送信の語が遅れて届いた時も created_at は新しくなる。
+//   * 作品名は完全一致だけ（邦題/英題の寄せはしない＝寄せた先の別表記の語で戻さない）。
+//   * 日付しか無いので、印と同じ日の保存では外さない（前後が分からない）。
+export function titlesReopenedBySaves(marks, words) {
   const out = [];
   const utcDay = (ms) => new Date(ms).toISOString().slice(0, 10);
   const day = (v) => {
     const m = String(v || '').match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
     return m ? `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}` : '';
   };
-  const savedAfter = (w, at) => {
-    const c = Date.parse(w?.createdAt || '');
-    if (Number.isFinite(c)) return c > at;
-    const d = day(w?.savedAt);
-    return !!d && d > utcDay(at);
-  };
   for (const [title, v] of Object.entries(marks && typeof marks === 'object' ? marks : {})) {
     if (!v?.on || !Number.isFinite(v.at)) continue;
-    const hit = (words || []).some(
-      (w) => w?.dramaTitle && (w.dramaTitle === title || sameTitle(w.dramaTitle, title)) && savedAfter(w, v.at)
-    );
+    const markDay = utcDay(v.at);
+    const hit = (words || []).some((w) => w?.dramaTitle === title && day(w?.savedAt) > markDay);
     if (hit) out.push(title);
   }
   return out;
 }
+
+// 「コレクションから消去」した作品も、拡張の保存で戻すか（オーナー判断待ち 2026-11-10・推奨は戻さない＝false）。
+//   false にすると、消去した作品は本人が作品を開いた時（openDrama・単語リストの画面）だけ戻る。「棚から外す」は保存でも戻す。
+export const REOPEN_REMOVED_BY_SAVES = true;
 
 // 印を外して戻した作品を「最近触った」扱いにする時刻（myDramas の touchedAt・プロフィールと一緒に同期）。
 //   続きから学習・復習の作品一覧の並びは「最終学習日」と「戻した時刻」の新しい方（オーナー 2026-11-07）。
