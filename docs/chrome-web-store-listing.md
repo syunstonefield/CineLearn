@@ -440,7 +440,7 @@ https://cinelearn-next.vercel.app/privacy
 
 ## 13. 公開中の掲載で、ストア画像だけを差し替える手順（2026-11-10・02・04 の字幕の出典）
 
-差し替える画像: `marketing/cws-screenshots-v1.2.12/A-listing-fix/02-subtitle-click-save.png` と `04-subtitle-markers.png`（「字幕：『SUITS／スーツ』シーズン1 第1話」入り）。zip（パッケージ）は変えない。
+差し替える画像: `marketing/cws-screenshots-v1.2.12/A-listing-fix/02-subtitle-click-save.png` と `04-subtitle-markers.png`（「出典：『SUITS／スーツ』シーズン1 第1話」入り・法務 2026-11-10 で可）。zip（パッケージ）は変えない。
 1. Chrome ウェブストアのデベロッパー ダッシュボードで CineLearn を開き、左の「ストアの掲載情報」へ。
 2. 「スクリーンショット」で、2枚目（字幕クリックで保存）と4枚目（字幕の印）を削除し、上の2枚を追加する。追加した画像は最後に並ぶので、ドラッグで順番を 01 単語カード → 02 字幕クリック → 03 予習 → 04 字幕の印 → 05 復習 に戻す。並べ替えられない時は、5枚とも消して `A-listing/01〜05.png` を順番どおりに追加し直す（A-listing の 02・04 も出典入りに更新済み）。
 3. 「下書きとして保存」→「審査のために送信」。掲載情報の変更も審査の対象（公式: developer.chrome.com/docs/webstore/update）。審査中も、今公開中の掲載と拡張はそのまま見え、使える。
