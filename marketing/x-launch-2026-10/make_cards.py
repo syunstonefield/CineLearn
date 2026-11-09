@@ -145,12 +145,19 @@ def shot_card(head, sub, chips, out, shot, phone_y=40, phone_w=400, crop_h=None)
     l_phone(c, f'{SRC}/{shot}', LW-60-phone_w-32, phone_y, phone_w, crop_h=crop_h)
     l_footer(c); c.save(out,optimize=True); print(out)
 
-def panel_card(head, sub, chips, out, panel_src, crop, panel_y=350, panel_w=1160, light=False, chips_x=None, chip_w=460, footer=True):
-    """上: 見出し（左）＋チップ（右）／下: 横長パネル（字幕バーや単語カードの拡大）"""
+def panel_card(head, sub, chips, out, panel_src, crop, panel_y=350, panel_w=1160, light=False, chips_x=None, chip_w=460, footer=True, credit=None, credit_pos='in'):
+    """上: 見出し（左）＋チップ（右）／下: 横長パネル（字幕バーや単語カードの拡大）
+    credit: 写っている字幕の出典（48条・法務 2026-11-09）。'in'＝パネルの中の左上（暗い所に薄い文字）／'below'＝パネルのすぐ下の右"""
     c=l_background(); hx0,hy0,hx1,hy1=l_header(c,head,sub)
     cx=chips_x if chips_x is not None else max(hx1+28, LW-60-chip_w); cy=56
     for t,s in chips: cy+=l_chip(c,cx,cy,LW-60-cx,t,s)+18
-    l_panel(c, f'{SRC}/{panel_src}', crop, (LW-panel_w)//2-(10 if light else 20), panel_y, panel_w, light=light)
+    px=(LW-panel_w)//2-(10 if light else 20); pad=10 if light else 20
+    l_panel(c, f'{SRC}/{panel_src}', crop, px, panel_y, panel_w, light=light)
+    if credit:
+        ph=round((crop[3]-crop[1])*panel_w/(crop[2]-crop[0]))
+        d=ImageDraw.Draw(c); f=F(17); tw=d.textlength(credit,font=f)
+        if credit_pos=='in': d.text((px+pad+16, panel_y+pad+12), credit, font=f, fill=(176,176,180))
+        else: d.text((px+pad*2+panel_w-tw, panel_y+pad*2+ph+10), credit, font=f, fill=MUTED)
     if footer: l_footer(c, y=LH-54, inline=True)
     c.save(out,optimize=True); print(out)
 
@@ -167,7 +174,7 @@ def make_cws():
     # A2 字幕クリック→意味→保存（UI主役・映像なし）
     panel_card('字幕の単語を、\nクリックして保存','動画を止めなくていい。意味はマウスを乗せるだけ。',
         [('日本語の意味がすぐ出る','同梱の英和辞書・通信なし'),('「★ 覚えたい」で単語帳にも','✓ 保存はその話の単語リストへ')],
-        f'{A}/02-subtitle-click-save.png','extension-popup-star-v1.2.12.png',(470,628,1530,1146),panel_y=305,panel_w=816)  # v1.2.12: ★ありのポップアップ（オーナー実機 2026-11-08・暗い場面で撮り直し）
+        f'{A}/02-subtitle-click-save.png','extension-popup-star-v1.2.12.png',(470,628,1530,1146),panel_y=305,panel_w=816,credit='字幕：『SUITS／スーツ』シーズン1 第1話')  # v1.2.12: ★ありのポップアップ（オーナー実機 2026-11-08・暗い場面で撮り直し）
     # A3 予習画面
     shot_card('観る前に3分。\nこの話で覚えるべき語だけ','作品と話数を選ぶだけで、重要語のリストに。',
         [('基礎単語は自動でスキップ','覚えるべき語だけに絞る'),('予習・復習は学習アプリで','拡張で保存した語と同期')],
@@ -175,7 +182,7 @@ def make_cws():
     # A4 字幕マーカー（クリーム色＋点線）
     panel_card('他の作品で覚えた単語に、\n字幕の中で再会','控えめな印。設定でオフにもできる。',
         [('淡いクリーム色の印','保存した語・この話の予習語'),('細い点線の印','他の作品で出会った語。出所も分かる')],
-        f'{A}/04-subtitle-markers.png','extension-popup-star-v1.2.12.png',(470,985,1530,1146),panel_y=420,panel_w=1160,chip_w=520)
+        f'{A}/04-subtitle-markers.png','extension-popup-star-v1.2.12.png',(470,985,1530,1146),panel_y=420,panel_w=1160,chip_w=520,credit='字幕：『SUITS／スーツ』シーズン1 第1話',credit_pos='below')
     # A5 復習カード（3段階採点）
     shot_card('忘れる前のタイミングで\n復習を提案','間隔反復（SM-2）。3段階で採点するだけ。',
         [('知ってた／うろ覚え／知らなかった','採点で次に出る間隔が変わる'),('例文はあのセリフ・声でも聞ける','出典つき。★ と ♡ もカードから付けられる')],
