@@ -15,7 +15,7 @@ import {
 } from '@/lib/storage';
 import { reapplyWorkRemovals } from '@/lib/workRemovalStore';
 import { titlesToReopen, titlesReopenedBySaves, touchDramas, REOPEN_REMOVED_BY_SAVES } from '@/lib/workRemoval';
-import { sameWorkTitle } from '@/lib/words';
+import { sameWorkTitle, sameWorkTitleStrict } from '@/lib/words';
 import { addStudySeconds, addDramaStudySeconds } from '@/lib/studytime';
 import { applyTheme, getThemePref } from '@/lib/theme';
 import { initUsage, trackUsage, noteExtWordsOnce } from '@/lib/usage';
@@ -207,9 +207,9 @@ export default function AppProvider({ children }) {
     } catch {
       saved = [];
     }
-    // 保存した日（saved_at）で・作品名の完全一致で判定する（lib/workRemoval.js・2026-11-10 の事故の再発防止）。
-    const a = titlesReopenedBySaves(loadArchivedMap(), saved);
-    const r = REOPEN_REMOVED_BY_SAVES ? titlesReopenedBySaves(loadRemovedWorksMap(), saved) : [];
+    // 保存した日（saved_at）で・作品名は厳しい寄せ（正規化か英語名が同じ）で判定する（lib/workRemoval.js・2026-11-10 の事故の再発防止）。
+    const a = titlesReopenedBySaves(loadArchivedMap(), saved, sameWorkTitleStrict);
+    const r = REOPEN_REMOVED_BY_SAVES ? titlesReopenedBySaves(loadRemovedWorksMap(), saved, sameWorkTitleStrict) : [];
     a.forEach((t) => unarchiveDrama(t));
     r.forEach((t) => unremoveWork(t));
     if (a.length || r.length) touchWorks([...a, ...r]); // 定義は下（effect は描画後に走るので参照できる）

@@ -517,6 +517,17 @@ export function sameWorkTitle(a, b) {
   return A.some((x) => B.some((y) => titleHitNorm(x, y)));
 }
 
+// sameWorkTitle の厳しい版（部分一致の寄せをしない）。正規化して同じか、両側の英語名（正準名）が分かっていて同じ時だけ。
+//   「オフキャンパス」と「Off Campus」は同じ（英語名が同じ）・英語名が未解決の時の「一部を含む」では一致にしない。
+//   拡張の保存で消去・棚から外した作品を戻す判定に使う（lib/workRemoval.js titlesReopenedBySaves・2026-11-10）。
+export function sameWorkTitleStrict(a, b) {
+  if (!a || !b) return false;
+  if (normTitleForMatch(a) === normTitleForMatch(b)) return true;
+  const ca = cachedCanonTitle(a);
+  const cb = cachedCanonTitle(b);
+  return ca !== null && cb !== null && ca === cb;
+}
+
 // 名寄せ結果から「映画と判明しているタイトルか」（日英どちらのキーでも引ける）
 export function isKnownMovieTitle(t) {
   return !!t && getTitleMediaMap()[t] === 'movie';

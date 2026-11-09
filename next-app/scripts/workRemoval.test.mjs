@@ -128,8 +128,12 @@ test('拡張で保存した作品の印を外す: 印の日より後の日に保
   assert.deepEqual(titlesReopenedBySaves(marks, [{ word: 'a', dramaTitle: 'Suits', savedAt: '2026-11-08' }]), ['Suits']);
   assert.deepEqual(titlesReopenedBySaves(marks, [{ word: 'a', dramaTitle: 'Suits', savedAt: '2026-11-07' }]), []);
   assert.deepEqual(titlesReopenedBySaves(marks, [{ word: 'a', dramaTitle: 'Suits', savedAt: '2026/11/6' }]), []);
-  // 作品名の揺れ（邦題）では外さない＝完全一致だけ
+  // 既定（sameTitle なし）は完全一致だけ。英語名が同じと分かる比べ方を渡せば、邦題で保存した語でも外す
   assert.deepEqual(titlesReopenedBySaves(marks, [{ word: 'a', dramaTitle: 'アイアンマン', savedAt: '2026-11-09' }]), []);
+  const alias = (x, y) => (x === 'アイアンマン' && y === 'Iron Man') || (x === 'Iron Man' && y === 'アイアンマン');
+  assert.deepEqual(titlesReopenedBySaves(marks, [{ word: 'a', dramaTitle: 'アイアンマン', savedAt: '2026-11-09' }], alias), ['Iron Man']);
+  // 英語名が同じでも、印の日以前の保存なら外さない
+  assert.deepEqual(titlesReopenedBySaves(marks, [{ word: 'a', dramaTitle: 'アイアンマン', savedAt: '2026-11-07' }], alias), []);
   // 外れている印（on:false）は対象外・作品名の無い語は数えない
   assert.deepEqual(titlesReopenedBySaves(marks, [{ word: 'a', dramaTitle: 'Lupin', savedAt: '2026-12-01' }, { word: 'b', savedAt: '2026-12-01' }]), []);
 });

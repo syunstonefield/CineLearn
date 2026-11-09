@@ -138,9 +138,11 @@ export function titlesToReopen(markedTitles, title, sameTitle = (a, b) => a === 
 //     2026-11-10 の事故: 単語帳の整理（★の語だけにする）が小文字の語を送り、大文字の語の小文字版の行が
 //     「今」作られた（作品名は取り込みで端末から引き継ぎ・saved_at は空）→ created_at で判定していたため、
 //     消去・棚から外した作品がまとめて戻った。拡張の未送信の語が遅れて届いた時も created_at は新しくなる。
-//   * 作品名は完全一致だけ（邦題/英題の寄せはしない＝寄せた先の別表記の語で戻さない）。
+//   * 作品名は sameTitle で比べる（呼び出し側は lib/words.js sameWorkTitleStrict＝正規化して同じか、英語名が同じ時だけ・
+//     「一部を含む」の寄せはしない）。邦題で保存した語でも英語名が同じなら戻す＝保存した語がどこにも出ない、を避ける
+//     （オーナー 2026-11-10「単語を追加したのにどこにも表示されないのはよくない」）。既定は完全一致。
 //   * 日付しか無いので、印と同じ日の保存では外さない（前後が分からない）。
-export function titlesReopenedBySaves(marks, words) {
+export function titlesReopenedBySaves(marks, words, sameTitle = (x, y) => x === y) {
   const out = [];
   const utcDay = (ms) => new Date(ms).toISOString().slice(0, 10);
   const day = (v) => {
@@ -150,13 +152,16 @@ export function titlesReopenedBySaves(marks, words) {
   for (const [title, v] of Object.entries(marks && typeof marks === 'object' ? marks : {})) {
     if (!v?.on || !Number.isFinite(v.at)) continue;
     const markDay = utcDay(v.at);
-    const hit = (words || []).some((w) => w?.dramaTitle === title && day(w?.savedAt) > markDay);
+    const hit = (words || []).some(
+      (w) => w?.dramaTitle && (w.dramaTitle === title || sameTitle(w.dramaTitle, title)) && day(w?.savedAt) > markDay
+    );
     if (hit) out.push(title);
   }
   return out;
 }
 
-// 「コレクションから消去」した作品も、拡張の保存で戻すか（オーナー判断待ち 2026-11-10・推奨は戻さない＝false）。
+// 「コレクションから消去」した作品も、拡張の保存で戻すか。オーナー決定 2026-11-10＝戻す（true）
+//   「意図せずコレクションに表示される分には重大な問題ではないが、単語を追加したのにどこにも表示されないのはよくない」。
 //   false にすると、消去した作品は本人が作品を開いた時（openDrama・単語リストの画面）だけ戻る。「棚から外す」は保存でも戻す。
 export const REOPEN_REMOVED_BY_SAVES = true;
 
