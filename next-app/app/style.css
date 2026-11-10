@@ -1852,7 +1852,11 @@ header {
 
 /* 単語リストの「拡張機能が使える配信：…」の1行と出典（2026-11-10・法務: 出典はすぐ下・ロゴやブランド色なし） */
 .vocab-avail { margin: 12px 2px 14px; font-size: 13px; color: var(--text-soft); line-height: 1.6; }
-.vocab-avail-src { margin-top: 2px; font-size: 11px; color: var(--text-muted); }
+.vocab-avail-cite { margin-left: 2px; font-size: 11.5px; color: var(--text-muted); white-space: nowrap; }
+.vocab-avail-cite a { color: var(--accent); }
+/* 画面の一番下（一覧の末尾）の注記：CEFR の目安と出典・配信状況の出典の文（小さい字で並べる・2026-11-11） */
+.vocab-foot-notes { margin: 18px 2px 8px; display: flex; flex-direction: column; gap: 6px; }
+.vocab-foot-notes .vocab-avail-src { margin: 0; font-size: 11px; line-height: 1.6; color: var(--text-muted); }
 .vocab-avail-src a { color: var(--accent); }
 
 /* 観るサービスを選ぶ下からのシート（components/ServiceSheet.js・入場と「（変更）」から） */

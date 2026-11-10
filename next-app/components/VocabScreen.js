@@ -1746,22 +1746,29 @@ export default function VocabScreen() {
     </div>
   );
 
-  // 配信先の1行（法務 2026-11-10）: 拡張が対応する3つだけ・範囲が分かる書き方・出典はすぐ下（同じ枠の中）・
-  //   取得失敗や3つのどれにも無い時は1行ごと出さない（出典も出さない）。
+  // 配信先の1行（法務 2026-11-10・11-11）: 拡張が対応する3つだけ・範囲が分かる書き方・行の中に短い出所「（データ：JustWatch）」を必ず残す。
+  //   取得失敗や3つのどれにも無い時は1行ごと出さない（下の出典の文も出さない）。
   //   置き場所は作品名の札（S1E1 の札）の下（オーナー 2026-11-10 深夜）。リストが無い間は話を選ぶ枠の下。
-  const availBlock =
-    avail?.ok && avail.names.length > 0 ? (
-      <div className="vocab-avail">
-        <div className="vocab-avail-line">拡張機能が使える配信：{avail.names.map(serviceLabel).join('・')}</div>
-        <div className="vocab-avail-src">
-          配信状況のデータ提供:{' '}
-          <a href="https://www.justwatch.com/jp" target="_blank" rel="noopener noreferrer">
-            JustWatch
-          </a>
-          （TMDB 経由）。拡張機能が対応する3サービスのみ表示しています。最新の配信状況は各サービスでご確認ください。
-        </div>
+  //   長い出典の文（TMDB 経由・3サービスのみ・最新は各サービスで）は、画面の一番下へ（オーナー＋法務 2026-11-11・availSrc）。
+  const availOn = !!(avail?.ok && avail.names.length > 0);
+  const justWatchLink = (
+    <a href="https://www.justwatch.com/jp" target="_blank" rel="noopener noreferrer">
+      JustWatch
+    </a>
+  );
+  const availBlock = availOn ? (
+    <div className="vocab-avail">
+      <div className="vocab-avail-line">
+        拡張機能が使える配信：{avail.names.map(serviceLabel).join('・')}
+        <span className="vocab-avail-cite">（データ：{justWatchLink}）</span>
       </div>
-    ) : null;
+    </div>
+  ) : null;
+  const availSrc = availOn ? (
+    <p className="vocab-avail-src">
+      配信状況のデータ提供: {justWatchLink}（TMDB 経由）。拡張機能が対応する3サービスのみ表示しています。最新の配信状況は各サービスでご確認ください。
+    </p>
+  ) : null;
 
   return (
     <div className="screen active" id="screen-4">
@@ -2039,8 +2046,6 @@ export default function VocabScreen() {
                 </div>
               )}
 
-              {/* CEFR の目安と出典の一行（各語の印は段階だけ・法務 条件2）。印が1語でもある時だけ */}
-              {[...mainWords, ...plusWords].some((w) => cefrHintOf(w)) && <CefrNote />}
               <div className="vocab-list" ref={mainListRef}>
                 {mainWords.map((w) => (
                   <VocabItem
@@ -2098,6 +2103,16 @@ export default function VocabScreen() {
               {/* 「今日の復習」の起動は下部固定の操作バー（vocab-action-bar）へ移動（2026-10-18）。ここは完了の印だけ。 */}
               {stats.due === 0 && doneToday > 0 && (
                 <div className="review-completed-today">✅ 今日の復習完了（{doneToday}回）</div>
+              )}
+
+              {/* 一覧の末尾の注記（オーナー＋法務 2026-11-11）: CEFR の目安と出典の一行（文は変えない・画面に1か所・
+                  一覧の末尾に必ず出す・印が1語でもある時）と、配信状況の出典の文（配信の1行が出る時だけ）。
+                  下の操作バーより前に置く＝一番下までスクロールするとバーの上に見える（隠れない）。 */}
+              {([...mainWords, ...plusWords].some((w) => cefrHintOf(w)) || availSrc) && (
+                <div className="vocab-foot-notes">
+                  {[...mainWords, ...plusWords].some((w) => cefrHintOf(w)) && <CefrNote />}
+                  {availSrc}
+                </div>
               )}
             </>
           ) : phase === 'soon' ? (
@@ -2179,6 +2194,9 @@ export default function VocabScreen() {
             </button>
           </div>
         )}
+
+        {/* リストがまだ無い話：配信状況の出典の文は、画面の一番下に（配信の1行が出る時だけ） */}
+        {!hasList && availSrc && <div className="vocab-foot-notes">{availSrc}</div>}
 
         {/* 映画はエピソードが無いので、削除だけをリスト末尾の控えめなリンクに置く（2026-10-18 案1） */}
         {hasList && isMovie && (
