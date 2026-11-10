@@ -406,10 +406,17 @@ export default function SearchScreen() {
   );
 }
 
-// 行の左の小さなポスター（TMDB）。無ければ頭文字の札。
+// 行の左の小さなポスター（TMDB）。src: null＝取得中（灰色の札）／''＝無し（頭文字の札）。
 function RowPoster({ src, title }) {
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  if (src === null) {
+    return (
+      <span className="srch-ps" aria-hidden="true">
+        <span className="img-skeleton" />
+      </span>
+    );
+  }
   if (!src || failed) {
     return (
       <span className="srch-ps srch-ps-letter" aria-hidden="true">
@@ -476,7 +483,7 @@ function ResultRow({ item, n, onPick }) {
   const en = item.localizedTitle && item.localizedTitle !== item.englishTitle ? item.englishTitle : '';
   return (
     <button type="button" className="srch-row" style={{ animationDelay: `${Math.min(n, 8) * 35}ms` }} onClick={onPick} title={item.englishTitle}>
-      <RowPoster src={item.posterPath} title={item.englishTitle} />
+      <RowPoster src={item.posterPath || ''} title={item.englishTitle} />
       <span className="srch-row-tx">
         <span className="srch-row-t">
           {main}
