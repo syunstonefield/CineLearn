@@ -23,6 +23,7 @@ const FILTERS = [
 ];
 
 // 表示の切り替え（半券／ポスター壁）。端末ごとの好みなので localStorage に置く（同期しない）。
+// 既定はポスター（オーナー 2026-11-10）。自分で選んだ端末はその選択のまま。
 const VIEW_KEY = 'cl_ticket_view';
 const VIEWS = [
   ['ticket', '🎟 半券'],
@@ -49,7 +50,7 @@ export default function TicketCollectionScreen() {
   const [seasonsMap, setSeasonsMap] = useState({}); // tmdbId → { total, seasons }
   const [filter, setFilter] = useState('all');
   const [sort, setSort] = useState('added');
-  const [view, setView] = useState('ticket');
+  const [view, setView] = useState('poster');
   const [frameBest, setFrameBest] = useState({}); // 作品タイトル → 届いた額縁の段階（上がるだけ）
   const [detailTitle, setDetailTitle] = useState(null); // 開いている作品詳細（タイトル）
   // 作品詳細で下の「コレクション」タブを押したら一覧へ（「‹」と同じ戻り方。一覧の表示中は何も起きない）。
