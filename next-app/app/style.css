@@ -4698,6 +4698,14 @@ html.cl-sheet-lock body { overflow: hidden; overscroll-behavior: none; }
 .pl-svc.is-need .pl-svc-item { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); }
 .pl-cta-note { margin: 8px 0 0; text-align: center; font-size: 11.5px; color: var(--text-muted); }
 .pl-other { display: block; margin: 4px auto 0; border: 0; background: none; color: var(--accent); font-size: 12.5px; text-decoration: underline; cursor: pointer; font-family: inherit; padding: 6px; }
+/* PC（769px〜）は下からではなく画面の真ん中に（ログイン画面などのダイアログと同じく浮いた札・オーナー決定 2026-11-10 C=2） */
+@media (min-width: 769px) {
+  .pl-shade { align-items: center; padding: 24px; background: rgba(0, 0, 0, 0.45); }
+  .pl-sheet { border-radius: 16px; max-height: calc(100vh - 48px); padding: 20px 26px 22px; box-shadow: 0 8px 40px rgba(0, 0, 0, 0.2); animation: plPop .22s ease; }
+  .pl-grip { display: none; }
+}
+@keyframes plPop { from { transform: translateY(8px) scale(.98); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .pl-sheet { animation: none; } }
 
 /* ── 予習ウォークスルー（生成直後・全語を1枚ずつ通し見）──────────────
    長い一覧スクロールの代替＝“一通り見る”を形式で担保。観るのは常に自由・チケットは特典。
