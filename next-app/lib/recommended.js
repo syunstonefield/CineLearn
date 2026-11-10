@@ -4,27 +4,30 @@
 //   /tv/{id}/watch/providers?region=JP（lib/tmdb.js: fetchAvailableServices 相当）
 // に置き換えて、実際の配信状況で絞り込む想定。
 // （= ServiceSelect 画面が視聴時に行っている配信確認をサジェスト段階にも前倒しする）
+// reason は「なぜ学習に向くか」の1行。自作の文で、効果の言い切りや根拠のない最上級を書かず、作品の事実だけ
+//   （TMDB のあらすじや配信サービスの紹介文は写さない・俳優名は出さない・「1話約○分」は TMDB の値が変わったら直す）。
+//   2026-11-10 法務確認済みの短い版（オーナー選択）。
 export const RECOMMENDED = [
-  { title: 'Friends', tmdbId: 1668, level: ['A2', 'B1'], services: ['Netflix', 'U-NEXT'], genre: 'Comedy', reason: '明瞭な発音と日常会話の宝庫。英語学習の定番中の定番' },
-  { title: 'Modern Family', tmdbId: 1421, level: ['A2', 'B1'], services: ['Netflix', 'Disney+', 'Hulu'], genre: 'Comedy', reason: '家族の日常会話が中心。1話22分で続けやすい' },
-  { title: 'Emily in Paris', tmdbId: 82596, level: ['A2', 'B1'], services: ['Netflix'], genre: 'Romance', reason: 'ゆっくりした発音で聞き取りやすい。短めの会話が中心' },
-  { title: 'The Good Place', tmdbId: 66573, level: ['B1'], services: ['Netflix'], genre: 'Comedy', reason: 'クリアな発音と倫理がテーマ。知的な語彙も自然に学べる' },
-  { title: 'Brooklyn Nine-Nine', tmdbId: 48891, level: ['B1'], services: ['Netflix', 'Amazon Prime'], genre: 'Comedy', reason: 'テンポの良い職場コメディ。口語表現が豊富' },
-  { title: 'Never Have I Ever', tmdbId: 100883, level: ['A2', 'B1'], services: ['Netflix'], genre: 'Comedy', reason: '高校生の日常で現代的なスラングと日常会話が学べる' },
-  { title: 'Suits', tmdbId: 37680, level: ['B2', 'C1'], services: ['Netflix', 'Amazon Prime'], genre: 'Legal', reason: 'ビジネス英語と法廷用語が自然に身につく。会話のテンポが速い' },
-  { title: 'Stranger Things', tmdbId: 66732, level: ['B1', 'B2'], services: ['Netflix'], genre: 'Sci-Fi', reason: '80年代設定の口語表現。人気作で続きが気になり継続しやすい' },
-  { title: 'The Crown', tmdbId: 65494, level: ['B2', 'C1'], services: ['Netflix'], genre: 'Historical Drama', reason: '格調高いイギリス英語。フォーマルな表現の宝庫' },
-  { title: 'Sex Education', tmdbId: 81356, level: ['B1', 'B2'], services: ['Netflix'], genre: 'Comedy', reason: 'イギリス英語の日常会話。多様な話し方に触れられる' },
-  { title: 'The Office', tmdbId: 2316, level: ['B1', 'B2'], services: ['Netflix', 'Amazon Prime'], genre: 'Comedy', reason: 'オフィス英語と皮肉・ジョーク。アメリカ英語の定番教材' },
-  { title: 'Ted Lasso', tmdbId: 97546, level: ['B2'], services: ['Apple TV+'], genre: 'Comedy', reason: '米英両方の英語が登場。前向きな表現と慣用句が豊富' },
-  { title: 'Gossip Girl', tmdbId: 1395, level: ['B1', 'B2'], services: ['Netflix', 'U-NEXT'], genre: 'Romance', reason: '若者言葉と洗練された会話。長く続けられるエピソード数' },
-  { title: "Grey's Anatomy", tmdbId: 1416, level: ['B2', 'C1'], services: ['Netflix', 'Disney+', 'Hulu'], genre: 'Medical', reason: '医療英語と感情表現。エピソード数が多く継続学習に最適' },
-  { title: 'Breaking Bad', tmdbId: 1396, level: ['B2', 'C1'], services: ['Netflix'], genre: 'Crime Thriller', reason: '緊張感ある会話と多彩な語彙。世界的高評価で没入感が高い' },
-  { title: 'Sherlock', tmdbId: 19885, level: ['C1'], services: ['Netflix', 'U-NEXT'], genre: 'Crime Thriller', reason: '高速で高度なイギリス英語。上級者の聞き取り訓練に最適' },
-  { title: 'House of Cards', tmdbId: 1425, level: ['C1'], services: ['Netflix'], genre: 'Political Drama', reason: '政治・知的な語彙が満載。フォーマルで洗練された英語' },
-  { title: 'Better Call Saul', tmdbId: 60059, level: ['B2', 'C1'], services: ['Netflix'], genre: 'Legal', reason: '法律英語と巧みな会話術。ブレイキング・バッドのスピンオフ' },
-  { title: 'Mad Men', tmdbId: 1104, level: ['C1'], services: ['Amazon Prime', 'Apple TV+'], genre: 'Drama', reason: '60年代の広告業界。ビジネスと洗練された大人の英語' },
-  { title: 'The Big Bang Theory', tmdbId: 1418, level: ['B1', 'B2'], services: ['Netflix', 'U-NEXT'], genre: 'Comedy', reason: '科学用語とテンポの良い会話。1話20分で取り組みやすい' },
+  { title: 'Friends', tmdbId: 1668, level: ['A2', 'B1'], services: ['Netflix', 'U-NEXT'], genre: 'Comedy', reason: 'ニューヨークの友人6人の日常。アメリカ英語の日常会話が中心' },
+  { title: 'Modern Family', tmdbId: 1421, level: ['A2', 'B1'], services: ['Netflix', 'Disney+', 'Hulu'], genre: 'Comedy', reason: '3つの家族の日常を描くコメディ。家族の会話が多い' },
+  { title: 'Emily in Paris', tmdbId: 82596, level: ['A2', 'B1'], services: ['Netflix'], genre: 'Romance', reason: 'パリで働くアメリカ人が主人公。仕事と恋愛の会話が中心' },
+  { title: 'The Good Place', tmdbId: 66573, level: ['B1'], services: ['Netflix'], genre: 'Comedy', reason: '死後の世界が舞台。哲学や倫理の話題も。1話約22分' },
+  { title: 'Brooklyn Nine-Nine', tmdbId: 48891, level: ['B1'], services: ['Netflix', 'Amazon Prime'], genre: 'Comedy', reason: '警察署が舞台の職場コメディ。同僚どうしのくだけた会話' },
+  { title: 'Never Have I Ever', tmdbId: 100883, level: ['A2', 'B1'], services: ['Netflix'], genre: 'Comedy', reason: '高校生が主人公。学校と家庭の会話、若者の言い方が多い' },
+  { title: 'Suits', tmdbId: 37680, level: ['B2', 'C1'], services: ['Netflix', 'Amazon Prime'], genre: 'Legal', reason: '法律事務所が舞台。ビジネスの会話と法律の用語が多い' },
+  { title: 'Stranger Things', tmdbId: 66732, level: ['B1', 'B2'], services: ['Netflix'], genre: 'Sci-Fi', reason: '1980年代のアメリカの町が舞台。子どもたちの会話と当時の言い回し' },
+  { title: 'The Crown', tmdbId: 65494, level: ['B2', 'C1'], services: ['Netflix'], genre: 'Historical Drama', reason: 'エリザベス2世の時代の歴史ドラマ。改まったイギリス英語' },
+  { title: 'Sex Education', tmdbId: 81356, level: ['B1', 'B2'], services: ['Netflix'], genre: 'Comedy', reason: 'イギリスの高校が舞台。生徒どうしの会話が中心' },
+  { title: 'The Office', tmdbId: 2316, level: ['B1', 'B2'], services: ['Netflix', 'Amazon Prime'], genre: 'Comedy', reason: '会社の支店が舞台の職場コメディ。皮肉や冗談の多い会話' },
+  { title: 'Ted Lasso', tmdbId: 97546, level: ['B2'], services: ['Apple TV+'], genre: 'Comedy', reason: 'イギリスのサッカーチームが舞台。米英両方の英語が出てくる' },
+  { title: 'Gossip Girl', tmdbId: 1395, level: ['B1', 'B2'], services: ['Netflix', 'U-NEXT'], genre: 'Romance', reason: 'ニューヨークの高校生が主人公。若者の会話と改まった場面の会話' },
+  { title: "Grey's Anatomy", tmdbId: 1416, level: ['B2', 'C1'], services: ['Netflix', 'Disney+', 'Hulu'], genre: 'Medical', reason: 'シアトルの病院が舞台。医療の用語と医師どうしの会話' },
+  { title: 'Breaking Bad', tmdbId: 1396, level: ['B2', 'C1'], services: ['Netflix'], genre: 'Crime Thriller', reason: '化学の教師が主人公の犯罪ドラマ。家庭から緊迫した場面まで' },
+  { title: 'Sherlock', tmdbId: 19885, level: ['C1'], services: ['Netflix', 'U-NEXT'], genre: 'Crime Thriller', reason: '現代のロンドンが舞台の推理ドラマ。推理の場面は早口。1話約90分' },
+  { title: 'House of Cards', tmdbId: 1425, level: ['C1'], services: ['Netflix'], genre: 'Political Drama', reason: 'ワシントンの政界が舞台。政治の用語と改まった言い方' },
+  { title: 'Better Call Saul', tmdbId: 60059, level: ['B2', 'C1'], services: ['Netflix'], genre: 'Legal', reason: '弁護士が主人公の犯罪ドラマ。法律の用語と交渉の場面' },
+  { title: 'Mad Men', tmdbId: 1104, level: ['C1'], services: ['Amazon Prime', 'Apple TV+'], genre: 'Drama', reason: '1960年代の広告会社が舞台。仕事の会話と大人の改まった言い方' },
+  { title: 'The Big Bang Theory', tmdbId: 1418, level: ['B1', 'B2'], services: ['Netflix', 'U-NEXT'], genre: 'Comedy', reason: '科学者の友人たちのコメディ。科学の用語も。1話約22分' },
 ];
 
 // ユーザーのレベルと契約サービスで絞り込み、最大6件返す。
