@@ -2,28 +2,30 @@
 
 import { useEffect, useState } from 'react';
 import { useApp } from './AppProvider';
-import ServiceSheet from './ServiceSheet';
 import { watchSearchUrl } from '@/lib/prep';
 import { entryTarget, sheetOrder, serviceLabel } from '@/lib/serviceEntry';
 import { loadAvailability, fetchAvailability } from '@/lib/serviceAvailability';
 import { trackUsage } from '@/lib/usage';
 
-// 予習エンジンの完了 = 映画館の「開演」ページ（暖色シネマ）。quiz / cards / watch の3バリエ。
-// 入場（視聴サービスへ）は下に常時。半券（プレミアパス画像・席番号）は 2026-10-18 に廃止。
-// window.open は入場タップのジェスチャ内で呼びポップアップブロックを回避。
-// 観るサービスはここで聞く（2026-11-10・単語リストの前の「視聴サービスを選択」画面の代わり・lib/serviceEntry.js）:
-//   この作品で前に選んだ → それ／配信が1つ → それ（開いて覚える）／それ以外・データが取れない → シートで選んでもらう。
-//   開く先はボタンのすぐ下に文字で書く（ロゴ・ブランド色なし）・「提携ではありません」・「別のサービスで探す」（法務 2026-11-10）。
+// 予習のあとの「入場」＝元の画面の上に下から出る明るいシート（2026-11-10 深夜 オーナー決定・旧＝全面が暗い「暖色シネマ」）。
+//   quiz（クイズ3問のあと）／cards（カードを一周して閉じたあと）／watch（「今夜は観るだけ」）の3つで、一言だけ変える。
+//   観るサービス（lib/serviceEntry.js）: この作品で前に選んだ → それ／配信が1つ → それ（開いて覚える）／
+//   それ以外・データが取れない → このシートの中で選んでもらう（自動では開かない・法務 2026-11-10）。
+//   開く先はボタンのすぐ下に文字で書く（ロゴ・ブランド色なし）・「提携ではありません」・「別のサービスで探す」。
+//   window.open は「入場する」を押したその操作の中で呼ぶ（ポップアップとして止められないように）。
+//   閉じる＝✕・シートの外を押す・Esc。入場したらシートも閉じる（元の画面へ戻る）。
 export default function PrepLaunch() {
   const { prepLaunch, closePrepLaunch, settings, chooseService } = useApp();
   const p = prepLaunch;
   const [avail, setAvail] = useState(null);
-  const [sheet, setSheet] = useState(false);
+  const [picked, setPicked] = useState(''); // このシートで選んだサービス（入場で開く・覚える）
+  const [showList, setShowList] = useState(false); // 「別のサービスで探す」で一覧を開いたか
 
   const tmdbId = p?.drama?.tmdbId || null;
   const isMovie = !!(p?.isMovie || p?.drama?.type === 'movie' || p?.drama?.mediaType === 'movie');
   useEffect(() => {
-    setSheet(false);
+    setPicked('');
+    setShowList(false);
     if (!tmdbId) {
       setAvail(null);
       return undefined;
@@ -36,105 +38,110 @@ export default function PrepLaunch() {
     return () => {
       cancelled = true;
     };
-  }, [tmdbId, isMovie]);
+  }, [p, tmdbId, isMovie]);
+
+  useEffect(() => {
+    if (!p) return undefined;
+    const onKey = (e) => {
+      if (e.key === 'Escape') closePrepLaunch();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [p, closePrepLaunch]);
+
+  const title = p?.title || p?.drama?.title || 'この作品';
+  const chosen = p ? (settings.myDramas || []).find((d) => d.title === title)?.viewingService || p.service || '' : '';
+  const target = p ? entryTarget({ chosen, avail }) : null;
+  // 開く先が決まらず、ここで選んでもらう形で出た時に1回数える（enter_ask・固定の名前と回数だけ）。
+  const needAsk = !!p && !target && avail !== null;
+  useEffect(() => {
+    if (needAsk) trackUsage('enter_ask');
+  }, [needAsk, p]);
 
   if (!p) return null;
+  // 開く先：このシートで選んだもの → 決まっている先。どちらも無ければ選んでもらう。
+  const service = picked || target?.service || '';
+  const listOpen = !target || showList;
+  const names = sheetOrder({ avail, contracted: settings.selectedServices });
 
-  const title = p.title || p.drama?.title || 'この作品';
-  const chosen = (settings.myDramas || []).find((d) => d.title === title)?.viewingService || p.service || '';
-  const target = entryTarget({ chosen, avail });
-  const label = target ? serviceLabel(target.service) : '';
-
-  // 入場＝視聴サービスを開く（タップのジェスチャ内で window.open＝ポップアップブロック回避）。
-  const openService = (svc) => {
-    if (typeof window !== 'undefined') window.open(watchSearchUrl(title, svc), '_blank', 'noopener,noreferrer');
-    trackUsage('enter_open');
-  };
   const enter = () => {
-    if (!target) {
-      trackUsage('enter_ask');
-      setSheet(true);
-      return;
-    }
-    openService(target.service);
-    if (target.auto) chooseService(target.service); // 配信が1つで自動で決めた → 作品ごとに覚える
+    if (!service) return;
+    if (typeof window !== 'undefined') window.open(watchSearchUrl(title, service), '_blank', 'noopener,noreferrer');
+    trackUsage('enter_open');
+    if (picked || target?.auto) chooseService(service); // 選んだ・配信が1つで決めた → 作品ごとに覚える
+    closePrepLaunch();
   };
-  const pick = (svc) => {
-    setSheet(false);
-    openService(svc);
-    chooseService(svc);
+  const openList = () => {
+    if (!target) return;
+    trackUsage('enter_ask');
+    setShowList(true);
   };
 
-  const foot = (
-    <div className="prep-cinema-foot">
-      <button className="prep-cinema-cta" onClick={enter}>
-        入場する ▶
-      </button>
-      <div className="prep-cinema-cta-note">
-        {target ? `${label} を開きます ・ 提携ではありません` : '観るサービスを選んでから開きます ・ 提携ではありません'}
-      </div>
-      {target && (
-        <button type="button" className="prep-cinema-other" onClick={() => setSheet(true)}>
-          別のサービスで探す
-        </button>
-      )}
-      <ServiceSheet
-        open={sheet}
-        names={sheetOrder({ avail, contracted: settings.selectedServices })}
-        current={target ? target.service : ''}
-        onPick={pick}
-        onClose={() => setSheet(false)}
-        title="どのサービスで観ますか？"
-        note="次からこの作品は、選んだサービスで開きます。あとから変えられます。"
-      />
-    </div>
-  );
-
-  // ── quiz / cards / watch = 暖色シネマページ ──
-  const tomorrow =
-    p.variant === 'cards' ? (
-      <div className="prep-cinema-tomorrow">うろ覚えの語は、明日また戻ってきます。</div>
-    ) : null;
-  const headTitle = p.variant === 'watch' ? '🍿 今夜の上映' : '🎬 今夜の予習';
+  const head = p.variant === 'watch' ? '今夜の上映' : '今夜の予習';
+  let lead;
+  let sub;
+  if (p.variant === 'quiz') {
+    lead = p.total ? `クイズ ${p.correct ?? 0} / ${p.total} 正解。` : 'クイズを終えました。';
+    sub = `今夜、この${(p.quizWords || []).length || 3}語が聞こえたら合図です。`;
+  } else if (p.variant === 'cards') {
+    lead = p.cardCount != null ? `${p.cardCount}語を一周しました。` : '新出語を一周しました。';
+    sub = '今夜、覚えた手応えを物語で答え合わせしよう。';
+  } else {
+    lead = `今夜「${title}」を観に行こう。`;
+    sub = 'クイズとフラッシュカードは、あとで受けられます。';
+  }
 
   return (
-    <div className="prep-cinema-overlay" onClick={closePrepLaunch}>
-      <div className="prep-cinema-panel" onClick={(e) => e.stopPropagation()}>
-        <div className="prep-cinema-head">
-          <span className="prep-cinema-title">{headTitle}</span>
-          <button className="prep-cinema-close" onClick={closePrepLaunch} aria-label="閉じる">
+    <div className="pl-shade" onClick={closePrepLaunch}>
+      <div className="pl-sheet" role="dialog" aria-modal="true" aria-label={head} onClick={(e) => e.stopPropagation()}>
+        <div className="pl-grip" aria-hidden="true" />
+        <div className="pl-head">
+          <span className="pl-kicker">{head}</span>
+          <button type="button" className="pl-x" onClick={closePrepLaunch} aria-label="閉じる">
             ✕
           </button>
         </div>
+        <p className="pl-lead">{lead}</p>
+        <p className="pl-sub">{sub}</p>
+        {p.variant === 'cards' && <p className="pl-note">うろ覚えの語は、明日また戻ってきます。</p>}
 
-        <div className="prep-cinema-body">
-          {p.variant === 'quiz' && (
-            <>
-              <div className="prep-cinema-lead">
-                {p.total ? `クイズ ${p.correct ?? 0} / ${p.total} 正解。` : 'クイズを終えました。'}
-              </div>
-              <div className="prep-cinema-sub">今夜、この{(p.quizWords || []).length || 3}語が聞こえたら合図です。</div>
-            </>
-          )}
-          {p.variant === 'cards' && (
-            <>
-              <div className="prep-cinema-lead">
-                {p.cardCount != null ? `${p.cardCount}語を一周しました。` : '新出語を一周しました。'}
-              </div>
-              <div className="prep-cinema-sub">今夜、覚えた手応えを物語で答え合わせしよう。</div>
-            </>
-          )}
-          {p.variant === 'watch' && (
-            <>
-              <div className="prep-cinema-lead">今夜「{title}」を観に行こう。</div>
-              <div className="prep-cinema-sub">クイズとフラッシュカードは、あとで受けられます。</div>
-            </>
-          )}
-          {tomorrow}
-        </div>
+        {listOpen && (
+          <div className="pl-svc">
+            <div className="pl-svc-cap">
+              {target ? '別のサービスで探す' : '観るサービスを選んでください'}
+              <small>次からこの作品は、選んだサービスで開きます。あとから変えられます。</small>
+            </div>
+            <div className="pl-svc-list" role="radiogroup" aria-label="観るサービス">
+              {names.map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  role="radio"
+                  aria-checked={service === n}
+                  className={'pl-svc-item' + (service === n ? ' is-on' : '')}
+                  onClick={() => setPicked(n)}
+                >
+                  <span className="pl-svc-dot" aria-hidden="true" />
+                  {serviceLabel(n)}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
-        {foot}
+        <button type="button" className="btn-primary pl-enter" onClick={enter} disabled={!service}>
+          入場する ▶
+        </button>
+        <p className="pl-cta-note">
+          {service ? `${serviceLabel(service)} を開きます ・ 提携ではありません` : '観るサービスを選ぶと開けます ・ 提携ではありません'}
+        </p>
+        {target && !showList && (
+          <button type="button" className="pl-other" onClick={openList}>
+            別のサービスで探す
+          </button>
+        )}
       </div>
     </div>
   );
 }
+
