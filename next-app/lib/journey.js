@@ -24,8 +24,8 @@ export const JOURNEY = {
     grassNone: '学習の記録はありません。',
     grassBeforeDaily: 'この日は、詳しい内訳の記録がありません。',
     trendTitle: '週ごとの推移',
-    trendWait: '記録をためています',
-    trendWaitSub: (weeks, from) => `週ごとの推移は、記録が${weeks}週分たまると表示されます（${from}から記録中）。`,
+    // 4週たまるまでの1文（2026-11-10 見直し: 大きな箱をやめ、短い1文＋4つの目盛り）
+    trendWait: (weeks, from) => `記録をためています。${weeks}週分たまると、ここにグラフが出ます（${from}から記録中）。`,
     trendSummary: (weeks, learned, mastered) => {
       const parts = [];
       if (learned > 0) parts.push(`覚えた語は ${learned}語`);
