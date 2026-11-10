@@ -1,7 +1,8 @@
-// 検索画面の厳選リスト（lib/recommended.js・2026-11-10）の単体テスト。
+// おすすめ（lib/recommended.js）の単体テスト。後半は検索画面の厳選リスト（2026-11-10）。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  getRecommendations,
   RECOMMENDED,
   SEARCH_CHIPS,
   chipFilter,
@@ -13,6 +14,17 @@ import {
 } from '../lib/recommended.js';
 
 const titles = (list) => list.map((d) => d.title);
+
+test('おすすめ: サービス未設定（空）でも6件出る＝設定画面へ飛ばさない前提（2026-11-01）', () => {
+  assert.equal(getRecommendations('B1', []).length, 6);
+  assert.equal(getRecommendations('B1', undefined).length, 6);
+});
+
+test('おすすめ: サービスを選んでいればその中だけ', () => {
+  const list = getRecommendations('C1', ['Amazon Prime']);
+  assert.ok(list.length > 0);
+  for (const d of list) assert.ok(d.services.includes('Amazon Prime'), d.title);
+});
 
 test('全作品に日本語名と理由があり、TMDB ID が重複しない', () => {
   for (const d of RECOMMENDED) {
