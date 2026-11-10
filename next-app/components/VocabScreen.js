@@ -1826,7 +1826,9 @@ export default function VocabScreen() {
           {!isMovie && pickerOpen && epPicker}
           <div className="episode-row">
             {!genBtn.hidden && (
-              <button className="btn-episode" disabled={genBtn.disabled} onClick={onGenerate}>
+              // 予習をはじめる＝ほかの画面の主ボタン（.btn-primary）と同じ形・色（オーナー決定 2026-11-11・案2）。
+              //   以前は紫（--accent2）で小さく、アプリの中で紫の主ボタンはここだけだった。リストの削除（.btn-episode-danger）は今のまま
+              <button className="btn-primary btn-episode-go" disabled={genBtn.disabled} onClick={onGenerate}>
                 {genBtn.text}
               </button>
             )}
