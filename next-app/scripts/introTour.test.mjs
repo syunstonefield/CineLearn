@@ -1,6 +1,6 @@
 // スライド式チュートリアルとボタン案内（lib/introTour.js）・利用統計の項目（lib/usageEvents.js・lib/usageReport.js）の単体テスト。
 import assert from 'node:assert/strict';
-import { tourSteps, TOUR_STEPS, lastTipAction, shouldGlowAdd, tipPosition, spotRect, INTRO_SLIDES, FIRST_RUN_MODE } from '../lib/introTour.js';
+import { parseIntroStep, tourSteps, TOUR_STEPS, lastTipAction, shouldGlowAdd, tipPosition, spotRect, INTRO_SLIDES, FIRST_RUN_MODE } from '../lib/introTour.js';
 import { isUsageEvent } from '../lib/usageEvents.js';
 import { buildUsageReport, INTRO_STEPS } from '../lib/usageReport.js';
 
@@ -118,6 +118,13 @@ t('集計：⑪ スライド式の流れ（ようこそに対する%）', () => 
   assert.match(w['レベル'], /^2人 100%/);
   assert.match(w['案内を最後まで'], /^1人 50%/);
   assert.match(w['案内から作品追加'], /^1人 50%/);
+});
+
+t('読み直した時の続き：覚えた値を読む（範囲外・壊れた値は無視）', () => {
+  assert.equal(parseIntroStep('3'), 3);
+  assert.equal(parseIntroStep('0'), 0);
+  assert.equal(parseIntroStep('level'), 'level');
+  for (const v of [null, '', '6', '-1', '2.5', 'abc', undefined]) assert.equal(parseIntroStep(v), null, String(v));
 });
 
 console.log(`${n} tests passed`);

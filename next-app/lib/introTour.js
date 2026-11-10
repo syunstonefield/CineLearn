@@ -74,6 +74,25 @@ export function spotRect(rect, pad = 5) {
   };
 }
 
+// 初めての流れ・ボタン案内の間は、うしろのページを動かさない（オーナー報告 2026-11-10 深夜: スライドの上で指を動かすと
+//   うしろのページがスクロールし、端で引くと読み直し＝スプラッシュ→1枚目に戻った）。html に印を付け、CSS で
+//   html・body のスクロールと「引っ張って更新」を止める（復習の cl-review-lock と同じ考え方）。外すのは useLayoutEffect の後始末で。
+export const INTRO_LOCK_CLASS = 'cl-intro-lock';
+export function lockPage() {
+  const root = document.documentElement;
+  window.scrollTo(0, 0);
+  root.classList.add(INTRO_LOCK_CLASS);
+  return () => root.classList.remove(INTRO_LOCK_CLASS);
+}
+
+// 初めての流れで何枚目まで進んだか（読み直されても続きから・このタブのあいだだけ＝sessionStorage）。
+export const INTRO_STEP_KEY = 'cl_intro_step';
+export function parseIntroStep(v, last = 5) {
+  if (v === 'level') return 'level';
+  const n = Number(v);
+  return v != null && v !== '' && Number.isInteger(n) && n >= 0 && n <= last ? n : null;
+}
+
 // スライドの文言（モック v6・オーナー確定 2026-11-10）。見本の語・例文・和訳・作品名は自作／架空。
 export const INTRO_SAMPLE_NOTE = '見本の画面です（作品名・セリフは架空のものです）';
 export const INTRO_SLIDES = [
