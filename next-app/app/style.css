@@ -6543,72 +6543,32 @@ button.rh-due-badge-btn:active { transform: none; }
 .vp-mastered .vp-gauge-fill { background: var(--gold, #d99a00); }
 .vp-pct { font-size: 11px; font-weight: 700; color: var(--text-muted); }
 
-/* ── 3重の円（あゆみタブ上段・components/VocabRings.js）────────────────────
-   確定モック https://claude.ai/artifact/9eUzWAJ3sK9EpY4fB4S6x6 （オーナー UI 案 CineLearnRingUI）の見た目。
-   暖色の金（シネマの配色）。赤・警告色は使わない。ダークテーマは同じ金をくすんだ地に乗せる。 */
+/* ── 3重の円と数字の札・最近覚えた単語（あゆみタブ上段・components/VocabRings.js）──────────
+   2026-11-10 見直し（受付の見本 reports/journey-ui-2026-11-10/mock.html・オーナー了承）:
+   円（左・148px）と数字3行（右）を白い札に横並び。札は単語リストと同じ白地・細い枠・角 12px（画面の間でコントラストを出しすぎない）。
+   円の色は暖色の金。赤・警告色は使わない。ダークテーマは同じ金をくすんだ地に乗せる。 */
 .vr-wrap {
-  --vr-ink: #292622; --vr-muted: #8d877e; --vr-soft: #706a62; --vr-eyebrow: #9b7545;
-  --vr-card-bg: radial-gradient(circle at 50% 50%, rgba(255,211,126,.2), transparent 36%), linear-gradient(120deg, #fffaf0, #f9f1e2);
-  --vr-card-border: #ead9bf; --vr-row-line: rgba(150,120,80,.12);
-  --vr-met: #f0d6a4; --vr-learned: #e3ad50; --vr-mastered: #bd7418; --vr-track: rgba(205,164,96,.14);
-  --vr-today-bg: rgba(255,250,239,.85); --vr-today-border: #e6d5b9; --vr-today-ink: #6f5a3c; --vr-gold-deep: #a96513;
-  --vr-wc-bg: #fff; --vr-wc-border: #e8e0d5;
-  margin: 0 0 18px;
-  padding: 0 max(40px, calc((100% - var(--content-max)) / 2));
+  min-width: 0;
+  --vr-ink: var(--text); --vr-muted: var(--text-muted); --vr-soft: var(--text-soft);
+  --vr-met: #ecd9b4; --vr-learned: #dcae5a; --vr-mastered: #b8762c; --vr-track: #f1ece3;
+  --vr-num: #8a5a26; --vr-today-bg: rgba(193,127,59,.07); --vr-gold-deep: #8a5a26;
+  --vr-row-line: #f3efe8;
   color: var(--vr-ink);
 }
 html[data-theme="dark"] .vr-wrap {
-  --vr-ink: #f3ece0; --vr-muted: #a39a8c; --vr-soft: #c4baa9; --vr-eyebrow: #d5a965;
-  --vr-card-bg: radial-gradient(circle at 50% 50%, rgba(255,190,90,.12), transparent 40%), linear-gradient(120deg, #221d16, #1a1611);
-  --vr-card-border: rgba(214,170,100,.22); --vr-row-line: rgba(214,170,100,.14);
   --vr-met: #6e5a36; --vr-learned: #d39a3e; --vr-mastered: #f0b64e; --vr-track: rgba(214,170,100,.12);
-  --vr-today-bg: rgba(255,220,160,.06); --vr-today-border: rgba(214,170,100,.28); --vr-today-ink: #e7d3b0; --vr-gold-deep: #f0b64e;
-  --vr-wc-bg: var(--surface); --vr-wc-border: var(--border);
+  --vr-num: #f0c878; --vr-today-bg: rgba(255,220,160,.06); --vr-gold-deep: #f0c878;
+  --vr-row-line: rgba(255,255,255,.06);
 }
 .vr-card {
-  position: relative;
-  display: grid;
-  grid-template-columns: minmax(0,1fr) 300px minmax(0,1fr);
-  gap: 24px;
-  align-items: center;
-  padding: 36px 40px;
-  overflow: hidden;
-  border: 1px solid var(--vr-card-border);
-  border-radius: 20px;
-  background: var(--vr-card-bg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  min-width: 0;
 }
-/* 舞う光（ほこりのような金の粒） */
-.vr-card::before {
-  content: "";
-  position: absolute;
-  inset: -80px 0 0;
-  pointer-events: none;
-  background-image: radial-gradient(circle, rgba(200,136,45,.4) 0 1px, transparent 1.6px);
-  background-size: 78px 78px;
-  opacity: .2;
-  animation: vrDust 9s linear infinite;
-}
-@keyframes vrDust { to { transform: translateY(-78px); } }
-.vr-card > * { position: relative; z-index: 1; min-width: 0; }
-.vr-eyebrow { color: var(--vr-eyebrow); font-size: 13px; margin-bottom: 8px; }
-.vr-copy h2 { margin: 0 0 14px; font-family: 'Playfair Display', serif; font-size: 34px; font-weight: 700; letter-spacing: .02em; }
-.vr-copy p { color: var(--vr-soft); line-height: 1.9; font-size: 14px; }
-
-.vr-stage {
-  position: relative;
-  width: 300px;
-  max-width: 100%;
-  aspect-ratio: 1;
-  margin: auto;
-  padding: 0;
-  border: 0;
-  background: none;
-  border-radius: 50%;
-  font: inherit;
-  color: inherit;
-}
-button.vr-stage { cursor: pointer; }
-button.vr-stage:focus-visible, .vr-today:focus-visible, .vr-rh button:focus-visible { outline: 2px solid var(--vr-learned); outline-offset: 3px; }
+.vr-sum { display: flex; align-items: center; gap: 18px; }
+.vr-stage { position: relative; flex: none; width: 148px; aspect-ratio: 1; }
 .vr-stage svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .vr-track { stroke: var(--vr-track); }
 .vr-arc-met { stroke: var(--vr-met); }
@@ -6617,112 +6577,102 @@ button.vr-stage:focus-visible, .vr-today:focus-visible, .vr-rh button:focus-visi
 .vr-arc-glow { stroke: #ffd77a; }
 .vr-arc-glow2 { stroke: #ffe6a8; }
 .vr-center {
-  position: absolute;
-  left: 50%; top: 50%;
-  width: 108px; height: 108px;
-  margin: -54px 0 0 -54px;
-  border-radius: 50%;
+  position: absolute; inset: 0;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  color: #fff;
-  background: radial-gradient(circle at 35% 25%, #d99428, #a8600e);
-  box-shadow: 0 0 0 8px rgba(196,130,36,.12), 0 12px 30px rgba(156,94,16,.28);
+  pointer-events: none;
 }
-.vr-center strong { font-family: 'Playfair Display', serif; font-size: 30px; line-height: 1.05; font-variant-numeric: tabular-nums; }
-.vr-center span { font-size: 12px; opacity: .92; }
-.vr-center em { font-style: normal; font-size: 10.5px; margin-top: 3px; padding: 1px 8px; border-radius: 99px; background: rgba(255,255,255,.18); white-space: nowrap; }
-.vr-center.is-zero { background: radial-gradient(circle at 35% 25%, #f1d29a, #d9a957); color: #6f4a12; }
-.vr-cue { position: absolute; left: 50%; bottom: -24px; transform: translateX(-50%); font-size: 12px; color: var(--vr-eyebrow); white-space: nowrap; }
+.vr-center strong { font-family: 'Playfair Display', serif; font-size: 26px; font-weight: 500; line-height: 1; color: var(--vr-num); font-variant-numeric: tabular-nums; }
+.vr-center span { font-size: 11px; color: var(--vr-soft); margin-top: 3px; }
+.vr-center em { font-style: normal; font-size: 9px; color: var(--vr-muted); margin-top: 2px; white-space: nowrap; letter-spacing: -.02em; }
 
-.vr-lrow {
-  display: grid;
-  grid-template-columns: 14px 64px auto minmax(0,1fr);
-  align-items: center;
-  gap: 10px;
-  padding: 11px 0;
+.vr-nums { flex: 1; min-width: 0; }
+.vr-nrow {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px;
+  padding: 7px 0;
   border-bottom: 1px solid var(--vr-row-line);
 }
-.vr-lrow b { font-size: 20px; font-variant-numeric: tabular-nums; }
-.vr-lrow span { font-weight: 600; white-space: nowrap; }
-.vr-lrow small { color: var(--vr-muted); font-size: 12px; }
-.vr-dot { width: 13px; height: 13px; border-radius: 50%; }
+.vr-nrow:last-of-type { border-bottom: 0; }
+.vr-dot { flex: none; width: 9px; height: 9px; border-radius: 50%; align-self: center; }
 .vr-dot-met { background: var(--vr-met); }
 .vr-dot-learned { background: var(--vr-learned); }
 .vr-dot-mastered { background: var(--vr-mastered); }
+.vr-nname { flex: 1 0 auto; font-size: 13.5px; color: var(--vr-soft); white-space: nowrap; }
+.vr-nnum { font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.vr-nwait { width: 100%; margin-left: 17px; font-size: 11px; line-height: 1.5; color: var(--vr-muted); } /* マスター0の間の一言は名前の下の行に */
+.vr-ndesc { width: 100%; margin: 2px 0 2px 17px; font-size: 11px; line-height: 1.5; color: var(--vr-muted); }
+.vr-mean { margin-top: 4px; padding: 2px 0; border: 0; background: none; font: inherit; font-size: 11.5px; color: var(--vr-muted); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+
 .vr-today {
   width: 100%;
-  margin-top: 18px;
-  padding: 13px 15px;
-  display: flex; align-items: center; gap: 10px;
-  border: 1px solid var(--vr-today-border);
-  border-radius: 15px;
+  margin-top: 14px;
+  padding: 10px 12px;
+  display: flex; align-items: center; gap: 8px;
+  border: 0; border-radius: 10px;
   background: var(--vr-today-bg);
-  color: var(--vr-today-ink);
-  font: inherit; font-size: 14px; text-align: left;
-  transition: transform .2s, box-shadow .2s;
+  color: var(--vr-soft);
+  font: inherit; font-size: 13px; text-align: left;
 }
 button.vr-today { cursor: pointer; }
-button.vr-today:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(150,110,50,.12); }
 .vr-today .vr-t { flex: 1; }
-.vr-today b { color: var(--vr-gold-deep); }
+.vr-today b { color: var(--vr-gold-deep); font-weight: 600; }
+.vr-today > span:last-child[aria-hidden] { color: var(--accent); }
 .vr-spark { color: var(--vr-learned); }
+.vr-mean:focus-visible, .vr-today:focus-visible, .vr-rh button:focus-visible { outline: 2px solid var(--vr-learned); outline-offset: 3px; }
 
-.vr-recent { margin-top: 20px; }
-.vr-rh { display: flex; justify-content: space-between; align-items: center; margin: 0 4px 12px; }
-.vr-rh h3 { font-size: 16px; color: var(--text); }
-.vr-rh button { border: 0; background: none; color: var(--text-muted); font: inherit; font-size: 13px; cursor: pointer; }
-.vr-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; }
+/* 最近覚えた単語: 最初は横に送る札（4枚）、「すべて見る」で縦の一覧。例文は全文（引用を途中で切らない）＝札の高さは中身で決まる */
+.vr-recent { margin-top: 22px; min-width: 0; }
+.vr-rh { display: flex; justify-content: space-between; align-items: baseline; margin: 0 0 10px; }
+.vr-rh h3 { margin: 0; font-size: 16px; font-weight: 600; color: var(--text); }
+.vr-rh button { border: 0; background: none; padding: 4px 0; color: var(--accent); font: inherit; font-size: 12.5px; cursor: pointer; }
+.vr-rail {
+  display: flex; gap: 10px;
+  overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none;
+  margin: 0 -16px; padding: 0 16px 4px; scroll-padding-left: 16px;
+}
+.vr-rail::-webkit-scrollbar { display: none; }
+.vr-rail .vr-wc { flex: none; width: 272px; scroll-snap-align: start; }
+.vr-list { display: grid; gap: 10px; }
 .vr-wc {
-  display: grid;
-  grid-template-columns: 60px minmax(0,1fr);
-  gap: 12px;
-  align-items: start;
+  display: flex; gap: 12px; align-items: flex-start;
   padding: 12px;
-  border: 1px solid var(--vr-wc-border);
-  border-radius: 14px;
-  background: var(--vr-wc-bg);
-  box-shadow: 0 3px 12px rgba(50,40,30,.04);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  min-width: 0;
 }
 .vr-poster {
-  position: relative;
-  width: 60px;
-  aspect-ratio: 2 / 3;
-  border-radius: 7px;
+  position: relative; flex: none;
+  width: 46px; aspect-ratio: 2 / 3;
+  border-radius: 6px;
   overflow: hidden;
   display: grid; place-items: center;
   background: linear-gradient(160deg, #4a3f35, #9a8468);
-  box-shadow: 0 4px 10px rgba(40,30,20,.18);
 }
 .vr-poster img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.vr-poster-initial { color: rgba(255,255,255,.85); font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 700; }
-.vr-poster-ep { position: absolute; left: 3px; bottom: 3px; padding: 1px 4px; color: #fff; background: rgba(20,18,15,.65); border-radius: 4px; font-size: 9px; white-space: nowrap; }
-.vr-wb { min-width: 0; }
+.vr-poster-initial { color: rgba(255,255,255,.88); font-family: 'Playfair Display', serif; font-size: 18px; font-weight: 700; }
+.vr-poster-ep { position: absolute; left: 3px; bottom: 3px; padding: 0 3px; color: #fff; background: rgba(20,18,15,.6); border-radius: 3px; font-size: 8.5px; white-space: nowrap; }
+.vr-wb { flex: 1; min-width: 0; }
 .vr-wl { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-.vr-wl strong { font-size: 15px; color: var(--text); overflow-wrap: anywhere; }
-.vr-st { padding: 3px 8px; border-radius: 99px; font-size: 10px; font-weight: 700; font-style: normal; white-space: nowrap; }
-.vr-st.is-m { color: #fff; background: #bb751c; }
-.vr-st.is-l { color: #76501f; background: #f6d58e; }
-.vr-wb p { margin: 4px 0 6px; color: var(--text-soft); font-size: 12px; }
-.vr-wb .vr-ex { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; color: var(--text-soft); font-size: 11.5px; }
+.vr-wl strong { font-size: 15px; font-weight: 500; color: var(--accent); overflow-wrap: anywhere; }
+.vr-st { padding: 2px 8px; border-radius: 99px; font-size: 10px; font-weight: 600; font-style: normal; white-space: nowrap; }
+.vr-st.is-m { color: #fff; background: #b8762c; }
+.vr-st.is-l { color: #8a5a26; background: #f7ecdc; }
+html[data-theme="dark"] .vr-st.is-l { color: #f0c878; background: rgba(240,200,120,.12); }
+.vr-wb p { margin: 2px 0 0; color: var(--text-soft); font-size: 13px; }
+.vr-wb .vr-ex { display: block; margin-top: 5px; color: var(--text-soft); font-size: 12px; line-height: 1.45; }
 .vr-src { display: block; margin-top: 4px; color: var(--text-muted); font-size: 10.5px; }
+.vr-more { display: block; width: 100%; margin-top: 10px; padding: 10px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text-soft); font: inherit; font-size: 13px; cursor: pointer; }
 
-@media (max-width: 1180px) {
-  .vr-lrow { grid-template-columns: 14px 54px auto; }
-  .vr-lrow small { grid-column: 3; margin-top: -8px; }
+/* PC 幅: 横送りをやめて2列に並べる（4枚が隠れないように） */
+@media (min-width: 900px) {
+  .vr-rail { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); overflow: visible; margin: 0; padding: 0; }
+  .vr-rail .vr-wc { width: auto; }
+  .vr-list { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .vr-sum { max-width: 560px; }
 }
-@media (max-width: 1000px) {
-  .vr-card { grid-template-columns: minmax(0,1fr); text-align: center; padding: 28px 20px 34px; }
-  .vr-legend { text-align: left; max-width: 460px; width: 100%; margin: 14px auto 0; }
-  .vr-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
-}
-@media (max-width: 640px) {
-  .vr-wrap { padding: 0 16px; }
-  .vr-copy h2 { font-size: 28px; }
-  .vr-stage { width: 260px; }
-  .vr-grid { grid-template-columns: minmax(0,1fr); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .vr-card::before { animation: none; }
-  .vr-today { transition: none; }
+@media (max-width: 360px) {
+  .vr-stage { width: 128px; }
+  .vr-sum { gap: 14px; }
 }
 
 /* 有料予定の機能に添える控えめな表示（components/PlusNote.js・2026-10-08）。警告色・強調色は使わない */
@@ -6750,16 +6700,24 @@ html[data-theme="dark"] .vj-screen {
   --vj-grid: rgba(255,255,255,.08); --vj-axis: #a39a8c; --vj-axis2: #8a7d68; --vj-endlabel: #f0c878; --vj-dot-stroke: var(--surface);
   --vj-prog: rgba(255,255,255,.1); --vj-prog-on: #d39a3e;
 }
-.vj-body { display: grid; gap: 16px; }
+.vj-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; } /* 横送りの札が列の幅を押し広げないように */
 .vj-body > .vr-wrap { margin: 0; padding: 0; }
 .vj-cell:focus-visible { outline: 2px solid var(--vj-learned); outline-offset: 2px; }
 
 .vj-card { border: 1px solid var(--vj-card-border); border-radius: 18px; background: var(--vj-card-bg); padding: 18px 20px; box-shadow: 0 3px 12px rgba(50,40,30,.04); display: grid; gap: 12px; min-width: 0; }
+/* あゆみタブの札は単語リストとそろえる（白地・細い枠・角 12px・影なし）＝2026-11-10 見直し。ホームの「学習した日」（.vj-embed）は変えない */
+.vj-body .vj-card { border-color: var(--border); border-radius: 12px; background: var(--surface); padding: 16px; box-shadow: none; gap: 10px; }
 .vj-ch { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; justify-content: space-between; }
 .vj-ch h3 { margin: 0; font-size: 17px; color: var(--vj-ink); }
+.vj-body .vj-ch h3 { font-size: 16px; font-weight: 600; }
+.vj-head { display: grid; gap: 4px; justify-items: start; margin: 0 0 12px; }
+.vj-head .screen-title { margin: 0; color: var(--vj-ink); }
 .vj-sum { display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: 13px; color: var(--vj-soft); }
-.vj-sum b { font-family: 'Playfair Display', serif; font-size: 20px; color: var(--vj-ink); margin-right: 2px; font-variant-numeric: tabular-nums; }
-.vj-hint { margin: 0; font-size: 12px; color: var(--vj-muted); }
+.vj-sum b { font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 500; color: var(--vj-ink); margin-right: 2px; font-variant-numeric: tabular-nums; }
+.vj-hint { margin: 0; font-size: 12px; line-height: 1.6; color: var(--vj-muted); }
+.vj-gday { min-height: 3.2em; }
+.vj-gday.is-sel { color: var(--vj-soft); }
+.vj-gday b { color: var(--vj-ink); }
 
 /* 草 */
 .vj-grasswrap { overflow-x: auto; padding-bottom: 4px; }
@@ -6784,7 +6742,7 @@ button.vj-cell { cursor: pointer; }
 .vj-chartbox { display: grid; gap: 12px; min-width: 0; }
 .vj-chart { width: 100%; max-width: 760px; height: auto; display: block; }
 .vj-grid { stroke: var(--vj-grid); stroke-width: 1; }
-.vj-axis { fill: var(--vj-axis); font-size: 11px; }
+.vj-axis { fill: var(--vj-axis); font-size: 10px; }
 .vj-axis2 { fill: var(--vj-axis2); font-size: 11px; }
 .vj-bar { fill: var(--vj-bar); }
 .vj-area { fill: var(--vj-area); }
@@ -6792,30 +6750,31 @@ button.vj-cell { cursor: pointer; }
 .vj-line-mastered { stroke: var(--vj-mastered); }
 .vj-dot-learned { fill: var(--vj-learned); stroke: var(--vj-dot-stroke); }
 .vj-dot-mastered { fill: var(--vj-mastered); stroke: var(--vj-dot-stroke); }
-.vj-endlabel { fill: var(--vj-endlabel); font-size: 12px; font-weight: 700; }
+.vj-endlabel { fill: var(--vj-endlabel); font-size: 11px; font-weight: 600; }
 .vj-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--vj-soft); }
 .vj-legend i { display: inline-block; width: 14px; height: 4px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
 .vj-legend .vj-key-learned { background: var(--vj-learned); }
 .vj-legend .vj-key-mastered { background: var(--vj-mastered); }
 .vj-legend .vj-key-bar { width: 10px; height: 10px; background: var(--vj-bar); }
-.vj-wait { border: 1px dashed var(--vj-warm-border); background: var(--vj-warm); border-radius: 14px; padding: 18px; text-align: center; color: var(--vj-warm-ink); display: grid; gap: 8px; justify-items: center; font-size: 13px; }
-.vj-wait-big { font-family: 'Playfair Display', serif; font-size: 18px; color: var(--vj-ink); }
-.vj-prog { display: flex; gap: 6px; }
-.vj-prog span { width: 34px; height: 8px; border-radius: 99px; background: var(--vj-prog); }
-.vj-prog span.is-on { background: var(--vj-prog-on); }
+.vj-wait { display: grid; gap: 8px; font-size: 12.5px; line-height: 1.6; color: var(--vj-soft); }
+.vj-wait p { margin: 0; }
+.vj-prog { display: flex; gap: 5px; }
+.vj-prog span { flex: 1; height: 4px; border-radius: 2px; background: var(--vj-prog); }
+.vj-prog span.is-on { background: var(--vj-learned); }
+.vj-endnum { font-weight: 600; }
 .vj-lock { border: 1px solid var(--vj-warm-border); background: var(--vj-warm); border-radius: 14px; padding: 14px 16px; color: var(--vj-warm-ink); font-size: 13px; display: grid; gap: 6px; }
 .vj-lock b { color: var(--vj-ink); }
 
 /* 段階ごとの覚えた語（CEFR 目安別・案A 横棒・分母なし・2026-11-05） */
-.vj-cefr-rows { display: grid; gap: 8px; }
-.vj-cefr-row { display: grid; grid-template-columns: 34px 1fr 52px; align-items: center; gap: 10px; }
-.vj-cefr-lv { font-size: 13px; font-weight: 700; letter-spacing: .02em; color: var(--vj-soft); font-variant-numeric: tabular-nums; }
-.vj-cefr-bar { position: relative; height: 12px; border-radius: 999px; background: var(--vj-grid); overflow: hidden; }
-.vj-cefr-bar > i, .vj-cefr-bar > b { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 999px; transition: width .6s cubic-bezier(.2,.7,.2,1); }
+.vj-cefr-rows { display: grid; gap: 7px; }
+.vj-cefr-row { display: grid; grid-template-columns: 28px 1fr 36px; align-items: center; gap: 10px; }
+.vj-cefr-lv { font-size: 12.5px; font-weight: 600; letter-spacing: .02em; color: var(--vj-soft); font-variant-numeric: tabular-nums; }
+.vj-cefr-bar { position: relative; height: 8px; border-radius: 4px; background: var(--vj-grid); overflow: hidden; }
+.vj-cefr-bar > i, .vj-cefr-bar > b { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 4px; transition: width .6s cubic-bezier(.2,.7,.2,1); }
 .vj-cefr-bar > i { background: var(--vj-learned); }
 .vj-cefr-bar > b { background: var(--vj-mastered); }
-.vj-cefr-n { font-size: 14px; text-align: right; color: var(--vj-ink); font-variant-numeric: tabular-nums; }
-.vj-cefr-row.is-empty .vj-cefr-lv, .vj-cefr-row.is-empty .vj-cefr-n { color: var(--vj-muted); } /* 0 の段階は薄く（赤や警告色にしない） */
+.vj-cefr-n { font-size: 13px; text-align: right; color: var(--vj-ink); font-variant-numeric: tabular-nums; }
+.vj-cefr-row.is-empty { opacity: .45; } /* 0 の段階は薄く（赤や警告色にしない） */
 .vj-cefr .cefr-note { margin-top: 2px; }
 @media (prefers-reduced-motion: reduce) { .vj-cefr-bar > i, .vj-cefr-bar > b { transition: none; } }
 
@@ -6824,9 +6783,6 @@ button.vj-cell { cursor: pointer; }
   .vj-card { padding: 16px 14px; }
 }
 
-/* 最近覚えた単語の「もっと見る」 */
-.vr-more { display: block; width: 100%; margin-top: 12px; padding: 10px; border: 1px dashed var(--vr-today-border); border-radius: 12px; background: var(--vr-today-bg); color: var(--vr-today-ink); font: inherit; font-size: 13px; cursor: pointer; }
-.vr-more:hover { border-style: solid; }
 
 /* ホームに埋め込む「学習した日」（components/GrassCard.js の compact）。左右の基準線は今日の復習と同じ。
    あゆみタブの色（--vj-*）を使うため .vj-screen を付け、余白だけ打ち消す。 */
@@ -6870,7 +6826,6 @@ button.vj-cell { cursor: pointer; }
 /* あゆみ・学習した日はプラス（オーナー 2026-10-09）。正式版の無料の人はホームの草を出さず、覚えた・マスターを全幅に */
 .home-stats-row.is-single { grid-template-columns: minmax(0, 1fr); }
 .vj-card-mini .plus-note { font-size: 10px; padding: 0 6px; }
-.vj-plus { display: flex; justify-content: center; margin: 0 0 10px; }
 
 /* PC など広い幅: 学習した日のマスを大きく（12px だと広いカードの中で小さすぎて見にくい・オーナー 2026-10-09） */
 @media (min-width: 769px) {
@@ -6916,11 +6871,8 @@ button.vj-cell { cursor: pointer; }
   .vj-screen.vj-embed { padding: 0 16px; }
 }
 
-/* 凡例の数字は円の中心の数字と同じ書体（オーナー 2026-10-08） */
-.vr-lrow b { font-family: 'Playfair Display', serif; font-weight: 700; }
-
-/* 円の下の内容（最近覚えた単語・学習した日・週ごとの推移）＝画面に入ったら下からふわっと出す。
-   円をタップするとここへ動きつきで移る（VocabJourneyScreen の openRest）。 */
+/* 円の札の下の内容（最近覚えた単語・段階ごとの覚えた語・学習した日・週ごとの推移）＝画面に入ったら下からふわっと出す。
+   「前回から…」の行を押すと最近覚えた単語へ動きつきで移る（VocabJourneyScreen の openRest）。 */
 .vj-reveal {
   opacity: 0;
   transform: translateY(28px);
@@ -6928,30 +6880,9 @@ button.vj-cell { cursor: pointer; }
   scroll-margin-top: 80px;
 }
 .vj-reveal.is-in { opacity: 1; transform: none; }
-.vj-screen button.vr-stage .vr-cue { animation: vjCueBob 2.4s ease-in-out infinite; }
-@keyframes vjCueBob { 0%, 100% { transform: translate(-50%, 0); } 50% { transform: translate(-50%, 4px); } }
 
-/* スマホ: 円のカードを1画面（ヘッダーと下のタブを除いた高さ＝--vj-avail・JS で計測）に収める */
-@media (max-width: 640px) {
-  .vj-screen .vr-wrap { padding: 0; }
-  .vj-screen { padding-top: 8px; }
-  .vj-screen .vr-card {
-    min-height: calc(var(--vj-avail, 640px) - 20px);
-    display: flex; flex-direction: column; justify-content: space-evenly; align-items: center;
-    gap: 6px; padding: 12px 14px 14px;
-  }
-  .vj-screen .vr-eyebrow { margin-bottom: 2px; font-size: 12px; }
-  .vj-screen .vr-copy h2 { font-size: 22px; margin-bottom: 4px; }
-  .vj-screen .vr-copy p { font-size: 12.5px; line-height: 1.6; }
-  .vj-screen .vr-stage { width: min(260px, calc(var(--vj-avail, 640px) * 0.34)); margin-bottom: 18px; }
-  .vj-screen .vr-legend { margin: 0 auto; }
-  .vj-screen .vr-lrow { padding: 5px 0; gap: 2px 10px; }
-  .vj-screen .vr-lrow b { font-size: 18px; }
-  .vj-screen .vr-today { margin-top: 8px; padding: 9px 14px; font-size: 13px; }
-}
 @media (prefers-reduced-motion: reduce) {
   .vj-reveal { opacity: 1; transform: none; transition: none; }
-  .vj-screen button.vr-stage .vr-cue { animation: none; }
 }
 
 /* 新しい単語リストを作る前の確認（components/VocabScreen.js・2026-10-09） */
