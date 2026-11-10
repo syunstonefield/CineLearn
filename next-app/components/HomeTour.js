@@ -14,7 +14,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { useApp } from './AppProvider';
 import { trackUsage } from '@/lib/usage';
 import { loadHistory } from '@/lib/storage';
-import { tourSteps, lastTipAction, shouldGlowAdd, tipPosition, spotRect, TOUR_ADD_USED_KEY } from '@/lib/introTour';
+import { tourSteps, lastTipAction, shouldGlowAdd, tipPosition, spotRect, lockPage, TOUR_ADD_USED_KEY } from '@/lib/introTour';
 
 function visibleTargets() {
   const out = {};
@@ -67,15 +67,10 @@ export default function HomeTour() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 案内の間はページを動かさない。
-  useEffect(() => {
+  // 案内の間はページを動かさない（スライドと同じ印・「引っ張って更新」も止める）。終わり（明るくなって ＋ が光る）で外す。
+  useLayoutEffect(() => {
     if (phase !== 'run') return undefined;
-    const html = document.documentElement;
-    const prev = html.style.overflow;
-    html.style.overflow = 'hidden';
-    return () => {
-      html.style.overflow = prev;
-    };
+    return lockPage();
   }, [phase]);
 
   const current = steps?.[idx];

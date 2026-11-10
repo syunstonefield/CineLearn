@@ -582,6 +582,11 @@ export default function AppProvider({ children }) {
   }, []);
   const endTour = useCallback(() => setTour(null), []);
   const finishIntro = useCallback((patch) => {
+    try {
+      sessionStorage.removeItem('cl_intro_step');
+    } catch {
+      /* ignore */
+    }
     markTrialFinished();
     markOnboardedSeen();
     markTutorialSeen();

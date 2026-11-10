@@ -9,11 +9,11 @@
 //   見本の語・例文・和訳・作品名は自作／架空。出典・CEFR の印は出さない（誤った出典を出さないため）。
 //   動きは1枚に1つ（CSS・「動きを減らす」設定では動かさない）。利用統計は mode='first' の時だけ（lib/usageEvents.js）。
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
 import { trackUsage } from '@/lib/usage';
 import { TRIAL_LEVELS } from '@/lib/trial';
-import { INTRO_SLIDES, INTRO_SAMPLE_NOTE } from '@/lib/introTour';
+import { INTRO_SLIDES, INTRO_SAMPLE_NOTE, INTRO_STEP_KEY, lockPage, parseIntroStep } from '@/lib/introTour';
 
 const LAST = INTRO_SLIDES.length - 1;
 
@@ -193,17 +193,51 @@ function Progress({ at }) {
 export default function IntroCarousel({ mode = 'first' }) {
   const { openAuth, loggedIn, closeTutorial, finishIntro, startTour } = useApp();
   const first = mode === 'first';
-  const [step, setStep] = useState(0); // 0〜5 = スライド、'level' = レベルの質問
+  // 初めての流れは、読み直されても続きの枚から（このタブのあいだだけ覚える）。
+  const [saved] = useState(() => {
+    if (!first) return null;
+    try {
+      return parseIntroStep(sessionStorage.getItem(INTRO_STEP_KEY), LAST);
+    } catch {
+      return null;
+    }
+  });
+  const [step, setStep] = useState(saved ?? 0); // 0〜5 = スライド、'level' = レベルの質問
   const touch = useRef(null);
+  const rootRef = useRef(null);
 
   const track = (name) => {
     if (first) trackUsage(name);
   };
 
   useEffect(() => {
-    track('intro_start');
+    if (saved == null) track('intro_start'); // 読み直して続きから出た時は数えない
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!first) return;
+    try {
+      sessionStorage.setItem(INTRO_STEP_KEY, String(step));
+    } catch {
+      /* ignore */
+    }
+  }, [first, step]);
+
+  // うしろのページを動かさない（スライドもレベルの画面も）。外すのは閉じた同じ描画の中で。
+  useLayoutEffect(() => lockPage(), []);
+
+  // スライドの中身が画面に収まっている時は、縦に指を動かしてもどこもスクロールさせない（iPhone の古い版で
+  //   ページの固定を越えてうしろが動くのを防ぐ）。小さい画面で中身があふれる時は、スライドの中だけスクロールする。
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return undefined;
+    const onMove = (e) => {
+      if (el.scrollHeight <= el.clientHeight + 1) e.preventDefault();
+    };
+    el.addEventListener('touchmove', onMove, { passive: false });
+    return () => el.removeEventListener('touchmove', onMove);
+  }, [step]);
 
   // 初めての流れでログイン・新規登録したあと、まだこの画面に居る人（新規登録など）はレベルへ。
   const wasLoggedIn = useRef(loggedIn);
@@ -232,6 +266,11 @@ export default function IntroCarousel({ mode = 'first' }) {
   };
   const chooseLevel = (lv) => {
     track('intro_level');
+    try {
+      sessionStorage.removeItem(INTRO_STEP_KEY);
+    } catch {
+      /* ignore */
+    }
     finishIntro({ toeicScore: lv.score, userLevel: lv.level });
   };
   const seeTour = () => {
@@ -266,7 +305,7 @@ export default function IntroCarousel({ mode = 'first' }) {
 
   if (step === 'level') {
     return (
-      <div className="intro-root" role="dialog" aria-modal="true" aria-label="英語レベル">
+      <div className="intro-root" ref={rootRef} role="dialog" aria-modal="true" aria-label="英語レベル">
         <div className="intro-slide intro-level-slide">
           <div className="intro-top">
             <button type="button" className="intro-back" onClick={() => setStep(LAST)}>
@@ -299,7 +338,7 @@ export default function IntroCarousel({ mode = 'first' }) {
   const Art = ART[s.key];
 
   return (
-    <div className="intro-root" role="dialog" aria-modal="true" aria-label="使い方" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+    <div className="intro-root" ref={rootRef} role="dialog" aria-modal="true" aria-label="使い方" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
       {s.key === 'cover' ? (
         <div className="intro-slide intro-cover-slide" key={step}>
           <div className="intro-top">
