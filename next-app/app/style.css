@@ -1033,6 +1033,8 @@ header {
 
 .btn-episode:hover:not(:disabled) { opacity: 0.85; }
 .btn-episode:disabled { opacity: 0.4; cursor: not-allowed; }
+/* 予習をはじめる（VocabScreen）＝.btn-primary と同じ見た目。話を選ぶ枠の中では行いっぱいに広げ、少し間を空ける（2026-11-11） */
+.episode-row .btn-episode-go { flex: 1 1 100%; margin-top: 4px; }
 
 /* 破壊的操作（リスト削除）は主要ボタンと同色だと誤操作を招くため、
    控えめなゴーストにして hover 時だけ赤を出す。 */
