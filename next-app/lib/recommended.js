@@ -1,30 +1,31 @@
-// おすすめ作品サジェスト（Phase A）。
-// services は「代表的な配信先」の静的データ。
-// ★将来★ この services フィルタは TMDB の
-//   /tv/{id}/watch/providers?region=JP（lib/tmdb.js: fetchAvailableServices 相当）
-// に置き換えて、実際の配信状況で絞り込む想定。
-// （= ServiceSelect 画面が視聴時に行っている配信確認をサジェスト段階にも前倒しする）
+// CineLearn が選んだ作品（検索画面「英語学習に向いている作品」・ホームのおすすめ列）。
+// ・ja は TMDB の日本語の作品名（検索の照合と一覧の補足に使う・2026-11-10 に TMDB で確認）。
+// ・services は「代表的な配信先」の手書きの静的データ。★画面に「配信」として出さない（法務 2026-11-10）。
+//   内部の絞り込み（ホームのおすすめ列を契約サービスで絞る getRecommendations）にだけ使う。
+//   実際の配信先は TMDB の /watch/providers（lib/tmdb.js: fetchAvailableServices）で見る。
+// ・reason は「なぜ学習に向くか」の1行。効果の言い切りや根拠のない最上級を書かず、作品の事実
+//   （舞台・会話の種類・英米の別・1話の長さは TMDB の値）だけで書く（法務 2026-11-10）。
 export const RECOMMENDED = [
-  { title: 'Friends', tmdbId: 1668, level: ['A2', 'B1'], services: ['Netflix', 'U-NEXT'], genre: 'Comedy', reason: '明瞭な発音と日常会話の宝庫。英語学習の定番中の定番' },
-  { title: 'Modern Family', tmdbId: 1421, level: ['A2', 'B1'], services: ['Netflix', 'Disney+', 'Hulu'], genre: 'Comedy', reason: '家族の日常会話が中心。1話22分で続けやすい' },
-  { title: 'Emily in Paris', tmdbId: 82596, level: ['A2', 'B1'], services: ['Netflix'], genre: 'Romance', reason: 'ゆっくりした発音で聞き取りやすい。短めの会話が中心' },
-  { title: 'The Good Place', tmdbId: 66573, level: ['B1'], services: ['Netflix'], genre: 'Comedy', reason: 'クリアな発音と倫理がテーマ。知的な語彙も自然に学べる' },
-  { title: 'Brooklyn Nine-Nine', tmdbId: 48891, level: ['B1'], services: ['Netflix', 'Amazon Prime'], genre: 'Comedy', reason: 'テンポの良い職場コメディ。口語表現が豊富' },
-  { title: 'Never Have I Ever', tmdbId: 100883, level: ['A2', 'B1'], services: ['Netflix'], genre: 'Comedy', reason: '高校生の日常で現代的なスラングと日常会話が学べる' },
-  { title: 'Suits', tmdbId: 37680, level: ['B2', 'C1'], services: ['Netflix', 'Amazon Prime'], genre: 'Legal', reason: 'ビジネス英語と法廷用語が自然に身につく。会話のテンポが速い' },
-  { title: 'Stranger Things', tmdbId: 66732, level: ['B1', 'B2'], services: ['Netflix'], genre: 'Sci-Fi', reason: '80年代設定の口語表現。人気作で続きが気になり継続しやすい' },
-  { title: 'The Crown', tmdbId: 65494, level: ['B2', 'C1'], services: ['Netflix'], genre: 'Historical Drama', reason: '格調高いイギリス英語。フォーマルな表現の宝庫' },
-  { title: 'Sex Education', tmdbId: 81356, level: ['B1', 'B2'], services: ['Netflix'], genre: 'Comedy', reason: 'イギリス英語の日常会話。多様な話し方に触れられる' },
-  { title: 'The Office', tmdbId: 2316, level: ['B1', 'B2'], services: ['Netflix', 'Amazon Prime'], genre: 'Comedy', reason: 'オフィス英語と皮肉・ジョーク。アメリカ英語の定番教材' },
-  { title: 'Ted Lasso', tmdbId: 97546, level: ['B2'], services: ['Apple TV+'], genre: 'Comedy', reason: '米英両方の英語が登場。前向きな表現と慣用句が豊富' },
-  { title: 'Gossip Girl', tmdbId: 1395, level: ['B1', 'B2'], services: ['Netflix', 'U-NEXT'], genre: 'Romance', reason: '若者言葉と洗練された会話。長く続けられるエピソード数' },
-  { title: "Grey's Anatomy", tmdbId: 1416, level: ['B2', 'C1'], services: ['Netflix', 'Disney+', 'Hulu'], genre: 'Medical', reason: '医療英語と感情表現。エピソード数が多く継続学習に最適' },
-  { title: 'Breaking Bad', tmdbId: 1396, level: ['B2', 'C1'], services: ['Netflix'], genre: 'Crime Thriller', reason: '緊張感ある会話と多彩な語彙。世界的高評価で没入感が高い' },
-  { title: 'Sherlock', tmdbId: 19885, level: ['C1'], services: ['Netflix', 'U-NEXT'], genre: 'Crime Thriller', reason: '高速で高度なイギリス英語。上級者の聞き取り訓練に最適' },
-  { title: 'House of Cards', tmdbId: 1425, level: ['C1'], services: ['Netflix'], genre: 'Political Drama', reason: '政治・知的な語彙が満載。フォーマルで洗練された英語' },
-  { title: 'Better Call Saul', tmdbId: 60059, level: ['B2', 'C1'], services: ['Netflix'], genre: 'Legal', reason: '法律英語と巧みな会話術。ブレイキング・バッドのスピンオフ' },
-  { title: 'Mad Men', tmdbId: 1104, level: ['C1'], services: ['Amazon Prime', 'Apple TV+'], genre: 'Drama', reason: '60年代の広告業界。ビジネスと洗練された大人の英語' },
-  { title: 'The Big Bang Theory', tmdbId: 1418, level: ['B1', 'B2'], services: ['Netflix', 'U-NEXT'], genre: 'Comedy', reason: '科学用語とテンポの良い会話。1話20分で取り組みやすい' },
+  { title: 'Friends', tmdbId: 1668, ja: 'フレンズ', level: ['A2', 'B1'], services: ['Netflix', 'U-NEXT'], genre: 'Comedy', reason: 'ニューヨークに住む6人の友人の日常を描くコメディ。アメリカ英語の日常会話が中心' },
+  { title: 'Modern Family', tmdbId: 1421, ja: 'モダン･ファミリー', level: ['A2', 'B1'], services: ['Netflix', 'Disney+', 'Hulu'], genre: 'Comedy', reason: '3つの家族の日常を、記録映像の形で描くコメディ。家族の会話と、カメラに向かって話す場面が多い' },
+  { title: 'Emily in Paris', tmdbId: 82596, ja: 'エミリー、パリへ行く', level: ['A2', 'B1'], services: ['Netflix'], genre: 'Romance', reason: 'パリの会社で働くアメリカ人が主人公。仕事と恋愛の会話が中心で、フランス語の場面も少しある' },
+  { title: 'The Good Place', tmdbId: 66573, ja: 'グッド・プレイス', level: ['B1'], services: ['Netflix'], genre: 'Comedy', reason: '死後の世界が舞台のコメディ。哲学や倫理の話題が出てくる。1話約22分' },
+  { title: 'Brooklyn Nine-Nine', tmdbId: 48891, ja: 'ブルックリン・ナイン-ナイン', level: ['B1'], services: ['Netflix', 'Amazon Prime'], genre: 'Comedy', reason: 'ニューヨークの警察署が舞台の職場コメディ。同僚どうしのくだけた会話が多い' },
+  { title: 'Never Have I Ever', tmdbId: 100883, ja: '私の"初めて"日記', level: ['A2', 'B1'], services: ['Netflix'], genre: 'Comedy', reason: 'カリフォルニアの高校生が主人公。学校と家庭の会話が中心で、若者のくだけた言い方が多い' },
+  { title: 'Suits', tmdbId: 37680, ja: 'SUITS/スーツ', level: ['B2', 'C1'], services: ['Netflix', 'Amazon Prime'], genre: 'Legal', reason: '法律事務所が舞台。ビジネスの会話と法律の用語が多い' },
+  { title: 'Stranger Things', tmdbId: 66732, ja: 'ストレンジャー・シングス 未知の世界', level: ['B1', 'B2'], services: ['Netflix'], genre: 'Sci-Fi', reason: '1980年代のアメリカの小さな町が舞台。子どもたちの会話と、当時の言い回しが出てくる' },
+  { title: 'The Crown', tmdbId: 65494, ja: 'ザ・クラウン', level: ['B2', 'C1'], services: ['Netflix'], genre: 'Historical Drama', reason: 'エリザベス2世の時代を描く歴史ドラマ。イギリス英語で、改まった言い方が多い' },
+  { title: 'Sex Education', tmdbId: 81356, ja: 'セックス・エデュケーション', level: ['B1', 'B2'], services: ['Netflix'], genre: 'Comedy', reason: 'イギリスの高校が舞台。イギリス英語で、生徒どうしの会話が中心' },
+  { title: 'The Office', tmdbId: 2316, ja: 'ジ・オフィス', level: ['B1', 'B2'], services: ['Netflix', 'Amazon Prime'], genre: 'Comedy', reason: '会社の支店が舞台の職場コメディ。記録映像の形で、皮肉や冗談の多い会話が続く' },
+  { title: 'Ted Lasso', tmdbId: 97546, ja: 'テッド・ラッソ：破天荒コーチがゆく', level: ['B2'], services: ['Apple TV+'], genre: 'Comedy', reason: 'アメリカ人の監督がイギリスのサッカーチームを率いる。アメリカ英語とイギリス英語の両方が出てくる' },
+  { title: 'Gossip Girl', tmdbId: 1395, ja: 'ゴシップガール', level: ['B1', 'B2'], services: ['Netflix', 'U-NEXT'], genre: 'Romance', reason: 'ニューヨークの裕福な家庭の高校生が主人公。若者の会話と、パーティーなど改まった場面の会話がある' },
+  { title: "Grey's Anatomy", tmdbId: 1416, ja: 'グレイズ・アナトミー', level: ['B2', 'C1'], services: ['Netflix', 'Disney+', 'Hulu'], genre: 'Medical', reason: 'シアトルの病院が舞台の医療ドラマ。医療の用語と、医師どうしの会話が多い' },
+  { title: 'Breaking Bad', tmdbId: 1396, ja: 'ブレイキング・バッド', level: ['B2', 'C1'], services: ['Netflix'], genre: 'Crime Thriller', reason: '化学の教師が犯罪に関わっていく犯罪ドラマ。家庭の会話から緊迫した場面まで幅がある' },
+  { title: 'Sherlock', tmdbId: 19885, ja: 'SHERLOCK／シャーロック', level: ['C1'], services: ['Netflix', 'U-NEXT'], genre: 'Crime Thriller', reason: '現代のロンドンが舞台の推理ドラマ。イギリス英語で、推理の場面は話すのが速い。1話約90分' },
+  { title: 'House of Cards', tmdbId: 1425, ja: 'ハウス・オブ・カード 野望の階段', level: ['C1'], services: ['Netflix'], genre: 'Political Drama', reason: 'ワシントンの政界が舞台。政治の用語と、改まった言い方が多い' },
+  { title: 'Better Call Saul', tmdbId: 60059, ja: 'ベター・コール・ソウル', level: ['B2', 'C1'], services: ['Netflix'], genre: 'Legal', reason: '弁護士が主人公の犯罪ドラマ。法律の用語と、交渉の場面が多い。『ブレイキング・バッド』のスピンオフ' },
+  { title: 'Mad Men', tmdbId: 1104, ja: 'マッドメン', level: ['C1'], services: ['Amazon Prime', 'Apple TV+'], genre: 'Drama', reason: '1960年代のニューヨークの広告会社が舞台。仕事の会話と、大人の改まった言い方が多い' },
+  { title: 'The Big Bang Theory', tmdbId: 1418, ja: 'ビッグバン★セオリー ギークなボクらの恋愛法則', level: ['B1', 'B2'], services: ['Netflix', 'U-NEXT'], genre: 'Comedy', reason: '科学者の友人たちの日常を描くコメディ。科学の用語が出てくる。1話約22分' },
 ];
 
 // ユーザーのレベルと契約サービスで絞り込み、最大6件返す。
@@ -62,4 +63,108 @@ export function recommendedToDrama(item, userLevel) {
     posterPath: item.posterPath || null, // 取得済みなら埋める（無ければ ServiceSelect/Dashboard が後で補完）
     mediaType: 'tv', // 全作品 TVシリーズ → 映画/ドラマ選択プロンプトを省略
   };
+}
+
+// ── 検索画面（components/SearchScreen.js）で使う ──
+
+// ジャンルの札。作品が0件の札は出さない（visibleChips）。
+export const SEARCH_CHIPS = [
+  { key: 'all', label: 'すべて', genres: null },
+  { key: 'comedy', label: 'コメディ', genres: ['Comedy'] },
+  { key: 'romance', label: '恋愛', genres: ['Romance'] },
+  { key: 'work', label: '仕事・法廷', genres: ['Legal', 'Drama', 'Political Drama'] },
+  { key: 'crime', label: 'ミステリー・犯罪', genres: ['Crime Thriller'] },
+  { key: 'other', label: 'SF・歴史・医療', genres: ['Sci-Fi', 'Historical Drama', 'Medical'] },
+];
+
+// 一覧の行に出すジャンルの名前。
+export const GENRE_LABELS = {
+  Comedy: 'コメディ',
+  Romance: '恋愛',
+  Legal: '法廷',
+  Drama: '仕事',
+  'Political Drama': '政治',
+  'Crime Thriller': 'ミステリー・犯罪',
+  'Sci-Fi': 'SF',
+  'Historical Drama': '歴史',
+  Medical: '医療',
+};
+
+export function chipFilter(key, items = RECOMMENDED) {
+  const chip = SEARCH_CHIPS.find((c) => c.key === key);
+  if (!chip || !chip.genres) return items;
+  return items.filter((d) => chip.genres.includes(d.genre));
+}
+
+export function visibleChips(items = RECOMMENDED) {
+  return SEARCH_CHIPS.filter((c) => !c.genres || chipFilter(c.key, items).length > 0);
+}
+
+// レベルの並べ方。
+//   'fit'＝利用者のレベルを含む／'stretch'＝含まず、一つ上のレベルを含む／'other'＝それ以外。
+//   三段にするか二段（合う／それ以外）にするかはオーナー確認中（LEVEL_GROUPS_THREE）。
+export const LEVEL_ORDER = ['A2', 'B1', 'B2', 'C1'];
+export const LEVEL_GROUPS_THREE = true;
+export function levelGroups(items, userLevel, three = LEVEL_GROUPS_THREE) {
+  const lv = LEVEL_ORDER.includes(userLevel) ? userLevel : 'B1';
+  const up = LEVEL_ORDER[LEVEL_ORDER.indexOf(lv) + 1];
+  const fit = [];
+  const stretch = [];
+  const other = [];
+  for (const d of items || []) {
+    const levels = d.level || [];
+    if (levels.includes(lv)) fit.push(d);
+    else if (three && up && levels.includes(up)) stretch.push(d);
+    else other.push(d);
+  }
+  return three
+    ? [
+        { key: 'fit', items: fit },
+        { key: 'stretch', items: stretch },
+        { key: 'other', items: other },
+      ].filter((g) => g.items.length)
+    : [
+        { key: 'fit', items: fit },
+        { key: 'stretch', items: other },
+      ].filter((g) => g.items.length);
+}
+
+// 行に出すレベルの印（利用者のレベルを含めばそれ、無ければ一番低いレベル）。
+export function levelMark(item, userLevel) {
+  const levels = item?.level || [];
+  return levels.includes(userLevel) ? userLevel : levels[0] || '';
+}
+
+// 照合用に作品名を寄せる（大文字小文字・空白・記号・ひらがな/カタカナ・全角英数を同じに）。
+export function normForMatch(s) {
+  return String(s || '')
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[\u3041-\u3096]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 0x60))
+    .replace(/[\s・･\-‐ー–—:：/／★☆'’"“”.,、。!！?？&＆]+/g, '');
+}
+
+// 打っている途中の候補（厳選の作品から・端末の中だけで照合）。2文字から。
+//   英語名・日本語名のどちらかに含まれれば候補。前方一致を先に並べる。
+export function matchRecommended(query, items = RECOMMENDED, limit = 5) {
+  const q = normForMatch(query);
+  if (q.length < 2) return [];
+  const hits = [];
+  for (const d of items) {
+    const en = normForMatch(d.title);
+    const ja = normForMatch(d.ja);
+    const theEn = en.replace(/^the/, '');
+    let rank = -1;
+    if (en.startsWith(q) || theEn.startsWith(q) || ja.startsWith(q)) rank = 0;
+    else if (en.includes(q) || ja.includes(q)) rank = 1;
+    if (rank >= 0) hits.push({ d, rank });
+  }
+  return hits
+    .sort((a, b) => a.rank - b.rank)
+    .slice(0, limit)
+    .map((h) => h.d);
+}
+
+export function findRecommendedById(tmdbId, items = RECOMMENDED) {
+  return items.find((d) => d.tmdbId === tmdbId) || null;
 }

@@ -3354,6 +3354,107 @@ header {
 }
 .search-ai-btn { margin-top: 4px; }
 
+/* ── 作品を探す（2026-11-10 作り替え・components/SearchScreen.js）──────────
+   見た目は単語リストとそろえる（白い札・細い枠・作品名は茶色・理由の文は --text-soft）。
+   ポスターは行の左の小さな札（50×72・印や文を重ねない＝法務 2026-11-10）。 */
+.srch { gap: 0; padding-bottom: 32px; }
+.srch-head { padding-bottom: 12px; margin-bottom: 14px; border-bottom: 1px solid var(--border); }
+.srch-head .btn-back { margin-bottom: 4px; }
+.srch-head .screen-title { margin: 0; }
+.srch-box {
+  display: flex; align-items: center; gap: 8px; height: 48px; padding: 0 12px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  color: var(--text-muted); transition: border-color .2s, box-shadow .2s; cursor: text;
+}
+.srch-box:focus-within { border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 12%, transparent); }
+.srch-box svg { flex: none; }
+.srch-input {
+  flex: 1; min-width: 0; border: 0; outline: 0; background: transparent;
+  font-size: 16px; font-family: inherit; color: var(--text); -webkit-appearance: none; appearance: none;
+}
+.srch-input::placeholder { color: var(--text-muted); opacity: .85; }
+.srch-input::-webkit-search-cancel-button { display: none; }
+.srch-clear {
+  flex: none; width: 24px; height: 24px; border: 0; border-radius: 50%; cursor: pointer;
+  background: var(--surface2); color: var(--text-muted); font-size: 11px; display: grid; place-items: center;
+}
+.srch-recent { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
+.srch-recent small { font-size: 11.5px; color: var(--text-muted); margin-right: 2px; }
+.srch-recent-chip {
+  border: 1px solid var(--border); background: var(--surface); color: var(--text-soft);
+  border-radius: 999px; padding: 5px 12px; font-size: 12.5px; cursor: pointer; font-family: inherit;
+}
+.srch-recent-clear { border: 0; background: none; color: var(--text-muted); font-size: 11.5px; cursor: pointer; padding: 4px; font-family: inherit; text-decoration: underline; }
+
+.srch-suggest { margin-top: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.srch-suggest button {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 11px 14px; text-align: left;
+  border: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--text);
+  font-size: 14px; font-family: inherit; cursor: pointer;
+}
+.srch-suggest button:last-child { border-bottom: 0; }
+.srch-suggest button:hover { background: var(--surface2); }
+.srch-suggest-main { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.srch-suggest small { margin-left: auto; flex: none; max-width: 50%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; color: var(--text-muted); }
+.srch-suggest .srch-suggest-go { color: var(--accent); font-weight: 600; }
+
+.srch-sec { margin-top: 24px; }
+.srch-sec-title { margin: 0; font-size: 16px; font-weight: 600; color: var(--text); }
+.srch-sec-sub { margin: 4px 0 0; font-size: 12px; color: var(--text-muted); line-height: 1.6; }
+.srch-chips { display: flex; gap: 6px; overflow-x: auto; margin: 12px -24px 0; padding: 0 24px 2px; scrollbar-width: none; }
+.srch-chips::-webkit-scrollbar { display: none; }
+.srch-chip {
+  flex: none; border: 1px solid var(--border); background: var(--surface); color: var(--text-soft);
+  border-radius: 999px; padding: 7px 14px; font-size: 13px; cursor: pointer; font-family: inherit;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.srch-chip.is-on { background: color-mix(in srgb, var(--accent) 9%, var(--surface)); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.srch-grp { display: flex; align-items: center; gap: 10px; margin: 18px 0 0; font-size: 12px; font-weight: 500; color: var(--text-muted); letter-spacing: .02em; }
+.srch-grp::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+.srch-row {
+  display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 8px; padding: 10px 12px 10px 10px;
+  text-align: left; background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  color: inherit; font-family: inherit; cursor: pointer; transition: transform .12s, border-color .12s;
+  animation: srch-up .35s both;
+}
+.srch-row:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
+.srch-row:active { transform: scale(.985); }
+@keyframes srch-up { from { opacity: 0; transform: translateY(6px); } }
+@media (prefers-reduced-motion: reduce) { .srch-row { animation: none; } }
+.srch-ps {
+  position: relative; flex: none; width: 50px; height: 72px; border-radius: 6px; overflow: hidden;
+  background: var(--surface2); box-shadow: inset 0 0 0 1px var(--border);
+}
+.srch-ps img { width: 100%; height: 100%; object-fit: cover; display: block; transition: opacity .2s; }
+.srch-ps .img-skeleton { position: absolute; inset: 0; }
+.srch-ps-letter { display: grid; place-items: center; color: var(--text-muted); font-family: 'Playfair Display', Georgia, serif; font-size: 20px; font-weight: 700; }
+.srch-row-tx { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.srch-row-t { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 500; color: var(--accent); }
+.srch-lv, .srch-type {
+  flex: none; font-style: normal; font-size: 10.5px; font-weight: 600; border-radius: 4px; padding: 1px 6px;
+  color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+}
+.srch-type { color: var(--text-soft); background: var(--surface2); }
+.srch-row-m { margin-top: 2px; font-size: 11.5px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.srch-row-r {
+  margin-top: 4px; font-size: 13px; line-height: 1.5; color: var(--text-soft);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.srch-row-ch { flex: none; color: var(--text-muted); opacity: .6; font-size: 18px; }
+.srch-foot { margin: 20px 0 0; font-size: 12px; color: var(--text-muted); text-align: center; line-height: 1.8; }
+
+.srch-results { margin-top: 4px; }
+.srch-res-head { margin: 18px 0 2px; font-size: 13px; color: var(--text-muted); }
+.srch-empty { margin-top: 26px; text-align: center; font-size: 13.5px; color: var(--text-soft); line-height: 1.8; }
+.srch-ai-btn { width: auto; margin-top: 14px; padding: 10px 20px; }
+.srch-ai-link { margin: 16px 0 0; text-align: center; font-size: 12.5px; color: var(--text-muted); }
+.srch-ai-link button { border: 0; background: none; color: var(--accent); font: inherit; font-weight: 600; cursor: pointer; text-decoration: underline; padding: 0 0 0 4px; }
+
+@media (max-width: 600px) {
+  .srch-chips { margin-left: -16px; margin-right: -16px; padding-left: 16px; padding-right: 16px; }
+}
+
 /* ── 全画面「ドラマを探す」（案②）──────────────────────────── */
 .discover { padding-bottom: 24px; }
 .discover-head { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }

@@ -51,6 +51,15 @@ export const USAGE_EVENTS = [
   'auth_signup', // 新規登録に成功した
   'auth_login', // ログインに成功した
   'auth_local', // 「このデバイスのみで使う」を選んだ
+  // 作品を探す（components/SearchScreen.js・2026-11-10 作り替え）。固定の名前と回数だけ（検索語・作品名・札の種類は入れない＝法務 2026-11-10）。
+  'search_run', // Enter／「〜で検索」で結果の一覧を出した
+  'search_suggest_pick', // 打っている途中の候補から作品を選んだ
+  'search_result_pick', // 結果の一覧から作品を選んだ
+  'search_none', // 結果が0件だった
+  'search_ai', // 「AI に探してもらう」を押した
+  'search_chip', // ジャンルの札を押した（どの札かは送らない）
+  'search_list_pick', // 「英語学習に向いている作品」の行から作品を選んだ
+  'search_recent', // 最近の検索を押した
   'work_select', // 作品を選んだ（ライブラリ・検索・おすすめ・コレクション・復習一覧 → サービス選択／単語リスト）
   'ext_first_save', // 拡張で保存した語がこの端末に初めて届いた（クラウド取込の後に単語帳を見て判定・端末ごとに1回）
   'ext_install_open', // 拡張の導入直後の案内タブ（/app?from=ext_install・Chrome 拡張部門と合わせた形）が開いた。URL から外してから数える
