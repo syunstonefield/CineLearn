@@ -8127,6 +8127,10 @@ html[data-theme="dark"] .intro-btn { color: #1c1813; }
 /* 出ている間はうしろのページを動かさない（lib/introTour.js lockPage）。幅にかかわらず。TMDB の表示は隠さない */
 html.cl-intro-lock,
 html.cl-intro-lock body { overflow: hidden; overscroll-behavior: none; }
+/* スライド・案内が出ている間に開くダイアログ（ログイン・新規登録など）は、スライド（1100）と案内（1150）より前に出す。
+   以前はダイアログ（1000）がスライドのうしろに出て「押しても何も起きない」に見えた（オーナー報告 2026-11-10 深夜）。
+   ページは止めているので、ダイアログの中身が画面に収まらない時（iPhone でキーボードが出た時など）はダイアログの中だけスクロールする。 */
+html.cl-intro-lock .modal-overlay { z-index: 1160; }
 
 /* 1 表紙 */
 .intro-cover { grid-area: art; align-self: center; text-align: center; margin-top: -20px; }
