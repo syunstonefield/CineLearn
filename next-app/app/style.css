@@ -1849,7 +1849,7 @@ header {
 .svc-change-btn:hover { opacity: 0.8; }
 
 /* 単語リストの「拡張機能が使える配信：…」の1行と出典（2026-11-10・法務: 出典はすぐ下・ロゴやブランド色なし） */
-.vocab-avail { margin: -12px 0 4px; font-size: 13px; color: var(--text-soft); line-height: 1.6; }
+.vocab-avail { margin: 12px 2px 14px; font-size: 13px; color: var(--text-soft); line-height: 1.6; }
 .vocab-avail-src { margin-top: 2px; font-size: 11px; color: var(--text-muted); }
 .vocab-avail-src a { color: var(--accent); }
 

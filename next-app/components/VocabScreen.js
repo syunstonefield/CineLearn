@@ -1746,6 +1746,23 @@ export default function VocabScreen() {
     </div>
   );
 
+  // 配信先の1行（法務 2026-11-10）: 拡張が対応する3つだけ・範囲が分かる書き方・出典はすぐ下（同じ枠の中）・
+  //   取得失敗や3つのどれにも無い時は1行ごと出さない（出典も出さない）。
+  //   置き場所は作品名の札（S1E1 の札）の下（オーナー 2026-11-10 深夜）。リストが無い間は話を選ぶ枠の下。
+  const availBlock =
+    avail?.ok && avail.names.length > 0 ? (
+      <div className="vocab-avail">
+        <div className="vocab-avail-line">拡張機能が使える配信：{avail.names.map(serviceLabel).join('・')}</div>
+        <div className="vocab-avail-src">
+          配信状況のデータ提供:{' '}
+          <a href="https://www.justwatch.com/jp" target="_blank" rel="noopener noreferrer">
+            JustWatch
+          </a>
+          （TMDB 経由）。拡張機能が対応する3サービスのみ表示しています。最新の配信状況は各サービスでご確認ください。
+        </div>
+      </div>
+    ) : null;
+
   return (
     <div className="screen active" id="screen-4">
       {genConfirmModal}
@@ -1765,20 +1782,6 @@ export default function VocabScreen() {
             </span>
           )}
         </div>
-        {/* 配信先の1行（法務 2026-11-10）: 拡張が対応する3つだけ・範囲が分かる書き方・出典はすぐ下・
-            取得失敗や3つのどれにも無い時は1行ごと出さない（出典も出さない）。 */}
-        {avail?.ok && avail.names.length > 0 && (
-          <div className="vocab-avail">
-            <div className="vocab-avail-line">拡張機能が使える配信：{avail.names.map(serviceLabel).join('・')}</div>
-            <div className="vocab-avail-src">
-              配信状況のデータ提供:{' '}
-              <a href="https://www.justwatch.com/jp" target="_blank" rel="noopener noreferrer">
-                JustWatch
-              </a>
-              （TMDB 経由）。拡張機能が対応する3サービスのみ表示しています。最新の配信状況は各サービスでご確認ください。
-            </div>
-          </div>
-        )}
         <ServiceSheet
           open={svcSheet}
           names={sheetOrder({ avail, contracted: settings.selectedServices })}
@@ -1841,6 +1844,8 @@ export default function VocabScreen() {
           )}
         </div>
         )}
+
+        {selectorReady && phase !== 'generating' && !hasList && availBlock}
 
         <div id="vocabSection">
           {mediaChoice ? (
@@ -1936,6 +1941,8 @@ export default function VocabScreen() {
                   </div>
                 )}
               </div>
+
+              {availBlock}
 
               {/* #20 手動追加。リストの一番上に置く（2026-08-05 オーナー要望: 追加しやすく）。
                   追加した単語の表示自体は下の「✏️ 追加した単語」セクションのまま。 */}
