@@ -38,6 +38,10 @@ import { personalizeWords, fillMissingExampleJa } from '@/lib/vocab';
 import { generateEpisodeVocab, probeSubtitle, authHeaders, fetchGenQuota } from '@/lib/api';
 import { suggestSpellings } from '@/lib/spellSuggest';
 import SpellSuggestSheet from './SpellSuggestSheet';
+import ServiceSheet from './ServiceSheet';
+import { sheetOrder, serviceLabel } from '@/lib/serviceEntry';
+import { loadAvailability, fetchAvailability } from '@/lib/serviceAvailability';
+import { trackUsage } from '@/lib/usage';
 import {
   getMyWordsForEpisode,
   countUnassignedForDrama,
@@ -96,8 +100,30 @@ export default function VocabScreen() {
     reviewVersion,
     openAuth,
     loggedIn,
+    chooseService,
   } = app;
   const pid = app.profile?.id;
+
+  // 配信先（拡張が対応する3サービス・TMDB の日本の見放題などの枠）。単語リストに入った時に取っておき、
+  //   上の「拡張機能が使える配信：…」の1行と、「入場する ▶」で開く先の決定（PrepLaunch）に使う（2026-11-10）。
+  const [avail, setAvail] = useState(null);
+  const [svcSheet, setSvcSheet] = useState(false);
+  const availId = drama?.tmdbId || null;
+  const availMovie = drama?.type === 'movie' || drama?.mediaType === 'movie';
+  useEffect(() => {
+    if (!availId) {
+      setAvail(null);
+      return undefined;
+    }
+    setAvail(loadAvailability(availId, availMovie));
+    let cancelled = false;
+    fetchAvailability(availId, availMovie).then((a) => {
+      if (!cancelled) setAvail(a);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [availId, availMovie]);
 
   // 単語リストへ来たら常に一番上から表示（コレクション等のスクロール位置を引き継がない）。
   useEffect(() => {
@@ -1724,24 +1750,48 @@ export default function VocabScreen() {
     <div className="screen active" id="screen-4">
       {genConfirmModal}
       <div className="screen-inner">
-        {/* ヘッダーは「戻る」と「サービス変更」だけの1行（オーナー 2026-10-18）。
-            「視聴前の準備」の題と説明文は、作品名が学習状況カードの見出しになったので廃止。 */}
+        {/* ヘッダーは「戻る」と「観る：○○（変更）」だけの1行（オーナー 2026-10-18・2026-11-10）。
+            観るサービスをまだ選んでいない時は出さない（「入場する ▶」を押した時に聞く）。 */}
         <div className="screen-header vocab-header-compact">
           <button className="btn-back" onClick={() => setScreen(vocabReturn)}>
-            {vocabReturn === 'search' ? '← 検索結果' : vocabReturn === 'review-hub' ? '← 復習' : '← マイドラマ'}
+            {vocabReturn === 'search' ? '← 作品を探す' : vocabReturn === 'review-hub' ? '← 復習' : '← マイドラマ'}
           </button>
-          <span className="vocab-svc">
-            サービス：
-            <button
-              type="button"
-              className="svc-change-btn"
-              onClick={() => setScreen('service-select')}
-              title="視聴サービスを変更"
-            >
-              {settings.selectedViewingService || '未選択'}（変更）
-            </button>
-          </span>
+          {settings.selectedViewingService && (
+            <span className="vocab-svc">
+              観る：
+              <button type="button" className="svc-change-btn" onClick={() => setSvcSheet(true)} title="観るサービスを変える">
+                {serviceLabel(settings.selectedViewingService)}（変更）
+              </button>
+            </span>
+          )}
         </div>
+        {/* 配信先の1行（法務 2026-11-10）: 拡張が対応する3つだけ・範囲が分かる書き方・出典はすぐ下・
+            取得失敗や3つのどれにも無い時は1行ごと出さない（出典も出さない）。 */}
+        {avail?.ok && avail.names.length > 0 && (
+          <div className="vocab-avail">
+            <div className="vocab-avail-line">拡張機能が使える配信：{avail.names.map(serviceLabel).join('・')}</div>
+            <div className="vocab-avail-src">
+              配信状況のデータ提供:{' '}
+              <a href="https://www.justwatch.com/jp" target="_blank" rel="noopener noreferrer">
+                JustWatch
+              </a>
+              （TMDB 経由）。拡張機能が対応する3サービスのみ表示しています。最新の配信状況は各サービスでご確認ください。
+            </div>
+          </div>
+        )}
+        <ServiceSheet
+          open={svcSheet}
+          names={sheetOrder({ avail, contracted: settings.selectedServices })}
+          current={settings.selectedViewingService || ''}
+          onPick={(n) => {
+            if (n !== settings.selectedViewingService) trackUsage('svc_change');
+            chooseService(n);
+            setSvcSheet(false);
+          }}
+          onClose={() => setSvcSheet(false)}
+          title="観るサービスを変える"
+          note="「入場する ▶」で開くサービスです。この作品だけに効きます。"
+        />
 
         {/* リストが無い間は作品名が画面のどこにも出ないので、選択枠の上に見出しとして出す */}
         {!hasList && phase !== 'generating' && (
@@ -2071,7 +2121,7 @@ export default function VocabScreen() {
               <div className="soon-note">
                 🧩 字幕の単語クリック保存・意味表示は、この作品でも今すぐ使えます
               </div>
-              <button type="button" className="soon-browse-link" onClick={() => setScreen('recommend')}>
+              <button type="button" className="soon-browse-link" onClick={() => setScreen('search')}>
                 対応作品から予習をはじめる →
               </button>
             </div>

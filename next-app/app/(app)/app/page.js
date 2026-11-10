@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from 'react';
 import AppProvider, { useApp, PROFILE_SELECT_ENABLED } from '@/components/AppProvider';
 import Header from '@/components/Header';
 import Dashboard from '@/components/Dashboard';
-import ServiceSelect from '@/components/ServiceSelect';
 import VocabScreen from '@/components/VocabScreen';
 import QuizScreen from '@/components/QuizScreen';
 import ReviewModal from '@/components/ReviewModal';
@@ -149,7 +148,6 @@ function AppShell() {
             {screen === 'main' && <Dashboard />}
             {screen === 'recommend' && <RecommendScreen />}
             {screen === 'search' && <SearchScreen />}
-            {screen === 'service-select' && <ServiceSelect />}
             {screen === 'vocab' && <VocabScreen />}
             {screen === 'quiz' && <QuizScreen />}
             {screen === 'review-hub' && <ReviewHubScreen />}

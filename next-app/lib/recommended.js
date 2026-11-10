@@ -1,7 +1,7 @@
 // CineLearn が選んだ作品（検索画面「英語学習に向いている作品」・ホームのおすすめ列）。
 // ・ja は TMDB の日本語の作品名（検索の照合と一覧の補足に使う・2026-11-10 に TMDB で確認）。
 // ・services は「代表的な配信先」の手書きの静的データ。★画面に「配信」として出さない（法務 2026-11-10）。
-//   内部の絞り込み（ホームのおすすめ列を契約サービスで絞る getRecommendations）にだけ使う。
+//   （ホームのおすすめ列の契約サービスでの絞り込みにも、もう使わない・2026-11-10）。
 //   実際の配信先は TMDB の /watch/providers（lib/tmdb.js: fetchAvailableServices）で見る。
 // ・reason は「なぜ学習に向くか」の1行。自作の文で、効果の言い切りや根拠のない最上級を書かず、作品の事実だけ
 //   （TMDB のあらすじや配信サービスの紹介文は写さない・俳優名は出さない・「1話約○分」は TMDB の値が変わったら直す）。
@@ -29,19 +29,16 @@ export const RECOMMENDED = [
   { title: 'The Big Bang Theory', tmdbId: 1418, ja: 'ビッグバン★セオリー ギークなボクらの恋愛法則', level: ['B1', 'B2'], services: ['Netflix', 'U-NEXT'], genre: 'Comedy', reason: '科学者の友人たちのコメディ。科学の用語も。1話約22分' },
 ];
 
-// ユーザーのレベルと契約サービスで絞り込み、最大6件返す。
-// サービス未設定（空）なら絞り込まない（設定画面へ飛ばす分岐を外したため・2026-11-01）。
-export function getRecommendations(userLevel, userServices) {
-  const onService = (d) => !userServices?.length || d.services.some((s) => userServices.includes(s));
-  let list = RECOMMENDED
-    .filter((d) => d.level.includes(userLevel))
-    .filter(onService);
+// ユーザーのレベルで絞り込み、最大6件返す（ホームのおすすめ列）。
+// 契約サービスでの絞り込みはやめた（手書きの services が実際の配信とずれているため・オーナー 2026-11-10）。
+//   2つ目の引数は互換のため受け取るだけ。
+export function getRecommendations(userLevel, _userServices) {
+  let list = RECOMMENDED.filter((d) => d.level.includes(userLevel));
   // 6件未満なら隣接レベルまで緩める
   if (list.length < 6) {
     const adjacent = { A2: ['B1'], B1: ['A2', 'B2'], B2: ['B1', 'C1'], C1: ['B2'] };
     const extra = RECOMMENDED
       .filter((d) => adjacent[userLevel]?.some((lv) => d.level.includes(lv)))
-      .filter(onService)
       .filter((d) => !list.includes(d));
     list = [...list, ...extra];
   }
@@ -58,10 +55,10 @@ export function recommendedToDrama(item, userLevel) {
     title: item.title,
     genre: item.genre,
     level,
-    platform: item.services[0], // 代表配信先（ServiceSelect で実際の配信を再確認する）
+    platform: item.services[0], // 代表配信先（手書き・画面には出さない。実際の配信は単語リストで TMDB から）
     reason: item.reason,
     tmdbId: item.tmdbId,
-    posterPath: item.posterPath || null, // 取得済みなら埋める（無ければ ServiceSelect/Dashboard が後で補完）
+    posterPath: item.posterPath || null, // 取得済みなら埋める（無ければ単語リスト/Dashboard が後で補完）
     mediaType: 'tv', // 全作品 TVシリーズ → 映画/ドラマ選択プロンプトを省略
   };
 }

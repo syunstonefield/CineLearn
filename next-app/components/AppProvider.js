@@ -119,7 +119,7 @@ export default function AppProvider({ children }) {
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
   // 'profile-select'（だれが観ますか）から開始。選択後に 'main' へ。
-  const [screen, setScreen] = useState('profile-select'); // | 'service-select' | 'vocab' | 'quiz' | 'settings'
+  const [screen, setScreen] = useState('profile-select'); // | 'vocab' | 'quiz' | 'settings'
   const [wordbookVersion, setWordbookVersion] = useState(0); // 削除後のバッジ/一覧再集計
   // Supabase（読み取り専用）
   const [authOpen, setAuthOpen] = useState(false);
@@ -630,7 +630,7 @@ export default function AppProvider({ children }) {
     touchWorks([drama.title]);
   }, [screen, drama?.title, reopenWork, touchWorks]);
 
-  const openDrama = useCallback((d, clearService = false, opts) => {
+  const openDrama = useCallback((d, _clearService = false, opts) => {
     trackUsage('work_select'); // 利用データ: 作品を選んだ（入口はここに一本化されている）
     setVocabReturn(opts?.returnTo || 'main');
     setDrama(d);
@@ -642,18 +642,17 @@ export default function AppProvider({ children }) {
     setEpisode(saved?.lastEpisode || 1);
     // 棚から外していた作品・コレクションから消去した作品を開き直したら戻す（語を抜いた話は開いた時に作り直す・VocabScreen）
     reopenWork(d.title);
-    // 2回目以降（ライブラリから再オープン＝clearService=false）で、前回の視聴サービスが
-    // 分かっていればサービス選択を省略して直接 vocab へ。新規追加時(clearService)は従来どおり選択させる。
-    const remembered = !clearService && d.viewingService ? d.viewingService : null;
+    // 作品を選んだらすぐ単語リストへ（「視聴サービスを選択」の画面ははさまない・オーナー 2026-11-10）。
+    // 観るサービスは「入場する ▶」を押した時に聞く（PrepLaunch・lib/serviceEntry.js）。
+    // この作品で前に選んだサービスがあれば引き継ぐ（d が持っていなくても myDramas の記憶を見る＝検索から開き直しても聞き直さない）。
+    // 2つ目の引数（clearService）は互換のため受け取るだけ（作品ごとの記憶は消さない）。
+    const remembered = d.viewingService || saved?.viewingService || null;
     setSettings((prev) => {
       const exists = (prev.myDramas || []).some((x) => x.title === d.title);
       const myDramas = exists ? prev.myDramas : [...(prev.myDramas || []), d];
-      const next = { ...prev, myDramas };
-      if (clearService) next.selectedViewingService = null;
-      else if (remembered) next.selectedViewingService = remembered;
-      return next;
+      return { ...prev, myDramas, selectedViewingService: remembered };
     });
-    setScreen(remembered ? 'vocab' : 'service-select');
+    setScreen('vocab');
   }, []);
 
   // 単語リストで開いた S/E を作品ごとに記憶する（次回 openDrama で復元）。
@@ -679,18 +678,16 @@ export default function AppProvider({ children }) {
     });
   }, []);
 
-  // 視聴サービスを選んで単語リスト画面へ
+  // 観るサービスを選ぶ（入場のシート・単語リストの「観る：○○（変更）」から）。画面は変えない。
+  // 開いている作品の記憶（myDramas の viewingService＝設定同期でクラウドにも乗る）と「いまの作品のサービス」を更新する。
   const chooseService = useCallback(
     (serviceName) => {
-      // グローバルの「前回使用」に加え、作品ごとにも視聴サービスを記憶する
-      // （2回目以降のオープンで openDrama がこれを見てサービス選択を省略する）。
       setSettings((prev) => {
         const myDramas = (prev.myDramas || []).map((x) =>
           drama && x.title === drama.title ? { ...x, viewingService: serviceName } : x
         );
         return { ...prev, selectedViewingService: serviceName, myDramas };
       });
-      setScreen('vocab');
     },
     [drama]
   );
@@ -706,21 +703,10 @@ export default function AppProvider({ children }) {
     setScreen('search');
   }, []);
 
-  // おすすめカードのタップ → 最短ルートで既存フローに合流（仕様：クリック後の動作）。
-  // - 既存の selectedDrama 形式に変換（recommendedToDrama）して openDrama に渡す
-  //   → myDramas への追加・season/episode 初期化・前回サービスのクリアは openDrama が担当
-  // - 契約サービスが1つだけなら、その場で確定してエピソード選択（vocab）へ直行
-  // - 複数あるなら openDrama が遷移済みのサービス選択画面で選んでもらう
+  // おすすめカードのタップ → 既存の selectedDrama 形式に変換して openDrama（すぐ単語リストへ）。
   const startFromRecommend = useCallback(
-    (item) => {
-      const services = settings.selectedServices || [];
-      const drama = recommendedToDrama(item, settings.userLevel || 'B1');
-      openDrama(drama, true); // → screen='service-select'・myDramas追加・視聴サービスクリア
-      if (services.length === 1) {
-        chooseService(services[0]); // → selectedViewingService 確定・screen='vocab'
-      }
-    },
-    [openDrama, chooseService, settings.selectedServices, settings.userLevel]
+    (item) => openDrama(recommendedToDrama(item, settings.userLevel || 'B1'), true),
+    [openDrama, settings.userLevel]
   );
 
   // 復習ページ（reviewWords）は <main> を占有するため、トップレベル画面へ移動する時は必ず閉じる。

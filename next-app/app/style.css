@@ -1948,6 +1948,39 @@ header {
 }
 .svc-change-btn:hover { opacity: 0.8; }
 
+/* 単語リストの「拡張機能が使える配信：…」の1行と出典（2026-11-10・法務: 出典はすぐ下・ロゴやブランド色なし） */
+.vocab-avail { margin: -12px 0 4px; font-size: 13px; color: var(--text-soft); line-height: 1.6; }
+.vocab-avail-src { margin-top: 2px; font-size: 11px; color: var(--text-muted); }
+.vocab-avail-src a { color: var(--accent); }
+
+/* 観るサービスを選ぶ下からのシート（components/ServiceSheet.js・入場と「（変更）」から） */
+.svc-sheet-shade {
+  position: fixed; inset: 0; z-index: 1300; display: flex; align-items: flex-end; justify-content: center;
+  background: rgba(0, 0, 0, 0.45); animation: svcSheetFade .2s ease;
+}
+.svc-sheet {
+  width: 100%; max-width: 460px; background: var(--surface); color: var(--text);
+  border-radius: 18px 18px 0 0; padding: 18px 20px calc(18px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.18); animation: svcSheetUp .25s ease;
+}
+@keyframes svcSheetFade { from { opacity: 0; } }
+@keyframes svcSheetUp { from { transform: translateY(24px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .svc-sheet, .svc-sheet-shade { animation: none; } }
+.svc-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.svc-sheet-head h3 { margin: 0; font-size: 16px; font-weight: 600; }
+.svc-sheet-x { border: 0; background: none; color: var(--text-muted); font-size: 15px; cursor: pointer; padding: 4px; }
+.svc-sheet-note { margin: 6px 0 0; font-size: 12.5px; color: var(--text-muted); line-height: 1.6; }
+.svc-sheet-list { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+.svc-sheet-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%;
+  padding: 13px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface);
+  color: var(--text); font-size: 15px; font-weight: 500; font-family: inherit; text-align: left; cursor: pointer;
+}
+.svc-sheet-item:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.svc-sheet-item.is-current { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, var(--surface)); }
+.svc-sheet-item small { font-size: 11px; color: var(--accent); font-weight: 500; }
+.svc-sheet-foot { margin: 12px 0 0; font-size: 11px; color: var(--text-muted); text-align: center; }
+
 .screen-header {
   margin-bottom: 24px;
 }
@@ -5169,6 +5202,7 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
   cursor: pointer;
 }
 .prep-cinema-cta-note { text-align: center; color: #8c7c5e; font-size: 11px; margin-top: 9px; }
+.prep-cinema-other { display: block; margin: 6px auto 0; border: 0; background: none; color: #c9a24e; font-size: 12px; text-decoration: underline; cursor: pointer; font-family: inherit; padding: 4px; }
 @media (prefers-reduced-motion: reduce) {
   .prep-cinema-overlay,
   .prep-cinema-panel,

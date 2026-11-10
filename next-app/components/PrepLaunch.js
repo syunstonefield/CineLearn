@@ -1,26 +1,68 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useApp } from './AppProvider';
+import ServiceSheet from './ServiceSheet';
 import { watchSearchUrl } from '@/lib/prep';
+import { entryTarget, sheetOrder, serviceLabel } from '@/lib/serviceEntry';
+import { loadAvailability, fetchAvailability } from '@/lib/serviceAvailability';
+import { trackUsage } from '@/lib/usage';
 
 // 予習エンジンの完了 = 映画館の「開演」ページ（暖色シネマ）。quiz / cards / watch の3バリエ。
 // 入場（視聴サービスへ）は下に常時。半券（プレミアパス画像・席番号）は 2026-10-18 に廃止。
 // window.open は入場タップのジェスチャ内で呼びポップアップブロックを回避。
+// 観るサービスはここで聞く（2026-11-10・単語リストの前の「視聴サービスを選択」画面の代わり・lib/serviceEntry.js）:
+//   この作品で前に選んだ → それ／配信が1つ → それ（開いて覚える）／それ以外・データが取れない → シートで選んでもらう。
+//   開く先はボタンのすぐ下に文字で書く（ロゴ・ブランド色なし）・「提携ではありません」・「別のサービスで探す」（法務 2026-11-10）。
 export default function PrepLaunch() {
-  const { prepLaunch, closePrepLaunch } = useApp();
+  const { prepLaunch, closePrepLaunch, settings, chooseService } = useApp();
   const p = prepLaunch;
+  const [avail, setAvail] = useState(null);
+  const [sheet, setSheet] = useState(false);
+
+  const tmdbId = p?.drama?.tmdbId || null;
+  const isMovie = !!(p?.isMovie || p?.drama?.type === 'movie' || p?.drama?.mediaType === 'movie');
+  useEffect(() => {
+    setSheet(false);
+    if (!tmdbId) {
+      setAvail(null);
+      return undefined;
+    }
+    setAvail(loadAvailability(tmdbId, isMovie));
+    let cancelled = false;
+    fetchAvailability(tmdbId, isMovie).then((a) => {
+      if (!cancelled) setAvail(a);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [tmdbId, isMovie]);
 
   if (!p) return null;
 
   const title = p.title || p.drama?.title || 'この作品';
-  const service = p.service || '';
-  const url = watchSearchUrl(title, service);
-  const isNetflix = !service || service.toLowerCase().includes('netflix');
-  const serviceLabel = isNetflix ? 'Netflix' : service;
+  const chosen = (settings.myDramas || []).find((d) => d.title === title)?.viewingService || p.service || '';
+  const target = entryTarget({ chosen, avail });
+  const label = target ? serviceLabel(target.service) : '';
 
   // 入場＝視聴サービスを開く（タップのジェスチャ内で window.open＝ポップアップブロック回避）。
+  const openService = (svc) => {
+    if (typeof window !== 'undefined') window.open(watchSearchUrl(title, svc), '_blank', 'noopener,noreferrer');
+    trackUsage('enter_open');
+  };
   const enter = () => {
-    if (typeof window !== 'undefined') window.open(url, '_blank', 'noopener,noreferrer');
+    if (!target) {
+      trackUsage('enter_ask');
+      setSheet(true);
+      return;
+    }
+    openService(target.service);
+    if (target.auto) chooseService(target.service); // 配信が1つで自動で決めた → 作品ごとに覚える
+  };
+  const pick = (svc) => {
+    setSheet(false);
+    openService(svc);
+    chooseService(svc);
   };
 
   const foot = (
@@ -28,7 +70,23 @@ export default function PrepLaunch() {
       <button className="prep-cinema-cta" onClick={enter}>
         入場する ▶
       </button>
-      <div className="prep-cinema-cta-note">{serviceLabel} を開きます ・ 提携ではありません</div>
+      <div className="prep-cinema-cta-note">
+        {target ? `${label} を開きます ・ 提携ではありません` : '観るサービスを選んでから開きます ・ 提携ではありません'}
+      </div>
+      {target && (
+        <button type="button" className="prep-cinema-other" onClick={() => setSheet(true)}>
+          別のサービスで探す
+        </button>
+      )}
+      <ServiceSheet
+        open={sheet}
+        names={sheetOrder({ avail, contracted: settings.selectedServices })}
+        current={target ? target.service : ''}
+        onPick={pick}
+        onClose={() => setSheet(false)}
+        title="どのサービスで観ますか？"
+        note="次からこの作品は、選んだサービスで開きます。あとから変えられます。"
+      />
     </div>
   );
 

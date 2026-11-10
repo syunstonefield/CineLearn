@@ -381,14 +381,15 @@ export function markPrepped(epId, seat) {
 
 // 視聴サービスの作品ディープリンク（作品単位・場面tsSecは使わない）。
 // 各サービスの動画IDは保持しないため検索URLに留める（非提携・正規アプリへ）。
-// service は selectedViewingService（ServiceSelect の svc.name）＝
-//   'Netflix' / 'Amazon Prime' / 'Disney+' / 'Apple TV+' / 'Hulu'。
-//   未選択(null)は Netflix にフォールバック。⚠地域差(amazon.co.jp/hulu.jp 等)は要確認。
+// service は作品ごとに選んだサービス（lib/serviceEntry.js の EXT_SERVICES の名前）＝
+//   'Netflix' / 'Amazon Prime' / 'Disney+'（旧データの 'Apple TV+' / 'Hulu' も受ける）。
+//   未選択(null)は Netflix にフォールバック（入場では選んでから開くので通常は通らない）。
+//   Prime Video は日本の amazon.co.jp の検索（2026-11-10 まで amazon.com＝米国のページだった）。
 export function watchSearchUrl(title, service) {
   const q = encodeURIComponent(title || '');
   const s = (service || '').toLowerCase();
   if (s.includes('prime') || s.includes('amazon')) {
-    return `https://www.amazon.com/s?k=${q}&i=instant-video`;
+    return `https://www.amazon.co.jp/s?k=${q}&i=instant-video`;
   }
   if (s.includes('disney')) return `https://www.disneyplus.com/search?q=${q}`;
   if (s.includes('apple')) return `https://tv.apple.com/search?term=${q}`;
