@@ -364,6 +364,12 @@ export default function IntroCarousel({ mode = 'first' }) {
                 すでにアカウントをお持ちの方はログイン
               </button>
             )}
+            {/* 「? 使い方」から開いた時だけ：もう使っている人は「どこに何があるか」を知りたい＝6枚を見ずにボタンの案内へ（オーナー 2026-11-10） */}
+            {!first && (
+              <button type="button" className="intro-login" onClick={seeTour}>
+                ボタンの案内を見る
+              </button>
+            )}
             <div className="intro-links">
               <a href="/terms" target="_blank" rel="noopener">
                 利用規約
