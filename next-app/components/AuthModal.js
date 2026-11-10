@@ -14,7 +14,7 @@ import { trackUsage } from '@/lib/usage';
 // ログイン成功時は pullFromCloud のみ（pushLocalToCloud は本番書き込みになるため移植しない）。
 export default function AuthModal() {
   const { closeAuth, onLoggedIn, authMode, screen, settings, leaveTrialForAccount } = useApp();
-  const inTrial = screen === 'trial';
+  const inTrial = screen === 'trial' || screen === 'intro'; // スライド式（components/IntroCarousel.js）も初めての流れとして同じ扱い
   // 拡張を入れた直後に開いたタブは「新規登録」から始める（ほとんどの人はまだアカウントが無い）。
   //   このモーダルはクライアントでだけ描画されるので、初期値で印を読める。
   const [extEntry] = useState(isExtInstallEntry);

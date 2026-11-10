@@ -8074,3 +8074,243 @@ html[data-theme="dark"] .rd {
   .review-cinema .rd-actions { border-top: 0; -webkit-backdrop-filter: none; backdrop-filter: none; background: linear-gradient(to bottom, transparent 0, rgba(236, 201, 163, 0.92) 22px); }
   html[data-theme="dark"] .review-cinema .rd-actions { background: linear-gradient(to bottom, transparent 0, rgba(40, 28, 17, 0.94) 22px); }
 }
+
+/* ── スライド式チュートリアル（components/IntroCarousel.js・オーナー決定 2026-11-10・モック v6）──────────────
+   1枚に主役を1つ。見出しは明朝体（端末の書体・読み込みは足さない）・説明の1行は #6f665d・進み具合は細い線。
+   見本は自作の語と架空の作品名（出典・CEFR の印は出さない）。動きは1枚に1つ・「動きを減らす」設定では動かさない。
+   スマホ＝縦に「見出し → 主役 → ボタン」。PC（900px〜）＝2〜6枚目は左に見出しとボタン・右に主役、1枚目は中央。 */
+.intro-root {
+  --in-bg: #f7f3ec; --in-ink: #2a2420; --in-soft: #6f665d; --in-mute: #8a8178; --in-line: #e6ddd0;
+  --in-brown: #b97a3a; --in-brown-dk: #7a4e20; --in-card: #ffffff; --in-card-line: #efe7db; --in-glow: rgba(255, 255, 255, 0.95);
+  --in-mincho: "Hiragino Mincho ProN", "Yu Mincho", YuMincho, "Noto Serif JP", "Noto Serif CJK JP", serif;
+  --in-serif: Georgia, "Times New Roman", serif;
+  position: fixed; inset: 0; z-index: 1100; overflow: hidden auto; overscroll-behavior: contain;
+  background: var(--in-bg); color: var(--in-ink); -webkit-font-smoothing: antialiased;
+}
+html[data-theme="dark"] .intro-root {
+  --in-bg: #14110d; --in-ink: #f3efe8; --in-soft: #c8bcad; --in-mute: #9d9286; --in-line: #3a3128;
+  --in-brown: #d9a05a; --in-brown-dk: #f0c27b; --in-card: #221c16; --in-card-line: #3a3128; --in-glow: rgba(255, 220, 170, 0.07);
+}
+.intro-root::before {
+  content: ''; position: fixed; z-index: -1; left: 50%; top: 52%; width: 620px; height: 620px; transform: translate(-50%, -50%); pointer-events: none;
+  background: radial-gradient(closest-side, var(--in-glow), transparent);
+}
+.intro-slide {
+  position: relative; min-height: 100%; max-width: 460px; margin: 0 auto; padding: 18px 24px calc(20px + env(safe-area-inset-bottom));
+  display: grid; grid-template-rows: auto auto 1fr auto; grid-template-areas: "top" "head" "art" "foot";
+}
+.intro-cover-slide { grid-template-rows: auto 1fr auto; grid-template-areas: "top" "art" "foot"; }
+.intro-top { grid-area: top; display: flex; justify-content: space-between; align-items: center; min-height: 32px; }
+.intro-logo { font-family: var(--in-serif); font-size: 16px; color: var(--in-brown); }
+.intro-logo span { color: var(--in-ink); }
+.intro-skip, .intro-back { border: none; background: none; font: inherit; font-size: 12.5px; color: var(--in-mute); padding: 8px 0 8px 12px; cursor: pointer; }
+.intro-back { padding: 8px 12px 8px 0; }
+.intro-head { grid-area: head; padding: 18px 0 0; }
+.intro-h { margin: 0; font-family: var(--in-mincho); font-size: 27px; line-height: 1.42; font-weight: 600; letter-spacing: 0.04em; color: var(--in-ink); }
+.intro-h-line { display: block; }
+.intro-p { margin: 12px 0 0; font-size: 13px; line-height: 1.6; color: var(--in-soft); letter-spacing: 0.01em; }
+.intro-p-pc { display: none; }
+.intro-art { grid-area: art; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px 0; min-height: 0; }
+.intro-foot { grid-area: foot; display: flex; flex-direction: column; }
+.intro-note { text-align: center; font-size: 10px; color: var(--in-mute); margin-bottom: 12px; letter-spacing: 0.02em; }
+.intro-prog { display: flex; gap: 5px; margin-bottom: 16px; }
+.intro-prog i { flex: 1; height: 2px; border-radius: 1px; background: var(--in-line); }
+.intro-prog i.on { background: var(--in-brown); }
+.intro-btn, .intro-btn2 { display: block; width: 100%; font: inherit; text-align: center; border-radius: 999px; cursor: pointer; font-weight: 700; }
+.intro-btn { padding: 14px; border: none; background: var(--in-brown); color: #fff; font-size: 15px; letter-spacing: 0.06em; }
+html[data-theme="dark"] .intro-btn { color: #1c1813; }
+.intro-btn2 { margin-top: 8px; padding: 13px; border: 1px solid color-mix(in srgb, var(--in-brown) 45%, transparent); background: none; color: var(--in-brown-dk); font-size: 14px; }
+.intro-login { margin-top: 14px; border: none; background: none; font: inherit; font-size: 12.5px; color: var(--in-brown); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.intro-links { display: flex; justify-content: center; gap: 14px; margin-top: 10px; font-size: 10.5px; }
+.intro-links a { color: var(--in-mute); text-underline-offset: 2px; }
+
+/* 1 表紙 */
+.intro-cover { grid-area: art; align-self: center; text-align: center; margin-top: -20px; }
+.intro-icon { width: 92px; height: 92px; border-radius: 23px; display: block; margin: 0 auto; box-shadow: 0 10px 26px rgba(60, 40, 20, 0.22); }
+.intro-cover-h { margin: 30px 0 0; font-family: var(--in-mincho); font-size: 27px; font-weight: 600; letter-spacing: 0.05em; color: var(--in-ink); }
+.intro-cover-h b { font-family: var(--in-serif); font-weight: 400; letter-spacing: 0.01em; }
+.intro-cover-p { margin: 14px 0 0; font-size: 14px; color: var(--in-mute); letter-spacing: 0.06em; }
+
+/* 2 単語リスト */
+.intro-list { width: 330px; max-width: 100%; }
+.intro-list-ttl { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--in-mute); margin-bottom: 12px; letter-spacing: 0.04em; }
+.intro-list-ttl::before, .intro-list-ttl::after { content: ''; flex: 1; height: 1px; background: var(--in-line); }
+.intro-wrow { background: var(--in-card); border: 1px solid var(--in-card-line); border-radius: 14px; padding: 14px 16px; margin-top: 8px; box-shadow: 0 2px 10px rgba(60, 40, 20, 0.05); }
+.intro-w { display: flex; align-items: baseline; gap: 12px; }
+.intro-w b { font-size: 17px; color: var(--accent); font-weight: 700; }
+.intro-w span { font-size: 13.5px; color: var(--in-ink); }
+.intro-ex { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--in-card-line); font-size: 13px; line-height: 1.7; color: var(--text-soft); }
+.intro-ex small { display: block; font-size: 12px; color: var(--in-mute); }
+.intro-wrow.is-sub { padding: 12px 16px; }
+.intro-wrow.is-sub .intro-w b { font-size: 15px; }
+.intro-wrow.is-sub .intro-w span { font-size: 13px; color: var(--text-soft); }
+
+/* 3 復習（夕焼けシネマの --rc-* と同じ色・半券の形） */
+.intro-rc { display: flex; flex-direction: column; align-items: center; color: var(--rc-ink); }
+.intro-tk-wrap { position: relative; filter: drop-shadow(0 10px 22px var(--rc-shadow)); }
+.intro-tk-wrap::before { content: ''; position: absolute; inset: 6px -5px -5px 5px; border-radius: 20px; background: var(--rc-paper-2); transform: rotate(2.2deg); }
+.intro-tk {
+  position: relative; width: 252px; background: var(--rc-paper); border-radius: 20px; text-align: center;
+  -webkit-mask: radial-gradient(circle at 0 128px, transparent 9px, #000 9.5px) left / 51% 100% no-repeat,
+    radial-gradient(circle at 100% 128px, transparent 9px, #000 9.5px) right / 51% 100% no-repeat;
+  mask: radial-gradient(circle at 0 128px, transparent 9px, #000 9.5px) left / 51% 100% no-repeat,
+    radial-gradient(circle at 100% 128px, transparent 9px, #000 9.5px) right / 51% 100% no-repeat;
+}
+.intro-tk-word { height: 128px; display: flex; align-items: center; justify-content: center; font-family: 'Playfair Display', serif; font-weight: 700; font-size: 38px; color: var(--rc-word); }
+.intro-tk-perf { margin: 0 22px; border-top: 2px dashed var(--rc-perf); }
+.intro-tk-back { padding: 20px 16px 22px; }
+.intro-tk-back b { display: block; font-size: 16px; color: var(--rc-ink); }
+.intro-tk-back i { display: block; margin-top: 10px; font-size: 13px; color: var(--rc-soft); }
+.intro-tk-back i em { color: var(--rc-word); font-weight: 700; }
+.intro-tk-back small { display: block; margin-top: 3px; font-size: 11.5px; color: var(--rc-muted); }
+.intro-rates { display: flex; gap: 8px; margin-top: 22px; width: 300px; max-width: 100%; }
+.intro-rates span { flex: 1; text-align: center; padding: 10px 0; border-radius: 12px; border: 1.5px solid; font-size: 12.5px; font-weight: 700; }
+.intro-rates .is-fail { background: var(--rc-fail-bg); border-color: var(--rc-fail-line); color: var(--rc-fail-ink); }
+.intro-rates .is-hard { background: var(--rc-hard-bg); border-color: var(--rc-hard-line); color: var(--rc-hard-ink); }
+.intro-rates .is-easy { background: var(--rc-easy-bg); border-color: var(--rc-easy-ink); color: var(--rc-easy-ink); box-shadow: 0 0 0 3px color-mix(in srgb, var(--rc-easy-ink) 22%, transparent); }
+
+/* 4 クイズ（QuizScreen の .quiz-card／.choice-btn をそのまま使う） */
+.intro-quiz { width: 318px; max-width: 100%; border-radius: 18px; padding: 22px 20px 20px; box-shadow: 0 8px 22px rgba(60, 40, 20, 0.08); }
+.intro-quiz .quiz-q { margin-bottom: 18px; font-size: 16px; }
+.intro-quiz .quiz-blank { padding: 1px 16px; }
+.intro-quiz .choice-btn { cursor: default; }
+.intro-quiz .choice-btn.intro-ok { position: relative; font-weight: 700; padding-right: 34px; }
+.intro-quiz .choice-btn.intro-ok::after { content: '✓'; position: absolute; right: 14px; top: 50%; transform: translateY(-50%); font-size: 15px; }
+
+/* 5 コレクション：額縁の見本（.tcp-item.frame-* と同じ・中は無地） */
+.intro-frames-wrap { display: flex; flex-direction: column; align-items: center; }
+.intro-frames { display: flex; justify-content: center; align-items: flex-end; gap: 22px; }
+.intro-frame { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.intro-frame .tcp-item { display: block; width: 86px; cursor: default; }
+.intro-frame .tcp-item.frame-gold { width: 96px; }
+.intro-frame .tcp-frame { position: relative; overflow: hidden; }
+.intro-frame-blank { display: block; aspect-ratio: 2 / 3; background: var(--surface2); }
+.intro-frame small { font-size: 12.5px; color: var(--in-ink); letter-spacing: 0.04em; }
+.intro-frame small em { font-style: normal; font-family: var(--in-serif); color: var(--in-mute); margin-left: 5px; }
+.intro-frames-cap { margin-top: 30px; font-size: 13px; color: var(--in-brown-dk); letter-spacing: 0.04em; }
+.intro-frame .frame-gold .tcp-frame::after {
+  content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 45%; pointer-events: none;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0));
+  transform: translateX(260%) skewX(-18deg);
+}
+
+/* 6 拡張機能：黒地に字幕とふきだしだけ（プレーヤーの見た目はまねしない・字幕は普通の書体） */
+.intro-ext { display: flex; flex-direction: column; align-items: center; width: 354px; max-width: 100%; }
+.intro-stage { position: relative; width: 100%; height: 216px; border-radius: 16px; background: #0d0d0d; overflow: hidden; }
+.intro-cap { position: absolute; left: 0; right: 0; bottom: 24px; text-align: center; color: #fff; font-size: 18px; font-weight: 500; letter-spacing: 0.01em; }
+.intro-cap b { font-weight: 500; color: #f0c48a; padding-bottom: 2px; background: linear-gradient(#f0c48a, #f0c48a) left bottom / 100% 1.5px no-repeat; }
+.intro-pop { position: absolute; left: 50%; top: 18px; width: 286px; margin-left: -143px; background: #fff; color: #1a1a1a; border-radius: 12px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45); text-align: left; }
+.intro-pop-in { padding: 12px 14px 10px; }
+.intro-pop-wd { font-size: 17px; font-weight: 700; color: #b97a3a; }
+.intro-pop-ph { font-size: 10px; color: #999; margin-left: 6px; }
+.intro-pop-ja { margin-top: 6px; font-size: 13px; color: #2a2420; }
+.intro-pop-ja small { font-size: 9px; color: #b97a3a; border: 1px solid #ead2b4; border-radius: 3px; padding: 0 4px; margin-right: 6px; }
+.intro-pop-bt { display: flex; gap: 6px; padding: 0 12px 12px; }
+.intro-pop-bt span { flex: 1; text-align: center; padding: 7px 0; border-radius: 8px; font-weight: 700; font-size: 11.5px; }
+.intro-pop-bt .is-save { background: #b97a3a; color: #fff; }
+.intro-pop-bt .is-star { border: 1px solid #b97a3a; color: #b97a3a; }
+.intro-legend { width: 100%; margin-top: 18px; font-size: 13px; line-height: 2; }
+.intro-legend b { display: inline-block; width: 96px; color: var(--in-brown-dk); font-weight: 700; }
+.intro-legend span { color: var(--in-mute); }
+
+/* レベルの質問（スライドのあと・1画面だけ） */
+.intro-level-slide { grid-template-rows: auto 1fr; grid-template-areas: "top" "art"; }
+.intro-level { grid-area: art; align-self: center; padding: 0 4px 40px; }
+.intro-levels { display: flex; flex-direction: column; gap: 10px; margin-top: 26px; }
+.intro-level-btn {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px; width: 100%; padding: 16px 18px; font: inherit; cursor: pointer;
+  border-radius: 14px; border: 1px solid var(--in-card-line); background: var(--in-card); color: var(--in-ink); text-align: left; box-shadow: 0 2px 10px rgba(60, 40, 20, 0.05);
+}
+.intro-level-btn:hover { border-color: var(--in-brown); }
+.intro-level-name { font-size: 16px; font-weight: 700; }
+.intro-level-range { font-size: 13px; color: var(--in-mute); }
+
+/* 動き（どれも「最初の姿 → いつもの姿」） */
+@keyframes intro-up { from { opacity: 0; transform: translateY(12px); } }
+@keyframes intro-fade { from { opacity: 0; } }
+@keyframes intro-sweep { from { transform: translateX(-140%) skewX(-18deg); } to { transform: translateX(260%) skewX(-18deg); } }
+@keyframes intro-pick { from { box-shadow: none; border-color: var(--rc-easy-line); } }
+@keyframes intro-right { from { background: var(--surface2); border-color: var(--border); color: var(--text); } }
+@keyframes intro-line { from { background-size: 0 1.5px; color: #fff; } }
+.intro-h, .intro-cover-h { animation: intro-up 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.intro-p { animation: intro-up 0.7s 0.12s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.intro-root .a1 { animation: intro-up 0.7s 0.25s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.intro-root .a2 { animation: intro-up 0.7s 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.intro-root .a3 { animation: intro-up 0.7s 0.65s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.intro-tk-back { animation: intro-fade 0.7s 1s both; }
+.intro-rates .is-easy { animation: intro-pick 0.35s 2s both; }
+.intro-quiz .choice-btn.intro-ok { animation: intro-right 0.35s 1.3s both; }
+.intro-quiz .choice-btn.intro-ok::after { animation: intro-fade 0.35s 1.35s both; }
+.intro-quiz .choice-ja { animation: intro-fade 0.4s 1.5s both; }
+.intro-frame .frame-gold .tcp-frame::after { animation: intro-sweep 1.1s 1.5s both; }
+.intro-cap b { animation: intro-line 0.5s 0.7s both; }
+.intro-pop { animation: intro-up 0.5s 1.2s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .intro-root *, .intro-root *::before, .intro-root *::after { animation: none !important; }
+}
+
+/* 背の低いスマホ（SE など）では見本を少し縮める */
+@media (max-height: 700px) {
+  .intro-art > * { zoom: 0.86; }
+  .intro-head { padding-top: 10px; }
+  .intro-h { font-size: 24px; }
+}
+
+/* PC：2〜6枚目は左右2列（左に見出しとボタン・右に主役）。1枚目とレベルは中央 */
+@media (min-width: 900px) {
+  .intro-slide:not(.intro-cover-slide):not(.intro-level-slide) {
+    max-width: 1180px; padding: 32px 64px 40px; column-gap: 72px;
+    grid-template-columns: minmax(340px, 440px) minmax(0, 620px); justify-content: center;
+    grid-template-rows: auto 1fr auto auto 1fr; grid-template-areas: "top top" ". art" "head art" "foot art" ". art";
+  }
+  .intro-slide:not(.intro-cover-slide):not(.intro-level-slide) .intro-head { padding-top: 0; }
+  .intro-slide:not(.intro-cover-slide):not(.intro-level-slide) .intro-h { font-size: 42px; }
+  .intro-slide:not(.intro-cover-slide):not(.intro-level-slide) .intro-p { font-size: 16px; margin-top: 18px; }
+  .intro-p-sp.has-pc { display: none; }
+  .intro-p-pc { display: inline; }
+  .intro-slide:not(.intro-cover-slide):not(.intro-level-slide) .intro-foot { margin-top: 40px; max-width: 360px; }
+  .intro-slide:not(.intro-cover-slide):not(.intro-level-slide) .intro-note { text-align: left; }
+  .intro-slide:not(.intro-cover-slide):not(.intro-level-slide) .intro-art { min-height: 520px; }
+  .intro-art > * { zoom: 1.32; }
+  .intro-cover-slide, .intro-level-slide { max-width: 440px; }
+}
+
+/* ── ホームのボタン案内（components/HomeTour.js・オーナー決定 2026-11-10）──────────────────────────
+   明かり＝くり抜き（大きな影で周りを暗くする）。位置はボタンを測って決め、ボタン間を滑って移る。
+   法務の条件: 穴と札はヘッダーと下のタブのボタンだけ（ポスターの上に置かない）・終わった後は画面下の表示がいつもどおり見える。 */
+.ht-root { position: fixed; inset: 0; z-index: 1150; }
+.ht-root.ht-wait { background: transparent; }
+.ht-root.is-end { pointer-events: none; }
+.ht-spot {
+  position: fixed; border-radius: 12px; pointer-events: none;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.92), 0 0 0 9999px rgba(24, 20, 16, 0.62);
+  transition: left 0.45s cubic-bezier(0.2, 0.7, 0.2, 1), top 0.45s cubic-bezier(0.2, 0.7, 0.2, 1), width 0.45s cubic-bezier(0.2, 0.7, 0.2, 1),
+    height 0.45s cubic-bezier(0.2, 0.7, 0.2, 1), box-shadow 0.6s ease;
+}
+.ht-root.is-end .ht-spot { box-shadow: 0 0 0 2px rgba(185, 122, 58, 0), 0 0 0 9999px rgba(24, 20, 16, 0); }
+.ht-root.is-end .ht-spot.is-glow { box-shadow: 0 0 0 2px rgba(185, 122, 58, 0.95), 0 0 0 9999px rgba(24, 20, 16, 0); }
+@keyframes ht-ring { 0% { opacity: 0.85; transform: scale(1); } 100% { opacity: 0; transform: scale(1.55); } }
+.ht-spot.is-glow::after { content: ''; position: absolute; inset: -2px; border-radius: 14px; border: 2px solid var(--accent); opacity: 0; animation: ht-ring 1.3s 0.35s ease-out 3; }
+.ht-tip {
+  position: fixed; width: 290px; max-width: calc(100vw - 24px); padding: 12px 14px 10px; border-radius: 14px;
+  background: var(--surface); color: var(--text); box-shadow: 0 10px 28px rgba(0, 0, 0, 0.3);
+  transition: left 0.45s cubic-bezier(0.2, 0.7, 0.2, 1), top 0.45s cubic-bezier(0.2, 0.7, 0.2, 1);
+  animation: ht-tip-in 0.35s 0.15s ease both;
+}
+@keyframes ht-tip-in { from { opacity: 0; } }
+.ht-tip.is-measuring { visibility: hidden; left: 0; top: 0; }
+.ht-tip-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.ht-tip-title { font-family: "Hiragino Mincho ProN", "Yu Mincho", YuMincho, "Noto Serif JP", "Noto Serif CJK JP", serif; font-size: 16px; font-weight: 600; letter-spacing: 0.03em; }
+.ht-tip-count { flex: none; font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.ht-tip-text { margin: 4px 0 0; font-size: 13px; line-height: 1.55; color: var(--text-soft); }
+.ht-tip-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
+.ht-tip-skip { border: none; background: none; font: inherit; font-size: 12px; color: var(--text-muted); padding: 6px 8px 6px 0; cursor: pointer; }
+.ht-tip-next { border: none; font: inherit; font-size: 13px; font-weight: 700; padding: 6px 14px; border-radius: 999px; background: var(--accent); color: #fff; cursor: pointer; }
+html[data-theme="dark"] .ht-tip-next { color: var(--on-accent); }
+@media (min-width: 900px) {
+  .ht-tip { width: 390px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ht-spot, .ht-tip { transition: none; animation: none; }
+  .ht-spot.is-glow::after { animation: none; }
+}
