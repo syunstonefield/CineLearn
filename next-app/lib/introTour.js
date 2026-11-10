@@ -14,7 +14,7 @@ export const TOUR_ADD_USED_KEY = 'cl_tour_add_used';
 
 // ボタン案内の9か所（並び順＝画面の並び。ヘッダー右の4つ → 下のタブ5つ）。key は data-tour の値。
 export const TOUR_STEPS = [
-  { key: 'add', title: '＋ 作品を追加', text: '観たい作品を選んで、単語リストを作ります。' },
+  { key: 'add', title: '＋ 作品を探す', text: '観たい作品を選んで、単語リストを作ります。' }, // 題はヘッダーの＋の名前「作品を探す」にそろえる（オーナー決定 2026-11-10 深夜）
   { key: 'settings', title: '⚙ 設定', text: '英語レベルや、予習で見せる語の数を変えられます。' },
   { key: 'help', title: '? 使い方', text: 'このスライドと案内は、ここからもう一度見られます。' },
   { key: 'login', title: 'ログイン', text: '登録すると、PC の拡張機能やほかの端末と記録がつながります。' },
