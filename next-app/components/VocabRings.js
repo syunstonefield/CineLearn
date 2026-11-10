@@ -1,9 +1,9 @@
 'use client';
 
-// 3重の円（ホーム上段）。docs/design-paid-features-2026-10-08.md「3重の円」「実装メモ 1」・
-// 確定モック https://claude.ai/artifact/9eUzWAJ3sK9EpY4fB4S6x6 （オーナー UI 案 CineLearnRingUI がベース）。
-//   円弧 300／240／180・線幅11: 外＝出会った（淡い金）／中＝覚えた（金）／内＝マスター（濃い金）。
-//   中心＝覚えた＋小さく「うち マスター N」（0の間は出さない）。
+// 3重の円（あゆみタブの一番上）。docs/design-paid-features-2026-10-08.md「3重の円」「実装メモ 1」。
+//   2026-11-10 見直し（受付の見本 reports/journey-ui-2026-11-10/mock.html・オーナー了承）: 円（左・148px）と数字3行（右）を
+//   1枚の白い札に横並び。見出し・リード文はやめ、数字の説明は「ことばの意味」を押した時だけ。最近覚えた単語は横に送る札。
+//   外＝出会った（淡い金）／中＝覚えた（金）／内＝マスター（濃い金）。中心＝覚えた＋小さく「うち マスター N」（0の間は出さない）。
 //   開いた時は前回見た値→今の値へ広がり、増えた分の弧だけ光る（マスター→覚えた→出会ったの順）。
 //   prefers-reduced-motion では止まった絵で出す。
 // values はすでに最高値（lib/rings.js settleRingValues）。縮むのは「出会った」を、利用者がコレクションから
@@ -14,10 +14,11 @@ import { ringFractions, ringTier } from '@/lib/rings';
 import { subtitleCredit, loadRemovedWorks } from '@/lib/storage';
 
 const C = 160;
+const SW = 14; // 線幅（320 の箱で）。表示 148px で約 6.5px
 const RINGS = [
-  { k: 'met', r: 150 - 11, cls: 'vr-arc-met' },
-  { k: 'learned', r: 120 - 11, cls: 'vr-arc-learned' },
-  { k: 'mastered', r: 90 - 11, cls: 'vr-arc-mastered' },
+  { k: 'met', r: 144, cls: 'vr-arc-met' },
+  { k: 'learned', r: 120, cls: 'vr-arc-learned' },
+  { k: 'mastered', r: 96, cls: 'vr-arc-mastered' },
 ];
 const KEYS = ['met', 'learned', 'mastered'];
 const DELAYS = { mastered: 0, learned: 100, met: 180 }; // マスター→覚えた→出会った
@@ -27,7 +28,7 @@ const GLOW = 1400;
 const fmt = (n) => Math.round(n).toLocaleString('ja-JP');
 const ease = (x) => 1 - Math.pow(1 - x, 3);
 
-function Arc({ r, f0, f1, className, width = 11, opacity, filter }) {
+function Arc({ r, f0, f1, className, width = SW, opacity, filter }) {
   const circ = 2 * Math.PI * r;
   const len = Math.max(0, f1 - f0) * circ;
   if (len <= 0.01) return null;
@@ -157,127 +158,122 @@ function WordCard({ w, poster }) {
 
 // values / from: { met, learned, mastered }（from＝前回見た値・無ければ動きなし）
 // gain: 前回から増えた「覚えた」の語数。recent: 最近覚えた語（collectRingWords の要素）。
-// posterFor(title) → posterPath。onOpen: 円・カードのタップ先（無ければタップの手がかりを出さない）。
-// glowFrom: 光らせる区間の始まり（前回見た値）。cue: タップの手がかりの文言。restRef: 円の下の内容（タップで移る先）の目印。
-export default function VocabRings({ values, from = null, glowFrom = null, gain = 0, recent = [], posterFor, onOpen, onSeeAll, cue = 'タップで詳しく ›', restClassName = '' }) {
+// posterFor(title) → posterPath。onOpen: 「前回から…」の行を押した先（最近覚えた単語へ）。
+// glowFrom: 光らせる区間の始まり（前回見た値）。restClassName: 最近覚えた単語の欄に足す class（あゆみの出し方）。
+export default function VocabRings({ values, from = null, glowFrom = null, gain = 0, recent = [], posterFor, onOpen, restClassName = '' }) {
   const { nums, fr, prevFr, glow } = useRingAnimation(values, from, glowFrom);
-  const [shown, setShown] = useState(RECENT_FIRST); // 最近覚えた単語を何枚見せるか（その場で広げる）
+  const [all, setAll] = useState(false); // 「すべて見る」＝縦の一覧
+  const [shown, setShown] = useState(RECENT_FIRST + RECENT_STEP); // 縦の一覧で何枚見せるか（20枚ずつ）
+  const [meaning, setMeaning] = useState(false); // 「ことばの意味」
   if (!values || values.met <= 0) return null;
   const mastered0 = values.mastered <= 0;
-  const Stage = onOpen ? 'button' : 'div';
+  const removed = loadRemovedWorks().length > 0;
+  const rows = [
+    {
+      k: 'met',
+      name: '出会った',
+      num: fmt(nums.met),
+      // 消去した作品がある人だけ数え方を足す（ボタン名は「棚から外す」・ホーム・あゆみ部門 2026-11-07）
+      desc: removed ? '出会った語（棚から外した作品も含む・消去した作品は学習した語だけ）' : 'これまでに出会った語（棚から外した作品も含む）',
+    },
+    { k: 'learned', name: '覚えた', num: fmt(nums.learned), desc: '2回以上思い出せた語' },
+    { k: 'mastered', name: 'マスター', num: mastered0 ? null : fmt(nums.mastered), wait: '約3週間後から増えます', desc: '3週間あけても思い出せた語' },
+  ];
+  const canJump = !!onOpen && recent.length > 0;
+  const Today = canJump ? 'button' : 'div';
+  const list = all ? recent.slice(0, shown) : recent.slice(0, RECENT_FIRST);
 
   return (
     <div className="vr-wrap">
-      <section className="vr-card">
-        <div className="vr-copy">
-          <div className="vr-eyebrow">🎬 あなたの語彙の旅</div>
-          <h2>あなたの語彙</h2>
-          <p>映画やドラマのワンシーンから、あなたの英語の世界が少しずつ広がっています。</p>
-        </div>
-
-        <Stage
-          {...(onOpen ? { type: 'button', onClick: onOpen } : {})}
-          className="vr-stage"
-          aria-label={`覚えた ${values.learned}語、マスター ${values.mastered}語、出会った ${values.met}語${onOpen ? '。タップで詳しく' : ''}`}
-        >
-          <svg viewBox="0 0 320 320" aria-hidden="true">
-            <defs>
-              <filter id="vr-soft" x="-20%" y="-20%" width="140%" height="140%">
-                <feGaussianBlur stdDeviation="2.5" />
-              </filter>
-              <filter id="vr-glow" x="-30%" y="-30%" width="160%" height="160%">
-                <feGaussianBlur stdDeviation="5" />
-              </filter>
-            </defs>
-            {RINGS.map((g) => (
-              <g key={g.k}>
-                <circle cx={C} cy={C} r={g.r} fill="none" className="vr-track" strokeWidth="11" />
-                <Arc r={g.r} f0={0} f1={fr[g.k]} className={g.cls} opacity="0.35" filter="url(#vr-soft)" />
-                <Arc r={g.r} f0={0} f1={fr[g.k]} className={g.cls} />
-                {glow > 0 && prevFr && fr[g.k] > prevFr[g.k] + 0.002 && (
-                  <>
-                    <Arc r={g.r} f0={prevFr[g.k]} f1={fr[g.k]} className="vr-arc-glow" width={16} opacity={glow} filter="url(#vr-glow)" />
-                    <Arc r={g.r} f0={prevFr[g.k]} f1={fr[g.k]} className="vr-arc-glow2" opacity={glow * 0.8} />
-                  </>
-                )}
-              </g>
-            ))}
-          </svg>
-          <div className={`vr-center${values.learned <= 0 ? ' is-zero' : ''}`}>
-            <strong>{fmt(nums.learned)}</strong>
-            <span>覚えた</span>
-            {!mastered0 && <em>うち マスター {fmt(nums.mastered)}</em>}
-          </div>
-          {onOpen && <span className="vr-cue">{cue}</span>}
-        </Stage>
-
-        <div className="vr-legend">
-          <div className="vr-lrow">
-            <i className="vr-dot vr-dot-met" />
-            <b>{fmt(nums.met)}</b>
-            <span>出会った</span>
-            {/* 消去した作品がある人だけ数え方を足す（ボタン名は「棚から外す」・375px で2行に収める・ホーム・あゆみ部門 2026-11-07） */}
-            <small>
-              {loadRemovedWorks().length
-                ? '出会った語（棚から外した作品も含む・消去した作品は学習した語だけ）'
-                : 'これまでに出会った語（棚から外した作品も含む）'}
-            </small>
-          </div>
-          <div className="vr-lrow">
-            <i className="vr-dot vr-dot-learned" />
-            <b>{fmt(nums.learned)}</b>
-            <span>覚えた</span>
-            <small>2回以上思い出せた語</small>
-          </div>
-          <div className="vr-lrow">
-            <i className="vr-dot vr-dot-mastered" />
-            <b>{mastered0 ? '―' : fmt(nums.mastered)}</b>
-            <span>マスター</span>
-            <small>{mastered0 ? '約3週間後から増えます' : '3週間あけても思い出せた語'}</small>
-          </div>
-          {(() => {
-            const Tag = onOpen ? 'button' : 'div';
-            return (
-              <Tag {...(onOpen ? { type: 'button', onClick: onOpen } : {})} className="vr-today">
-                <span className="vr-spark" aria-hidden="true">✦</span>
-                <span className="vr-t">
-                  {gain > 0 ? (
+      <section className="vr-card" aria-label="覚えた語の数">
+        <div className="vr-sum">
+          <div
+            className="vr-stage"
+            role="img"
+            aria-label={`覚えた ${values.learned}語、マスター ${values.mastered}語、出会った ${values.met}語`}
+          >
+            <svg viewBox="0 0 320 320" aria-hidden="true">
+              <defs>
+                <filter id="vr-glow" x="-30%" y="-30%" width="160%" height="160%">
+                  <feGaussianBlur stdDeviation="6" />
+                </filter>
+              </defs>
+              {RINGS.map((g) => (
+                <g key={g.k}>
+                  <circle cx={C} cy={C} r={g.r} fill="none" className="vr-track" strokeWidth={SW} />
+                  <Arc r={g.r} f0={0} f1={fr[g.k]} className={g.cls} />
+                  {glow > 0 && prevFr && fr[g.k] > prevFr[g.k] + 0.002 && (
                     <>
-                      前回から <b>{fmt(gain)}語</b> 覚えた語がふえました
+                      <Arc r={g.r} f0={prevFr[g.k]} f1={fr[g.k]} className="vr-arc-glow" width={SW + 8} opacity={glow} filter="url(#vr-glow)" />
+                      <Arc r={g.r} f0={prevFr[g.k]} f1={fr[g.k]} className="vr-arc-glow2" opacity={glow * 0.8} />
                     </>
-                  ) : (
-                    '予習した話の語を、復習で覚えていきましょう'
                   )}
-                </span>
-                {onOpen && <span aria-hidden="true">›</span>}
-              </Tag>
-            );
-          })()}
+                </g>
+              ))}
+            </svg>
+            <div className="vr-center">
+              <strong>{fmt(nums.learned)}</strong>
+              <span>覚えた</span>
+              {!mastered0 && <em>うち マスター {fmt(nums.mastered)}</em>}
+            </div>
+          </div>
+
+          <div className={`vr-nums${meaning ? ' is-open' : ''}`}>
+            {rows.map((r) => (
+              <div className="vr-nrow" key={r.k}>
+                <i className={`vr-dot vr-dot-${r.k === 'met' ? 'met' : r.k === 'learned' ? 'learned' : 'mastered'}`} aria-hidden="true" />
+                <span className="vr-nname">{r.name}</span>
+                {r.num != null ? <b className="vr-nnum">{r.num}</b> : <span className="vr-nwait">{r.wait}</span>}
+                {meaning && <small className="vr-ndesc">{r.desc}</small>}
+              </div>
+            ))}
+            <button type="button" className="vr-mean" aria-expanded={meaning} onClick={() => setMeaning((m) => !m)}>
+              {meaning ? 'ことばの意味を閉じる' : 'ことばの意味'}
+            </button>
+          </div>
         </div>
+
+        <Today {...(canJump ? { type: 'button', onClick: onOpen } : {})} className="vr-today">
+          <span className="vr-spark" aria-hidden="true">
+            ✦
+          </span>
+          <span className="vr-t">
+            {gain > 0 ? (
+              <>
+                前回から <b>{fmt(gain)}語</b> 覚えた語がふえました
+              </>
+            ) : (
+              '予習した話の語を、復習で覚えていきましょう'
+            )}
+          </span>
+          {canJump && <span aria-hidden="true">›</span>}
+        </Today>
       </section>
 
       {recent.length > 0 && (
-        <section className={`vr-recent ${restClassName}`.trim()}>
+        <section className={`vr-recent ${restClassName}`.trim()} aria-labelledby="vr-recent-h">
           <div className="vr-rh">
-            <h3>🎬 最近覚えた単語・シーン</h3>
-            {onSeeAll ? (
-              <button type="button" onClick={onSeeAll}>
-                すべて見る ›
+            <h3 id="vr-recent-h">最近覚えた単語</h3>
+            {recent.length > RECENT_FIRST && (
+              <button
+                type="button"
+                aria-expanded={all}
+                onClick={() => {
+                  setAll((a) => !a);
+                  setShown(RECENT_FIRST + RECENT_STEP);
+                }}
+              >
+                {all ? 'たたむ' : 'すべて見る ›'}
               </button>
-            ) : (
-              recent.length > RECENT_FIRST && (
-                <button type="button" onClick={() => setShown(shown > RECENT_FIRST ? RECENT_FIRST : RECENT_FIRST + RECENT_STEP)}>
-                  {shown > RECENT_FIRST ? 'たたむ' : 'すべて見る ›'}
-                </button>
-              )
             )}
           </div>
-          <div className="vr-grid">
-            {recent.slice(0, shown).map((w) => (
+          {/* 最初は横に送る札（4枚）。「すべて見る」で縦の一覧（20枚ずつ）。例文は全文＋出所を必ず一緒に（引用を途中で切らない） */}
+          <div className={all ? 'vr-list' : 'vr-rail'}>
+            {list.map((w) => (
               <WordCard key={w.key} w={w} poster={posterFor?.(w._src?.title || w.title)} />
             ))}
           </div>
-          {shown > RECENT_FIRST && shown < recent.length && (
+          {all && shown < recent.length && (
             <button type="button" className="vr-more" onClick={() => setShown((n) => n + RECENT_STEP)}>
               もっと見る（あと {recent.length - shown}語）
             </button>

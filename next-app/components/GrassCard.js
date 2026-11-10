@@ -162,7 +162,6 @@ export default function GrassCard({ grass, days, dailyStart, compact = false, mi
         </div>
       </div>
       {!compact && (
-      <div className="vj-gfoot">
         <div className="vj-scale" aria-hidden="true">
           少ない <i className="vj-cell" />
           {L.map((_, i) => (
@@ -170,10 +169,14 @@ export default function GrassCard({ grass, days, dailyStart, compact = false, mi
           ))}{' '}
           多い
         </div>
-        <p className="vj-hint">{T.grassHint(L.length)}</p>
-      </div>
       )}
-      {(!compact || sel) && (
+      {/* あゆみ: 凡例の下の説明の1行。マスを押すと、その1行がその日の中身に替わる（2026-11-10 見直し・案内の箱はやめた） */}
+      {!compact && (
+        <p className={`vj-hint vj-gday${sel ? ' is-sel' : ''}`} aria-live="polite">
+          {sel ? detail : `${T.grassHint(L.length)}${T.grassPick}`}
+        </p>
+      )}
+      {compact && sel && (
         <div className="vj-detail" aria-live="polite">
           {detail}
         </div>
