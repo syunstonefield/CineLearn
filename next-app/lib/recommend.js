@@ -1,10 +1,11 @@
-// ドラマ追加（AI推薦・タイトル検索）。js/app.js: getRecommendations / manualSearchDrama から移植。
+// ジャンルの一覧（初回アンケート）と、検索で見つからない時の AI の言い換え（aiResolveTitles）。
+// AI推薦（mode:'recommend'）とタイトル検索（mode:'title_search'）は、作品追加モーダルと一緒に 2026-11-10 に削除。
 // 2026-09-12: プロンプトはサーバ（/api/claude の各 mode）が組み、結果は共有キャッシュに乗る。
 //   旧実装はここでプロンプトを組んで既定モードへ投げていた＝ユーザーごと・操作ごとに課金され、
 //   生成用のレート枠も消費していた。同じ条件（レベル×ジャンル×サービス／検索語）の2人目からは0円。
 import { callClaudeMode } from './api';
 
-// AI推薦タブで選べるジャンル（index.html の .genre-tags と同一）
+// 初回アンケートで選べるジャンル
 export const GENRES = [
   { genre: 'Crime Thriller', label: 'クライム' },
   { genre: 'Comedy', label: 'コメディ' },
@@ -15,26 +16,6 @@ export const GENRES = [
   { genre: 'Medical', label: '医療' },
   { genre: 'Legal', label: '法廷' },
 ];
-
-// AIにおすすめを聞く（3作品）。onRetry は互換のため受けるが未使用（サーバ側キャッシュ命中が主経路）。
-export async function recommendDramas({ userLevel, toeicScore, selectedGenres, selectedServices }) {
-  const d = await callClaudeMode({
-    mode: 'recommend',
-    userLevel,
-    toeicScore,
-    genres: selectedGenres,
-    services: selectedServices,
-  });
-  if (!Array.isArray(d?.items)) throw new Error('おすすめを取得できませんでした');
-  return d.items;
-}
-
-// タイトルで検索（単作品の情報を取得・見つからなければ []）
-export async function searchDramaByTitle(title, { userLevel, selectedServices }) {
-  const d = await callClaudeMode({ mode: 'title_search', title, userLevel, services: selectedServices });
-  if (!Array.isArray(d?.items)) throw new Error('作品情報を取得できませんでした');
-  return d.items;
-}
 
 // 曖昧・日本語・うろ覚え・タイポの検索語を、実在作品の「英語原題」候補(最大5件)に解釈する。
 // Enter押下時のAI支援検索で使う（結果は各タイトルをTMDBで実在確認してから表示する）。

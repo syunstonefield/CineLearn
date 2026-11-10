@@ -46,7 +46,7 @@ export function getRecommendations(userLevel, _userServices) {
 }
 
 // おすすめ作品 → 既存ドラマ選択フローが扱う selectedDrama 形式へ変換する。
-// 既存の AI推薦カード（AddDramaModal）と同じフィールド構成に合わせ、
+// 作品の形（title/genre/level/platform/reason/tmdbId/posterPath/mediaType）に合わせ、
 // VocabScreen 側が drama.title から TMDB でシーズン/英語タイトル/型を再解決できるようにする。
 export function recommendedToDrama(item, userLevel) {
   // バッジ・予習レベルは、ユーザーのレベルが候補に含まれればそれを、無ければ先頭を代表値にする

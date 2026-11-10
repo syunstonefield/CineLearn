@@ -11,7 +11,6 @@ import { buildGrass, statsStart } from '@/lib/journey';
 import { loadExpLedger } from '@/lib/exp';
 import LibraryCard from './LibraryCard';
 import ContinueCard from './ContinueCard';
-import AddDramaModal from './AddDramaModal';
 import RecommendGrid from './RecommendGrid';
 import { getRecommendations } from '@/lib/recommended';
 import { isMobileDevice } from '@/lib/device';
@@ -79,8 +78,6 @@ export default function Dashboard() {
     openReview,
     setCurrentHistoryId,
     reviewVersion,
-    pendingAddDrama,
-    setPendingAddDrama,
     cloudVersion,
     startFromRecommend,
     openGuide,
@@ -152,18 +149,8 @@ export default function Dashboard() {
   // 進捗バー用のシーズン別話数（{ season番号: 話数 }）。posterOverrides と同じく override で補完。
   const attemptedEpisodes = useRef(new Set());
   const [episodeOverrides, setEpisodeOverrides] = useState({}); // title → seasonCounts
-  // ドラマ追加モーダル（null=閉、{tab, query}=開）
-  const [addModal, setAddModal] = useState(null);
   // 「続きから学習」を全部見るか（既定は2件・それ以上は「すべて見る」で展開）
   const [showAllContinue, setShowAllContinue] = useState(false);
-
-  // オンボーディング完了直後はドラマ追加モーダルを検索タブで開く（既存 finishOnboarding 相当）
-  useEffect(() => {
-    if (pendingAddDrama) {
-      setAddModal(pendingAddDrama);
-      setPendingAddDrama(null);
-    }
-  }, [pendingAddDrama, setPendingAddDrama]);
 
   // 視聴直後リキャップ（語彙リユニオンB案・docs/design-recap-endroll.md）。
   // watchGroup=最新の保存グループ（質問カードの対象）／recap=そのうち再会が起きた語（祝いの中身）。
@@ -857,7 +844,7 @@ export default function Dashboard() {
           {/* 履歴・ライブラリが空 → 中央におすすめ（横スクロール行で「サブスク風」に） */}
           <div className="library-empty recommend-empty-wrap">
             <div className="recommend-heading">🎬 気になる作品を選んで始めましょう</div>
-            <div className="recommend-subheading">あなたのレベルと契約サービスに合った人気作品です</div>
+            <div className="recommend-subheading">CineLearn が選んだ作品から、あなたのレベルに合うものです</div>
             <RecommendGrid items={recommendItems} onPick={startFromRecommend} userLevel={settings.userLevel || 'B1'} variant="row" />
           </div>
         </div>
@@ -925,14 +912,6 @@ export default function Dashboard() {
         </>
       )}
 
-      {addModal && (
-        <AddDramaModal
-          initialTab={addModal.tab}
-          initialQuery={addModal.query}
-          variant={addModal.variant || 'full'}
-          onClose={() => setAddModal(null)}
-        />
-      )}
     </div>
   );
 }

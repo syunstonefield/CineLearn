@@ -495,7 +495,6 @@ export default function AppProvider({ children }) {
 
   // オンボーディング完了（既存 finishOnboarding 相当）：
   // 設定を保存してメインへ → ドラマ追加モーダルをタイトル検索タブで開く
-  const [pendingAddDrama, setPendingAddDrama] = useState(null); // {tab, query} | null
   const finishOnboarding = useCallback((patch) => {
     // 端末ローカルに既読化（クラウド pull で settings.onboarded が消えても二度と出さない）。
     markOnboardedSeen();
@@ -668,16 +667,6 @@ export default function AppProvider({ children }) {
     });
   }, []);
 
-  // ジャンルタグのトグル（関数型更新で連続クリックにも耐える）。
-  // selectedGenres は settings を単一の真実として扱う。
-  const toggleGenre = useCallback((g) => {
-    setSettings((prev) => {
-      const cur = prev.selectedGenres || [];
-      const selectedGenres = cur.includes(g) ? cur.filter((x) => x !== g) : [...cur, g];
-      return { ...prev, selectedGenres };
-    });
-  }, []);
-
   // 観るサービスを選ぶ（入場のシート・単語リストの「観る：○○（変更）」から）。画面は変えない。
   // 開いている作品の記憶（myDramas の viewingService＝設定同期でクラウドにも乗る）と「いまの作品のサービス」を更新する。
   const chooseService = useCallback(
@@ -691,9 +680,6 @@ export default function AppProvider({ children }) {
     },
     [drama]
   );
-
-  // 「おすすめから探す」専用画面を開く（履歴あり時の＋追加導線から）
-  const openRecommend = useCallback(() => setScreen('recommend'), []);
 
   // タイトル検索の結果画面を開く（ダッシュボードの検索ボックスから）。
   // 候補をインライン表示せず、おすすめと同じく独立画面へ遷移する。
@@ -834,8 +820,8 @@ export default function AppProvider({ children }) {
   const openTutorial = useCallback(() => setTutorial('help'), []);
   const closeTutorial = useCallback(() => {
     markTutorialSeen(); // 表示時に既読化済みだが念のため
-    // オンボーディング流入時のみ、閉じたら作品追加モーダルへ橋渡しする。
-    if (tutorial === 'onboarding') setPendingAddDrama({ tab: 'search', query: '' });
+    // オンボーディング流入時のみ、閉じたら作品を探す画面へ橋渡しする（旧・作品追加モーダルは 2026-11-10 に削除）。
+    if (tutorial === 'onboarding') setScreen('search');
     setTutorial(null);
   }, [tutorial]);
 
@@ -922,8 +908,6 @@ export default function AppProvider({ children }) {
     startTour,
     endTour,
     markFirstRunDone,
-    pendingAddDrama,
-    setPendingAddDrama,
     settingsOpen: screen === 'settings',
     openSettings,
     closeSettings,
@@ -952,13 +936,11 @@ export default function AppProvider({ children }) {
     openDrama,
     rememberEpisode,
     chooseService,
-    openRecommend,
     searchQuery,
     setSearchQuery,
     vocabReturn,
     openSearch,
     startFromRecommend,
-    toggleGenre,
     goHome,
     mounted,
     quizData,

@@ -38,7 +38,7 @@ export function authHeaders() {
   return h;
 }
 
-// サーバ組みプロンプトのモード（recommend / title_search / resolve_titles 等）を叩く汎用入口（2026-09-12）。
+// サーバ組みプロンプトのモード（resolve_titles 等）を叩く汎用入口（2026-09-12）。
 // 共有キャッシュ命中は即返る。429 は再試行せず、呼び出し側に分かる文言で投げる。
 export async function callClaudeMode(body) {
   const res = await fetch(`${API_BASE}/api/claude`, {

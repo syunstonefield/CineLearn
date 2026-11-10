@@ -13,7 +13,7 @@ function envInt(name, def) {
 }
 
 // ── モデル ──
-// 旧世代（Haiku 4.5）。残る用途は /api/claude の推薦系（recommend / title_search / resolve_titles）だけ。
+// 旧世代（Haiku 4.5）。残る用途は /api/claude の検索語の AI 解釈（resolve_titles）だけ（recommend / title_search は 2026-11-10 に削除）。
 export const HAIKU_MODEL = 'claude-haiku-4-5-20251001';
 // 和訳系（/api/claude の sentence・sentences・wordsense）は Haiku 5.5（2026-10-08・段階1）。
 //   単価 $0.10/$0.50（4.5 の 1/10）。wordsense は思考オフ→必要時のみ思考ありの2段呼び。

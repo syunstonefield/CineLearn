@@ -123,7 +123,7 @@ export default function Header({
         )}
         {/* 作品追加（ホームのツールバーから移設）。どの画面からでも届く常設導線。 */}
         {profile && onAddDrama && (
-          <button className="btn-header-icon btn-header-add" title="ドラマを追加" data-tour="add" onClick={onAddDrama}>
+          <button className="btn-header-icon btn-header-add" title="作品を探す" aria-label="作品を探す" data-tour="add" onClick={onAddDrama}>
             <IconPlus />
           </button>
         )}

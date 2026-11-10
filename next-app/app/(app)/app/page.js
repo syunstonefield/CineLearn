@@ -19,7 +19,6 @@ import TicketCollectionScreen from '@/components/TicketCollectionScreen';
 import AuthModal from '@/components/AuthModal';
 import Onboarding from '@/components/Onboarding';
 import TrialFlow from '@/components/TrialFlow';
-import RecommendScreen from '@/components/RecommendScreen';
 import SearchScreen from '@/components/SearchScreen';
 import BottomNav from '@/components/BottomNav';
 import WelcomeTutorial from '@/components/WelcomeTutorial';
@@ -146,7 +145,6 @@ function AppShell() {
             {screen === 'trial' && <TrialFlow />}
             {screen === 'intro' && <IntroCarousel mode="first" />}
             {screen === 'main' && <Dashboard />}
-            {screen === 'recommend' && <RecommendScreen />}
             {screen === 'search' && <SearchScreen />}
             {screen === 'vocab' && <VocabScreen />}
             {screen === 'quiz' && <QuizScreen />}

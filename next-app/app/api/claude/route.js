@@ -250,7 +250,7 @@ function json(obj, status = 200) {
   });
 }
 
-// ── AI推薦・タイトル解釈の共有キャッシュ（2026-09-12）──
+// ── タイトル解釈の共有キャッシュ（2026-09-12・AI推薦は 2026-11-10 に削除）──
 // 旧実装は lib/recommend.js がクライアント組みプロンプトを既定モードへ投げていた＝ユーザーごと・操作ごとに
 // 課金（おすすめ1回≈¥1.5・Enter検索1回≈¥0.3）で共有されず、生成用バケットも消費していた。
 // ここではプロンプトをサーバで組み、結果の JSON を translation_ctx_cache に文字列で保存して共有する
@@ -276,9 +276,6 @@ async function readJsonCache(word, hash) {
   }
 }
 const cleanStr = (v, max) => String(v ?? '').replace(/[\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
-const cleanList = (v, re, max) =>
-  (Array.isArray(v) ? v : []).map((x) => cleanStr(x, 30)).filter((x) => re.test(x)).slice(0, max);
-const LEVEL_RE = /^[ABC][12]$/;
 
 // キャッシュ→レート制限→Haiku→検証→after(書込) の共通経路。parse は配列を返すか null（＝配らない・保存しない）。
 async function cachedJsonMode(req, apiKey, { word, key, prompt, maxTokens, parse }) {
@@ -518,76 +515,8 @@ export async function POST(req) {
     }
   }
 
-  // ── mode:'recommend' / 'title_search' / 'resolve_titles'＝AI推薦・タイトル解釈（2026-09-12・共有キャッシュ）──
-  if (body.mode === 'recommend') {
-    const userLevel = LEVEL_RE.test(cleanStr(body.userLevel, 4)) ? cleanStr(body.userLevel, 4) : 'B1';
-    const toeic = Math.max(0, Math.min(990, Math.round((Number(body.toeicScore) || 0) / 50) * 50)); // 50点刻みで丸めて共有率を上げる
-    const genres = cleanList(body.genres, /^[A-Za-z][A-Za-z \-]{1,29}$/, 8);
-    const services = cleanList(body.services, /^[A-Za-z0-9][A-Za-z0-9+ \-]{1,19}$/, 6);
-    if (!genres.length || !services.length) return json({ items: null, error: 'bad request' }, 400);
-    const key = `${userLevel}|${toeic}|${[...genres].sort().join(',')}|${[...services].sort().join(',')}`;
-    const prompt = `あなたは英語学習専門のアドバイザーです。
-以下の条件で海外ドラマ・映画を3作品おすすめしてください。
-
-ユーザーの英語レベル: ${userLevel}（TOEICスコア目安: ${toeic}点）
-好きなジャンル: ${genres.join(', ')}
-利用可能なサービス: ${services.join(', ')}
-
-※必ず上記のサービスで視聴できる作品のみ選んでください。
-
-以下のJSON形式のみで返答してください（説明文不要）:
-[
-  {
-    "title": "作品名（英語）",
-    "genre": "ジャンル",
-    "level": "${userLevel}",
-    "platform": "視聴できるサービス名",
-    "seasons": シーズン数（数字のみ）,
-    "reason": "このレベルの学習者におすすめの理由（日本語・1文）",
-    "speech_feature": "英語の特徴（例：はっきりした発音、スラング多め）"
-  }
-]`;
-    const parse = (arr) =>
-      arr
-        .filter((x) => x && typeof x.title === 'string' && x.title.trim())
-        .slice(0, 5)
-        .map((x) => ({
-          title: cleanStr(x.title, 80),
-          genre: cleanStr(x.genre, 40),
-          level: userLevel,
-          platform: cleanStr(x.platform, 40),
-          seasons: Number(x.seasons) || 1,
-          reason: cleanStr(x.reason, 200),
-          speech_feature: cleanStr(x.speech_feature, 100),
-        }));
-    return cachedJsonMode(req, apiKey, { word: '__reco__', key, prompt, maxTokens: 2000, parse });
-  }
-
-  if (body.mode === 'title_search') {
-    const title = cleanStr(body.title, 80);
-    const userLevel = LEVEL_RE.test(cleanStr(body.userLevel, 4)) ? cleanStr(body.userLevel, 4) : 'B1';
-    const services = cleanList(body.services, /^[A-Za-z0-9][A-Za-z0-9+ \-]{1,19}$/, 6);
-    if (!title) return json({ items: null, error: 'bad request' }, 400);
-    const svcs = services.length ? services.join(', ') : 'Netflix, Amazon Prime';
-    const key = `${title.toLowerCase()}|${userLevel}|${[...services].sort().join(',')}`;
-    const prompt = `「${title}」について以下のJSON形式で返してください（見つからない場合は[]）。
-[{"title":"${title}","genre":"ジャンル","level":"${userLevel}","platform":"視聴可能なサービス（${svcs}のいずれか）","seasons":1,"reason":"おすすめの理由（日本語・1文）","speech_feature":"英語の特徴"}]`;
-    const parse = (arr) =>
-      arr
-        .filter((x) => x && typeof x.title === 'string' && x.title.trim())
-        .slice(0, 3)
-        .map((x) => ({
-          title: cleanStr(x.title, 80),
-          genre: cleanStr(x.genre, 40),
-          level: userLevel,
-          platform: cleanStr(x.platform, 40),
-          seasons: Number(x.seasons) || 1,
-          reason: cleanStr(x.reason, 200),
-          speech_feature: cleanStr(x.speech_feature, 100),
-        }));
-    return cachedJsonMode(req, apiKey, { word: '__title__', key, prompt, maxTokens: 800, parse });
-  }
-
+  // ── mode:'resolve_titles'＝検索語の AI 解釈（2026-09-12・共有キャッシュ）──
+  //   mode:'recommend'（AI推薦）と 'title_search'（タイトル検索）は、使う画面が無くなったので 2026-11-10 に削除。
   if (body.mode === 'resolve_titles') {
     const query = cleanStr(body.query, 80);
     if (query.length < 2) return json({ items: null, error: 'bad request' }, 400);
