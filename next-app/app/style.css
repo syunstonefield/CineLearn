@@ -4656,11 +4656,15 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
    旧＝全面が暗い「暖色シネマ」（2026-06-24〜）。真っ暗でびっくりする・ほかの画面とのコントラストが強い、のでやめた。
    色は単語リストと同じ変数（ライト/ダーク両対応）。サービスの札は文字だけ（ロゴ・ブランド色なし＝法務）。 */
 .pl-shade {
-  position: fixed; inset: 0; z-index: 1200; display: flex; align-items: flex-end; justify-content: center;
-  background: rgba(0, 0, 0, 0.38); animation: plFade .2s ease;
+  position: fixed; inset: 0; z-index: 1250; display: flex; align-items: flex-end; justify-content: center;
+  background: rgba(0, 0, 0, 0.38); animation: plFade .2s ease; overscroll-behavior: contain;
 }
+/* 重なり: 下のタブ 900・ダイアログ 1000・スライド 1100・予習のカード 1200 より上、サービスの選択（1300）より下。
+   シートが出ている間は、うしろのページのスクロールと「引っ張って更新」を止める（PrepLaunch の useLayoutEffect）。 */
+html.cl-sheet-lock,
+html.cl-sheet-lock body { overflow: hidden; overscroll-behavior: none; }
 .pl-sheet {
-  width: 100%; max-width: 460px; max-height: 92vh; overflow-y: auto;
+  width: 100%; max-width: 460px; max-height: 92vh; overflow-y: auto; overscroll-behavior: contain;
   background: color-mix(in srgb, var(--accent) 4%, var(--surface)); color: var(--text);
   border-radius: 20px 20px 0 0; padding: 8px 22px calc(20px + env(safe-area-inset-bottom, 0px));
   box-shadow: 0 -10px 34px rgba(0, 0, 0, 0.16); animation: plUp .28s cubic-bezier(.2, .8, .2, 1);
@@ -4689,7 +4693,9 @@ html[data-theme="dark"] .bottom-nav { background: var(--surface); }
 .pl-svc-dot { flex: none; width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--text-muted); box-sizing: border-box; }
 .pl-svc-item.is-on .pl-svc-dot { border: 5px solid var(--accent); }
 .pl-enter { margin-top: 20px; font-size: 15px; }
-.pl-enter:disabled { opacity: .45; cursor: default; box-shadow: none; transform: none; }
+.pl-enter.is-wait { opacity: .55; }
+.pl-svc.is-need .pl-svc-cap { color: var(--accent); }
+.pl-svc.is-need .pl-svc-item { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); }
 .pl-cta-note { margin: 8px 0 0; text-align: center; font-size: 11.5px; color: var(--text-muted); }
 .pl-other { display: block; margin: 4px auto 0; border: 0; background: none; color: var(--accent); font-size: 12.5px; text-decoration: underline; cursor: pointer; font-family: inherit; padding: 6px; }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
 import { watchSearchUrl } from '@/lib/prep';
 import { entryTarget, sheetOrder, serviceLabel } from '@/lib/serviceEntry';
@@ -20,12 +20,25 @@ export default function PrepLaunch() {
   const [avail, setAvail] = useState(null);
   const [picked, setPicked] = useState(''); // このシートで選んだサービス（入場で開く・覚える）
   const [showList, setShowList] = useState(false); // 「別のサービスで探す」で一覧を開いたか
+  const [needPick, setNeedPick] = useState(false); // 選ばずに「入場する」を押した（選んでください、と知らせる）
+  const listRef = useRef(null);
+
+  // シートが出ている間は、うしろのページのスクロールと「引っ張って更新」を止める（復習の cl-review-lock と同じ方式）。
+  //   外すのは useLayoutEffect の後始末で（固定の部品が iPhone でずれないよう、描き直しの前に外す）。
+  const open = !!prepLaunch;
+  useLayoutEffect(() => {
+    if (!open) return undefined;
+    const root = document.documentElement;
+    root.classList.add('cl-sheet-lock');
+    return () => root.classList.remove('cl-sheet-lock');
+  }, [open]);
 
   const tmdbId = p?.drama?.tmdbId || null;
   const isMovie = !!(p?.isMovie || p?.drama?.type === 'movie' || p?.drama?.mediaType === 'movie');
   useEffect(() => {
     setPicked('');
     setShowList(false);
+    setNeedPick(false);
     if (!tmdbId) {
       setAvail(null);
       return undefined;
@@ -64,8 +77,14 @@ export default function PrepLaunch() {
   const listOpen = !target || showList;
   const names = sheetOrder({ avail, contracted: settings.selectedServices });
 
+  // 入場はいつでも押せる（視聴は自由）。開く先がまだ決まっていない時だけ、開かずに「選んでください」と知らせる
+  //   （データが取れない時に自動で開かない＝法務）。window.open は押したこの処理の中で同期的に呼ぶ。
   const enter = () => {
-    if (!service) return;
+    if (!service) {
+      setNeedPick(true);
+      listRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      return;
+    }
     if (typeof window !== 'undefined') window.open(watchSearchUrl(title, service), '_blank', 'noopener,noreferrer');
     trackUsage('enter_open');
     if (picked || target?.auto) chooseService(service); // 選んだ・配信が1つで決めた → 作品ごとに覚える
@@ -106,7 +125,7 @@ export default function PrepLaunch() {
         {p.variant === 'cards' && <p className="pl-note">うろ覚えの語は、明日また戻ってきます。</p>}
 
         {listOpen && (
-          <div className="pl-svc">
+          <div className={'pl-svc' + (needPick ? ' is-need' : '')} ref={listRef}>
             <div className="pl-svc-cap">
               {target ? '別のサービスで探す' : '観るサービスを選んでください'}
               <small>次からこの作品は、選んだサービスで開きます。あとから変えられます。</small>
@@ -119,7 +138,10 @@ export default function PrepLaunch() {
                   role="radio"
                   aria-checked={service === n}
                   className={'pl-svc-item' + (service === n ? ' is-on' : '')}
-                  onClick={() => setPicked(n)}
+                  onClick={() => {
+                    setPicked(n);
+                    setNeedPick(false);
+                  }}
                 >
                   <span className="pl-svc-dot" aria-hidden="true" />
                   {serviceLabel(n)}
@@ -129,11 +151,15 @@ export default function PrepLaunch() {
           </div>
         )}
 
-        <button type="button" className="btn-primary pl-enter" onClick={enter} disabled={!service}>
+        <button type="button" className={'btn-primary pl-enter' + (service ? '' : ' is-wait')} onClick={enter}>
           入場する ▶
         </button>
         <p className="pl-cta-note">
-          {service ? `${serviceLabel(service)} を開きます ・ 提携ではありません` : '観るサービスを選ぶと開けます ・ 提携ではありません'}
+          {service
+            ? `${serviceLabel(service)} を開きます ・ 提携ではありません`
+            : needPick
+              ? '上で観るサービスを選んでください ・ 提携ではありません'
+              : '観るサービスを選ぶと開けます ・ 提携ではありません'}
         </p>
         {target && !showList && (
           <button type="button" className="pl-other" onClick={openList}>
