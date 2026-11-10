@@ -24,6 +24,9 @@ import RecommendScreen from '@/components/RecommendScreen';
 import SearchScreen from '@/components/SearchScreen';
 import BottomNav from '@/components/BottomNav';
 import WelcomeTutorial from '@/components/WelcomeTutorial';
+import IntroCarousel from '@/components/IntroCarousel';
+import HomeTour from '@/components/HomeTour';
+import { INTRO_ON, TOUR_ADD_USED_KEY } from '@/lib/introTour';
 import ExtensionGuide from '@/components/ExtensionGuide';
 import SplashScreen from '@/components/SplashScreen';
 import { getActiveWordCount, getDueReviewWords, ARCHIVE_EVENT, setNewWordDailyCap, NEW_WORDS_DAILY_FREE } from '@/lib/storage';
@@ -63,6 +66,7 @@ function AppShell() {
     openTutorial,
     guideOpen,
     setScreen,
+    tour,
   } = useApp();
   // localStorage 依存はマウント後のみ（SSR/初回レンダーは 0 で統一）。
   // getActiveWordCount は最大2000語をJSON.parseするので、毎レンダーではなく
@@ -96,7 +100,7 @@ function AppShell() {
   // 復習（ページ表示）の間も出さない＝全画面で広く使い、途中で下のバーを誤って押して結果を見ずに離れるのを防ぐ
   //   （オーナー 2026-11-07）。抜けるのは復習の上の ✕（途中なら「ここまでで N語」の画面）。reviewPage は下で定義。
   const showBottomNav =
-    !!profile && screen !== 'profile-select' && screen !== 'onboarding' && screen !== 'trial' && !(reviewWords && reviewAsPage);
+    !!profile && screen !== 'profile-select' && screen !== 'onboarding' && screen !== 'trial' && screen !== 'intro' && !(reviewWords && reviewAsPage);
   // プロフィール選択画面ではヘッダーのプロフィールチップを隠す（既存挙動）
   const headerProfile = screen === 'profile-select' ? null : profile;
 
@@ -106,13 +110,21 @@ function AppShell() {
   return (
     <>
       {/* オンボーディング中は全画面ウィザード（Duolingo風）にするためヘッダーを隠す */}
-      {screen !== 'onboarding' && screen !== 'trial' && (
+      {screen !== 'onboarding' && screen !== 'trial' && screen !== 'intro' && (
         <Header
           profile={headerProfile}
           wordCount={wordCount}
           onLogoClick={goHome}
           onSwitchProfile={PROFILE_SELECT_ENABLED ? switchProfile : null}
-          onAddDrama={() => setScreen('search')}
+          onAddDrama={() => {
+            // ＋ を一度でも押した端末では、ボタン案内の終わりに ＋ を光らせない（components/HomeTour.js）
+            try {
+              localStorage.setItem(TOUR_ADD_USED_KEY, '1');
+            } catch {
+              /* ignore */
+            }
+            setScreen('search');
+          }}
           onWordbook={openWordbook}
           onSettings={openSettings}
           onHelp={openTutorial}
@@ -133,6 +145,7 @@ function AppShell() {
             {screen === 'profile-select' && PROFILE_SELECT_ENABLED && <ProfileSelect />}
             {screen === 'onboarding' && <Onboarding />}
             {screen === 'trial' && <TrialFlow />}
+            {screen === 'intro' && <IntroCarousel mode="first" />}
             {screen === 'main' && <Dashboard />}
             {screen === 'recommend' && <RecommendScreen />}
             {screen === 'search' && <SearchScreen />}
@@ -154,7 +167,9 @@ function AppShell() {
       {prepLaunch && <PrepLaunch />}
       {prepWalk && <PrepWalkthrough />}
       {authOpen && <AuthModal />}
-      {tutorial && <WelcomeTutorial />}
+      {/* 「? 使い方」: スライド式の間はスライド（見直し用）、初回体験に戻している間は従来の使い方ガイド */}
+      {tutorial && (INTRO_ON ? <IntroCarousel mode="help" /> : <WelcomeTutorial />)}
+      {tour && screen === 'main' && !tutorial && <HomeTour />}
       {guideOpen && <ExtensionGuide />}
 
       <div

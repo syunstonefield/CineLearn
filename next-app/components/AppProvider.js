@@ -39,6 +39,7 @@ import { markTrialFinished, hasFinishedTrial } from '@/lib/trialState';
 import { wipeLearningData, forgetAccount, rememberAccount } from '@/lib/deviceAccount';
 import { firstRunScreen, startupAuth, trialSourceOf } from '@/lib/firstRun';
 import { isExtInstallEntry } from '@/lib/extEntry';
+import { INTRO_ON } from '@/lib/introTour';
 
 // app.js のグローバル状態（selectedDrama / selectedSeason 等）に相当する共有状態。
 // 画面間（ダッシュボード / サービス選択 / 単語リスト）で参照・更新する。
@@ -552,7 +553,8 @@ export default function AppProvider({ children }) {
   const [trialSource, setTrialSource] = useState('new');
   const startTrial = useCallback(({ source = 'new' } = {}) => {
     setTrialSource(source);
-    setScreen('trial');
+    // スライド式（既定・lib/introTour.js）の間は初回体験の代わりにスライドへ。NEXT_PUBLIC_FIRST_RUN=trial で初回体験に戻る。
+    setScreen(INTRO_ON ? 'intro' : 'trial');
   }, []);
   const finishTrial = useCallback(() => {
     markTrialFinished();
@@ -568,6 +570,24 @@ export default function AppProvider({ children }) {
     markOnboardedSeen();
     markTutorialSeen();
     setSettings((prev) => ({ ...prev, ...(patch || {}), onboarded: true }));
+  }, []);
+
+  // スライド式チュートリアル（components/IntroCarousel.js）とホームのボタン案内（components/HomeTour.js）・2026-11-10。
+  //   finishIntro: レベルを選んだ時。初めての流れを終えた印（体験と同じ cl_trial_done など）を付け、ホームへ入ってボタン案内を出す。
+  //   tour: null=閉 / { source:'intro'（初めての流れ）| 'help'（「? 使い方」から）}。ホームの上にだけ出す。
+  const [tour, setTour] = useState(null);
+  const startTour = useCallback((source = 'help') => {
+    setScreen('main');
+    setTour({ source });
+  }, []);
+  const endTour = useCallback(() => setTour(null), []);
+  const finishIntro = useCallback((patch) => {
+    markTrialFinished();
+    markOnboardedSeen();
+    markTutorialSeen();
+    setSettings((prev) => ({ ...prev, ...(patch || {}), onboarded: true }));
+    setScreen('main');
+    setTour({ source: 'intro' });
   }, []);
 
   // patch は関数でもよい（prev → 部分）。描画時点の settings から作った myDramas を丸ごと書き戻すと、
@@ -837,6 +857,8 @@ export default function AppProvider({ children }) {
   // オンボーディング直後は finishOnboarding が 'onboarding' を立てるので、ここはスキップされる。
   useEffect(() => {
     if (!mounted || !profile || screen !== 'main' || tutorial) return;
+    // スライド式の間は、今使っている人に自動では出さない（オーナー決定 D・「? 使い方」から見られる）。
+    if (INTRO_ON) return;
     try {
       if (localStorage.getItem('cl_tutorial_seen') === '1') return;
     } catch {
@@ -909,6 +931,10 @@ export default function AppProvider({ children }) {
     trialSource,
     startTrial,
     finishTrial,
+    finishIntro,
+    tour,
+    startTour,
+    endTour,
     markFirstRunDone,
     pendingAddDrama,
     setPendingAddDrama,

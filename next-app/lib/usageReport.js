@@ -59,6 +59,24 @@ export const TRIAL_STEPS = [
   ['trial_later_band', '次回の帯'],
 ];
 
+// ⑪ スライド式チュートリアルの流れ（2026-11-10〜・NEXT_PUBLIC_FIRST_RUN が trial の間は 0）。人数は intro_start に対する%。
+export const INTRO_STEPS = [
+  ['intro_start', 'ようこそ'],
+  ['intro_s2', '2枚目'],
+  ['intro_s3', '3枚目'],
+  ['intro_s4', '4枚目'],
+  ['intro_s5', '5枚目'],
+  ['intro_s6', '6枚目'],
+  ['intro_skip', 'スキップ'],
+  ['intro_guest', '登録せずに開始'],
+  ['intro_auth_click', 'ログイン・登録へ'],
+  ['intro_level', 'レベル'],
+  ['tour_start', '案内の開始'],
+  ['tour_skip', '案内をスキップ'],
+  ['tour_done', '案内を最後まで'],
+  ['tour_add', '案内から作品追加'],
+];
+
 // ⑩ 復習の流れ（2026-11-07〜・復習タブのカード）。答えの内訳と1枚の時間は割合で（集計にだけ使う＝法務）。
 export const REVIEW_ANSWERS = [
   ['review_ans_fail', '知らなかった'],
@@ -176,6 +194,7 @@ export function buildUsageReport(rawRows, { today, weeks = 8, excludePersons = [
   const onboarding = [];
   const entry = [];
   const trial = [];
+  const intro = [];
   const reviewFlow = [];
   for (const win of wins) {
     const rs = weekRows(rows, win);
@@ -241,6 +260,15 @@ export function buildUsageReport(rawRows, { today, weeks = 8, excludePersons = [
     }
     trial.push(tr);
 
+    // ⑪ スライド式チュートリアルの流れ（人数（ようこそに対する%）／回数）
+    const i0 = usersOf('intro_start').size;
+    const it = { 週: label };
+    for (const [k, name] of INTRO_STEPS) {
+      const u = usersOf(k).size;
+      it[name] = k === 'intro_start' ? `${u}人 / ${timesOf(k)}回` : `${u}人 ${pct(u, i0)} / ${timesOf(k)}回`;
+    }
+    intro.push(it);
+
     // ⑩ 復習の流れ（始めた回数に対する完了の%・抜けた回数／答えの内訳の%／1枚の時間の%）
     const started = timesOf('review_start');
     const exitsN = rs.reduce((n, r) => n + Object.entries(r.c).reduce((m, [k, v]) => (parseExitEvent(k)?.stage === 'review' ? m + v : m), 0), 0);
@@ -280,7 +308,7 @@ export function buildUsageReport(rawRows, { today, weeks = 8, excludePersons = [
     }
   }
   const joined = rows.filter((r) => r.joined).length;
-  return { plus, funnel, exits, review, onboarding, entry, trial, reviewFlow, newUsers: buildNewUsers(rows, wins, today), joinedRows: joined, staffExcluded: staff.excluded };
+  return { plus, funnel, exits, review, onboarding, entry, trial, intro, reviewFlow, newUsers: buildNewUsers(rows, wins, today), joinedRows: joined, staffExcluded: staff.excluded };
 }
 
 // ⑦ 新規の人（初めて開いた週ごと）。rows の中で最初に現れた日＝初めて開いた日。
@@ -375,6 +403,14 @@ export function usageHints(report, rawRows, { today, excludePersons = [], exclud
     lines.push(
       `直近の週の初回体験: 最初の画面 ${num('最初の画面')}人 → 作品 ${num('作品')} → 予習5枚 ${num('予習5枚')} → 完了画面 ${num('完了画面')} → 登録へ ${num('登録へ')}／あとで ${num('あとで')}`
     );
+  }
+  const iw = report.intro?.[0];
+  if (iw) {
+    const num = (name) => Number(String(iw[name] ?? '0').split('人')[0]) || 0;
+    if (num('ようこそ'))
+      lines.push(
+        `直近の週のスライド式: ようこそ ${num('ようこそ')}人 → 6枚目 ${num('6枚目')} → レベル ${num('レベル')} → 案内を最後まで ${num('案内を最後まで')}（案内から作品追加 ${num('案内から作品追加')}）`
+      );
   }
   if (report.staffExcluded?.rows) {
     const x = report.staffExcluded;

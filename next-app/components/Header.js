@@ -123,12 +123,12 @@ export default function Header({
         )}
         {/* 作品追加（ホームのツールバーから移設）。どの画面からでも届く常設導線。 */}
         {profile && onAddDrama && (
-          <button className="btn-header-icon btn-header-add" title="ドラマを追加" onClick={onAddDrama}>
+          <button className="btn-header-icon btn-header-add" title="ドラマを追加" data-tour="add" onClick={onAddDrama}>
             <IconPlus />
           </button>
         )}
         {/* 設定はボトムナビから上へ移した（オーナー 2026-10-08）＝どの幅でも常に出す */}
-        <button className="btn-header-icon" title="設定" aria-label="設定" onClick={onSettings}>
+        <button className="btn-header-icon" title="設定" aria-label="設定" data-tour="settings" onClick={onSettings}>
           <IconSettings />
         </button>
         {/* 単語帳はモバイルではボトムナビと重複するため隠す（PCのみ表示） */}
@@ -138,7 +138,7 @@ export default function Header({
         </button>
         {/* 使い方ガイド再表示。モバイルでもボトムナビに枠が無いのでヘッダーに常設する */}
         {profile && onHelp && (
-          <button className="btn-header-icon" title="使い方ガイド" onClick={onHelp}>
+          <button className="btn-header-icon" title="使い方ガイド" data-tour="help" onClick={onHelp}>
             <IconHelp />
           </button>
         )}
@@ -147,7 +147,7 @@ export default function Header({
             <IconLogout />
           </button>
         ) : (
-          <button className="btn-header-icon" title="ログイン（クラウド読込）" onClick={onAuth}>
+          <button className="btn-header-icon" title="ログイン（クラウド読込）" data-tour="login" onClick={onAuth}>
             <IconLogin />
           </button>
         )}

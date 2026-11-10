@@ -93,8 +93,9 @@ export default function BottomNav({ dueCount = 0, wordCount = 0 }) {
   const homeActive = !reviewActive && !wordbookActive && !collectionActive && !journeyActive && !settingsActive && screen === 'main';
 
   // badgeKind: 'urgent'（赤・要対応＝復習）/ 'count'（中立・在庫＝単語帳）
-  const tab = (active, onClick, icon, label, badge, badgeKind) => (
+  const tab = (active, onClick, icon, label, badge, badgeKind, tourKey) => (
     <button
+      data-tour={tourKey}
       className={'bottom-nav-tab' + (active ? ' is-active' : '')}
       onClick={onClick}
       aria-label={badge > 0 ? `${label}（${badge}）` : label}
@@ -115,12 +116,12 @@ export default function BottomNav({ dueCount = 0, wordCount = 0 }) {
   return (
     <nav className="bottom-nav" aria-label="メインナビゲーション">
       {/* 復習=最頻機能を親指が届く中ほどに配置（2026-07-03 実使用フィードバック#15）。あゆみは復習の後ろ（2026-10-08） */}
-      {tab(homeActive, goHome, <IconHome />, 'ホーム', 0)}
-      {tab(wordbookActive, openWordbook, <IconBook />, '単語帳', wordCount, 'count')}
-      {tab(reviewActive, onReview, <IconReview />, '復習', dueCount, 'urgent')}
-      {!journeyLocked && tab(journeyActive, openJourney, <IconJourney />, 'あゆみ', 0)}
+      {tab(homeActive, goHome, <IconHome />, 'ホーム', 0, undefined, 'home')}
+      {tab(wordbookActive, openWordbook, <IconBook />, '単語帳', wordCount, 'count', 'wordbook')}
+      {tab(reviewActive, onReview, <IconReview />, '復習', dueCount, 'urgent', 'review')}
+      {!journeyLocked && tab(journeyActive, openJourney, <IconJourney />, 'あゆみ', 0, undefined, 'journey')}
       {/* 「半券」→「コレクション」（オーナー 2026-10-31・ポスター表示も入ったため） */}
-      {tab(collectionActive, openCollection, <IconTicket />, 'コレクション', 0)}
+      {tab(collectionActive, openCollection, <IconTicket />, 'コレクション', 0, undefined, 'collection')}
     </nav>
   );
 }
