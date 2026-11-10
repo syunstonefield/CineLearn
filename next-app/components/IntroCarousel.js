@@ -232,11 +232,23 @@ export default function IntroCarousel({ mode = 'first' }) {
   useEffect(() => {
     const el = rootRef.current;
     if (!el) return undefined;
-    const onMove = (e) => {
-      if (el.scrollHeight <= el.clientHeight + 1) e.preventDefault();
+    // ★ 指が少しでも動くと touchmove が来る。その全部を止めると、iPhone ではタップ（押した）まで取り消される
+    //   （「押しても何も起きない」が交互に起きた・2026-11-10 深夜）。止めるのは、はっきり縦に引いた時（8px 超）だけ。
+    let startY = null;
+    const onStart = (e) => {
+      startY = e.touches?.[0]?.clientY ?? null;
     };
+    const onMove = (e) => {
+      if (startY == null || el.scrollHeight > el.clientHeight + 1) return;
+      const y = e.touches?.[0]?.clientY;
+      if (y != null && Math.abs(y - startY) > 8) e.preventDefault();
+    };
+    el.addEventListener('touchstart', onStart, { passive: true });
     el.addEventListener('touchmove', onMove, { passive: false });
-    return () => el.removeEventListener('touchmove', onMove);
+    return () => {
+      el.removeEventListener('touchstart', onStart);
+      el.removeEventListener('touchmove', onMove);
+    };
   }, [step]);
 
   // 初めての流れでログイン・新規登録したあと、まだこの画面に居る人（新規登録など）はレベルへ。
