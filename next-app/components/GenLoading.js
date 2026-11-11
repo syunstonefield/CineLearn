@@ -17,6 +17,18 @@ const LEARNING_TIPS = [
 
 const STEPS = ['字幕取得', '単語分析', '仕上げ'];
 
+// 待ち時間の目安（D・オーナー決定 2026-11-12）。共有キャッシュに当たれば数秒で終わる（最低 4.5秒のロビー）ので、
+//   それより長く待っている時だけ目安を出す＝当たった人には出ない。数字はオーナーの実測（映画 約80秒）に合わせる。
+//   ドラマの数字は実測が取れたら見直す（docs ではなくここが正）。
+export const ETA_SHOW_AFTER_SEC = 5;
+export function etaText(isMovie) {
+  return isMovie ? '新しく作る映画の単語リストは、1〜2分ほどかかります' : '新しく作る単語リストは、1分ほどかかります';
+}
+export function elapsedLabel(sec) {
+  const s = Math.max(0, Math.floor(sec));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
 // ステータス文言から進捗バーの下限%を決める（フェーズの目安。既存 genPhaseFloorOf）
 function genPhaseFloorOf(status) {
   if (status.includes('仕上げ')) return 90;
@@ -35,6 +47,7 @@ export default function GenLoading({ status, drama, season, episode, ready = fal
   // 進捗バー：実際の進捗は取得できない（AIの1リクエスト待ち）ため、
   // 経過時間で95%まで漸近させる。フェーズ変化で下限を引き上げて段階感を出す。
   const [progress, setProgress] = useState(0);
+  const [elapsed, setElapsed] = useState(0); // 経過秒（目安の表示用）
   const floorRef = useRef(genPhaseFloorOf(status));
   const startedAtRef = useRef(Date.now());
 
@@ -52,6 +65,7 @@ export default function GenLoading({ status, drama, season, episode, ready = fal
       const t = (Date.now() - startedAtRef.current) / 1000;
       const floor = floorRef.current;
       setProgress(Math.min(95, floor + (95 - floor) * (1 - Math.exp(-t / 12))));
+      setElapsed(t);
     }, 250);
     return () => clearInterval(timer);
   }, []);
@@ -113,6 +127,14 @@ export default function GenLoading({ status, drama, season, episode, ready = fal
         </div>
       </div>
 
+      {/* 待ち時間の目安と経過（キャッシュに当たらず長くかかっている時だけ） */}
+      {!ready && elapsed >= ETA_SHOW_AFTER_SEC && (
+        <div className="gen-eta" aria-live="polite">
+          {etaText(isMovie)}
+          <span className="gen-eta-time">（経過 {elapsedLabel(elapsed)}）</span>
+        </div>
+      )}
+
       {/* 進捗バー（経過時間で95%まで漸近。ready で100%＝ボタン待ち） */}
       <div className="gen-progress">
         <div className="gen-progress-fill" style={{ width: ready ? '100%' : `${progress.toFixed(1)}%` }}></div>
@@ -125,14 +147,18 @@ export default function GenLoading({ status, drama, season, episode, ready = fal
         </button>
       )}
 
-      {/* あらすじカード：16:9サムネイル（エピソードスチル優先→作品画像）＋本文の横並び。
-          画像は比率を保ったまま縮小表示（切り抜きなし）。無ければテキストのみ */}
+      {/* あらすじカード：画像＋本文の横並び。
+          ・エピソードスチル／映画のバックドロップ（横長）は 16:9 の枠に（同じ比率＝切り抜きなし）。
+          ・それが無くポスター（縦長）しか無い時は、縦の比率のまま小さく出す（16:9 に入れて上下を切らない・法務 2026-11-12）。
+          ・画像に文字・印・ぼかしを重ねない。大きさは PC 200px／スマホ 110px が上限。あらすじは TMDB の文をそのまま出す。 */}
       {(synopsis || drama?.posterPath) && (
         <div className="gen-synopsis-card" ref={cardRef}>
           <div className="gen-synopsis-row">
-            {(synopsis?.still || drama?.posterPath) && (
-              <img className="gen-cover-thumb" src={synopsis?.still || drama.posterPath} alt="" />
-            )}
+            {synopsis?.still ? (
+              <img className="gen-cover-thumb" src={synopsis.still} alt="" />
+            ) : drama?.posterPath ? (
+              <img className="gen-cover-poster" src={drama.posterPath} alt="" />
+            ) : null}
             <div className="gen-synopsis-inner">
               <div className="gen-synopsis-heading">📖 {heading}</div>
               {synopsis?.overview ? (

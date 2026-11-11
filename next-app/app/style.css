@@ -3441,6 +3441,17 @@ header {
   flex-shrink: 0;
   background: #26222e;
 }
+/* ポスター（縦長）しか無い時：縦の比率のまま小さく（切り抜かない・重ねない・法務 2026-11-12） */
+.gen-cover-poster {
+  width: 72px;
+  height: auto;
+  object-fit: contain;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+/* 待ち時間の目安（長くかかっている時だけ・GenLoading） */
+.gen-eta { font-size: 13px; line-height: 1.6; color: var(--text-muted); text-align: center; }
+.gen-eta-time { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .gen-synopsis-inner { flex: 1; min-width: 0; }
 .gen-synopsis-heading {
   font-size: 14px;
@@ -3499,6 +3510,7 @@ header {
      左に小さいサムネ＋右に本文の横並びを維持して、本文を初期表示に収める。 */
   .gen-synopsis-row { flex-direction: row; align-items: flex-start; gap: 12px; padding: 12px 14px; }
   .gen-cover-thumb { width: 110px; }
+  .gen-cover-poster { width: 56px; }
   .gen-synopsis-body { font-size: 13px; line-height: 1.7; }
 }
 
