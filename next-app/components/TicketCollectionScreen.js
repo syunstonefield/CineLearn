@@ -3,9 +3,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
 import { loadHistory, learningStatsByTitle, buildLibraryEntries } from '@/lib/storage';
-import { getStudySeconds, formatStudyTime } from '@/lib/studytime';
 import { loadFavorites, toggleFavorite } from '@/lib/favorites';
-import { fetchSeasons, getCachedSeasons, fullRangeLabel } from '@/lib/collection';
+import { fetchSeasons, getCachedSeasons } from '@/lib/collection';
 import TicketDetailView from './TicketDetailView';
 import TicketPoster from './TicketPoster';
 import { previewWorkRemoval, removeWork, undoWorkRemoval, UNDO_MS } from '@/lib/workRemovalStore';
@@ -19,15 +18,15 @@ import { FRAME_TIERS, frameTierOf, raiseFrameBest, loadFrameBest, saveFrameBest 
 // 映画は1回で完了・総話数が取れない作品は永遠に視聴中、と学習の実感と噛み合わなかった。
 const FILTERS = [
   ['all', 'すべて'],
-  ['fav', 'お気に入り'],
+  ['fav', '★ お気に入り'],
 ];
 
 // 表示の切り替え（半券／ポスター壁）。端末ごとの好みなので localStorage に置く（同期しない）。
 // 既定はポスター（オーナー 2026-11-10）。自分で選んだ端末はその選択のまま。
 const VIEW_KEY = 'cl_ticket_view';
 const VIEWS = [
-  ['ticket', '🎟 半券'],
   ['poster', '🖼 ポスター'],
+  ['ticket', '🎟 半券'],
 ];
 
 const POSTER_COLORS = ['#E50914', '#1A73E8', '#2E7D32', '#7B1FA2', '#E65100', '#00695C', '#AD1457'];
@@ -44,6 +43,7 @@ export default function TicketCollectionScreen() {
     wordbookVersion,
     collectionTabTick,
     bumpWordbook,
+    setScreen,
   } = useApp();
 
   const [favs, setFavs] = useState([]);
@@ -53,6 +53,7 @@ export default function TicketCollectionScreen() {
   const [view, setView] = useState('poster');
   const [frameBest, setFrameBest] = useState({}); // 作品タイトル → 届いた額縁の段階（上がるだけ）
   const [detailTitle, setDetailTitle] = useState(null); // 開いている作品詳細（タイトル）
+  const [framesOpen, setFramesOpen] = useState(false); // 「額縁について」のシート
   // 作品詳細で下の「コレクション」タブを押したら一覧へ（「‹」と同じ戻り方。一覧の表示中は何も起きない）。
   useEffect(() => {
     setDetailTitle(null);
@@ -94,6 +95,21 @@ export default function TicketCollectionScreen() {
     const t = setTimeout(() => setUndoBar(null), UNDO_MS);
     return () => clearTimeout(t);
   }, [undoBar]);
+  // 額縁のシートが出ている間は、うしろのスクロールと「引っ張って更新」を止める（入場のシートと同じ cl-sheet-lock）。
+  useLayoutEffect(() => {
+    if (!framesOpen) return undefined;
+    const root = document.documentElement;
+    root.classList.add('cl-sheet-lock');
+    return () => root.classList.remove('cl-sheet-lock');
+  }, [framesOpen]);
+  useEffect(() => {
+    if (!framesOpen) return undefined;
+    const onKey = (e) => {
+      if (e.key === 'Escape') setFramesOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [framesOpen]);
   const attemptedPosters = useRef(new Set()); // 重複fetch防止
   const [posterOverrides, setPosterOverrides] = useState({}); // title → posterPath（表示補完）
 
@@ -313,13 +329,12 @@ export default function TicketCollectionScreen() {
         // 旧実装は「単語リストを作った話数 / 総話数」＝観た量で、半券が讃える対象としては
         // 学習の実感と噛み合わなかった（2026-09-21 オーナー指摘）。観た量は TOTAL EPISODES 側が持つ。
         const progress = e.wordCount ? Math.round((e.learnedWords / e.wordCount) * 100) : null;
-        const range = fullRangeLabel(sj?.seasons, e.episodes);
         const isFav = favs.includes(e.title);
         // ポスター優先順位：解決済み override(w342縦) → myDramas → tmdb キャッシュ(w780)。
         // override はホームと同じ TMDB 検索結果＝表示を home と一致させる。
         const posterPath = posterOverrides[e.title] || e.posterPath || sj?.posterPath || null;
         const frame = FRAME_TIERS[frameTierOf(frameBest, e.title, progress)];
-        return { ...e, posterPath, total, progress, range, isFav, frame };
+        return { ...e, posterPath, total, progress, isFav, frame };
       }),
     [entries, seasonsMap, favs, posterOverrides, frameBest]
   );
@@ -348,12 +363,11 @@ export default function TicketCollectionScreen() {
     });
   }, [decorated, filter, sort]);
 
-  // 集計（帯）。
+  // 上の2行目の数字（○作品・単語リスト ○話・覚えた ○・マスター ○）。学習時間は測っていない人が多いので出さない（2026-11-12）。
   const dramaCount = decorated.length;
   const totalStudiedEps = decorated.reduce((a, e) => a + e.studiedEps, 0);
-  const studyTime = mounted ? formatStudyTime(getStudySeconds(profile?.id)) : '0分';
 
-  // 全作品合計の 覚えた/マスター（ヘッダ下の1行・2026-07-03 実使用フィードバック#11）。
+  // 全作品合計の 覚えた/マスター（2026-07-03 実使用フィードバック#11）。
   const srsTotals = useMemo(() => {
     if (!mounted) return { learned: 0, mastered: 0 };
     let learned = 0;
@@ -366,7 +380,7 @@ export default function TicketCollectionScreen() {
   }, [mounted, reviewVersion, cloudVersion, wordbookVersion]);
 
   const onFav = (title) => setFavs(toggleFavorite(profile?.id, title));
-  const fmtDate = (s) => (s || '').replace(/-/g, '.');
+  const fmtDate = (s) => (s || '').slice(0, 10).replace(/-/g, '.');
 
   // 作品詳細（Phase 2）：カードタップで開くサブ画面。お気に入り等と同期させるため
   // タイトルで decorated から引き直す（スナップショットにしない）。
@@ -413,205 +427,212 @@ export default function TicketCollectionScreen() {
       {overlays}
       <TicketDetailView
         entry={detailEntry}
-        seasons={
-          detailEntry.tmdbId
-            ? seasonsMap[detailEntry.tmdbId]
-            : detailEntry.isMovie
-            ? { total: 1, seasons: [] }
-            : null
-        }
         onBack={() => setDetailTitle(null)}
         onFav={onFav}
         onStudy={() => openDrama(detailEntry.drama)}
         onRemove={() => askRemove(detailEntry.title)}
-        profileId={profile?.id}
       />
       </>
     );
   }
 
+  const star = (e, cls) => (
+    <button
+      type="button"
+      className={cls + (e.isFav ? ' is-on' : '')}
+      onClick={(ev) => {
+        ev.stopPropagation();
+        onFav(e.title);
+      }}
+      aria-label={e.isFav ? `『${e.enTitle}』をお気に入りから外す` : `『${e.enTitle}』をお気に入りに入れる`}
+      aria-pressed={e.isFav}
+    >
+      {e.isFav ? '★' : '☆'}
+    </button>
+  );
+
+  // 額縁つきのポスター（コレクションの .tcp-item.frame-* と同じ・ポスターには何も重ねない＝法務）。
+  const framed = (e, i, cls, eager) => (
+    <span className={`tcp-item frame-${e.frame.key} ${cls}`}>
+      <span className="tcp-frame">
+        <span className="tcp-mat">
+          <TicketPoster
+            src={e.posterPath}
+            label={e.enTitle}
+            color={POSTER_COLORS[i % POSTER_COLORS.length]}
+            eager={eager}
+            className="tcp-poster"
+            showTitle
+          />
+        </span>
+      </span>
+    </span>
+  );
+
   return (
     <div className="screen active" id="screen-collection">
       {overlays}
-      <div className="tc-screen">
-        <div className="tc-head">
-          <h1 className="tc-h1">🎟 コレクション</h1>
-          <p className="tc-sub">あなたが学習したドラマの記録です</p>
-          {srsTotals.learned + srsTotals.mastered > 0 && (
-            <p className="tc-substats">
-              📗 覚えた {srsTotals.learned} ・ ⭐ マスター {srsTotals.mastered}
+      <div className="screen-inner cl-screen">
+        <div className="cl-head">
+          <h1 className="screen-title">コレクション</h1>
+          <p className="cl-lead">学習した作品の記録です。</p>
+          {dramaCount > 0 && (
+            <p className="cl-sum">
+              <b>{dramaCount}</b>作品・単語リスト <b>{totalStudiedEps}</b>話・覚えた <b>{srsTotals.learned}</b>・マスター{' '}
+              <b>{srsTotals.mastered}</b>
             </p>
           )}
         </div>
 
-        <div className="tc-stats">
-          <div className="tc-stat">
-            <div className="tc-stat-label">コレクション数</div>
-            <div className="tc-stat-num">{dramaCount}</div>
-            <div className="tc-stat-unit">作品</div>
-          </div>
-          <div className="tc-stat">
-            <div className="tc-stat-label">視聴エピソード</div>
-            <div className="tc-stat-num">{totalStudiedEps}</div>
-            <div className="tc-stat-unit">エピソード</div>
-          </div>
-          <div className="tc-stat">
-            <div className="tc-stat-label">学習時間</div>
-            <div className="tc-stat-num">{studyTime}</div>
-            <div className="tc-stat-unit">&nbsp;</div>
-          </div>
-        </div>
-
-        <div className="tc-tabs" role="tablist">
-          {FILTERS.map(([k, label]) => (
-            <button
-              key={k}
-              type="button"
-              className={'tc-tab' + (filter === k ? ' is-active' : '')}
-              onClick={() => setFilter(k)}
-            >
-              {label}
+        {dramaCount === 0 ? (
+          // 0件：額縁の説明は出さない・「作品を探す」で検索画面へ（2026-11-12）。
+          <div className="cl-empty">
+            <p className="cl-empty-title">まだ作品がありません</p>
+            <p className="cl-empty-sub">
+              作品を選んで単語リストを作ると、
+              <br />
+              ここに学習の記録が並びます。
+            </p>
+            <button type="button" className="btn-primary cl-empty-btn" onClick={() => setScreen('search')}>
+              作品を探す
             </button>
-          ))}
-        </div>
-
-        <div className="tc-sortrow">
-          <div className="tc-view" role="group" aria-label="表示の切り替え">
-            {VIEWS.map(([k, label]) => (
-              <button
-                key={k}
-                type="button"
-                className={'tc-view-btn' + (view === k ? ' is-active' : '')}
-                aria-pressed={view === k}
-                onClick={() => changeView(k)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <label className="tc-sort">
-            並び替え：
-            <select value={sort} onChange={(e) => setSort(e.target.value)}>
-              <option value="added">追加日</option>
-              <option value="progress">達成度</option>
-              <option value="name">名前</option>
-            </select>
-          </label>
-        </div>
-
-        <p className="tc-frame-legend">
-          <span className="tc-frame-legend-label">額縁</span>
-          {FRAME_TIERS.slice(1).map((t) => (
-            <span key={t.key} className={'tc-frame-chip frame-' + t.key}>
-              {t.label} {t.min}%
-            </span>
-          ))}
-        </p>
-        <p className="tc-frame-note">覚えた語の割合で変わります。一度届いた額縁は戻りません。</p>
-
-        {list.length === 0 ? (
-          <div className="tc-empty">
-            <div className="tc-empty-icon" aria-hidden="true">🎟</div>
-            <div className="tc-empty-title">
-              {filter === 'all' ? 'まだコレクションがありません' : '該当する作品がありません'}
-            </div>
-            <div className="tc-empty-sub">
-              作品を予習・学習すると、ここに「観たドラマの記録」が半券として貯まります。
-            </div>
-          </div>
-        ) : view === 'poster' ? (
-          <div className="tcp-wall">
-            {list.map((e, i) => (
-              <button
-                key={e.title}
-                type="button"
-                className={'tcp-item frame-' + e.frame.key}
-                onClick={() => openDetail(e.title)}
-                aria-label={`${e.enTitle}（${e.frame.label}の額縁${e.progress != null ? `・覚えた ${e.progress}%` : ''}）`}
-                title={e.enTitle}
-              >
-                <span className="tcp-frame">
-                  <span className="tcp-mat">
-                    <TicketPoster
-                      src={e.posterPath}
-                      label={e.enTitle}
-                      color={POSTER_COLORS[i % POSTER_COLORS.length]}
-                      eager={i < 9}
-                      className="tcp-poster"
-                      showTitle
-                    />
-                  </span>
-                </span>
-                {e.isFav && (
-                  <span className="tcp-fav" aria-hidden="true">
-                    ★
-                  </span>
-                )}
-              </button>
-            ))}
           </div>
         ) : (
-          <div className="tc-list">
-            {list.map((e, i) => (
-              <div
-                key={e.title}
-                className={'tcimg-card frame-' + e.frame.key}
-                role="button"
-                tabIndex={0}
-                onClick={() => openDetail(e.title)}
-                onKeyDown={(ev) => {
-                  if (ev.key === 'Enter' || ev.key === ' ') {
-                    ev.preventDefault();
-                    openDetail(e.title);
-                  }
-                }}
-              >
-                {/* 額縁（達成度で黒縁→銀縁→金縁。標準は描かない）。ポスタースロットの外側に一回り大きく敷く */}
-                <span className="tcimg-ring" aria-hidden="true" />
-                {/* 左の暗部にポスターを重ねる（無ければ頭文字・読み込み失敗もフォールバック） */}
-                <TicketPoster
-                  src={e.posterPath}
-                  label={e.enTitle}
-                  color={POSTER_COLORS[i % POSTER_COLORS.length]}
-                  eager={i < 4}
-                />
-
-                {/* 本体（ADMIT ONE はテンプレ画像に焼かれている） */}
-                <div className="tcimg-body">
-                  <div className="tcimg-title">{e.enTitle}</div>
-                  {e.jaTitle && <div className="tcimg-ja">{e.jaTitle}</div>}
-                  {e.range && <div className="tcimg-range">{e.range}</div>}
-                  <div className="tcimg-date">追加日：{fmtDate(e.addedDate)}</div>
-                </div>
-
-                {/* 右スタブ：数字だけ重ねる（ラベルは画像） */}
-                <div className="tcimg-eps" aria-hidden="true">{e.total != null ? e.total : '—'}</div>
-                <div
-                  className={'tcimg-prog' + (e.progress != null && e.progress < 100 ? ' is-partial' : '')}
-                  aria-hidden="true"
-                >
-                  {e.progress != null ? `${e.progress}%` : '—'}
-                </div>
-
-                {/* お気に入り（画像の★位置に重ねてトグル） */}
-                <button
-                  type="button"
-                  className={'tcimg-fav' + (e.isFav ? ' is-on' : '')}
-                  onClick={(ev) => {
-                    ev.stopPropagation();
-                    onFav(e.title);
-                  }}
-                  aria-label={e.isFav ? 'お気に入りから外す' : 'お気に入りに追加'}
-                  aria-pressed={e.isFav}
-                >
-                  {e.isFav ? '★' : '☆'}
-                </button>
+          <>
+            <div className="cl-bar">
+              <div className="cl-chips" role="group" aria-label="絞り込み">
+                {FILTERS.map(([k, label]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    className={'cl-chip' + (filter === k ? ' is-on' : '')}
+                    aria-pressed={filter === k}
+                    onClick={() => setFilter(k)}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
+              <div className="cl-view" role="group" aria-label="表示の切り替え">
+                {VIEWS.map(([k, label]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    className={'cl-view-btn' + (view === k ? ' is-on' : '')}
+                    aria-pressed={view === k}
+                    onClick={() => changeView(k)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="cl-bar2">
+              <button type="button" className="cl-frames-link" onClick={() => setFramesOpen(true)}>
+                額縁について
+              </button>
+              <label className="cl-sort">
+                並び
+                <select value={sort} onChange={(e) => setSort(e.target.value)}>
+                  <option value="added">はじめた日</option>
+                  <option value="progress">達成度</option>
+                  <option value="name">名前</option>
+                </select>
+              </label>
+            </div>
 
+            {list.length === 0 ? (
+              <p className="cl-fav-empty">★ を付けた作品が、ここに並びます。</p>
+            ) : view === 'poster' ? (
+              <div className="cl-wall">
+                {list.map((e, i) => (
+                  <div className="cl-cell" key={e.title}>
+                    <button
+                      type="button"
+                      className="cl-cell-open"
+                      onClick={() => openDetail(e.title)}
+                      aria-label={`${e.enTitle}（${e.frame.label}の額縁${e.progress != null ? `・達成度 ${e.progress}%` : ''}）`}
+                    >
+                      {framed(e, i, 'cl-cell-ps', i < 9)}
+                    </button>
+                    <div className="cl-cap">
+                      <button type="button" className="cl-cap-name" onClick={() => openDetail(e.title)} tabIndex={-1}>
+                        {e.enTitle}
+                      </button>
+                      {e.progress != null && <span className="cl-cap-pct">{e.progress}%</span>}
+                      {star(e, 'cl-star')}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="cl-tickets">
+                {list.map((e, i) => (
+                  <div
+                    key={e.title}
+                    className="cl-tkt"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => openDetail(e.title)}
+                    onKeyDown={(ev) => {
+                      if (ev.key === 'Enter' || ev.key === ' ') {
+                        ev.preventDefault();
+                        openDetail(e.title);
+                      }
+                    }}
+                    aria-label={`${e.enTitle}の詳細`}
+                  >
+                    {framed(e, i, 'cl-tkt-ps', i < 4)}
+                    <div className="cl-tkt-body">
+                      <span className="cl-tkt-kicker">ADMIT ONE</span>
+                      <span className="cl-tkt-title">{e.enTitle}</span>
+                      <span className="cl-tkt-meta">
+                        単語リスト {e.studiedEps}話{e.addedDate ? `・${fmtDate(e.addedDate)}〜` : ''}
+                      </span>
+                    </div>
+                    <div className="cl-tkt-stub">
+                      <span className="cl-tkt-stub-label">達成度</span>
+                      <span className="cl-tkt-stub-num">{e.progress != null ? `${e.progress}%` : '—'}</span>
+                    </div>
+                    {star(e, 'cl-star cl-tkt-star')}
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
       </div>
+
+      {/* 額縁について（押した時だけ・スマホは下から・PC は真ん中） */}
+      {framesOpen && (
+        <div className="cl-sheet-shade" onClick={() => setFramesOpen(false)}>
+          <div className="cl-sheet" role="dialog" aria-modal="true" aria-labelledby="cl-frames-title" onClick={(ev) => ev.stopPropagation()}>
+            <div className="cl-sheet-head">
+              <h2 id="cl-frames-title">額縁について</h2>
+              <button type="button" className="cl-sheet-x" onClick={() => setFramesOpen(false)} aria-label="閉じる">
+                ✕
+              </button>
+            </div>
+            <div className="cl-frames">
+              {FRAME_TIERS.slice(1).map((t) => (
+                <div className="cl-frames-item" key={t.key}>
+                  <span className={`tcp-item frame-${t.key}`}>
+                    <span className="tcp-frame">
+                      <span className="tcp-mat">
+                        <span className="cl-frames-blank" />
+                      </span>
+                    </span>
+                  </span>
+                  <span className="cl-frames-label">
+                    {t.label} {t.min}%
+                  </span>
+                </div>
+              ))}
+            </div>
+            <p className="cl-frames-note">覚えた語の割合で変わります。一度届いた額縁は戻りません。</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

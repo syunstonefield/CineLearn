@@ -2,21 +2,24 @@
 
 import { useEffect, useMemo } from 'react';
 import { loadHistory } from '@/lib/storage';
-import { getDramaStudySeconds, formatStudyTime } from '@/lib/studytime';
+import { FRAME_TIERS } from '@/lib/ticketFrame';
 import { useApp } from './AppProvider';
 import TicketPoster from './TicketPoster';
 
-// 半券の詳細ページ（Phase 2）。コレクション一覧のカードをタップで開くサブ画面。
-// 学習履歴＋TMDB（seasons キャッシュ）から、作品単位の学習記録を見せる。
-// データは捏造しない：episode タイトルは未保持のため SxE＋学習日で表現する。
-export default function TicketDetailView({ entry, seasons, onBack, onFav, onStudy, onRemove, profileId }) {
+// コレクションの作品の詳細（2026-11-12 作り替え・reports/collection-ui-current-2026-11-10/mock.html）。
+// ・学習した話だけを並べる（「学習エピソード 4 / 140」やシーズン別の「0 / 16」の行はやめた＝未達を見せる分母を出さない）。
+// ・学習の記録＝単語リスト○話／覚えた○語／マスター○語＋達成度の線（30・60・90% に額縁の目印。「あと○語」は出さない）。
+// ・入口は上の「続きから学習（SxEy）」と、話ごとの行。学習時間は出さない（測っていない人が多い）。
+// ・「コレクションから消去」の決まりはそのまま（確認画面・8秒の取り消し＝TicketCollectionScreen）。
+// データは捏造しない：話の題は持っていないので SxEy＋学習した日で表す。
+export default function TicketDetailView({ entry, onBack, onFav, onStudy, onRemove }) {
   // 詳細を開いたら常に一番上から表示（一覧でスクロールした位置を引き継がない）。
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
 
-  // エピソードごとの「単語リスト」へ飛ぶ（既存の VocabScreen＝screen='vocab' を再利用）。
-  const { setDrama, setSeason, setEpisode, setScreen } = useApp();
+  // 話ごとの「単語リスト」へ飛ぶ（既存の VocabScreen＝screen='vocab' を再利用）。
+  const { setDrama, setSeason, setEpisode, setScreen, settings } = useApp();
   const openWordList = (s, e) => {
     setDrama(entry.drama);
     setSeason(s);
@@ -24,89 +27,65 @@ export default function TicketDetailView({ entry, seasons, onBack, onFav, onStud
     setScreen('vocab');
   };
 
-  // 履歴からこのドラマの「学習したエピソード」を集める（season-episode で重複排除・最新日を採用）。
-  const { eps } = useMemo(() => {
+  // 履歴からこの作品の「学習した話」を集める（season-episode で重複排除・最新日を採用）。新しい日が上。
+  const eps = useMemo(() => {
     const hist = loadHistory().filter((h) => h.drama?.title === entry.title && h.words?.length);
     const byEp = new Map();
     hist.forEach((h) => {
       const key = `${h.season}-${h.episode}`;
       const d = h.date || '';
       const prev = byEp.get(key);
-      if (!prev || d > prev.date) byEp.set(key, { season: h.season, episode: h.episode, date: d, score: h.quizScore });
+      if (!prev || d > prev.date) byEp.set(key, { season: h.season, episode: h.episode, date: d });
     });
-    const eps = [...byEp.values()].sort((a, b) => a.season - b.season || a.episode - b.episode);
-    return { eps };
+    return [...byEp.values()].sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.season - a.season || b.episode - a.episode);
   }, [entry.title]);
 
-  // シーズン別: 学習済み話数 / 総話数（TMDB）。
-  const seasonRows = useMemo(() => {
-    const studiedBySeason = {};
-    eps.forEach((e) => {
-      (studiedBySeason[e.season] = studiedBySeason[e.season] || new Set()).add(e.episode);
-    });
-    return (seasons?.seasons || []).map((s) => ({
-      season: s.season,
-      total: s.episodes,
-      studied: studiedBySeason[s.season] ? studiedBySeason[s.season].size : 0,
-    }));
-  }, [eps, seasons]);
+  // 「続きから学習」の話＝この作品で最後に開いた話（myDramas の lastSeason/lastEpisode・openDrama が復元する）。
+  //   記憶が無ければ一番新しく学習した話。映画は話の番号を出さない。
+  const saved = (settings.myDramas || []).find((d) => d.title === entry.title);
+  const resume = saved?.lastSeason && saved?.lastEpisode ? { season: saved.lastSeason, episode: saved.lastEpisode } : eps[0] || null;
+  const resumeLabel = !entry.isMovie && resume ? `続きから学習（S${resume.season}E${resume.episode}）` : '続きから学習';
 
-  const total = entry.total;
   const progress = entry.progress;
-  const studyTime = formatStudyTime(getDramaStudySeconds(profileId, entry.title));
-  const fmtDate = (s) => (s || '').replace(/-/g, '.');
-  const years = seasons?.firstYear
-    ? seasons.lastYear && seasons.lastYear !== seasons.firstYear
-      ? `${seasons.firstYear} - ${seasons.lastYear}`
-      : seasons.firstYear
-    : '';
+  const fmtDate = (s) => (s || '').slice(0, 10).replace(/-/g, '.');
 
   return (
     <div className="screen active" id="screen-collection-detail">
-      <div className="td-screen">
-        <div className="td-header">
-          <button className="td-back" onClick={onBack} aria-label="コレクションへ戻る">
-            ‹
-          </button>
-          <span className="td-htitle">コレクションの詳細</span>
-          <span className="td-hspacer" />
+      <div className="screen-inner cl-screen cld">
+        <button type="button" className="btn-back cld-back" onClick={onBack}>
+          ← コレクション
+        </button>
+
+        <div className="cld-head">
+          <span className={`tcp-item frame-${entry.frame.key} cld-ps`}>
+            <span className="tcp-frame">
+              <span className="tcp-mat">
+                <TicketPoster src={entry.posterPath} label={entry.enTitle} color="#7B1FA2" eager className="tcp-poster" showTitle />
+              </span>
+            </span>
+          </span>
+          <div className="cld-head-tx">
+            <h1 className="cld-title">{entry.enTitle}</h1>
+            {entry.jaTitle && <p className="cld-ja">{entry.jaTitle}</p>}
+            <p className="cld-meta">
+              {entry.isMovie ? '映画' : `単語リスト ${entry.studiedEps}話`}
+              {entry.addedDate ? `　はじめた日 ${fmtDate(entry.addedDate)}` : ''}
+            </p>
+          </div>
         </div>
 
-        {/* ヒーロー：チケット（画像テンプレを大きく） */}
-        <div className="tcimg-card td-hero">
-          <TicketPoster src={entry.posterPath} label={entry.enTitle} color="#7B1FA2" eager />
-          <div className="tcimg-body">
-            <div className="tcimg-title">{entry.enTitle}</div>
-            {entry.jaTitle && <div className="tcimg-ja">{entry.jaTitle}</div>}
-            {entry.range && <div className="tcimg-range">{entry.range}</div>}
-            <div className="tcimg-date">{[entry.genre, years].filter(Boolean).join(' ・ ')}</div>
-          </div>
-          <div className="tcimg-eps" aria-hidden="true">{total != null ? total : '—'}</div>
-          <div
-            className={'tcimg-prog' + (progress != null && progress < 100 ? ' is-partial' : '')}
-            aria-hidden="true"
-          >
-            {progress != null ? `${progress}%` : '—'}
-          </div>
+        <div className="cld-row2">
           <button
             type="button"
-            className={'tcimg-fav' + (entry.isFav ? ' is-on' : '')}
+            className={'cld-btn2' + (entry.isFav ? ' is-on' : '')}
             onClick={() => onFav(entry.title)}
-            aria-label={entry.isFav ? 'お気に入りから外す' : 'お気に入りに追加'}
             aria-pressed={entry.isFav}
           >
-            {entry.isFav ? '★' : '☆'}
-          </button>
-        </div>
-
-        {/* アクション行 */}
-        <div className="td-actions">
-          <button type="button" className={'td-action' + (entry.isFav ? ' is-on' : '')} onClick={() => onFav(entry.title)}>
-            {entry.isFav ? '★' : '☆'} お気に入り
+            {entry.isFav ? '★ お気に入り' : '☆ お気に入りに入れる'}
           </button>
           {entry.tmdbId && (
             <a
-              className="td-action"
+              className="cld-btn2"
               href={`https://www.themoviedb.org/${entry.isMovie ? 'movie' : 'tv'}/${entry.tmdbId}`}
               target="_blank"
               rel="noopener noreferrer"
@@ -116,104 +95,67 @@ export default function TicketDetailView({ entry, seasons, onBack, onFav, onStud
           )}
         </div>
 
-        {/* 学習の記録 */}
-        <section className="td-sec">
-          <h2 className="td-sec-title">学習の記録</h2>
-          <div className="td-stats">
-            <div className="td-stat">
-              <div className="td-stat-label">学習エピソード</div>
-              <div className="td-stat-num">
-                {entry.studiedEps}
-                {total != null && <span className="td-stat-sub"> / {total}</span>}
-              </div>
+        <button type="button" className="btn-primary cld-go" onClick={onStudy}>
+          {resumeLabel}
+        </button>
+
+        <section className="cld-card">
+          <h2 className="cld-card-title">学習の記録</h2>
+          <div className="cld-cells">
+            <div className="cld-cell">
+              <small>単語リスト</small>
+              <b>{entry.studiedEps}</b>
+              <i>話</i>
             </div>
-            <div className="td-stat">
-              <div className="td-stat-label">覚えた</div>
-              <div className="td-stat-num">
-                {entry.learnedWords ?? 0}
-                <span className="td-stat-sub"> / {entry.wordCount}語</span>
-              </div>
+            <div className="cld-cell">
+              <small>覚えた</small>
+              <b>{entry.learnedWords ?? 0}</b>
+              <i>語</i>
             </div>
-            <div className="td-stat">
-              <div className="td-stat-label">マスター</div>
-              <div className="td-stat-num">
-                {entry.masteredWords ?? 0}
-                <span className="td-stat-sub"> 語</span>
-              </div>
-            </div>
-            <div className="td-stat">
-              <div className="td-stat-label">学習時間</div>
-              <div className="td-stat-num">{studyTime}</div>
+            <div className="cld-cell">
+              <small>マスター</small>
+              <b>{entry.masteredWords ?? 0}</b>
+              <i>語</i>
             </div>
           </div>
           {progress != null && (
-            <div className="td-progress-row">
-              <div className="td-progress-bar">
-                <span style={{ width: `${progress}%` }} />
+            <div className="cld-ach">
+              <p className="cld-ach-text">
+                達成度 {progress}%（集めた {entry.wordCount}語のうち、覚えた {entry.learnedWords ?? 0}語）
+              </p>
+              <div className="cld-track" role="img" aria-label={`達成度 ${progress}%`}>
+                <span className="cld-track-fill" style={{ width: `${progress}%` }} />
+                {FRAME_TIERS.slice(1).map((t) => (
+                  <span key={t.key} className={`cld-mark mark-${t.key}`} style={{ left: `${t.min}%` }} data-l={t.label} />
+                ))}
               </div>
-              <span className="td-progress-pct">覚えた率 {progress}%</span>
-              {progress >= 100 && <span className="td-done-badge">全語制覇</span>}
             </div>
           )}
         </section>
 
-        {/* シーズン別の進捗 */}
-        {seasonRows.length > 0 && (
-          <section className="td-sec">
-            <h2 className="td-sec-title">シーズン別の進捗</h2>
-            <div className="td-seasons">
-              {seasonRows.map((s) => {
-                const pct = s.total ? Math.min(100, Math.round((s.studied / s.total) * 100)) : 0;
-                return (
-                  <div className="td-season" key={s.season}>
-                    <span className="td-season-name">シーズン{s.season}</span>
-                    <span className="td-season-count">
-                      {s.studied} / {s.total}
-                    </span>
-                    <span className="td-season-bar">
-                      <span style={{ width: `${pct}%` }} />
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        )}
-
-        {/* エピソード別の単語リスト（各行タップで そのエピソードの単語リスト画面へ） */}
         {eps.length > 0 && (
-          <section className="td-sec">
-            <h2 className="td-sec-title">エピソード別の単語リスト</h2>
-            <div className="td-eps">
+          <section className="cld-card">
+            <h2 className="cld-card-title">話ごとの単語リスト</h2>
+            <div className="cld-eps">
               {eps.map((e) => (
                 <button
                   type="button"
-                  className="td-ep td-ep-link"
+                  className="cld-ep"
                   key={`${e.season}-${e.episode}`}
                   onClick={() => openWordList(e.season, e.episode)}
                 >
-                  <span className="td-ep-se">
-                    S{e.season}E{e.episode}
-                  </span>
-                  <span className="td-ep-date">学習日：{fmtDate(e.date)}</span>
-                  {e.score != null && <span className="td-ep-score">{e.score}点</span>}
-                  <span className="td-ep-go" aria-hidden="true">
-                    ›
-                  </span>
+                  <b>{entry.isMovie ? '映画' : `S${e.season}E${e.episode}`}</b>
+                  <span>学習した日 {fmtDate(e.date)}</span>
+                  <em aria-hidden="true">›</em>
                 </button>
               ))}
             </div>
           </section>
         )}
 
-
-        {/* CTA */}
-        <button type="button" className="td-cta" onClick={onStudy}>
-          📖 単語リスト
-        </button>
         {/* コレクションから消去（オーナー 2026-11-07・確認画面で何が消えて何が残るかを件数で出す） */}
         {onRemove && (
-          <button type="button" className="td-remove" onClick={onRemove}>
+          <button type="button" className="cld-del" onClick={onRemove}>
             コレクションから消去
           </button>
         )}

@@ -5403,53 +5403,14 @@ html.cl-sheet-lock body { overflow: hidden; overscroll-behavior: none; }
 }
 
 /* ── 半券コレクション画面（ボトムナビ「半券」タブ＝screen='collection'） ───── */
-.tc-screen {
-  max-width: 680px;
-  margin: 0 auto;
-  padding: 16px 16px 24px;
-}
-@media (max-width: 768px) {
-  .tc-screen { padding-left: 12px; padding-right: 12px; } /* 半券を画面幅いっぱいに（2026-10-31） */
-}
-.tc-head { margin-bottom: 14px; }
-.tc-h1 { font-size: 22px; font-weight: 800; margin: 4px 0; }
-.tc-sub { font-size: 13px; color: var(--text-muted); }
 
 /* stats 帯（3指標・罫線で区切る） */
-.tc-stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1px;
-  background: var(--border);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  overflow: hidden;
-  margin-bottom: 16px;
-}
-.tc-stat { background: var(--surface); padding: 14px 6px; text-align: center; }
-.tc-stat-label { font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
-.tc-stat-num { font-size: 24px; font-weight: 800; color: var(--accent); line-height: 1.1; }
-.tc-stat-unit { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
 
 /* フィルタタブ */
-.tc-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: 10px; }
-.tc-tab {
-  flex: 1; padding: 10px 4px; font-size: 13px; font-weight: 600;
-  color: var(--text-muted); background: none; border: none; cursor: pointer;
-  border-bottom: 2px solid transparent; margin-bottom: -1px;
-}
-.tc-tab.is-active { color: var(--accent); border-bottom-color: var(--accent); }
 
 /* ソート */
-.tc-sortrow { display: flex; justify-content: flex-end; margin-bottom: 12px; }
-.tc-sort { font-size: 12px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 4px; }
-.tc-sort select {
-  font: inherit; font-size: 12px; color: var(--text);
-  background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 4px 8px;
-}
 
 /* カードリスト（コンパクトに中央寄せ） */
-.tc-list { display: flex; flex-direction: column; align-items: center; gap: 12px; }
 
 /* チケット型カード：public/collection-ticket.webp（原本 PNG は design-src/）をテンプレ背景にして動的データを重ねる（PrepLaunch方式）。
    テキストは cqw（カード幅基準）でスケール。位置%はテンプレ画像に合わせて微調整（TUNE）。 */
@@ -5522,28 +5483,8 @@ html.cl-sheet-lock body { overflow: hidden; overscroll-behavior: none; }
 }
 
 /* 表示の切り替え（半券／ポスター壁）と、ソート行の左に置く */
-.tc-sortrow { justify-content: space-between; align-items: center; gap: 8px; }
-.tc-view { display: inline-flex; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 2px; }
-.tc-view-btn {
-  font: inherit; font-size: 12px; font-weight: 600; color: var(--text-muted);
-  background: none; border: none; border-radius: 999px; padding: 5px 12px; cursor: pointer;
-}
-.tc-view-btn.is-active { background: var(--accent); color: #fff; }
 
 /* 額縁の凡例 */
-.tc-frame-legend {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px;
-  font-size: 11px; color: var(--text-muted); margin: -2px 0 2px;
-}
-.tc-frame-legend-label { font-weight: 700; color: var(--text); }
-.tc-frame-chip { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
-.tc-frame-chip::before {
-  content: ''; width: 10px; height: 10px; border-radius: 2px; display: inline-block;
-}
-.tc-frame-chip.frame-black::before { background: #141414; }
-.tc-frame-chip.frame-silver::before { background: linear-gradient(135deg, #f4f4f4, #9a9a9a 45%, #e2e2e2 60%, #8a8a8a); }
-.tc-frame-chip.frame-gold::before { background: linear-gradient(135deg, #fff1b8, #c9962b 45%, #f3d374 60%, #a8741a); }
-.tc-frame-note { font-size: 11px; color: var(--text-muted); margin: 0 0 14px; }
 
 /* 半券の額縁：ポスタースロットの外側に一回り大きく敷く（標準は描かない） */
 .tcimg-ring {
@@ -5608,101 +5549,154 @@ html.cl-sheet-lock body { overflow: hidden; overscroll-behavior: none; }
 }
 
 /* 空状態 */
-.tc-empty { text-align: center; padding: 48px 20px; color: var(--text-muted); }
-.tc-empty-icon { font-size: 40px; margin-bottom: 12px; }
-.tc-empty-title { font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
-.tc-empty-sub { font-size: 13px; line-height: 1.7; max-width: 300px; margin: 0 auto; }
 
-/* ── 半券の詳細ページ（Phase 2） ───────────────────────────── */
-.td-screen { max-width: 680px; margin: 0 auto; padding: 8px 16px 28px; }
-.td-header { display: flex; align-items: center; justify-content: space-between; padding: 6px 0 12px; }
-.td-back { font-size: 26px; line-height: 1; color: var(--text); background: none; border: none; cursor: pointer; width: 32px; text-align: left; }
-.td-htitle { font-size: 16px; font-weight: 700; }
-.td-hspacer { width: 32px; }
-
-/* ヒーローチケット（一覧より大きく＝全幅・中央寄せ解除） */
-.td-hero { max-width: 100%; margin: 0 0 16px; }
-
-/* アクション行 */
-.td-actions { display: flex; gap: 10px; margin-bottom: 22px; }
-.td-action {
-  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  padding: 11px 8px; font-size: 13px; font-weight: 600; text-decoration: none;
-  color: var(--text); background: var(--surface); border: 1px solid var(--border);
-  border-radius: 12px; cursor: pointer;
+/* ── コレクション（2026-11-12 作り替え・components/TicketCollectionScreen.js / TicketDetailView.js）──────────
+   見本 reports/collection-ui-current-2026-11-10/mock.html。見た目は単語リスト・検索画面・あゆみとそろえる
+   （白い札・細い枠・角 12px・作品名は茶色・主ボタンは .btn-primary）。額縁は .tcp-item.frame-*（画像の外側の枠・
+   ポスターには何も重ねない＝法務）。ポスターは1枚 画面幅の40%以下・PC は160px 以下。 */
+.cl-screen { gap: 0; max-width: 760px; padding-bottom: 40px; }
+.cl-head .screen-title { margin: 0; }
+.cl-lead { margin: 6px 0 0; font-size: 13px; color: var(--text-muted); }
+.cl-sum { margin: 4px 0 0; font-size: 13px; color: var(--text-soft); }
+.cl-sum b { color: var(--text); font-weight: 700; }
+.cl-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-top: 18px; }
+.cl-chips { flex-wrap: nowrap; }
+.cl-chips { display: flex; gap: 6px; }
+.cl-chip {
+  border: 1px solid var(--border); background: var(--surface); color: var(--text-soft);
+  border-radius: 999px; padding: 6px 12px; font-size: 12.5px; font-family: inherit; cursor: pointer; white-space: nowrap;
 }
-.td-action.is-on { color: #c98a00; border-color: color-mix(in srgb, #f5b301 40%, var(--border)); }
-
-/* セクション */
-.td-sec { margin-bottom: 22px; }
-.td-sec-title { font-size: 15px; font-weight: 700; margin-bottom: 12px; }
-
-/* 学習の記録（3指標） */
-.td-stats {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1px; /* 4セル: スマホ2×2・PC4列（110pxだとスマホで3+1になり空きが出た） */
-  background: var(--border); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; margin-bottom: 12px;
+.cl-chip.is-on { background: color-mix(in srgb, var(--accent) 9%, var(--surface)); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.cl-view { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); }
+.cl-view-btn { border: 0; background: none; color: var(--text-soft); border-radius: 999px; padding: 5px 10px; font-size: 12px; font-family: inherit; cursor: pointer; white-space: nowrap; }
+.cl-view-btn.is-on { background: var(--accent); color: #fff; font-weight: 600; }
+.cl-bar2 { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 12px 0 16px; }
+.cl-frames-link { border: 0; background: none; padding: 4px 0; color: var(--text-muted); font-size: 12.5px; font-family: inherit; text-decoration: underline; cursor: pointer; }
+.cl-sort { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-muted); }
+.cl-sort select {
+  border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 10px;
+  padding: 6px 10px; font-size: 13px; font-family: inherit;
 }
-.td-stat { background: var(--surface); padding: 14px 6px; text-align: center; }
-.td-stat-label { font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
-.td-stat-num { font-size: 20px; font-weight: 800; color: var(--text); line-height: 1.1; }
-.td-stat-sub { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.cl-fav-empty { margin: 36px 0; text-align: center; font-size: 13px; color: var(--text-muted); }
 
-.td-progress-row { display: flex; align-items: center; gap: 10px; }
-.td-progress-bar { flex: 1; height: 8px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 14%, var(--surface)); overflow: hidden; }
-.td-progress-bar > span { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
-.td-progress-pct { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
-.td-done-badge { font-size: 11px; font-weight: 700; color: var(--green); background: color-mix(in srgb, var(--green) 14%, var(--surface)); border-radius: 999px; padding: 2px 8px; }
-
-/* シーズン別の進捗 */
-.td-seasons { display: flex; flex-direction: column; gap: 12px; }
-.td-season { display: grid; grid-template-columns: 78px 54px 1fr; align-items: center; gap: 10px; }
-.td-season-name { font-size: 13px; color: var(--text); }
-.td-season-count { font-size: 12px; color: var(--text-muted); text-align: right; }
-.td-season-bar { height: 6px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 12%, var(--surface)); overflow: hidden; }
-.td-season-bar > span { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
-
-/* 最近学習したエピソード */
-.td-eps { display: flex; flex-direction: column; gap: 8px; }
-.td-ep {
-  display: flex; align-items: center; gap: 12px;
-  padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+/* ポスター表示：3列（PC は5列＝1枚 150px 前後）。ポスターの下に作品名・達成度・☆ */
+.cl-wall { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px 12px; }
+@media (min-width: 640px) { .cl-wall { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 22px 16px; } }
+.cl-cell { min-width: 0; }
+.cl-cell-open { display: block; width: 100%; padding: 0; border: 0; background: none; cursor: pointer; }
+.cl-cell-open:active .tcp-item { transform: scale(0.98); }
+.cl-cap { display: flex; align-items: center; gap: 4px; margin-top: 7px; min-width: 0; }
+.cl-cap-name {
+  flex: 1; min-width: 0; padding: 0; border: 0; background: none; text-align: left; cursor: pointer;
+  font-size: 12px; font-weight: 500; font-family: inherit; color: var(--accent);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.td-ep-se { font-size: 13px; font-weight: 800; color: var(--accent); flex-shrink: 0; }
-.td-ep-date { font-size: 12px; color: var(--text-muted); flex: 1; text-align: left; }
-.td-ep-score { font-size: 12px; font-weight: 700; color: var(--text); }
-/* エピソード行を単語リストへのリンクボタン化 */
-.td-ep-link { width: 100%; cursor: pointer; text-align: left; transition: background 0.12s ease, transform 0.05s ease; }
-.td-ep-link:hover { background: var(--surface2); border-color: var(--border-strong, var(--border)); }
-.td-ep-link:active { transform: scale(0.995); }
-.td-ep-go { font-size: 12px; font-weight: 700; color: var(--accent); flex-shrink: 0; }
-
-/* 学んだ表現・単語 */
-.td-words { display: flex; flex-wrap: wrap; gap: 8px; }
-.td-word {
-  font-size: 13px; color: var(--text); background: var(--surface); border: 1px solid var(--border);
-  border-radius: 999px; padding: 5px 12px;
+.cl-cap-pct { flex: none; font-size: 11px; color: var(--text-muted); }
+.cl-star {
+  flex: none; width: 26px; height: 26px; margin: -4px -4px -4px 0; padding: 0; border: 0; background: none;
+  font-size: 16px; line-height: 26px; color: var(--text-muted); opacity: .7; cursor: pointer;
 }
-.td-word-more { color: var(--text-muted); }
+.cl-star.is-on { color: #e0a800; opacity: 1; }
 
-/* CTA */
-.td-cta {
-  width: 100%; padding: 15px; font-size: 15px; font-weight: 700;
-  color: var(--on-accent, #fff); background: var(--accent); border: none; border-radius: 14px; cursor: pointer;
-  margin-top: 4px;
+/* 半券表示：CSS の札（ADMIT ONE の飾り・単語リスト ○話・はじめた日〜・達成度） */
+.cl-tickets { display: flex; flex-direction: column; gap: 10px; }
+.cl-tkt {
+  position: relative; display: grid; grid-template-columns: 58px minmax(0, 1fr) 84px; align-items: center; gap: 12px;
+  padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; cursor: pointer;
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
 }
-.td-cta:active { transform: scale(0.99); }
-/* コレクションから消去（2026-11-07）。責めない＝赤や警告色にせず、目立たない文字ボタン */
-.td-remove { display: block; margin: 18px auto 0; padding: 8px 12px; background: none; border: none; font: inherit; font-size: 13px; color: var(--text-muted); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
-.wr-overlay { align-items: center; }
-.wr-panel { padding: 20px; gap: 14px; overflow-y: auto; }
-.wr-title { font-size: 16px; font-weight: 700; line-height: 1.5; margin: 0; color: var(--text); }
-.wr-lines { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 8px; font-size: 13.5px; line-height: 1.6; color: var(--text); }
-.wr-actions { display: flex; gap: 10px; justify-content: flex-end; }
-.wr-actions > button { flex: 1; max-width: 180px; }
-/* 中央寄せは left/right＋margin:auto（left:50% だと幅が画面の半分に縮み文が切れる） */
-.wr-undo { position: fixed; left: 0; right: 0; margin: 0 auto; width: max-content; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); z-index: 950; display: flex; align-items: center; gap: 14px; max-width: calc(100% - 32px); padding: 10px 14px 10px 16px; border-radius: 12px; background: var(--text); color: var(--surface); box-shadow: 0 6px 24px rgba(0,0,0,0.2); font-size: 13.5px; }
-.wr-undo-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wr-undo-btn { flex-shrink: 0; background: none; border: none; padding: 4px 2px; font: inherit; font-weight: 700; color: inherit; text-decoration: underline; cursor: pointer; }
+.cl-tkt:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
+.cl-tkt-ps { width: 58px; }
+.cl-tkt-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.cl-tkt-kicker { font-size: 10px; font-weight: 600; letter-spacing: .14em; color: var(--accent); }
+.cl-tkt-title { font-size: 15px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cl-tkt-meta { font-size: 11.5px; color: var(--text-muted); }
+.cl-tkt-stub {
+  align-self: stretch; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  border-left: 1px dashed color-mix(in srgb, var(--accent) 35%, var(--border));
+}
+.cl-tkt-stub-label { font-size: 11px; color: var(--text-muted); }
+.cl-tkt-stub-num { font-family: 'Playfair Display', Georgia, serif; font-size: 22px; color: var(--accent); }
+.cl-tkt-star { position: absolute; top: 6px; right: 8px; margin: 0; }
+
+/* 0件 */
+.cl-empty { margin: 56px 0 24px; text-align: center; }
+.cl-empty-title { margin: 0; font-size: 16px; font-weight: 600; color: var(--text); }
+.cl-empty-sub { margin: 10px 0 0; font-size: 13px; line-height: 1.8; color: var(--text-soft); }
+.cl-empty-btn { display: block; width: 100%; max-width: 280px; margin: 22px auto 0; }
+
+/* 額縁について（スマホは下から・PC は真ん中） */
+.cl-sheet-shade {
+  position: fixed; inset: 0; z-index: 1250; display: flex; align-items: flex-end; justify-content: center;
+  background: rgba(0, 0, 0, 0.38); animation: plFade .2s ease; overscroll-behavior: contain;
+}
+.cl-sheet {
+  width: 100%; max-width: 460px; background: var(--surface); color: var(--text);
+  border-radius: 20px 20px 0 0; padding: 18px 22px calc(22px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -10px 34px rgba(0, 0, 0, 0.16); animation: plUp .28s cubic-bezier(.2, .8, .2, 1);
+}
+@media (min-width: 769px) {
+  .cl-sheet-shade { align-items: center; padding: 24px; background: rgba(0, 0, 0, 0.45); }
+  .cl-sheet { border-radius: 16px; box-shadow: 0 8px 40px rgba(0, 0, 0, 0.2); animation: plPop .22s ease; }
+}
+@media (prefers-reduced-motion: reduce) { .cl-sheet, .cl-sheet-shade { animation: none; } }
+.cl-sheet-head { display: flex; align-items: center; justify-content: space-between; }
+.cl-sheet-head h2 { margin: 0; font-size: 16px; font-weight: 600; }
+.cl-sheet-x { border: 0; background: none; color: var(--text-muted); font-size: 15px; padding: 6px; margin-right: -6px; cursor: pointer; }
+.cl-frames { display: flex; justify-content: center; gap: 26px; margin: 18px 0 12px; }
+.cl-frames-item { width: 64px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.cl-frames-blank { display: block; width: 100%; aspect-ratio: 2 / 3; background: #ece7df; }
+.cl-frames-label { font-size: 12px; color: var(--text-soft); white-space: nowrap; }
+.cl-frames-note { margin: 4px 0 0; font-size: 13px; line-height: 1.7; color: var(--text-soft); }
+
+/* 作品の詳細 */
+.cld-back { margin-bottom: 8px; align-self: flex-start; }
+.cld-head { display: flex; align-items: center; gap: 16px; }
+.cld-ps { width: 84px; flex: none; }
+.cld-head-tx { min-width: 0; }
+.cld-title { margin: 0; font-size: 21px; font-weight: 600; color: var(--text); line-height: 1.3; }
+.cld-ja { margin: 3px 0 0; font-size: 12px; color: var(--text-muted); }
+.cld-meta { margin: 6px 0 0; font-size: 12.5px; color: var(--text-soft); }
+.cld-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 18px; }
+.cld-btn2 {
+  display: flex; align-items: center; justify-content: center; padding: 10px; border: 1px solid var(--border);
+  border-radius: 10px; background: var(--surface); color: var(--text); font-size: 13.5px; font-family: inherit;
+  text-decoration: none; cursor: pointer;
+}
+.cld-btn2.is-on { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, var(--surface)); }
+.cld-go { margin-top: 12px; }
+.cld-card { margin-top: 14px; padding: 14px 16px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.cld-card-title { margin: 0 0 12px; font-size: 14px; font-weight: 600; color: var(--text); }
+.cld-cells { display: grid; grid-template-columns: repeat(3, 1fr); text-align: center; }
+.cld-cell + .cld-cell { border-left: 1px solid var(--border); }
+.cld-cell small { display: block; font-size: 11px; color: var(--text-muted); }
+.cld-cell b { font-size: 22px; font-weight: 700; color: var(--text); }
+.cld-cell i { margin-left: 2px; font-style: normal; font-size: 11px; color: var(--text-muted); }
+.cld-ach { margin-top: 16px; }
+.cld-ach-text { margin: 0; font-size: 12.5px; color: var(--text-soft); }
+.cld-track { position: relative; height: 8px; margin: 10px 0 20px; border-radius: 99px; background: var(--surface2); }
+.cld-track-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 99px; background: var(--accent); }
+.cld-mark { position: absolute; top: -3px; width: 3px; height: 14px; margin-left: -1.5px; border-radius: 2px; }
+.cld-mark::after {
+  content: attr(data-l); position: absolute; top: 17px; left: 50%; transform: translateX(-50%);
+  font-size: 10px; color: var(--text-muted); white-space: nowrap;
+}
+.cld-mark.mark-black { background: #141414; }
+.cld-mark.mark-silver { background: linear-gradient(180deg, #e8e8e8, #8a8a8a); }
+.cld-mark.mark-gold { background: linear-gradient(180deg, #f5d77a, #a8741a); }
+.cld-eps { display: flex; flex-direction: column; }
+.cld-ep {
+  display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 2px; border: 0; border-top: 1px solid var(--border);
+  background: none; text-align: left; font-family: inherit; color: var(--text); cursor: pointer;
+}
+.cld-ep:first-child { border-top: 0; }
+.cld-ep b { font-size: 14px; font-weight: 600; color: var(--accent); }
+.cld-ep span { font-size: 12.5px; color: var(--text-muted); }
+.cld-ep em { margin-left: auto; font-style: normal; color: var(--text-muted); }
+.cld-del {
+  display: block; margin: 24px auto 0; padding: 6px; border: 0; background: none; color: var(--text-muted);
+  font-size: 12.5px; font-family: inherit; text-decoration: underline; cursor: pointer;
+}
 
 /* ── マイ単語帳（ページ版・表示は単語リスト＝VocabItem） ───────── */
 /* 設定ページ（旧モーダル→screen='settings'） */
@@ -5765,8 +5759,6 @@ html[data-theme="dark"] .btn-wordbook-star.is-on {
 /* クイズ対象外の階層注記（薄い表示の理由を明示・実使用フィードバック#3） */
 .tier-excluded-note { font-size: 10px; color: var(--text-muted); white-space: nowrap; }
 
-/* コレクション: 覚えた/マスター合計（控えめな1行・#11） */
-.tc-substats { margin: 4px 0 0; font-size: 12px; color: var(--text-muted); }
 
 /* ───────────────────────────────────────────────────────────────
    PC（≥769px）での予習ウォークスルー・復習カードの最適化。
