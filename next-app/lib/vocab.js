@@ -429,11 +429,21 @@ async function generateSupersetOnce(ctx, onRetry, deps) {
 // 長い入力でモデルが前半から選ぶ癖が原因＝入力側を割って全編から選ばせるのが対策。
 // TV1話（字幕≦25k字程度）は1チャンク＝従来と完全に同じ挙動・コスト。
 export const CHUNK_CHARS = 45000;
+// A（ドラマの2分割・並列・2026-11-12 オーナー決定）。1チャンクに収まるドラマの1話も2つに割って並列に生成する
+//   （思考が2本並ぶので待ち時間が短くなる。費用は1話 約¥0.2〜0.7 増）。作例の語・plus は回数で割る＝合計は1回書きと同じ。
+//   短すぎる字幕は割らない（片方が薄くなるため）。splitDrama=false なら従来の1回書き。
+export const DRAMA_SPLIT_MIN_CHARS = 6000;
+export function supersetChunkCount(textLength, { isMovie = false, splitDrama = false } = {}) {
+  const len = Math.max(0, Number(textLength) || 0);
+  const n = Math.min(3, Math.max(1, Math.ceil(len / CHUNK_CHARS)));
+  if (n === 1 && splitDrama && !isMovie && len >= DRAMA_SPLIT_MIN_CHARS) return 2;
+  return n;
+}
 // 0語チャンクを引き直すのに必要な残予算（A1）。これ未満なら引き直さず失敗にする（関数の時間上限内で終わらせる）。
 const RETRY_MIN_BUDGET_MS = 60_000;
 
 // generateSuperset(ctx, onRetry, deps)
-//   ctx  = { drama, season, episode, subtitleText, vocabCount?, deadlineAt?, onProgress? }
+//   ctx  = { drama, season, episode, subtitleText, vocabCount?, deadlineAt?, onProgress?, tight?, splitDrama? }
 //   deps = { callLlm, log? }  ※ callLlm 必須（無ければ throw）。callLlm(prompt, maxTokens, { onRetry, deadlineAt, chunk, nChunks })
 //   複数チャンクは Promise.all（nChunks ≤ 3 ＝最大3並列）。以前は「APIレート制限内に収める」ために直列だったが、
 //   サーバ生成では関数の時間上限（deadlineAt）の方が厳しいので並列にする（A1）。
@@ -445,7 +455,7 @@ export async function generateSuperset(ctx, onRetry, deps) {
   }
   const log = deps.log || console;
   const subText = ctx.subtitleText || '';
-  const nChunks = Math.min(3, Math.max(1, Math.ceil(subText.length / CHUNK_CHARS)));
+  const nChunks = supersetChunkCount(subText.length, { isMovie: ctx.drama?.type === 'movie', splitDrama: !!ctx.splitDrama });
   if (nChunks === 1) return generateSupersetOnce({ ...ctx, chunkIndex: 1, nChunks: 1 }, onRetry, deps);
 
   const size = Math.ceil(subText.length / nChunks);

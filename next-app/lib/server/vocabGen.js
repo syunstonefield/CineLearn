@@ -10,7 +10,7 @@
 // seed（素の Node）からも import され得るため node:* と相対 import 以外は使わない。
 
 import { parseSrt, splitSrtCues, attachBaseTimestamps, exampleContainsWord } from '../subtitles.js';
-import { generateSuperset, CHUNK_CHARS } from '../vocab.js';
+import { generateSuperset, supersetChunkCount } from '../vocab.js';
 import { coverageOk } from '../coverage.js';
 import { fetchEpisodeSrt } from './opensubtitles.js';
 import { resolveByTmdbId } from './tmdb.js';
@@ -31,6 +31,7 @@ import {
   VOCAB_EXTRA,
   VOCAB_THINK_ROOM,
   VOCAB_TIGHT_COUNT,
+  VOCAB_SPLIT_DRAMA,
   GENERATE_DEADLINE_MS,
   UpstreamError,
 } from './constants.js';
@@ -159,7 +160,7 @@ export async function generateEpisodeVocab(input, deps = {}) {
   let superset;
   try {
     superset = await generateSuperset(
-      { drama, season: n.season, episode: n.episode, subtitleText, vocabCount, deadlineAt, onProgress, tight: VOCAB_TIGHT_COUNT },
+      { drama, season: n.season, episode: n.episode, subtitleText, vocabCount, deadlineAt, onProgress, tight: VOCAB_TIGHT_COUNT, splitDrama: VOCAB_SPLIT_DRAMA },
       onRetry,
       { callLlm, log }
     );
@@ -168,7 +169,7 @@ export async function generateEpisodeVocab(input, deps = {}) {
     throw new UpstreamError('generation', { cause: err }); // 0語チャンク等（本文はメッセージに含まれない）
   }
   if (!Array.isArray(superset) || !superset.length) throw new UpstreamError('generation');
-  const chunks = Math.min(3, Math.max(1, Math.ceil(subtitleText.length / CHUNK_CHARS)));
+  const chunks = supersetChunkCount(subtitleText.length, { isMovie: n.type === 'movie', splitDrama: VOCAB_SPLIT_DRAMA });
 
   // 4) 📍（example 基準・plus は null）。配信/保存の2系統で同じ照合器（wordMatchRegex）を使う不変則。
   attachBaseTimestamps(superset, { title: englishTitle, season: n.season, episode: n.episode, rawSrt: sub.raw });

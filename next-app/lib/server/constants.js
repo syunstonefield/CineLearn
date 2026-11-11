@@ -27,6 +27,9 @@ export const VOCAB_THINK_ROOM = 8000;
 // A'（書きすぎを止める・2026-11-12 オーナー決定）。既定で有効。Vercel のサーバの環境変数 VOCAB_TIGHT_COUNT=off＋再デプロイで元の頼み方に戻る。
 //   新しく生成する話にだけ効く（共有キャッシュの既存の行は作り直さない＝VOCAB_CACHE_VERSION は上げない）。
 export const VOCAB_TIGHT_COUNT = process.env.VOCAB_TIGHT_COUNT !== 'off';
+// A（ドラマの2分割・並列・2026-11-12 オーナー決定）。既定で有効。Vercel のサーバの環境変数 VOCAB_SPLIT_DRAMA=off＋再デプロイで
+//   元の1回書きに戻る。新しく生成する話にだけ効く（VOCAB_CACHE_VERSION は上げない）。映画は前から分割なので変わらない。
+export const VOCAB_SPLIT_DRAMA = process.env.VOCAB_SPLIT_DRAMA !== 'off';
 // Haiku 5.5 は既定で思考（adaptive）が有効＝思考ぶんも出力課金され、max_tokens 64〜200 の短い枠を
 // 食い潰して訳文が切れる。和訳に思考は要らないので明示的に切る（disabled は effort 既定 medium で受理）。
 export const TRANSLATE_THINKING = { type: 'disabled' };
