@@ -20,7 +20,9 @@ import {
   loadArchived,
   loadRemovedWorks,
   DAILY_REVIEW_CAP,
+  getAgainWords,
 } from '@/lib/storage';
+import { AGAIN_BATCH } from '@/lib/againWords';
 import { usePlan, featureAccess } from '@/lib/plan';
 import { dailyReviewCap } from '@/lib/reviewCount';
 import PlusNote from './PlusNote';
@@ -241,6 +243,24 @@ export default function ReviewHubScreen() {
     openReview(nearMastery.due.map(toCard));
   };
 
+  // 「知らなかった語をもう一度」「うろ覚えの語をもう一度」（無料・2026-11-12 オーナー決定 案1）。
+  //   最後の答えが「知らなかった」「うろ覚え」の語（lib/againWords.js）。母集団は今日の復習と同じ。0語のカードは出さない。
+  //   1回 20語・答えた日が新しい順。成功は練習（日程は進めない）・今日 N回目に数えない（ReviewModal）。
+  const again = useMemo(() => {
+    if (!mounted) return { unknown: [], shaky: [] };
+    return {
+      unknown: getAgainWords('unknown', history, srs, myWords, activeKeys),
+      shaky: getAgainWords('shaky', history, srs, myWords, activeKeys),
+    };
+  }, [mounted, history, srs, myWords, activeKeys]);
+  const startAgain = (kind) => {
+    const list = again[kind] || [];
+    if (!list.length) return;
+    rememberHubScroll();
+    setCurrentHistoryId(null);
+    openReview(list.slice(0, AGAIN_BATCH), { again: kind });
+  };
+
   const myDue = useMemo(() => (myWords || []).filter((w) => isWordDue(w, srs)).length, [myWords, srs]);
 
   const startToday = () => {
@@ -414,6 +434,35 @@ export default function ReviewHubScreen() {
             )}
           </div>
         )}
+
+        {/* ①'' 知らなかった／うろ覚えの語をもう一度（無料・0語のカードは出さない）。見た目は単語リストの枠にそろえる（光らせない） */}
+        {[
+          ['unknown', '知らなかった語をもう一度'],
+          ['shaky', 'うろ覚えの語をもう一度'],
+        ].map(([kind, title]) => {
+          const n = again[kind].length;
+          if (!n) return null;
+          return (
+            <div key={kind} className="rh-again">
+              <span className="rh-again-icon" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 11a8 8 0 1 0-2.3 5.7" />
+                  <path d="M20 4v7h-7" />
+                </svg>
+              </span>
+              <div className="rh-again-main">
+                <div className="rh-again-title">{title}</div>
+                <div className="rh-again-sub">
+                  <span className="rh-again-count">{n}語</span>
+                  {n > AGAIN_BATCH ? `・最近答えた語から ${AGAIN_BATCH}語ずつ` : '・最近答えた語から'}
+                </div>
+              </div>
+              <button className="rh-again-btn" onClick={() => startAgain(kind)}>
+                はじめる
+              </button>
+            </div>
+          );
+        })}
 
         {/* ② エピソードを選ぶ */}
         <div className="rh-section-label">エピソードを選ぶ</div>

@@ -614,11 +614,15 @@ export async function flushStatePushQueue() {
 // 一度弾かれたらセッション中はその列を送らない（ts_sec / in_wordbook と同じ作法）。
 let _srsOriginUnsupported = false;
 let _srsFirstQualityUnsupported = false;
+// last_quality（最後の答え・「知らなかった／うろ覚えの語をもう一度」2026-11-12・reports/review-again-2026-11-12/ の SQL）。
+//   列が無い間は送らない＝端末の値だけで動く（first_quality と同じ作法）。
+let _srsLastQualityUnsupported = false;
 function missingSrsColumn(res) {
   const msg = `${res?.code || ''} ${res?.message || ''}`;
   if (!/PGRST204/.test(msg)) return null;
   if (/origin_/.test(msg)) return 'origin';
   if (/first_quality/.test(msg)) return 'firstQuality';
+  if (/last_quality/.test(msg)) return 'lastQuality';
   return null;
 }
 
@@ -650,6 +654,8 @@ export async function pushSrsWords(entries) {
         }
         // 初回の答えも持っている時だけ送る（省略＝据え置き）。先に入った値を null で潰さない
         if (!_srsFirstQualityUnsupported && e.firstQuality != null) row.first_quality = e.firstQuality;
+        // 最後の答えも持っている時だけ送る（省略＝据え置き）
+        if (!_srsLastQualityUnsupported && e.lastQuality != null) row.last_quality = e.lastQuality;
         return row;
       });
   let rows = build();
@@ -660,12 +666,13 @@ export async function pushSrsWords(entries) {
       headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
       body: JSON.stringify(rows),
     });
-  // 列が無い DB では、弾かれた列を外して再送（origin_* と first_quality の両方が無ければ最大2回）
-  for (let attempt = 0; attempt < 3; attempt++) {
+  // 列が無い DB では、弾かれた列を外して再送（origin_*／first_quality／last_quality が全部無ければ最大3回）
+  for (let attempt = 0; attempt < 4; attempt++) {
     const res = await post();
     const missing = missingSrsColumn(res);
     if (missing === 'origin' && !_srsOriginUnsupported) _srsOriginUnsupported = true;
     else if (missing === 'firstQuality' && !_srsFirstQualityUnsupported) _srsFirstQualityUnsupported = true;
+    else if (missing === 'lastQuality' && !_srsLastQualityUnsupported) _srsLastQualityUnsupported = true;
     else return;
     rows = build();
   }

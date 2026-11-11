@@ -137,6 +137,8 @@ export default function AppProvider({ children }) {
   const [currentHistoryId, setCurrentHistoryId] = useState(null);
   const [reviewWords, setReviewWords] = useState(null); // null=復習閉
   const [reviewAll, setReviewAll] = useState(false); // true=SRS期日に関係なく全語をカード化（半券のシーン記憶カード用）
+  // 「知らなかった／うろ覚えの語をもう一度」（2026-11-12）: null｜'unknown'｜'shaky'。成功は練習扱い・今日 N回目に数えない。
+  const [reviewAgain, setReviewAgain] = useState(null);
   // 復習の表示形態：true=ページ（タブ/今日の復習。<main>内・ボトムナビ表示・横スワイプ移動可）／
   // false=オーバーレイ（予習のフラッシュカード＝従来の没入モーダル）。
   const [reviewAsPage, setReviewAsPage] = useState(false);
@@ -781,7 +783,8 @@ export default function AppProvider({ children }) {
   // 復習モーダルの開閉（ダッシュボード・単語リストの両方から呼ぶ）
   // opts.all=true で SRS の期日フィルタを通さず全語をカード化（半券のシーン記憶カード用）。
   const openReview = useCallback((words, opts) => {
-    setReviewAll(!!(opts && opts.all));
+    setReviewAll(!!(opts && (opts.all || opts.again)));
+    setReviewAgain((opts && opts.again) || null);
     setReviewAsPage(true); // タブ/今日の復習＝ページ表示（横スワイプ移動可）
     setReviewWords(words || []);
     // その作品だけの復習（カードの出所が1作品）なら「最近触った」にする（並び・lib/workRecency.js）。今日の復習のように混ざる時は触らない。
@@ -790,6 +793,7 @@ export default function AppProvider({ children }) {
   }, [touchWorks]);
   const closeReview = useCallback(() => {
     setReviewWords(null);
+    setReviewAgain(null);
     setReviewAsPage(false);
     setReviewVersion((v) => v + 1); // ダッシュボード/単語リストの再集計を促す
     // 予習の「じっくり覚える」で開いていたら、閉じた直後に cards の launch ramp を出す。
@@ -802,6 +806,7 @@ export default function AppProvider({ children }) {
   // 予習からフラッシュカード（first-pass）を起動。閉じたら cards launch ramp を予約。
   const openPrepReview = useCallback((words, launchPayload) => {
     pendingPrepCardsRef.current = launchPayload || null;
+    setReviewAgain(null);
     setReviewAsPage(false); // 予習フラッシュカードは従来どおり没入オーバーレイ
     setReviewWords(words || []);
   }, []);
@@ -956,6 +961,7 @@ export default function AppProvider({ children }) {
     setCurrentHistoryId,
     reviewWords,
     reviewAll,
+    reviewAgain,
     reviewAsPage,
     openReview,
     closeReview,

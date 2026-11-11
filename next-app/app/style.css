@@ -7885,3 +7885,33 @@ html[data-theme="dark"] .ht-tip-next { color: var(--on-accent); }
   .ht-spot, .ht-tip { transition: none; animation: none; }
   .ht-spot.is-glow::after { animation: none; }
 }
+
+/* ── 知らなかった／うろ覚えの語をもう一度（復習タブ・2026-11-12 オーナー決定 案1・無料）──
+   マスター手前の金のカードより控えめに＝単語リストの枠（.rh-group）と同じ面と線。光らせない・赤を使わない */
+.rh-again {
+  display: flex; align-items: center; gap: 12px;
+  border-radius: 16px; padding: 12px 16px; margin-bottom: 12px;
+  background: var(--surface); border: 1px solid var(--review-border); color: var(--text);
+}
+.rh-again-icon {
+  flex-shrink: 0; width: 34px; height: 34px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+}
+.rh-again-main { flex: 1; min-width: 0; }
+.rh-again-title { font-size: 14px; font-weight: 800; }
+.rh-again-count { font-weight: 800; color: var(--accent); }
+.rh-again-sub { font-size: 12px; margin-top: 2px; color: var(--text-muted); }
+.rh-again-btn {
+  flex-shrink: 0; border: none; cursor: pointer; font-family: inherit;
+  min-height: 40px; padding: 9px 16px; border-radius: 11px;
+  background: var(--accent); color: #fff; font-size: 13px; font-weight: 700; white-space: nowrap;
+  transition: transform 0.12s ease, filter 0.12s ease;
+}
+.rh-again-btn:hover { transform: translateY(-1px); filter: brightness(1.05); }
+.rh-again-btn:active { transform: translateY(0) scale(0.98); }
+/* 文字の読みやすさ（白文字の地は少し濃く・ダークは地が明るい金なので濃い文字に） */
+.rh-again-btn { background: color-mix(in srgb, var(--accent) 78%, black); }
+html[data-theme="dark"] .rh-again-btn { background: var(--accent); color: #1f1812; }
+.rh-again-count { color: color-mix(in srgb, var(--accent) 78%, black); }
+html[data-theme="dark"] .rh-again-count { color: var(--accent); }

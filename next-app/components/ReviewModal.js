@@ -14,13 +14,17 @@ import {
   reviewWord,
   restoreSrsEntry,
   subtitleCredit,
+  loadHistory,
+  activeWordKeys,
+  getAgainWords,
 } from '@/lib/storage';
+import { AGAIN_BATCH } from '@/lib/againWords';
 import { addExp, levelInfo, expForReviewSession } from '@/lib/exp';
 import { awardReviewSession } from '@/lib/reviewAward';
 import ExpBlock from './ExpBlock';
 import ReviewCinemaCard, { CinemaProgress } from './ReviewCinemaCard';
 import WordMarks from './WordMarks';
-import { getActiveWords, starWord, unstarWord, likeWord } from '@/lib/words';
+import { getActiveWords, starWord, unstarWord, likeWord, sameWorkTitle } from '@/lib/words';
 import { entryFromCard, sceneOf } from '@/lib/wordMarks';
 import { canLikeMore, LIKE_CAP_PER_EPISODE } from '@/lib/liked';
 import { trackUsage } from '@/lib/usage';
@@ -191,7 +195,9 @@ function KeysHelp({ onClose }) {
 
 // 既存 startReview / renderReviewCard（SRSフラッシュカード）の再現。
 export default function ReviewModal({ asPage = false }) {
-  const { reviewWords, reviewAll, closeReview, currentHistoryId, profile, openWordbook } = useApp();
+  const { reviewWords, reviewAll, reviewAgain, closeReview, currentHistoryId, profile, openWordbook, openReview } = useApp();
+  // 「知らなかった／うろ覚えの語をもう一度」（2026-11-12）: 'unknown'｜'shaky'｜null。成功は練習・今日 N回目に数えない・EXP は見直しと同じ。
+  const again = reviewAgain || null;
   // ★ 覚えたい／♡ お気に入りの例文（2026-11-07 オーナー決定）: カードの裏に出す。my_words の行を語ごとに持ち、
   // 付けた回数を数えて完了画面から単語帳へ案内する（付けた時だけ・押しつけない）。
   const [marks, setMarks] = useState(() => new Map());
@@ -313,6 +319,9 @@ export default function ReviewModal({ asPage = false }) {
     setShowKeys(true);
   }, [reviewWords]);
   const initKey = useMemo(() => (reviewWords ? reviewWords.map((w) => w.word).join('|') : ''), [reviewWords]);
+  // もう一度の「続きの N語」: 今回の続きで既に出した語（小文字）。復習タブから新しく始めた時だけ空にする。
+  const againSeenRef = useRef(new Set());
+  const againContRef = useRef(false);
   const [builtKey, setBuiltKey] = useState(null);
 
   // reviewWords がセットされたらキューを構築（レンダー中の同期初期化）
@@ -325,7 +334,13 @@ export default function ReviewModal({ asPage = false }) {
         const e = srs[w.word.toLowerCase()];
         return !e || isDue(e);
       })
-      .sort(() => Math.random() - 0.5);
+      // もう一度は「答えた日が新しい順」のまま（lib/againWords.js）。それ以外は混ぜる
+      .sort(again ? () => 0 : () => Math.random() - 0.5);
+    if (again) {
+      if (!againContRef.current) againSeenRef.current = new Set();
+      againContRef.current = false;
+      q.forEach((w) => againSeenRef.current.add(String(w.word || '').toLowerCase()));
+    }
     setQueue(q);
     setIdx(0);
     setFlipped(false);
@@ -339,14 +354,14 @@ export default function ReviewModal({ asPage = false }) {
     setBuiltKey(initKey);
   }
 
-  latestRef.current = { queue, idx, ratings, promo, retryMode, currentHistoryId };
+  latestRef.current = { queue, idx, ratings, promo, retryMode, again, currentHistoryId };
 
   // 利用データ（復習の流れ・lib/usage.js・法務 2026-11-07）: 始めた／終えた／何割で・どう抜けたか／答えの内訳／
   //   1枚の時間の幅。固定の名前と回数だけ（語・作品・カード番号は送らない）。知らなかった語のもう一度は数えない。
   const usageRef = useRef({ key: null, ended: true, shownAt: 0 });
   const recordReviewExit = (how) => {
     const u = usageRef.current;
-    if (!cinema || u.ended) return;
+    if (!cinema || u.ended || u.again) return;
     u.ended = true;
     const st = latestRef.current;
     trackUsage(exitEventName('review', toDecile(st.idx, st.queue.length), how));
@@ -356,9 +371,10 @@ export default function ReviewModal({ asPage = false }) {
   useEffect(() => {
     if (!cinema || !builtKey || retryMode || !queue.length) return;
     if (usageRef.current.key === builtKey) return; // 開発時の二重実行でも1回
-    usageRef.current = { key: builtKey, ended: false, shownAt: Date.now() };
-    trackUsage('review_start');
-  }, [cinema, builtKey, retryMode, queue.length]);
+    usageRef.current = { key: builtKey, ended: false, shownAt: Date.now(), again: !!again };
+    // もう一度は今日の復習の流れ（review_*）と混ぜない＝別の名前で始めた回数だけ
+    trackUsage(again ? (again === 'unknown' ? 'again_unknown_start' : 'again_shaky_start') : 'review_start');
+  }, [cinema, builtKey, retryMode, queue.length, again]);
   useEffect(() => {
     usageRef.current.shownAt = Date.now(); // 1枚の時間＝カードが出てから答えるまで
   }, [idx, builtKey]);
@@ -366,7 +382,7 @@ export default function ReviewModal({ asPage = false }) {
     const u = usageRef.current;
     if (!cinema || retryMode || u.ended || !queue.length || idx < queue.length) return;
     u.ended = true;
-    trackUsage('review_done');
+    trackUsage(u.again ? 'again_done' : 'review_done');
   }, [cinema, retryMode, idx, queue.length]);
   const aliveRef = useRef(false);
   useEffect(() => {
@@ -385,7 +401,7 @@ export default function ReviewModal({ asPage = false }) {
   useEffect(
     () => () => {
       const st = latestRef.current;
-      if (!st || awardedRef.current || st.retryMode) return;
+      if (!st || awardedRef.current || st.retryMode || st.again) return; // もう一度は今日 N回目に数えない
       const rated = st.queue.slice(0, st.idx).filter((w) => st.ratings[w.word] != null);
       if (!rated.length) return;
       awardedRef.current = true;
@@ -423,8 +439,8 @@ export default function ReviewModal({ asPage = false }) {
     const wasMastered = isMastered(before);
     // 取り消し用に採点前の状態を保存（SRSエントリは複製・新規語は undefined のまま）
     setUndoStack((st) => [...st, { word: w.word, before: before ? { ...before } : undefined, promo, ratings }]);
-    reviewWord(w.word, q, w._src); // 出所（最初に出会った作品/話）を SRS に固定（拡張の再会表示用）
-    if (cinema) {
+    reviewWord(w.word, q, w._src, { practice: !!again }); // 出所（最初に出会った作品/話）を SRS に固定（拡張の再会表示用）。もう一度の成功は練習
+    if (cinema && !again) {
       trackUsage(q === 0 ? 'review_ans_fail' : q === 3 ? 'review_ans_hard' : 'review_ans_easy');
       const t = reviewTimeEvent((Date.now() - usageRef.current.shownAt) / 1000);
       if (t) trackUsage(t);
@@ -542,7 +558,13 @@ export default function ReviewModal({ asPage = false }) {
           </span>
         </div>
         {showKeys && <KeysHelp onClose={() => setShowKeys(false)} />}
-        {!showDone && cinema && <CinemaProgress idx={idx} total={queue.length} />}
+        {!showDone && cinema && (
+          <CinemaProgress
+            idx={idx}
+            total={queue.length}
+            label={again === 'unknown' ? '知らなかった語' : again === 'shaky' ? 'うろ覚えの語' : undefined}
+          />
+        )}
         {!showDone && !cinema && (
           <div className="review-progress" aria-hidden="true">
             <span className="review-progress-fill" style={{ width: `${pct}%` }} />
@@ -572,6 +594,22 @@ export default function ReviewModal({ asPage = false }) {
                 setRetryMode(true);
               }}
               onDone={closeReview}
+              again={again}
+              nextAgain={
+                again
+                  ? () => {
+                      const hist = loadHistory();
+                      const mw = [...marks.values()];
+                      const keys = activeWordKeys(hist, mw, sameWorkTitle);
+                      return getAgainWords(again, hist, loadSrs(), mw, keys, againSeenRef.current).slice(0, AGAIN_BATCH);
+                    }
+                  : null
+              }
+              onNextAgain={(words) => {
+                trackUsage('again_next');
+                againContRef.current = true;
+                openReview(words, { again });
+              }}
               markedRun={markedRun}
               onOpenWordbook={openWordbook}
             />
@@ -839,7 +877,9 @@ const StarIcon = () => (
 
 // partial＝途中でやめた時の成果画面（queue は採点済みの語だけ）。文言はやった分だけを肯定的に
 // （「未完了」「あと○語」は出さない＝罪悪感UI禁止）。awardedRef＝親と共有する「記録済み」旗。
-function ReviewDone({ queue, partial = false, awardedRef, ratings, promo, currentHistoryId, sessionInfo, setSessionInfo, retryMode, onRetryFailed, onDone, markedRun = 0, onOpenWordbook }) {
+function ReviewDone({ queue, partial = false, awardedRef, ratings, promo, currentHistoryId, sessionInfo, setSessionInfo, retryMode, onRetryFailed, onDone, again = null, nextAgain = null, onNextAgain, markedRun = 0, onOpenWordbook }) {
+  // もう一度の続き（答えた日が新しい順の次の最大 20語・今回出した語は除く）。採点は reviewWord で保存済み＝開いた時点で数える
+  const [nextWords] = useState(() => (again && nextAgain ? nextAgain() : []));
   const failed = queue.filter((w) => ratings[w.word] === 0);
   const hard = queue.filter((w) => ratings[w.word] === 3);
   const easy = queue.filter((w) => (ratings[w.word] ?? 5) === 5);
@@ -854,7 +894,8 @@ function ReviewDone({ queue, partial = false, awardedRef, ratings, promo, curren
     awardedRef.current = true;
     // 再挑戦パスは採点していないので復習セッション（今日N回目・内訳）には数えない。
     // EXPはカード×2だけ付ける（見直しの手間への報酬・昇格ボーナスは1周目で付与済み）。
-    if (retryMode) {
+    // 「知らなかった／うろ覚えの語をもう一度」も同じ（今日 N回目に数えない・EXP は見直しと同じ・2026-11-12）。
+    if (retryMode || again) {
       const earned = expForReviewSession({ cards: queue.length });
       setExpGain({ earned, level: levelInfo(addExp(earned)) });
       return;
@@ -886,6 +927,29 @@ function ReviewDone({ queue, partial = false, awardedRef, ratings, promo, curren
       </button>
     </div>
   );
+
+  if (again) {
+    const label = again === 'unknown' ? '知らなかった' : 'うろ覚え';
+    return (
+      <div className="rd">
+        <div className="rd-body">
+          <DoneHero title="見直し完了！" sub={`「${label}」だった ${queue.length}単語をもう一度確認しました`} />
+          {expGain && <ExpBlock earned={expGain.earned} lv={expGain.level} />}
+          <p className="rd-note">知ってた・うろ覚えと答えた語は、次の復習日はそのままです</p>
+        </div>
+        <div className="rd-actions">
+          {nextWords.length > 0 && (
+            <button type="button" className="rd-btn2" onClick={() => onNextAgain(nextWords)}>
+              続きの {nextWords.length}語
+            </button>
+          )}
+          <button type="button" className="rd-btn1" onClick={onDone}>
+            復習を終える
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (retryMode) {
     return (

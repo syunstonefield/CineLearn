@@ -1,6 +1,7 @@
 // 既存アプリ（js/app.js）からの移植。
 // localStorage のキー・データ構造は既存実装と完全に同一に保つこと。
 
+import { pickAgainWords } from './againWords';
 import { pushHistoryEntry, deleteHistoryRow, deleteHistoryRowsByTitle, pushSrsWords, deleteSrsWord, pushProfiles, queueStatePush } from './supabase';
 import { PROFILES_AT_KEY } from './profileMerge';
 import { getDeviceKey } from './device';
@@ -775,7 +776,9 @@ export function recordReviewSession(historyId, easy, hard, fail) {
 // firstQuality＝初回の答え（2026-10-29〜）。**新しい SRS エントリを作る時だけ** quality(0/3/5) を記録し、
 // 以後は上書きしない。skipWord（＝知ってるで外した語）で作られた既存エントリや、記録開始前からの語には
 // 付かない（過去分は不明のまま）。「CineLearn で初めて知った語の割合」を firstLearnStats で出すため。
-export function reviewWord(word, quality, src = null) {
+// opts.practice＝「知らなかった／うろ覚えの語をもう一度」（2026-11-12）。成功（うろ覚え・知ってた）は練習＝日程を進めず
+//   最後の答え（lastQuality）だけ更新。失敗（知らなかった）は今までどおり日程に反映（同日2回目の決まりと同じ）。
+export function reviewWord(word, quality, src = null, opts = {}) {
   const all = loadSrs();
   const k = word.toLowerCase();
   addStatsDaily(quality >= 3 ? { ok: 1 } : { fail: 1 }); // 日ごとの記録（同日2回目の練習も数える）
@@ -785,7 +788,8 @@ export function reviewWord(word, quality, src = null) {
   }
 
   // 同日2回目以降の成功は「練習」扱い（スケジュールを進めない）。失敗は常に反映。
-  if (e.lastReview === todayStr() && quality >= 3) {
+  //   「もう一度」の成功も同じ扱い（既に復習した語だけが対象＝all[k] がある時）。
+  if ((e.lastReview === todayStr() || (opts.practice && all[k])) && quality >= 3) {
     e.lastQuality = quality;
     e.reviewCount = (e.reviewCount || 0) + 1;
     e.updatedAt = new Date().toISOString();
@@ -815,6 +819,22 @@ export function reviewWord(word, quality, src = null) {
   all[k] = e;
   saveSrs(all);
   pushSrsWords({ [k]: e }); // クラウドへ（未ログイン時は no-op・fire-and-forget）
+}
+
+// 「知らなかった／うろ覚えの語をもう一度」の語（lib/againWords.js）。母集団は今日の復習と同じ（履歴＋マイ単語帳・棚から外した作品だけの語は除く）。
+//   カードの形も今日の復習と同じ（getDueReviewWords と同じ例文・意味・出所の付け方）。exclude＝今回の続きで既に出した語。
+export function getAgainWords(kind, history = loadHistory(), srs = loadSrs(), extraWords = [], activeKeys = activeWordKeys(history, extraWords), exclude = null) {
+  const fromHistory = getAllVocabWords(history);
+  const seen = new Set(fromHistory.map((w) => String(w.word || '').toLowerCase()));
+  const extras = (extraWords || [])
+    .filter((w) => w?.word && !seen.has(String(w.word).toLowerCase()))
+    .map((w) => ({
+      ...w,
+      example: w.example || w.sentence || '',
+      definition: w.ja || w.definition || '',
+      _src: { title: w.dramaTitle, season: w.season, episode: w.episode, type: isMovieWork(w.dramaTitle) ? 'movie' : undefined },
+    }));
+  return pickAgainWords([...fromHistory, ...extras], srs, kind, { activeKeys, exclude });
 }
 
 // 初回の答えの集計（2026-10-29）。recorded＝firstQuality を持つ語数（記録開始後に初めて採点した語）、
