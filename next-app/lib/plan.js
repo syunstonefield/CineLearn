@@ -15,7 +15,8 @@ import { getCurrentUser } from './supabase';
 
 export const PLAN_FEATURES = {
   ring: 'plus', // あゆみタブ（3重の円）＝オーナー 2026-10-09 有料に確定。正式版の無料の人は下のタブから外し、設定に説明を置く
-  grass: 'plus', // 学習した日（草・ホームの簡易版も）＝同上
+  grass: 'plus', // あゆみの中の「学習した日」（草の詳しい版）＝同上
+  homeGrass: 'free', // ホームの「学習した日」（簡易版）＝誰でも使える既定の機能（オーナー決定 2026-11-12・10/09 の「ホームの簡易版もプラス」を上書き）
   trend: 'plus', // 語彙のあゆみ「週ごとの推移」
   workReview: 'plus', // 作品・話ごとの復習とクイズ
   reviewCount: 'free', // 毎日の復習語数の変更（オーナー 2026-10-08 無料に変更）

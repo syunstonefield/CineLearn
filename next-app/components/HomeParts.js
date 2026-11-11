@@ -86,11 +86,12 @@ export function HomeTodayCard({ streak, todayCount, weekStats, onStart, again, o
   );
 }
 
-// 記録の札2枚: 左＝覚えた／マスター（分母＝出会った語）、右＝学習した日（プラス・押すとあゆみの学習した日の欄へ）。
-//   onOpen が無い時（正式版の無料＝あゆみが無い）は押せない札にする。grass が無い時（記録なし・正式版の無料）は左だけ全幅。
-export function HomeRecord({ learned, mastered, total, grass, grassNote, onOpenJourney, onOpenGrass }) {
+// 記録の札2枚: 左＝覚えた／マスター（分母＝出会った語）、右＝学習した日（誰でも使える・押すとあゆみの学習した日の欄へ）。
+//   onOpen が無い時（正式版の無料＝あゆみはプラス）は押せない札にする。grass が無い時（学習の記録がまだ無い）は左だけ全幅。
+export function HomeRecord({ learned, mastered, total, grass, onOpenJourney, onOpenGrass }) {
   if (!(total > 0)) return null;
   const Left = onOpenJourney ? 'button' : 'div';
+  const Days = onOpenGrass ? 'button' : 'div';
   const weeks = grass ? grass.weeks.slice(-7) : [];
   return (
     <div className={`hm-duo${grass ? '' : ' is-single'}`}>
@@ -110,15 +111,13 @@ export function HomeRecord({ learned, mastered, total, grass, grassNote, onOpenJ
         </span>
       </Left>
       {grass && (
-        <button
-          type="button"
+        <Days
+          {...(onOpenGrass
+            ? { type: 'button', onClick: onOpenGrass, 'aria-label': `学習した日（${grass.studied}日・今月 ${grass.thisMonth}日）。押すとあゆみで詳しく` }
+            : { role: 'img', 'aria-label': `学習した日（${grass.studied}日・今月 ${grass.thisMonth}日）` })}
           className="hm-card hm-days"
-          onClick={onOpenGrass}
-          aria-label={`学習した日（${grass.studied}日・今月 ${grass.thisMonth}日）。押すとあゆみで詳しく`}
         >
-          <span className="hm-days-h">
-            学習した日 ›{grassNote}
-          </span>
+          <span className="hm-days-h">学習した日{onOpenGrass ? ' ›' : ''}</span>
           <span className="hm-days-g" aria-hidden="true">
             {weeks.flatMap((w) =>
               w.days.map((d) => (
@@ -126,7 +125,7 @@ export function HomeRecord({ learned, mastered, total, grass, grassNote, onOpenJ
               ))
             )}
           </span>
-        </button>
+        </Days>
       )}
     </div>
   );

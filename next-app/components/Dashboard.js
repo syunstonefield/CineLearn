@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
 import { HomeBand, HomeTodayCard, HomeRecord, HomeStart } from './HomeParts';
 import { CURATION_ON, SAVE_STAR_SENTENCE } from '@/lib/curation';
-import PlusNote from './PlusNote';
 import { buildGrass, statsStart } from '@/lib/journey';
 import { loadExpLedger } from '@/lib/exp';
 import LibraryCard from './LibraryCard';
@@ -100,7 +99,8 @@ export default function Dashboard() {
   const todayCap = dailyReviewCap(settings, featureAccess('reviewCount', plan).usable);
   // ホームの「学習した日」（草）。EXP 台帳から描く（あゆみタブと同じ部品の compact 版）。記録が無い新規の人には出さない。
   const homeGrass = useMemo(() => {
-    if (!mounted || !featureAccess('grass', plan).usable) return null;
+    // ホームの学習した日は誰でも使える（homeGrass＝free・オーナー決定 2026-11-12）。あゆみの中の詳しい版は grass（プラス）のまま。
+    if (!mounted || !featureAccess('homeGrass', plan).usable) return null;
     const grass = buildGrass(loadExpLedger(), new Date());
     if (!grass.studied) return null;
     const days = statsByDay(loadStatsDaily());
@@ -809,16 +809,15 @@ export default function Dashboard() {
           />
         )}
 
-        {/* 記録（2枚）: 左＝覚えた・マスター（分母＝出会った語）、右＝学習した日（プラス・押すとあゆみの学習した日の欄へ＝journey_grass）。
-            左を押すとあゆみ（journey_tab と同じ数え方）。正式版の無料（あゆみが無い）では押せない札・学習した日は出さない＝左だけ全幅。 */}
+        {/* 記録（2枚）: 左＝覚えた・マスター（分母＝出会った語）、右＝学習した日（誰でも・押すとあゆみの学習した日の欄へ＝journey_grass）。
+            左を押すとあゆみ（journey_tab と同じ数え方）。正式版の無料（あゆみはプラス）では、2枚とも押せない札（説明やプラスの案内へは進めない）。 */}
         <HomeRecord
           learned={data.totalLearned}
           mastered={data.totalMastered}
           total={data.totalWords}
           grass={homeGrass?.grass || null}
-          grassNote={<PlusNote feature="grass" plan={plan} short />}
           onOpenJourney={journeyOk ? () => openJourney() : null}
-          onOpenGrass={() => openJourney('grass')}
+          onOpenGrass={journeyOk ? () => openJourney('grass') : null}
         />
 
         {entries.length === 0 ? (

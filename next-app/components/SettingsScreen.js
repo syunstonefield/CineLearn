@@ -468,7 +468,7 @@ export default function SettingsScreen() {
             <div className="settings-section">
               <div className="settings-section-title">📈 あゆみ</div>
               <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.7 }}>
-                あゆみ（3重の円・段階ごとの覚えた語・学習した日のカレンダー・週ごとの推移）はプラスの機能です。覚えた語・マスターの数はホームと復習タブでいつでも見られます。
+                あゆみ（3重の円・段階ごとの覚えた語・学習した日の詳しいカレンダー・週ごとの推移）はプラスの機能です。覚えた語・マスターの数と学習した日は、ホームでいつでも見られます。
               </div>
             </div>
           )}
