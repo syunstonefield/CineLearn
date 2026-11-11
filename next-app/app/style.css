@@ -7929,3 +7929,105 @@ html[data-theme="dark"] .ht-tip-next { color: var(--on-accent); }
 html[data-theme="dark"] .rh-again-btn { background: var(--accent); color: #1f1812; }
 .rh-again-count { color: color-mix(in srgb, var(--accent) 78%, black); }
 html[data-theme="dark"] .rh-again-count { color: var(--accent); }
+
+/* ── ホーム（2026-11-12 見直し・components/HomeParts.js・受付の見本 reports/home-ui-2026-11-12/mock.html・オーナー了承）──────
+   並び＝帯 → 今日の復習 → 記録（2枚） → 続きから学習 → 今日の語 → マイリスト → おすすめ。
+   札は単語リストと同じ白地・細い枠・角 12px（画面どうしのコントラストを出しすぎない）。左右の基準線はライブラリと同じ（--content-max）。 */
+.hm {
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 12px max(40px, calc((100% - var(--content-max)) / 2)) 24px;
+  min-width: 0;
+}
+.hm > * { min-width: 0; }
+.hm-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; color: var(--text); }
+
+/* 帯（1行の細い帯・文＋リンク＋✕） */
+.hm-band { display: flex; align-items: center; gap: 6px; margin: 0 0 -4px; padding: 3px 2px 3px 12px; border-radius: 10px; background: var(--surface2); border: 1px solid var(--border); font-size: 12px; line-height: 1.45; color: var(--text-muted); }
+.hm-band-t { flex: 1; min-width: 0; }
+.hm-band-link { flex: none; border: 0; background: none; padding: 4px 4px; font: inherit; font-size: 12px; font-weight: 600; color: var(--accent); text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; cursor: pointer; }
+.hm-band-x { flex: none; min-width: 32px; min-height: 32px; border: 0; background: none; padding: 4px 8px; font-size: 12px; color: var(--text-muted); cursor: pointer; } /* 押しやすい大きさ（32px）を確保 */
+
+/* 今日の復習 */
+.hm-today-top { display: flex; align-items: center; gap: 14px; }
+.hm-today-num { flex: none; width: 58px; height: 58px; border-radius: 50%; border: 2px solid #e6c896; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.hm-today-num b { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 500; line-height: 1; color: #8a5a26; font-variant-numeric: tabular-nums; }
+.hm-today-num small { font-size: 9.5px; color: var(--text-muted); }
+html[data-theme="dark"] .hm-today-num { border-color: rgba(214,170,100,.45); }
+html[data-theme="dark"] .hm-today-num b { color: #f0c878; }
+.hm-today-tx { min-width: 0; }
+.hm-today-tx h2 { margin: 0; font-size: 17px; font-weight: 600; }
+.hm-today-tx p { margin: 3px 0 0; font-size: 12px; color: var(--text-muted); }
+.hm-today-btn { display: block; margin-top: 14px; }
+.hm-done { text-align: center; padding: 6px 0 2px; font-size: 15px; font-weight: 600; }
+.hm-done small { display: block; margin-top: 4px; font-size: 12px; font-weight: 400; color: var(--text-muted); min-height: 1em; }
+.hm-again { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--text-muted); }
+.hm-again-btn { border: 1px solid var(--border); background: var(--surface); border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 12.5px; color: var(--text-soft); cursor: pointer; }
+.hm-again-btn b { color: var(--accent); font-weight: 600; }
+.hm-again-btn:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
+
+/* 記録（2枚） */
+.hm-duo { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 10px; }
+.hm-duo.is-single { grid-template-columns: minmax(0,1fr); }
+.hm-duo > .hm-card { padding: 14px; font: inherit; text-align: center; }
+button.hm-card { cursor: pointer; width: 100%; }
+button.hm-card:hover { border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
+.hm-nums { display: flex; flex-direction: column; justify-content: center; gap: 10px; }
+.hm-num { display: block; }
+.hm-num small { display: block; font-size: 13.5px; font-weight: 600; color: var(--text-soft); }
+.hm-num b { font-family: 'Playfair Display', serif; font-size: 30px; font-weight: 500; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.hm-num i { font-style: normal; font-size: 13px; color: var(--text-muted); margin-left: 3px; }
+.hm-num-l b { color: var(--green); }
+.hm-num-m b { color: var(--gold); }
+.hm-num-m { padding-top: 10px; border-top: 1px solid var(--border); }
+.hm-duo.is-single .hm-nums { flex-direction: row; justify-content: space-around; }
+.hm-duo.is-single .hm-num-m { padding-top: 0; border-top: 0; }
+.hm-days {
+  display: flex; flex-direction: column; gap: 10px;
+  --g0: #f1ece3; --g1: #f3dcaa; --g2: #e7b65c; --g3: #cf8a2d; --g4: #9e5f12;
+}
+html[data-theme="dark"] .hm-days { --g0: rgba(255,255,255,.07); --g1: #5c4a2c; --g2: #8a6830; --g3: #c08a36; --g4: #f0b64e; }
+.hm-days-h { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px 8px; font-size: 13.5px; font-weight: 600; color: var(--text-soft); }
+.hm-days-h .plus-note { font-size: 10px; padding: 0 6px; font-weight: 400; }
+.hm-days-g { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, minmax(0, 1fr)); grid-auto-columns: minmax(0, 1fr); gap: 3px; width: 100%; max-width: 240px; margin: 0 auto; }
+.hm-days-g i { aspect-ratio: 1; border-radius: 2.5px; background: var(--g0); }
+.hm-days-g i.l1 { background: var(--g1); } .hm-days-g i.l2 { background: var(--g2); } .hm-days-g i.l3 { background: var(--g3); } .hm-days-g i.l4 { background: var(--g4); }
+.hm-days-g i.is-out { background: transparent; }
+.hm-days-g i.is-today { outline: 1.5px solid var(--accent); outline-offset: 1px; }
+
+/* 見出しと行（続きから学習・あなたのレベルに合う作品） */
+.hm-section { display: grid; gap: 0; }
+.hm-sec { display: flex; justify-content: space-between; align-items: baseline; margin: 10px 0 0; }
+.hm-sec h3 { margin: 0; font-size: 16px; font-weight: 600; color: var(--text); }
+.hm-sec button { border: 0; background: none; padding: 4px 0; font: inherit; font-size: 12.5px; color: var(--accent); cursor: pointer; }
+.hm-sec-sub { margin: 4px 0 10px; font-size: 12px; color: var(--text-muted); }
+.hm-section > .library-grid { margin-top: 10px; }
+.hm-rows { display: grid; gap: 8px; margin-top: 8px; }
+.hm-row { display: flex; align-items: center; gap: 12px; padding: 10px 10px 10px 10px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); cursor: pointer; min-width: 0; }
+.hm-row:hover { border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
+.hm-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hm-row-ps { position: relative; flex: none; width: 46px; height: 66px; border-radius: 6px; overflow: hidden; display: grid; place-items: center; background: var(--surface2); }
+.hm-row-ps img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: opacity .2s; }
+.hm-row-letter { color: rgba(255,255,255,.92); font-family: 'Playfair Display', serif; font-weight: 700; font-size: 18px; }
+.hm-row-tx { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.hm-row-t { font-size: 15px; font-weight: 600; color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hm-row-m { margin-top: 2px; font-size: 11.5px; color: var(--text-muted); }
+.hm-row-pb { display: block; height: 5px; margin-top: 7px; border-radius: 3px; background: #f1ece3; overflow: hidden; }
+html[data-theme="dark"] .hm-row-pb { background: rgba(255,255,255,.08); }
+.hm-row-pb i { display: block; height: 100%; border-radius: 3px; background: var(--green); }
+.hm-row-x { flex: none; align-self: flex-start; width: 26px; height: 26px; border: 0; border-radius: 50%; background: var(--surface2); color: var(--text-muted); font-size: 11px; cursor: pointer; }
+.hm-row-x:hover { color: var(--text); }
+
+/* はじめての人 */
+.hm-hello h2 { margin: 0; font-size: 17px; font-weight: 600; }
+.hm-hello p { margin: 4px 0 0; font-size: 13px; color: var(--text-soft); }
+.hm-fine { margin: 10px 2px 0; font-size: 11px; line-height: 1.6; color: var(--text-muted); }
+
+/* 今日の語（ほかの札と同じ幅・同じ札に） */
+.hm .home-today-word { margin: 0; padding: 16px; border-radius: 12px; }
+
+/* 観たあとに（NEXT_PUBLIC_HOME_WATCH_CARD=on の時だけ） */
+.hm-watch .reunion-card { margin: 0; }
+
+@media (max-width: 768px) {
+  .hm { padding: 12px 16px 24px; }
+}

@@ -2,10 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
-import TodayPanel from './TodayPanel';
+import { HomeBand, HomeTodayCard, HomeRecord, HomeStart } from './HomeParts';
 import { CURATION_ON, SAVE_STAR_SENTENCE } from '@/lib/curation';
-import VocabProgress from './VocabProgress';
-import GrassCard from './GrassCard';
 import PlusNote from './PlusNote';
 import { buildGrass, statsStart } from '@/lib/journey';
 import { loadExpLedger } from '@/lib/exp';
@@ -31,6 +29,7 @@ import { fetchCtxJa } from '@/lib/ctxtranslate';
 import { fetchJa } from '@/lib/jatranslate';
 import { getActiveWords, normTitleForMatch, prewarmTitleAliases, sameWorkTitle } from '@/lib/words';
 import { pickTodayWord } from '@/lib/liked';
+import { AGAIN_BATCH } from '@/lib/againWords';
 import {
   toIsoDate,
   loadStatsDaily,
@@ -48,9 +47,15 @@ import {
   loadSrs,
   overallVocabStats,
   activeWordKeys,
+  getAgainWords,
   collectRingWords,
   ringCounts,
 } from '@/lib/storage';
+
+// 「観たあとに」のカード（視聴直後リキャップ・docs/design-recap-endroll.md）は、2026-11-12 のホームの見直しでホームから外した
+//   （オーナー決定＝ほとんど使っていない）。コードは残してあり、Vercel の環境変数 NEXT_PUBLIC_HOME_WATCH_CARD=on を入れて
+//   再デプロイすると、続きから学習の下に戻る（ビルド時に埋め込まれる値なので再デプロイが要る）。
+const SHOW_WATCH_CARD = process.env.NEXT_PUBLIC_HOME_WATCH_CARD === 'on';
 
 // まだ Next.js 版に移植していない画面・機能の仮ハンドラ
 function notYet(name) {
@@ -88,6 +93,7 @@ export default function Dashboard() {
     openAuth,
     sessionExpired,
     openWordbook,
+    openSearch,
   } = useApp();
   // 今日の復習1回の語数＝復習タブ・ボトムナビのバッジと同じ（設定の語数・既定20語・無料）
   const plan = usePlan(loggedIn);
@@ -374,10 +380,9 @@ export default function Dashboard() {
           });
           const json = await res.json();
           const hit = json.results?.[0];
-          if (!hit?.backdrop_path && !hit?.poster_path) continue;
-
-          // 縦長カード用に縦ポスター(poster_path)を優先。無ければ横長で代替。
-          const imgPath = hit.poster_path || hit.backdrop_path;
+          // 縦のポスターだけ。無ければ頭文字の札のまま（横長の backdrop＝場面写真を縦の枠で代用しない・法務 2026-11-12）
+          if (!hit?.poster_path) continue;
+          const imgPath = hit.poster_path;
           const p = `https://image.tmdb.org/t/p/w342${imgPath}`;
           found[drama.title] = p;
 
@@ -715,203 +720,182 @@ export default function Dashboard() {
     </>
   );
 
+  // 「もう一度：知らなかった／うろ覚え」（復習・クイズの新機能・lib/againWords.js）。母集団は今日の復習と同じ。
+  //   始め方も復習タブ（ReviewHubScreen startAgain）と同じ＝1回 20語・openReview(..., { again })。利用データも同じ again_*_start に入る（ReviewModal）。
+  const againLists = useMemo(() => {
+    if (!mounted || !data.hasAnyWord) return { unknown: [], shaky: [] };
+    const h = data.history || loadHistory();
+    const srs = loadSrs();
+    const keys = activeWordKeys(h, myWords, sameWorkTitle);
+    return {
+      unknown: getAgainWords('unknown', h, srs, myWords, keys),
+      shaky: getAgainWords('shaky', h, srs, myWords, keys),
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted, data, myWords]);
+  const startAgain = (kind) => {
+    const list = againLists[kind] || [];
+    if (!list.length) return;
+    setCurrentHistoryId(null);
+    openReview(list.slice(0, AGAIN_BATCH), { again: kind });
+  };
+  const startToday = () => {
+    // 横断復習（特定エピソードに紐づかない）→ historyId は null
+    setCurrentHistoryId(null);
+    const h = loadHistory();
+    openReview(getDueReviewWords(h, loadSrs(), myWords, activeWordKeys(h, myWords, sameWorkTitle)).slice(0, todayCap));
+  };
+  const journeyOk = featureAccess('ring', plan).usable;
+
+  // 2026-11-12 見直し（受付の見本 reports/home-ui-2026-11-12/mock.html・オーナー了承）:
+  //   帯 → 今日の復習 → 記録（2枚） → 続きから学習 → 今日の語 → マイリスト → おすすめ（→ TMDB の表示は layout）。
+  //   帯は1行の細い帯に（出す条件・順番・1回だけ等は今のまま）。文は短くした（オーナー確認用に受付へ報告）。
   return (
     <div className="screen active" id="screen-main">
-      {/* ログインの期限切れ（起動時にログイン画面を出さない代わりの案内・初回体験の修正 D） */}
-      {sessionExpired && !loggedIn && !expiredBandClosed && (
-        <div className="ext-banner">
-          <span className="ext-banner-text">同期が止まっています。ログインし直すと再開します（この端末の記録は消えません）</span>
-          <button className="ext-banner-btn" onClick={() => openAuth({ mode: 'login' })}>
-            ログイン →
-          </button>
-          <button className="ext-banner-close" onClick={() => setExpiredBandClosed(true)} aria-label="バナーを閉じる">
-            ✕
-          </button>
-        </div>
-      )}
-      {extEntry && (
-        <div className="ext-banner">
-          <span className="ext-banner-icon" aria-hidden="true">🧩</span>
-          <span className="ext-banner-text">
-            {loggedIn
-              ? CURATION_ON
-                ? `拡張機能を追加しました。${SAVE_STAR_SENTENCE}`
-                : '拡張機能を追加しました。動画の字幕の単語をクリックして「✓ 保存」を押すと、単語帳に入ります'
-              : '拡張機能を追加しました。保存した単語をアプリに届けるにはログインが必要です'}
-          </span>
-          {!loggedIn && (
-            <button className="ext-banner-btn" onClick={openAuth}>
-              登録・ログイン →
-            </button>
-          )}
-          <button className="ext-banner-close" onClick={closeExtEntry} aria-label="バナーを閉じる">
-            ✕
-          </button>
-        </div>
-      )}
-      {trialBand && !loggedIn && (
-        <div className="ext-banner ext-banner-info">
-          <span className="ext-banner-text">学習記録はこの端末に保存されています。登録すると、ほかの端末でも見られます。</span>
-          <button className="ext-banner-btn" onClick={() => openAuth({ mode: 'signup', source: 'trial_band' })}>
-            登録して学習記録を残す
-          </button>
-          <button className="ext-banner-close" onClick={() => setTrialBand(false)} aria-label="閉じる">
-            ✕
-          </button>
-        </div>
-      )}
-      {/* 拡張機能の案内は ✕ で閉じるまで一番上に出す（オーナー 2026-10-08） */}
-      {!extBannerDismissed &&
-        (isMobile ? (
-          // モバイルは拡張機能を入れられない → 「今すぐ入れる」ではなく、PC向け手順への
-          // リンクとして残す（あとでPCで導入できるよう案内）。
-          <div className="ext-banner ext-banner-info">
-            <span className="ext-banner-icon" aria-hidden="true">📱</span>
-            <span className="ext-banner-text">
-              ドラマ・映画を視聴中に字幕の単語をクリックして保存するにはPCでChrome拡張導入が必要です。スマホは予習・復習・テストに使えます。
-            </span>
-            <button className="ext-banner-btn" onClick={openGuide}>
-              PCへの導入手順はこちら →
-            </button>
-            <button className="ext-banner-close" onClick={dismissExtBanner} aria-label="バナーを閉じる">
-              ✕
-            </button>
-          </div>
+      <div className="hm">
+        {/* ログインの期限切れ（起動時にログイン画面を出さない代わりの案内・初回体験の修正 D）。「この端末の記録は消えません」は必ず添える */}
+        {sessionExpired && !loggedIn && !expiredBandClosed && (
+          <HomeBand
+            text="同期が止まっています。この端末の記録は消えません"
+            linkLabel="ログイン"
+            onLink={() => openAuth({ mode: 'login' })}
+            onClose={() => setExpiredBandClosed(true)}
+          />
+        )}
+        {extEntry && (
+          <HomeBand
+            text={
+              loggedIn
+                ? CURATION_ON
+                  ? `拡張機能を追加しました。${SAVE_STAR_SENTENCE}`
+                  : '拡張機能を追加しました。字幕の単語をクリックして「✓ 保存」で単語帳へ'
+                : '拡張機能を追加しました。単語を届けるにはログインが必要です'
+            }
+            linkLabel={loggedIn ? null : '登録・ログイン'}
+            onLink={() => openAuth()}
+            onClose={closeExtEntry}
+          />
+        )}
+        {trialBand && !loggedIn && (
+          <HomeBand
+            text="学習記録はこの端末に保存されています。登録すると、ほかの端末でも見られます"
+            linkLabel="登録する"
+            onLink={() => openAuth({ mode: 'signup', source: 'trial_band' })}
+            onClose={() => setTrialBand(false)}
+          />
+        )}
+        {/* 拡張機能の案内は ✕ で閉じるまで一番上に出す（オーナー 2026-10-08）。スマホは入れられないので PC の手順への案内 */}
+        {!extBannerDismissed && (
+          <HomeBand
+            text={
+              isMobile
+                ? 'PC の Chrome 拡張機能で、観ながら字幕の単語を保存できます'
+                : '無料の Chrome 拡張機能とログインで、Netflix・Prime Video の字幕の単語を集められます'
+            }
+            linkLabel={isMobile ? '導入手順' : '入れ方を見る'}
+            onLink={openGuide}
+            onClose={dismissExtBanner}
+          />
+        )}
+
+        {data.hasAnyWord && (
+          <HomeTodayCard
+            streak={data.streak}
+            todayCount={Math.min(data.dueCount, todayCap)}
+            weekStats={data.weekStats}
+            onStart={startToday}
+            again={{ unknown: againLists.unknown.length, shaky: againLists.shaky.length }}
+            onAgain={startAgain}
+          />
+        )}
+
+        {/* 記録（2枚）: 左＝覚えた・マスター（分母＝出会った語）、右＝学習した日（プラス・押すとあゆみの学習した日の欄へ＝journey_grass）。
+            左を押すとあゆみ（journey_tab と同じ数え方）。正式版の無料（あゆみが無い）では押せない札・学習した日は出さない＝左だけ全幅。 */}
+        <HomeRecord
+          learned={data.totalLearned}
+          mastered={data.totalMastered}
+          total={data.totalWords}
+          grass={homeGrass?.grass || null}
+          grassNote={<PlusNote feature="grass" plan={plan} short />}
+          onOpenJourney={journeyOk ? () => openJourney() : null}
+          onOpenGrass={() => openJourney('grass')}
+        />
+
+        {entries.length === 0 ? (
+          <HomeStart items={recommendItems} userLevel={settings.userLevel || 'B1'} onFind={() => openSearch()} onPick={startFromRecommend} />
         ) : (
-          <div className="ext-banner">
-            <span className="ext-banner-icon" aria-hidden="true">🧩</span>
-            <span className="ext-banner-text">
-              Netflix / Prime Video で単語を集めるには、無料の Chrome 拡張機能（ストアから1クリック）とログインが必要です
-            </span>
-            <button className="ext-banner-btn" onClick={openGuide}>
-              入れ方を見る →
-            </button>
-            <button className="ext-banner-close" onClick={dismissExtBanner} aria-label="バナーを閉じる">
-              ✕
-            </button>
-          </div>
-        ))}
+          <>
+            {continueEntries.length > 0 && (
+              <section className="hm-section" aria-labelledby="hm-cont-h">
+                <div className="hm-sec">
+                  <h3 id="hm-cont-h">続きから学習</h3>
+                  {continueEntries.length > 2 && (
+                    <button type="button" onClick={() => setShowAllContinue((s) => !s)}>
+                      {showAllContinue ? '閉じる' : 'すべて見る ›'}
+                    </button>
+                  )}
+                </div>
+                <div className="hm-rows">
+                  {(showAllContinue ? continueEntries : continueEntries.slice(0, 2)).map((entry) => (
+                    <ContinueCard
+                      key={entry.drama.title}
+                      entry={entry}
+                      stats={data.learnStats.get(entry.drama.title)}
+                      onSelect={(drama) => openDrama(drama)}
+                      onArchive={handleArchive}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
+            {SHOW_WATCH_CARD && <div className="hm-watch">{midSections}</div>}
+          </>
+        )}
 
-      <TodayPanel
-        streak={data.streak}
-        hasAnyWord={data.hasAnyWord}
-        todayCount={Math.min(data.dueCount, todayCap)}
-        weekStats={data.weekStats}
-        onStartReview={() => {
-          // 横断復習（特定エピソードに紐づかない）→ historyId は null
-          setCurrentHistoryId(null);
-          const h = loadHistory();
-          openReview(
-            getDueReviewWords(h, loadSrs(), myWords, activeWordKeys(h, myWords, sameWorkTitle)).slice(0, todayCap)
-          );
-        }}
-      />
+        {/* ♡今日の語（2026-11-07・法務の条件＝語が見出し・例文は “ ”＋出所の従）。ほかの札と同じ幅・同じ札に */}
+        {todayWord && (
+          <button type="button" className="hm-card home-today-word" onClick={openWordbook} title="単語帳で見る">
+            <span className="htw-label">♡ 今日の語</span>
+            <span className="htw-word">{todayWord.word}</span>
+            {(todayWord.ja || todayWord.definition) && <span className="htw-def">{todayWord.ja || todayWord.definition}</span>}
+            <span className="htw-ex">“{todayWord.sentence || todayWord.example}”</span>
+            {todayWord.dramaTitle && (
+              <span className="htw-src">
+                📺 {todayWord.dramaTitle}
+                {todayWord.season != null && todayWord.episode != null ? ` S${todayWord.season}E${todayWord.episode}` : ''}（字幕：OpenSubtitles）
+              </span>
+            )}
+          </button>
+        )}
 
-      {todayWord && (
-        <button type="button" className="home-today-word" onClick={openWordbook} title="単語帳で見る">
-          <span className="htw-label">♡ 今日の語</span>
-          <span className="htw-word">{todayWord.word}</span>
-          {(todayWord.ja || todayWord.definition) && <span className="htw-def">{todayWord.ja || todayWord.definition}</span>}
-          <span className="htw-ex">“{todayWord.sentence || todayWord.example}”</span>
-          {todayWord.dramaTitle && (
-            <span className="htw-src">
-              📺 {todayWord.dramaTitle}
-              {todayWord.season != null && todayWord.episode != null ? ` S${todayWord.season}E${todayWord.episode}` : ''}（字幕：OpenSubtitles）
-            </span>
-          )}
-        </button>
-      )}
-
-      {/* 学習した日（草）。ホームでは表示幅に収まる直近の週だけ（オーナー 2026-10-08）。
-          今日の復習・草・続きから学習（最低1枚）が、スマホでも PC でも最初の1画面に収まる並びにする。 */}
-      {/* 左＝覚えた・マスター、右＝学習した日（カレンダーだけの簡易版・押すとあゆみ）＝オーナー 2026-10-08 */}
-      <div className={`home-stats-row${homeGrass ? '' : ' is-single'}`}>
-        <VocabProgress learned={data.totalLearned} mastered={data.totalMastered} total={data.totalWords} />
-        {homeGrass && (
-          <div className="vj-screen vj-embed">
-            <GrassCard grass={homeGrass.grass} days={homeGrass.days} dailyStart={homeGrass.dailyStart} mini onOpen={() => openJourney('grass')} note={<PlusNote feature="grass" plan={plan} short />} />
-          </div>
+        {entries.length > 0 && listEntries.length > 0 && (
+          <section className="hm-section" aria-labelledby="hm-list-h">
+            <div className="hm-sec">
+              <h3 id="hm-list-h">マイリスト</h3>
+            </div>
+            <div className="library-grid">
+              {listEntries.map((entry) => (
+                <LibraryCard
+                  key={entry.drama.title}
+                  entry={entry}
+                  stats={data.learnStats.get(entry.drama.title)}
+                  onSelect={(drama) => openDrama(drama)}
+                  onArchive={handleArchive}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+        {entries.length > 0 && recommendItems.length > 0 && (
+          <section className="hm-section" aria-labelledby="hm-reco-h">
+            <div className="hm-sec">
+              <h3 id="hm-reco-h">おすすめ</h3>
+            </div>
+            <p className="hm-sec-sub">CineLearn が選んだ作品から、あなたのレベルに合うものです</p>
+            <RecommendGrid items={recommendItems} onPick={startFromRecommend} userLevel={settings.userLevel || 'B1'} variant="mini" />
+          </section>
         )}
       </div>
-
-
-      {/* 検索・ジャンル別検索・おすすめ・作品追加はすべてヘッダーの「＋」モーダルへ集約。
-          ホームのツールバーは撤去して散らかりを減らす（おすすめは下のセクションにも残す）。 */}
-
-      {entries.length === 0 && midSections}
-      {entries.length === 0 ? (
-        <div id="dramaLibrary" className="drama-library">
-          {/* 履歴・ライブラリが空 → 中央におすすめ（横スクロール行で「サブスク風」に） */}
-          <div className="library-empty recommend-empty-wrap">
-            <div className="recommend-heading">🎬 気になる作品を選んで始めましょう</div>
-            <div className="recommend-subheading">CineLearn が選んだ作品から、あなたのレベルに合うものです</div>
-            <RecommendGrid items={recommendItems} onPick={startFromRecommend} userLevel={settings.userLevel || 'B1'} variant="row" />
-          </div>
-        </div>
-      ) : (
-        <>
-        <div id="dramaLibrary" className="library-sections library-sections-top">
-          {continueEntries.length > 0 && (
-            <section className="library-section">
-              <div className="library-section-head">
-                <h2 className="library-section-title">続きから学習</h2>
-                {continueEntries.length > 2 && (
-                  <button
-                    type="button"
-                    className="section-see-all"
-                    onClick={() => setShowAllContinue((s) => !s)}
-                  >
-                    {showAllContinue ? '閉じる' : 'すべて見る →'}
-                  </button>
-                )}
-              </div>
-              <div className="continue-list">
-                {(showAllContinue ? continueEntries : continueEntries.slice(0, 2)).map((entry) => (
-                  <ContinueCard
-                    key={entry.drama.title}
-                    entry={entry}
-                    stats={data.learnStats.get(entry.drama.title)}
-                    onSelect={(drama) => openDrama(drama)}
-                    onArchive={handleArchive}
-                  />
-                ))}
-              </div>
-            </section>
-          )}
-        </div>
-        {midSections}
-        <div className="library-sections library-sections-rest">
-          {listEntries.length > 0 && (
-            <section className="library-section">
-              <h2 className="library-section-title">🎬 マイリスト</h2>
-              <div className="library-grid">
-                {listEntries.map((entry) => (
-                  <LibraryCard
-                    key={entry.drama.title}
-                    entry={entry}
-                    stats={data.learnStats.get(entry.drama.title)}
-                    onSelect={(drama) => openDrama(drama)}
-                    onArchive={handleArchive}
-                  />
-                ))}
-              </div>
-            </section>
-          )}
-          {recommendItems.length > 0 && (
-            <section className="library-section">
-              <h2 className="library-section-title">✨ おすすめ</h2>
-              <RecommendGrid
-                items={recommendItems}
-                onPick={startFromRecommend}
-                userLevel={settings.userLevel || 'B1'}
-                variant="mini"
-              />
-            </section>
-          )}
-        </div>
-        </>
-      )}
-
     </div>
   );
 }
