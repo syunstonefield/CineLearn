@@ -463,12 +463,12 @@ export default function SettingsScreen() {
             </div>
           </div>
 
-          {/* あゆみ（プラス）。正式版の無料の人は下のタブに出さないので、ここで何があるかだけ伝える（ぼかし・急かしなし） */}
+          {/* あゆみのうちプラスの部品（3重の円・段階・推移）。正式版の無料の人に、何がプラスかだけ伝える（ぼかし・急かしなし）。学習した日は無料（2026-11-12） */}
           {featureAccess('ring', plan).locked && (
             <div className="settings-section">
               <div className="settings-section-title">📈 あゆみ</div>
               <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.7 }}>
-                あゆみ（3重の円・段階ごとの覚えた語・学習した日の詳しいカレンダー・週ごとの推移）はプラスの機能です。覚えた語・マスターの数と学習した日は、ホームでいつでも見られます。
+                あゆみのうち、3重の円・段階ごとの覚えた語・週ごとの推移はプラスの機能です。学習した日は、どなたでもホームとあゆみで見られます。覚えた語・マスターの数は、ホームでいつでも見られます。
               </div>
             </div>
           )}

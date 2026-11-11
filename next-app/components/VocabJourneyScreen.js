@@ -403,13 +403,24 @@ export default function VocabJourneyScreen() {
   };
 
   const ringAccess = featureAccess('ring', plan);
-  // 正式版の無料の人（下のタブには出ない・念のため）: 説明だけ（ぼかし・チラ見せはしない）
+  // 正式版の無料の人（2026-11-12〜 下のタブにも出す）: 学習した日（無料）＋プラスの部品の説明1つだけ。
+  //   3重の円・段階ごとの覚えた語・週ごとの推移は出さない（ぼかし・チラ見せ・急かし・価格・申込の導線なし）。
   if (ringAccess.locked) {
     return (
       <div className="vj-screen" ref={screenRef}>
-        <div className="vj-card">
-          <PlusNote feature="ring" plan={plan} />
-          <p className="vj-hint">あゆみ（3重の円・段階ごとの覚えた語・学習した日の詳しいカレンダー・週ごとの推移）はプラスの機能です。覚えた語・マスターの数と学習した日は、ホームでいつでも見られます。</p>
+        <div className="vj-head">
+          <h1 className="screen-title">あゆみ</h1>
+        </div>
+        <div className="vj-body">
+          {data && grassOk && (
+            <div className="vj-reveal" id="vj-grass-sec">
+              <GrassCard grass={data.grass} days={data.days} dailyStart={data.dailyStart} />
+            </div>
+          )}
+          <div className="vj-lock">
+            <b>3重の円・段階ごとの覚えた語・週ごとの推移はプラスの機能です</b>
+            <span>覚えた語・マスターの数は、ホームでいつでも見られます。学習の記録はこれまで通り残り続けます。</span>
+          </div>
         </div>
       </div>
     );

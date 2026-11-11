@@ -6,7 +6,6 @@
 // PC幅でも常時表示（バー全幅・タブ群は中央寄せ）。ヘッダーの単語帳は集約のため隠す。
 
 import { useApp } from './AppProvider';
-import { featureAccess, usePlan } from '@/lib/plan';
 
 const ICON = {
   strokeWidth: 1.8,
@@ -75,10 +74,9 @@ export default function BottomNav({ dueCount = 0, wordCount = 0 }) {
     openCollection,
     openJourney,
     reviewWords,
-    loggedIn,
   } = useApp();
-  // あゆみはプラス（オーナー 2026-10-09）。正式版の無料の人には下のタブに出さない（押せない枠を置かない）＝設定に説明を置く。
-  const journeyLocked = featureAccess('ring', usePlan(loggedIn)).locked;
+  // あゆみのタブは誰にでも出す（2026-11-12: 学習した日が無料になったため・あゆみの中は学習した日＋プラスの部品の説明1つ）。
+  //   以前は正式版の無料の人には出さなかった（オーナー 2026-10-09）。
 
   // 復習タブは即・横断復習ではなく復習ハブへ（エピソード選択／ランダムを選ばせる）。
   const onReview = openReviewHub;
@@ -119,7 +117,7 @@ export default function BottomNav({ dueCount = 0, wordCount = 0 }) {
       {tab(homeActive, goHome, <IconHome />, 'ホーム', 0, undefined, 'home')}
       {tab(wordbookActive, openWordbook, <IconBook />, '単語帳', wordCount, 'count', 'wordbook')}
       {tab(reviewActive, onReview, <IconReview />, '復習', dueCount, 'urgent', 'review')}
-      {!journeyLocked && tab(journeyActive, openJourney, <IconJourney />, 'あゆみ', 0, undefined, 'journey')}
+      {tab(journeyActive, openJourney, <IconJourney />, 'あゆみ', 0, undefined, 'journey')}
       {/* 「半券」→「コレクション」（オーナー 2026-10-31・ポスター表示も入ったため） */}
       {tab(collectionActive, openCollection, <IconTicket />, 'コレクション', 0, undefined, 'collection')}
     </nav>

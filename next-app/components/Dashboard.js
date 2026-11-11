@@ -810,14 +810,15 @@ export default function Dashboard() {
         )}
 
         {/* 記録（2枚）: 左＝覚えた・マスター（分母＝出会った語）、右＝学習した日（誰でも・押すとあゆみの学習した日の欄へ＝journey_grass）。
-            左を押すとあゆみ（journey_tab と同じ数え方）。正式版の無料（あゆみはプラス）では、2枚とも押せない札（説明やプラスの案内へは進めない）。 */}
+            左を押すとあゆみ（journey_tab と同じ数え方）。正式版の無料では、学習した日だけ押せる（あゆみの学習した日へ・無料 2026-11-12）。
+            覚えた・マスターの札は押せない（あゆみの円はプラス＝押すとプラスの説明に進む形にしない）。 */}
         <HomeRecord
           learned={data.totalLearned}
           mastered={data.totalMastered}
           total={data.totalWords}
           grass={homeGrass?.grass || null}
           onOpenJourney={journeyOk ? () => openJourney() : null}
-          onOpenGrass={journeyOk ? () => openJourney('grass') : null}
+          onOpenGrass={() => openJourney('grass')}
         />
 
         {entries.length === 0 ? (
