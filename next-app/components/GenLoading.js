@@ -175,6 +175,18 @@ export default function GenLoading({ status, drama, season, episode, ready = fal
         </div>
       )}
 
+      {/* TMDB の表示（法務の条件 2026-11-12）。画面下の app-tmdb-footer は、スマホでは下のタブバーに隠れて
+          待ち画面ではスクロールしないと見えない（本番で確認）。TMDB の画像・あらすじを出している時は、カードの下にも1行出す。 */}
+      {(synopsis || drama?.posterPath) && (
+        <div className="gen-tmdb-note">
+          This product uses the TMDB API but is not endorsed or certified by{' '}
+          <a href="https://www.themoviedb.org" target="_blank" rel="noopener">
+            TMDB
+          </a>
+          .
+        </div>
+      )}
+
       {/* 学習Tips：ラベル＋帯＋ローテーションのドット表示。key 再マウントで tipFade を再トリガー */}
       <div className="gen-tipbar">
         <div className="gen-tipbar-main">
