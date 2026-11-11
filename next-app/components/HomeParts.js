@@ -8,6 +8,9 @@
 import { useEffect, useState } from 'react';
 import { tmdb } from '@/lib/api';
 import { GENRE_LABELS, levelMark } from '@/lib/recommended';
+import { WEEKDAYS } from '@/lib/journey';
+
+const HOME_WEEKS = 8; // ホームの学習した日に出す直近の週の数（スマホ 390 の半分の札に収まる数）。記録が短い人も列の数は8のまま（マスが大きくならないように）
 
 // 1行の細い帯（文＋リンク＋✕）。出す条件・順番・回数は Dashboard 側（今のまま）。
 export function HomeBand({ text, linkLabel, onLink, onClose }) {
@@ -92,7 +95,15 @@ export function HomeRecord({ learned, mastered, total, grass, onOpenJourney, onO
   if (!(total > 0)) return null;
   const Left = onOpenJourney ? 'button' : 'div';
   const Days = onOpenGrass ? 'button' : 'div';
-  const weeks = grass ? grass.weeks.slice(-7) : [];
+  const weeks = grass ? grass.weeks.slice(-HOME_WEEKS) : [];
+  // 月の見出し＝その週に1日があれば「N月」。先頭の列は、見えている最初の日の月（GrassCard の compact と同じ考え方）
+  //   ただし2列目にすぐ月の見出しがある時は、先頭の列には出さない（文字が重ならないように）。
+  const monthOf = (w, i) => {
+    if (w.month) return w.month;
+    if (i !== 0 || weeks[1]?.month) return '';
+    const first = w.days.find((d) => !d.out);
+    return first ? `${first.date.getMonth() + 1}月` : '';
+  };
   return (
     <div className={`hm-duo${grass ? '' : ' is-single'}`}>
       <Left
@@ -115,15 +126,33 @@ export function HomeRecord({ learned, mastered, total, grass, onOpenJourney, onO
           {...(onOpenGrass
             ? { type: 'button', onClick: onOpenGrass, 'aria-label': `学習した日（${grass.studied}日・今月 ${grass.thisMonth}日）。押すとあゆみで詳しく` }
             : { role: 'img', 'aria-label': `学習した日（${grass.studied}日・今月 ${grass.thisMonth}日）` })}
-          className="hm-card hm-days"
+          className={`hm-card hm-days${onOpenGrass ? ' is-link' : ''}`}
         >
-          <span className="hm-days-h">学習した日{onOpenGrass ? ' ›' : ''}</span>
-          <span className="hm-days-g" aria-hidden="true">
-            {weeks.flatMap((w) =>
-              w.days.map((d) => (
-                <i key={d.ymd} className={`${d.out ? 'is-out' : d.level ? `l${d.level}` : ''}${d.today ? ' is-today' : ''}`} />
-              ))
-            )}
+          {/* 題は出さず、今までのホームと同じく月と曜日（月・水・金）を添えたマス目だけ（オーナー 2026-11-12）。押せる時は右上に小さな › */}
+          {onOpenGrass && (
+            <span className="hm-days-go" aria-hidden="true">
+              ›
+            </span>
+          )}
+          <span className="hm-days-cal" aria-hidden="true" style={{ '--hm-weeks': HOME_WEEKS }}>
+            <span />
+            <span className="hm-days-mo">
+              {weeks.map((w, i) => (
+                <span key={i}>{monthOf(w, i)}</span>
+              ))}
+            </span>
+            <span className="hm-days-wd">
+              {WEEKDAYS.map((d, i) => (
+                <span key={d}>{i % 2 ? d : ''}</span>
+              ))}
+            </span>
+            <span className="hm-days-g">
+              {weeks.flatMap((w) =>
+                w.days.map((d) => (
+                  <i key={d.ymd} className={`${d.out ? 'is-out' : d.level ? `l${d.level}` : ''}${d.today ? ' is-today' : ''}`} />
+                ))
+              )}
+            </span>
           </span>
         </Days>
       )}

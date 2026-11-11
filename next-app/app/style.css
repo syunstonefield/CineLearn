@@ -7968,26 +7968,32 @@ html[data-theme="dark"] .hm-today-num b { color: #f0c878; }
 /* 記録（2枚） */
 .hm-duo { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 10px; }
 .hm-duo.is-single { grid-template-columns: minmax(0,1fr); }
-.hm-duo > .hm-card { padding: 10px 12px; font: inherit; text-align: center; }
+.hm-duo > .hm-card { padding: 8px 10px; font: inherit; text-align: center; }
 button.hm-card { cursor: pointer; width: 100%; }
 button.hm-card:hover { border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
-.hm-nums { display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+.hm-nums { display: flex; flex-direction: column; justify-content: center; gap: 4px; }
 .hm-num { display: block; }
-.hm-num small { display: block; font-size: 13px; font-weight: 600; line-height: 1.3; color: var(--text-soft); }
-.hm-num b { font-family: 'Playfair Display', serif; font-size: 27px; font-weight: 500; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.hm-num small { display: block; font-size: 12.5px; font-weight: 600; line-height: 1.25; color: var(--text-soft); }
+.hm-num b { font-family: 'Playfair Display', serif; font-size: 25px; font-weight: 500; line-height: 1.05; font-variant-numeric: tabular-nums; }
 .hm-num i { font-style: normal; font-size: 13px; color: var(--text-muted); margin-left: 3px; }
 .hm-num-l b { color: var(--green); }
 .hm-num-m b { color: var(--gold); }
-.hm-num-m { padding-top: 6px; border-top: 1px solid var(--border); }
+.hm-num-m { padding-top: 4px; border-top: 1px solid var(--border); }
 .hm-duo.is-single .hm-nums { flex-direction: row; justify-content: space-around; }
 .hm-duo.is-single .hm-num-m { padding-top: 0; border-top: 0; }
 .hm-days {
-  display: flex; flex-direction: column; justify-content: center; gap: 6px;
+  position: relative; display: flex; flex-direction: column; justify-content: center;
   --g0: #f1ece3; --g1: #f3dcaa; --g2: #e7b65c; --g3: #cf8a2d; --g4: #9e5f12;
 }
 html[data-theme="dark"] .hm-days { --g0: rgba(255,255,255,.07); --g1: #5c4a2c; --g2: #8a6830; --g3: #c08a36; --g4: #f0b64e; }
-.hm-days-h { display: block; font-size: 13px; font-weight: 600; line-height: 1.3; color: var(--text-soft); }
-.hm-days-g { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, minmax(0, 1fr)); grid-auto-columns: minmax(0, 1fr); gap: 2px; width: 100%; max-width: 124px; margin: 0 auto; }
+.hm-days.is-link { padding-right: 18px; }
+.hm-days-go { position: absolute; top: 6px; right: 9px; font-size: 15px; line-height: 1; color: var(--text-muted); }
+/* 月の見出し（上）・曜日（左：月・水・金）・マス目。今までのホームの学習した日と同じ並び */
+.hm-days-cal { display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 2px 3px; width: 100%; max-width: 168px; margin: 0 auto; }
+.hm-days-mo { display: grid; grid-template-columns: repeat(var(--hm-weeks, 8), minmax(0, 1fr)); gap: 2px; font-size: 9.5px; line-height: 12px; height: 12px; color: var(--text-muted); text-align: left; }
+.hm-days-mo span { white-space: nowrap; overflow: visible; }
+.hm-days-wd { display: grid; grid-template-rows: repeat(7, minmax(0, 1fr)); gap: 2px; font-size: 9px; color: var(--text-muted); text-align: left; align-items: center; }
+.hm-days-g { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, minmax(0, 1fr)); grid-template-columns: repeat(var(--hm-weeks, 8), minmax(0, 1fr)); gap: 2px; }
 .hm-days-g i { aspect-ratio: 1; border-radius: 2.5px; background: var(--g0); }
 .hm-days-g i.l1 { background: var(--g1); } .hm-days-g i.l2 { background: var(--g2); } .hm-days-g i.l3 { background: var(--g3); } .hm-days-g i.l4 { background: var(--g4); }
 .hm-days-g i.is-out { background: transparent; }
