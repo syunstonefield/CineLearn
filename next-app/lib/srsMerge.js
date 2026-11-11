@@ -39,6 +39,8 @@ export function cloudRowToEntry(e) {
   if (e.origin_title) entry.origin = { title: e.origin_title, season: e.origin_season ?? null, episode: e.origin_episode ?? null };
   // 初回の答え（first_quality）。先に入った値を優先・null は上書きしない
   if (e.first_quality != null) entry.firstQuality = e.first_quality;
+  // 最後の答え（last_quality・2026-11-12）。列が無い DB・記録前の行は undefined＝付けない
+  if (e.last_quality != null) entry.lastQuality = e.last_quality;
   if (e.updated_at) entry.updatedAt = e.updated_at;
   return entry;
 }
@@ -67,6 +69,8 @@ export function localWinsPush(local, cloudRow) {
   if (ll !== lc) return ll > lc;
   if (!!local.skipped !== !!cloudRow.skipped) return true;
   if ('first_quality' in cloudRow && cloudRow.first_quality == null && local.firstQuality != null) return true;
+  // 列はあるがクラウドに最後の答えが無い（列を足す前の行）＝端末の値で埋める。同じ日の時だけ（違う日は上の比較で決着済み）
+  if ('last_quality' in cloudRow && cloudRow.last_quality == null && local.lastQuality != null) return true;
   const uc = iso(cloudRow.updated_at);
   const ul = iso(local.updatedAt);
   return !!uc && !!ul && ul > uc;
@@ -86,11 +90,17 @@ export function mergeSrs(local, cloudRows, { complete = true } = {}) {
       // ローカルだけが出所・初回の答えを持っていれば引き継ぐ（クラウド行が古い＝列が空のことがある）
       if (!cloudEntry.origin && l?.origin?.title) cloudEntry.origin = l.origin;
       if (cloudEntry.firstQuality == null && l?.firstQuality != null) cloudEntry.firstQuality = l.firstQuality;
+      // 最後の答えは、クラウドに無く（列が無い・列を足す前の行）同じ日の答えの時だけ端末の値を引き継ぐ。
+      //   違う日（クラウドが新しい）なら端末の値は古い＝付けない（lib/againWords.js が repetitions=0 から「知らなかった」を読む）
+      if (cloudEntry.lastQuality == null && l?.lastQuality != null && day(l.lastReview) === day(e.last_review)) {
+        cloudEntry.lastQuality = l.lastQuality;
+      }
       merged[e.word] = cloudEntry;
     } else {
       const fill = {};
       if (!l.origin?.title && cloudEntry.origin) fill.origin = cloudEntry.origin; // ローカル優先でも出所だけは補う
       if (l.firstQuality == null && cloudEntry.firstQuality != null) fill.firstQuality = cloudEntry.firstQuality;
+      if (l.lastQuality == null && cloudEntry.lastQuality != null) fill.lastQuality = cloudEntry.lastQuality;
       if (Object.keys(fill).length) merged[e.word] = { ...l, ...fill };
     }
   }
