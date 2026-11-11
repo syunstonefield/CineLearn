@@ -5665,6 +5665,19 @@ html[data-theme="dark"] .tcp-item.frame-black .tcp-frame { box-shadow: 0 0 0 1px
 .cl-frames-label { font-size: 12px; color: var(--text-soft); white-space: nowrap; }
 .cl-frames-note { margin: 4px 0 0; font-size: 13px; line-height: 1.7; color: var(--text-soft); }
 
+/* コレクションから消去の確認画面と「元に戻す」の帯（2026-11-07）。178c111 の作り替えで消してしまったのを戻す（2026-11-12）。
+   確認画面は PC でも画面の真ん中（.modal-overlay は上寄せが既定のため）。 */
+.wr-overlay { align-items: center; }
+.wr-panel { padding: 20px; gap: 14px; overflow-y: auto; }
+.wr-title { font-size: 16px; font-weight: 700; line-height: 1.5; margin: 0; color: var(--text); }
+.wr-lines { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 8px; font-size: 13.5px; line-height: 1.6; color: var(--text); }
+.wr-actions { display: flex; gap: 10px; justify-content: flex-end; }
+.wr-actions > button { flex: 1; max-width: 180px; }
+/* 中央寄せは left/right＋margin:auto（left:50% だと幅が画面の半分に縮み文が切れる） */
+.wr-undo { position: fixed; left: 0; right: 0; margin: 0 auto; width: max-content; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); z-index: 950; display: flex; align-items: center; gap: 14px; max-width: calc(100% - 32px); padding: 10px 14px 10px 16px; border-radius: 12px; background: var(--text); color: var(--surface); box-shadow: 0 6px 24px rgba(0,0,0,0.2); font-size: 13.5px; }
+.wr-undo-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wr-undo-btn { flex-shrink: 0; background: none; border: none; padding: 4px 2px; font: inherit; font-weight: 700; color: inherit; text-decoration: underline; cursor: pointer; }
+
 /* 作品の詳細 */
 .cld-back { margin-bottom: 8px; align-self: flex-start; }
 .cld-head { display: flex; align-items: center; gap: 16px; }

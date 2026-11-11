@@ -24,6 +24,9 @@ const FILTERS = [
 // 表示の切り替え（半券／ポスター壁）。端末ごとの好みなので localStorage に置く（同期しない）。
 // 既定はポスター（オーナー 2026-11-10）。自分で選んだ端末はその選択のまま。
 const VIEW_KEY = 'cl_ticket_view';
+// 並び（はじめた日・達成度・名前）も端末ごとに覚える（表示の切り替えと同じ・同期しない・オーナー 2026-11-12）。
+const SORT_KEY = 'cl_ticket_sort';
+const SORTS = ['added', 'progress', 'name'];
 const VIEWS = [
   ['poster', '🖼 ポスター'],
   ['ticket', '🎟 半券'],
@@ -122,10 +125,20 @@ export default function TicketCollectionScreen() {
     try {
       const v = localStorage.getItem(VIEW_KEY);
       if (v === 'ticket' || v === 'poster') setView(v);
+      const so = localStorage.getItem(SORT_KEY);
+      if (SORTS.includes(so)) setSort(so);
     } catch {
       /* ignore */
     }
   }, []);
+  const changeSort = (v) => {
+    setSort(v);
+    try {
+      localStorage.setItem(SORT_KEY, v);
+    } catch {
+      /* ignore */
+    }
+  };
   const changeView = (v) => {
     setView(v);
     try {
@@ -533,7 +546,7 @@ export default function TicketCollectionScreen() {
               </button>
               <label className="cl-sort">
                 並び
-                <select value={sort} onChange={(e) => setSort(e.target.value)}>
+                <select value={sort} onChange={(e) => changeSort(e.target.value)}>
                   <option value="added">はじめた日</option>
                   <option value="progress">達成度</option>
                   <option value="name">名前</option>

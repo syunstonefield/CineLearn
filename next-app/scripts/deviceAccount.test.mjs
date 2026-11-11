@@ -34,7 +34,7 @@ const OTHER_LEARNING = [
 const DEVICE_KEYS = [
   'cl_sb_session', 'cl_device_key', 'cl_last_uid', 'cl_usage_tally', 'cl_usage_optout', 'cl_usage_ext_seen', 'cl_theme',
   'cl_title_media2', 'cl_title_alias2', 'cl_total_eps_123', 'cl_sub_lru', 'cl_sub_raw_x', 'cl_ja_sentence_cache_v2',
-  'cl_ctx_ja_cache_v3', 'cl_subcache_cleanup_v1', 'cl_ticket_view', 'cl_review_keys_seen', 'cl_sync_recover_v1',
+  'cl_ctx_ja_cache_v3', 'cl_subcache_cleanup_v1', 'cl_ticket_view', 'cl_ticket_sort', 'cl_review_keys_seen', 'cl_sync_recover_v1',
   'cl_predom_fix', 'cl_predom_fix_p_1', // 取り直しの済み印は消さない（消すと通信を伴う取り直しが再実行される）
 ];
 
