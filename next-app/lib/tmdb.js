@@ -16,7 +16,7 @@ export async function fetchSeasonInfoFromTMDb(title) {
       .map((s) => ({ season: s.season_number, episodes: s.episode_count }));
 
     const englishTitle = detail.name || show.original_name || title;
-    const imgPath = show.poster_path || show.backdrop_path;
+    const imgPath = show.poster_path; // 縦のポスターだけ（横長の背景＝場面写真で代用しない・法務 2026-11-12）
     const posterPath = imgPath ? `https://image.tmdb.org/t/p/w342${imgPath}` : null;
     return seasons.length ? { seasons, englishTitle, tmdbId: show.id, posterPath } : null;
   } catch {
@@ -31,7 +31,7 @@ export async function fetchMovieInfoFromTMDb(title) {
     const movie = data.results?.[0];
     if (!movie) return null;
     const englishTitle = movie.title || movie.original_title || title;
-    const imgPath = movie.poster_path || movie.backdrop_path;
+    const imgPath = movie.poster_path; // 縦のポスターだけ（backdrop で代用しない・法務 2026-11-12）
     const posterPath = imgPath ? `https://image.tmdb.org/t/p/w342${imgPath}` : null;
     return { englishTitle, tmdbId: movie.id, posterPath };
   } catch {
@@ -42,7 +42,7 @@ export async function fetchMovieInfoFromTMDb(title) {
 // /search/multi で TVと映画の最上位候補をそれぞれ取得
 export async function fetchTitleCandidatesFromTMDb(title) {
   const posterOf = (x) => {
-    const p = x.poster_path || x.backdrop_path;
+    const p = x.poster_path; // backdrop（場面写真）で代用しない・法務 2026-11-12
     return p ? `https://image.tmdb.org/t/p/w342${p}` : null;
   };
   const yearOf = (x) => (x.first_air_date || x.release_date || '').slice(0, 4);
@@ -195,8 +195,8 @@ export async function fetchAvailableServices(drama) {
       }
       tmdbId = firstResult?.id;
       if (tmdbId) drama.tmdbId = tmdbId;
-      if ((firstResult?.poster_path || firstResult?.backdrop_path) && !drama.posterPath) {
-        const imgPath = firstResult.poster_path || firstResult.backdrop_path;
+      if (firstResult?.poster_path && !drama.posterPath) {
+        const imgPath = firstResult.poster_path; // backdrop（場面写真）で代用しない・法務 2026-11-12
         drama.posterPath = `https://image.tmdb.org/t/p/w342${imgPath}`;
       }
     }

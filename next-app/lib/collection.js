@@ -3,6 +3,12 @@
 import { tmdb } from './api';
 
 const epsCacheKey = (id) => `cl_total_eps_${id}`;
+// TMDB の取得結果を端末に置いておく期間（TMDB の規約＝6か月を超えて持たない・法務 2026-11-12）。
+//   取得日（at）を入れて保存し、90日より古いもの・取得日の無い旧キャッシュは取り直す。
+export const EPS_CACHE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+export function isFreshEpsCache(obj, now = Date.now()) {
+  return !!obj && Number.isFinite(obj.at) && now - obj.at < EPS_CACHE_TTL_MS;
+}
 
 // キャッシュ済みの総話数情報 { total, seasons:[{season,episodes}] } を返す（無ければ null）。
 export function getCachedSeasons(tmdbId) {
@@ -15,6 +21,8 @@ export function getCachedSeasons(tmdbId) {
     // posterPath は「キーの有無」で判定（null でも取得済み扱い＝再取得ループを防ぐ）。
     // names（照合用の作品名）が無い旧キャッシュも再取得＝自己治癒（偽ID検出に必要）。
     if (!obj || !('firstYear' in obj) || !('posterPath' in obj) || !('names' in obj)) return null;
+    // 取得日の無い旧キャッシュ・90日より古いキャッシュも取り直す（backdrop で代用していた頃の posterPath もこれで消える）。
+    if (!isFreshEpsCache(obj)) return null;
     return obj;
   } catch {
     return null;
@@ -38,12 +46,12 @@ export async function fetchSeasons(tmdbId, isMovie = false) {
     // ポスター（半券の左暗部用）も一緒にキャッシュ＝この seasons 取得は進捗バーで必ず走るので、
     // ポスターを「ついで」に得てキャッシュすれば、別途の TMDB 検索往復を省ける（出るまでの遅延を削減）。
     // 縦スロット用に poster_path(縦) を優先・w342（ホームと同サイズ＝軽く速い）。
-    const imgPath = detail.poster_path || detail.backdrop_path;
+    const imgPath = detail.poster_path; // 縦のポスターだけ。無ければ文字カード（backdrop＝場面写真で代用しない・法務 2026-11-12）
     const posterPath = imgPath ? `https://image.tmdb.org/t/p/w342${imgPath}` : null;
     // 作品名を保持＝呼び出し側が「チケットのタイトルとIDの中身が一致するか」を照合できる
     // （同期事故で紛れ込んだ偽 tmdbId の検出用・2026-07-03）。
     const names = [detail.name, detail.original_name, detail.title, detail.original_title].filter(Boolean);
-    const out = { total, seasons, firstYear, lastYear, posterPath, names };
+    const out = { total, seasons, firstYear, lastYear, posterPath, names, at: Date.now() };
     if (total > 0) {
       try {
         localStorage.setItem(epsCacheKey(tmdbId), JSON.stringify(out));

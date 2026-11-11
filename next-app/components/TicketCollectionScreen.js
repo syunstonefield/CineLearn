@@ -276,13 +276,13 @@ export default function TicketCollectionScreen() {
               const nq = norm(q) || norm(e.title);
               const hit = (json.results || []).find((r) => {
                 if (r.media_type !== 'tv' && r.media_type !== 'movie') return false;
-                if (!r.poster_path && !r.backdrop_path) return false;
+                if (!r.poster_path) return false; // 縦のポスターがある候補だけ（backdrop で代用しない・法務 2026-11-12）
                 const names = [r.name, r.title, r.original_name, r.original_title].map(norm);
                 return names.some((n) => n && nq && (n.includes(nq) || nq.includes(n)));
               });
               if (!hit) return;
               const isMovieHit = hit.media_type === 'movie';
-              const imgPath = hit.poster_path || hit.backdrop_path;
+              const imgPath = hit.poster_path;
               const p = `https://image.tmdb.org/t/p/w342${imgPath}`;
               found[e.title] = p;
               const m = md.find((d) => d.title === e.title);
