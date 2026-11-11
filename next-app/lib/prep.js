@@ -391,7 +391,10 @@ export function watchSearchUrl(title, service) {
   if (s.includes('prime') || s.includes('amazon')) {
     return `https://www.amazon.co.jp/s?k=${q}&i=instant-video`;
   }
-  if (s.includes('disney')) return `https://www.disneyplus.com/search?q=${q}`;
+  // Disney+ は検索語を渡せる公開の URL が無い（/search?q=・/browse/search などは、ログインしていても
+  //   「ページが見つかりません」・2026-11-12 オーナー実機と ⑤の確認）。トップを開く（地域とログイン状態に合わせて
+  //   Disney+ 側が振り分ける）。入場の文「Disney+ を開きます」と矛盾しない。
+  if (s.includes('disney')) return 'https://www.disneyplus.com/';
   if (s.includes('apple')) return `https://tv.apple.com/search?term=${q}`;
   if (s.includes('hulu')) return `https://www.hulu.com/search?q=${q}`;
   // 既定（Netflix／未選択）。
