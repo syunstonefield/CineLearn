@@ -30,6 +30,7 @@ import {
   VOCAB_MODEL,
   VOCAB_EXTRA,
   VOCAB_THINK_ROOM,
+  VOCAB_TIGHT_COUNT,
   GENERATE_DEADLINE_MS,
   UpstreamError,
 } from './constants.js';
@@ -158,7 +159,7 @@ export async function generateEpisodeVocab(input, deps = {}) {
   let superset;
   try {
     superset = await generateSuperset(
-      { drama, season: n.season, episode: n.episode, subtitleText, vocabCount, deadlineAt, onProgress },
+      { drama, season: n.season, episode: n.episode, subtitleText, vocabCount, deadlineAt, onProgress, tight: VOCAB_TIGHT_COUNT },
       onRetry,
       { callLlm, log }
     );

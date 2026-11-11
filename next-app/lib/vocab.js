@@ -163,7 +163,25 @@ function sanitizeDefinition(d, word = '') {
 }
 
 // targeted/superset 共通のプロンプト生成。mode で「学習者レベル狙い撃ち」と「A2〜C2を広く」を切替。
-function buildVocabPrompt({ drama, season, episode, subtitleText, mode, cur, upper, genVocabCount, minTotal }) {
+// tight（A'・オーナー決定 2026-11-12）: 書きすぎを止める。本番の実測で、字幕の語を「目標N個・出し切る」と頼むと映画は
+//   1回あたり目標の約2倍（60語の目標に116語）を書き、時間（≈出力トークン÷毎秒280）を延ばしていた。tight では
+//   ・字幕の語は「目標N個（最低0.8N・最大N）。N個を超えて出さない」（旧「最大N個／少なくてよい」は語数が6割に落ちたので、
+//     目標と下限は残して上限だけ足す）
+//   ・作例の語（18〜20語）は分割の回数で割る（2分割なら1回 9〜10語＝結合後の総数は今と同じ）
+//   ・max_tokens を語数ベースで締める（語あたり 130＋思考ぶん VOCAB_THINK_ROOM）。実測は1語あたり約120（思考込み）＝余裕を残した天井
+//   全レベルぶんの頼み方（70語＋α）・CEFR・plus の仕組み・逐語 example・品質ゲートは変えない。tight=false で元の文面・天井に戻る。
+export const PLUS_MIN = 18;
+export const PLUS_MAX = 20;
+export function plusRangeFor(quotaDiv = 1) {
+  const n = Math.max(1, Math.floor(Number(quotaDiv) || 1));
+  return [Math.ceil(PLUS_MIN / n), Math.ceil(PLUS_MAX / n)];
+}
+export function supersetMaxTokens(genVocabCount, { tight = false, quotaDiv = 1 } = {}) {
+  if (!tight) return Math.min(13000, (genVocabCount + 25) * 140);
+  return Math.min(13000, (genVocabCount + plusRangeFor(quotaDiv)[1]) * 130);
+}
+
+export function buildVocabPrompt({ drama, season, episode, subtitleText, mode, cur, upper, genVocabCount, minTotal, tight = false, quotaDiv = 1 }) {
   // superset の文面は v2（2026-10-08・Haiku 5.5 向け）。旧文面を 5.5 に掛けると「最大N個／足りなければ少なくてよい／
   //   A2を多くしすぎない」を字義どおり守って語数が6割・A2〜B1 がほぼ消え、見本語（ambivalent 等）や法務語の例示を
   //   plus へそのまま写した（3作品比較で実測）。v2 ＝ 語数の目標と下限・帯の目安配分・見本語の写し禁止・簡体字禁止。
@@ -227,9 +245,10 @@ ${excludeList}`;
     mode === 'superset'
       ? 'CEFR A2〜C2 を幅広く選ぶ（特定の帯に偏らせず、各帯から拾う）。'
       : `難易度は CEFR ${targetBand} を中心に選ぶ。`;
+  const [plusLo, plusHi] = tight ? plusRangeFor(quotaDiv) : [PLUS_MIN, PLUS_MAX];
   const plusInstruction =
     mode === 'superset'
-      ? 'plus（字幕外の推奨語）は必ず 18〜20 語出す。この作品・このエピソードのテーマや場面に関係が深く、字幕には出てこない B2〜C1（一部 C2）の語を選ぶ。難易度の目安に挙げた語や、作品と無関係な汎用の難語（どの作品にも入りそうな語）は選ばない。'
+      ? `plus（字幕外の推奨語）は必ず ${plusLo}〜${plusHi} 語出す${tight ? `（${plusHi} 語を超えない）` : ''}。この作品・このエピソードのテーマや場面に関係が深く、字幕には出てこない B2〜C1（一部 C2）の語を選ぶ。難易度の目安に挙げた語や、作品と無関係な汎用の難語（どの作品にも入りそうな語）は選ばない。`
       : `この作品のテーマ・文脈に関連する字幕外の推奨単語。dramaの語数と合わせて【合計が最低${minTotal}語】になるように補うこと（dramaが少ない回ほど多めに。最低でも5個は出す・最大20個）。同じ CEFR ${targetBand} を中心に選ぶ。`;
 
   const workLabel =
@@ -273,7 +292,10 @@ ${tierGuide}
 
 {
   "drama": [
-    ${mode === 'superset'
+    ${mode === 'superset' && tight
+      ? `この字幕に実際に登場する単語を【${genVocabCount}個を目標（最低${dramaMin}個・最大${genVocabCount}個）】。字幕に適した語が残っている限り目標数まで出すが、${genVocabCount}個を超えて出さないこと。必ず字幕内に存在する単語のみ。
+    ただし数合わせのために字幕に無い単語をここ(drama)へ入れるのは禁止。`
+      : mode === 'superset'
       ? `この字幕に実際に登場する単語を【${genVocabCount}個を目標・最低${dramaMin}個】。字幕に適した語が残っている限り目標数まで出し切ること（少なく切り上げない）。必ず字幕内に存在する単語のみ。
     ただし数合わせのために字幕に無い単語をここ(drama)へ入れるのは禁止。`
       : `この字幕に実際に登場する単語を【最大${genVocabCount}個】。必ず字幕内に存在する単語のみ。
@@ -306,7 +328,7 @@ ${tierGuide}
   //   余裕が16%しかなく、例文が長い回は天井に当たって応答が途中で切れていた。切れると JSON が
   //   壊れてそのチャンクが0語になり、映画の担当区間が丸ごと消える。max_tokens は天井なので
   //   上げても実出力ぶんしか課金されない（サーバ側の天井は 13,000）。
-  const maxTokens = Math.min(13000, (genVocabCount + 25) * 140);
+  const maxTokens = supersetMaxTokens(genVocabCount, { tight: tight && mode === 'superset', quotaDiv });
   return { prompt, maxTokens };
 }
 
@@ -377,7 +399,7 @@ function parseAndRefineWords(text, subtitleText, log = console) {
 // ctx = { drama, season, episode, subtitleText, vocabCount?, deadlineAt?, onProgress?, chunkIndex?, nChunks? }
 // deps.callLlm(prompt, maxTokens, { onRetry, deadlineAt, chunk, nChunks }) → Promise<string>（必須・注入）
 async function generateSupersetOnce(ctx, onRetry, deps) {
-  const { drama, season, episode, subtitleText, vocabCount, quotaDiv = 1 } = ctx;
+  const { drama, season, episode, subtitleText, vocabCount, quotaDiv = 1, tight = false } = ctx;
   const isMovieGen = drama.type === 'movie';
   const baseCount = vocabCount || 40;
   // 各帯(A2〜C2)を網羅し、上級者の帯(B2〜C1)でも floor(最大50)に届くよう多めに採る。
@@ -390,7 +412,7 @@ async function generateSupersetOnce(ctx, onRetry, deps) {
 
   // superset は levelSpec が A2〜C2 固定のため cur/upper（バンド絞り用）は使わない。
   const { prompt, maxTokens } = buildVocabPrompt({
-    drama, season, episode, subtitleText, mode: 'superset', cur: 0, upper: 0, genVocabCount, minTotal,
+    drama, season, episode, subtitleText, mode: 'superset', cur: 0, upper: 0, genVocabCount, minTotal, tight, quotaDiv,
   });
   const text = await deps.callLlm(prompt, maxTokens, {
     onRetry,
