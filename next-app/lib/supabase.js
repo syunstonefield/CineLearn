@@ -612,11 +612,14 @@ export async function flushStatePushQueue() {
 // origin_*（最初に出会った作品/話・supabase_srs_origin.sql）と first_quality（初回の答え・
 // supabase_srs_first_quality.sql）は後から足した列。列が無いDBでは PGRST204 で行ごと弾かれるので、
 // 一度弾かれたらセッション中はその列を送らない（ts_sec / in_wordbook と同じ作法）。
-let _srsOriginUnsupported = false;
-let _srsFirstQualityUnsupported = false;
-// last_quality（最後の答え・「知らなかった／うろ覚えの語をもう一度」2026-11-12・reports/review-again-2026-11-12/ の SQL）。
-//   列が無い間は送らない＝端末の値だけで動く（first_quality と同じ作法）。
-let _srsLastQualityUnsupported = false;
+// 列が無い DB（SQL の適用前）で弾かれた列は、しばらく送らない。★ページを閉じるまでではなく SRS_COLUMN_RETRY_MS たったら
+//   もう一度送ってみる（2026-11-12: デプロイ→SQL の間に開いていたページが、列を足した後も last_quality を送らなかった・オーナー決定）。
+//   値＝その時刻まで送らない（Date.now() のミリ秒）。0＝送る。
+export const SRS_COLUMN_RETRY_MS = 10 * 60 * 1000;
+const _srsColumnOffUntil = { origin: 0, firstQuality: 0, lastQuality: 0 };
+// origin_*（最初に出会った作品/話）・first_quality（初回の答え）・last_quality（最後の答え・「知らなかった／うろ覚えの語を
+//   もう一度」2026-11-12・supabase_srs_last_quality.sql）。どれも後から足した列で、列が無い間は外して送る＝端末の値だけで動く。
+const srsColumnOff = (name) => Date.now() < _srsColumnOffUntil[name];
 function missingSrsColumn(res) {
   const msg = `${res?.code || ''} ${res?.message || ''}`;
   if (!/PGRST204/.test(msg)) return null;
@@ -647,15 +650,15 @@ export async function pushSrsWords(entries) {
           updated_at: e.updatedAt || new Date().toISOString(),
         };
         // 出所は持っている時だけ送る（省略＝据え置き・merge-duplicates）。最初に出会った作品を上書きしない
-        if (!_srsOriginUnsupported && e.origin?.title) {
+        if (!srsColumnOff('origin') && e.origin?.title) {
           row.origin_title = e.origin.title;
           row.origin_season = e.origin.season ?? null;
           row.origin_episode = e.origin.episode ?? null;
         }
         // 初回の答えも持っている時だけ送る（省略＝据え置き）。先に入った値を null で潰さない
-        if (!_srsFirstQualityUnsupported && e.firstQuality != null) row.first_quality = e.firstQuality;
+        if (!srsColumnOff('firstQuality') && e.firstQuality != null) row.first_quality = e.firstQuality;
         // 最後の答えも持っている時だけ送る（省略＝据え置き）
-        if (!_srsLastQualityUnsupported && e.lastQuality != null) row.last_quality = e.lastQuality;
+        if (!srsColumnOff('lastQuality') && e.lastQuality != null) row.last_quality = e.lastQuality;
         return row;
       });
   let rows = build();
@@ -670,10 +673,8 @@ export async function pushSrsWords(entries) {
   for (let attempt = 0; attempt < 4; attempt++) {
     const res = await post();
     const missing = missingSrsColumn(res);
-    if (missing === 'origin' && !_srsOriginUnsupported) _srsOriginUnsupported = true;
-    else if (missing === 'firstQuality' && !_srsFirstQualityUnsupported) _srsFirstQualityUnsupported = true;
-    else if (missing === 'lastQuality' && !_srsLastQualityUnsupported) _srsLastQualityUnsupported = true;
-    else return;
+    if (!missing || srsColumnOff(missing)) return; // 列の不足以外（成功・ほかの失敗）／同じ列が二度弾かれた＝やめる
+    _srsColumnOffUntil[missing] = Date.now() + SRS_COLUMN_RETRY_MS;
     rows = build();
   }
 }
