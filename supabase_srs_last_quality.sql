@@ -16,6 +16,11 @@
 -- ・うろ覚え: クラウドの列からは見分けられないので、端末に残っている値をアプリが次の同期で送る
 --   （lib/srsMerge.js localWinsPush: 列があって空の行は、同じ日の端末の値を吸い上げる）。列を足した後に答えた分は自動で入る。
 --
+-- 【法務の条件（2026-11-12 回答）の確認】
+-- ・消去: 列は srs_data の行の一部。アカウント削除＝auth.users の削除で srs_data は ON DELETE CASCADE（supabase_schema.sql）＝行ごと消える。
+--   語の削除（lib/supabase.js deleteSrsWord）も行ごと消す。端末の値（cl_srs の lastQuality）はブラウザのデータ消去で消える。
+-- ・RLS: srs_data の方針 "own srs"（FOR ALL USING auth.uid() = user_id）は行単位＝足した列にもそのまま効く。下の ⑤ で確かめる。
+--
 -- 負荷: 通信回数は増えない（採点時の1行に列が1つ増えるだけ）。NULL 許容・既存行に影響なし。
 -- GRANT は既存の srs_data の権限がそのまま列にも効く（列単位の GRANT は使っていない）。
 
@@ -33,6 +38,10 @@ ALTER TABLE srs_data ADD COLUMN IF NOT EXISTS last_quality smallint;
 -- 自分の最後の答えの内訳（アプリで1語答えた後に 1行以上出る）
 -- SELECT last_quality, count(*) FROM srs_data
 --   WHERE user_id = auth.uid() AND last_quality IS NOT NULL GROUP BY last_quality ORDER BY last_quality;
+
+-- ── ⑤ RLS の確認（読み取りだけ・本人の行だけに効く方針が1つあること） ──
+-- SELECT polname, polcmd, pg_get_expr(polqual, polrelid) AS using_expr FROM pg_policy WHERE polrelid = 'public.srs_data'::regclass;
+-- SELECT relrowsecurity FROM pg_class WHERE oid = 'public.srs_data'::regclass;  -- true であること
 
 -- ── 戻し方（列ごと消す・アプリは列が無い状態の動きに戻るだけ） ──
 -- ALTER TABLE srs_data DROP COLUMN IF EXISTS last_quality;
