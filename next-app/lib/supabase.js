@@ -633,49 +633,67 @@ export async function pushSrsWords(entries) {
   if (!(await ensureSessionForSync())) return;
   const uid = getCurrentUser()?.id;
   if (!uid || !entries) return;
-  const build = () =>
-    Object.entries(entries)
-      .filter(([, e]) => e)
-      .map(([word, e]) => {
-        const row = {
-          user_id: uid,
-          word,
-          interval: e.interval ?? 1,
-          repetitions: e.repetitions ?? 0,
-          ease_factor: e.easeFactor ?? 2.5,
-          due_date: e.dueDate ?? null,
-          last_review: e.lastReview ?? null,
-          skipped: !!e.skipped,
-          // 採点した時刻（storage.js が付ける・無ければ今）。同じ日に別の端末でも採点した語の決着に使う（lib/srsMerge.js）
-          updated_at: e.updatedAt || new Date().toISOString(),
-        };
-        // 出所は持っている時だけ送る（省略＝据え置き・merge-duplicates）。最初に出会った作品を上書きしない
-        if (!srsColumnOff('origin') && e.origin?.title) {
-          row.origin_title = e.origin.title;
-          row.origin_season = e.origin.season ?? null;
-          row.origin_episode = e.origin.episode ?? null;
-        }
-        // 初回の答えも持っている時だけ送る（省略＝据え置き）。先に入った値を null で潰さない
-        if (!srsColumnOff('firstQuality') && e.firstQuality != null) row.first_quality = e.firstQuality;
-        // 最後の答えも持っている時だけ送る（省略＝据え置き）
-        if (!srsColumnOff('lastQuality') && e.lastQuality != null) row.last_quality = e.lastQuality;
-        return row;
-      });
-  let rows = build();
-  if (!rows.length) return;
-  const post = () =>
-    sbFetch('/rest/v1/srs_data', {
+  const build = (words) =>
+    words.map((word) => {
+      const e = entries[word];
+      const row = {
+        user_id: uid,
+        word,
+        interval: e.interval ?? 1,
+        repetitions: e.repetitions ?? 0,
+        ease_factor: e.easeFactor ?? 2.5,
+        due_date: e.dueDate ?? null,
+        last_review: e.lastReview ?? null,
+        skipped: !!e.skipped,
+        // 採点した時刻（storage.js が付ける・無ければ今）。同じ日に別の端末でも採点した語の決着に使う（lib/srsMerge.js）
+        updated_at: e.updatedAt || new Date().toISOString(),
+      };
+      // 出所は持っている時だけ送る（省略＝据え置き・merge-duplicates）。最初に出会った作品を上書きしない
+      if (!srsColumnOff('origin') && e.origin?.title) {
+        row.origin_title = e.origin.title;
+        row.origin_season = e.origin.season ?? null;
+        row.origin_episode = e.origin.episode ?? null;
+      }
+      // 初回の答えも持っている時だけ送る（省略＝据え置き）。先に入った値を null で潰さない
+      if (!srsColumnOff('firstQuality') && e.firstQuality != null) row.first_quality = e.firstQuality;
+      // 最後の答えも持っている時だけ送る（省略＝据え置き）
+      if (!srsColumnOff('lastQuality') && e.lastQuality != null) row.last_quality = e.lastQuality;
+      return row;
+    });
+  const words = Object.keys(entries).filter((w) => entries[w]);
+  if (!words.length) return;
+  // ★項目のそろった行ごとに分けて送る（2026-11-12）。PostgREST はまとめて送る行の項目がそろっていることを前提にしている
+  //   （docs「a JSON array of objects having uniform keys」）。開いた時の同期（mergeSrs の pushBack）は作品名や初回・最後の答えを
+  //   持つ語と持たない語が混ざる＝1回にまとめると丸ごと受け付けられないおそれがあった（端末に残っていた最後の答えが吸い上がらない）。
+  //   省いた項目は送らない（merge-duplicates で据え置き）＝足りない項目を null で埋めて送る方法（?columns=）は使わない。
+  for (const group of groupRowsByKeys(build(words))) await postSrsGroup(group.map((r) => r.word), build);
+}
+
+// 行を項目の組み合わせごとに分ける（並びは最初に出た順）。テスト用に export
+export function groupRowsByKeys(rows) {
+  const groups = new Map();
+  for (const r of rows) {
+    const sig = Object.keys(r).sort().join(',');
+    if (!groups.has(sig)) groups.set(sig, []);
+    groups.get(sig).push(r);
+  }
+  return [...groups.values()];
+}
+
+// 1組を送る。列が無い DB では、弾かれた列を外して送り直す（origin_*／first_quality／last_quality が全部無ければ最大3回）。
+//   外すとその組の行はまだ項目がそろっている（同じ列を全行から外すだけ）。
+async function postSrsGroup(words, build) {
+  let rows = build(words);
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const res = await sbFetch('/rest/v1/srs_data', {
       method: 'POST',
       headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
       body: JSON.stringify(rows),
     });
-  // 列が無い DB では、弾かれた列を外して再送（origin_*／first_quality／last_quality が全部無ければ最大3回）
-  for (let attempt = 0; attempt < 4; attempt++) {
-    const res = await post();
     const missing = missingSrsColumn(res);
     if (!missing || srsColumnOff(missing)) return; // 列の不足以外（成功・ほかの失敗）／同じ列が二度弾かれた＝やめる
     _srsColumnOffUntil[missing] = Date.now() + SRS_COLUMN_RETRY_MS;
-    rows = build();
+    rows = build(words);
   }
 }
 

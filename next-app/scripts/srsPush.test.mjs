@@ -61,3 +61,36 @@ test('列が無いと弾かれたら外して送り直し、10分たつまでは
 test.after(() => {
   Date.now = realNow;
 });
+
+test('項目の違う行は、項目のそろった組ごとに分けて送る（省いた項目は送らない）', async () => {
+  now += 2 * SRS_COLUMN_RETRY_MS; // 前のテストの「送らない」期間を抜ける
+  missingCol = null;
+  sent.length = 0;
+  await pushSrsWords({
+    apple: { ...entry(3), firstQuality: 0, origin: { title: 'Suits', season: 1, episode: 1 } },
+    bread: entry(0),
+    cider: { ...entry(5), firstQuality: 5, origin: { title: 'Lost', season: 1, episode: 2 } },
+    dates: { interval: 1, repetitions: 0, easeFactor: 2.5, lastReview: '2026-11-11' }, // 最後の答えも無い
+  });
+  assert.equal(sent.length, 3);
+  for (const body of sent) {
+    const sig = Object.keys(body[0]).sort().join(',');
+    assert.ok(body.every((r) => Object.keys(r).sort().join(',') === sig)); // 1回の中はそろっている
+  }
+  const byWord = Object.fromEntries(sent.flat().map((r) => [r.word, r]));
+  assert.deepEqual(sent.map((b) => b.map((r) => r.word)), [['apple', 'cider'], ['bread'], ['dates']]);
+  assert.equal(byWord.bread.last_quality, 0);
+  assert.equal('origin_title' in byWord.bread, false); // 持っていない項目は送らない（null で潰さない）
+  assert.equal('last_quality' in byWord.dates, false);
+});
+
+test('組ごとに送る時も、列が無いと弾かれたら外して送り直す', async () => {
+  now += 2 * SRS_COLUMN_RETRY_MS;
+  missingCol = 'first_quality';
+  sent.length = 0;
+  await pushSrsWords({ apple: { ...entry(3), firstQuality: 0 }, bread: entry(0) });
+  const last = sent.at(-1);
+  assert.ok(sent.flat().some((r) => r.word === 'apple' && !('first_quality' in r))); // 外して送り直した
+  assert.ok(last.every((r) => !('first_quality' in r)));
+  missingCol = null;
+});
