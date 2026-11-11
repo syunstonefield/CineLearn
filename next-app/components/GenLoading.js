@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { fetchEpisodeSynopsis } from '@/lib/tmdb';
+import { etaText, ETA_SHOW_AFTER_SEC } from '@/lib/genEta';
 
 // 生成中のリッチローディング（案C: ステップ表示つき）。
 // 「字幕取得 → 単語分析 → 仕上げ」の工程表示＋ポスター＋あらすじ＋学習Tips。
@@ -17,13 +18,7 @@ const LEARNING_TIPS = [
 
 const STEPS = ['字幕取得', '単語分析', '仕上げ'];
 
-// 待ち時間の目安（D・オーナー決定 2026-11-12）。共有キャッシュに当たれば数秒で終わる（最低 4.5秒のロビー）ので、
-//   それより長く待っている時だけ目安を出す＝当たった人には出ない。数字はオーナーの実測（映画 約80秒）に合わせる。
-//   ドラマの数字は実測が取れたら見直す（docs ではなくここが正）。
-export const ETA_SHOW_AFTER_SEC = 5;
-export function etaText(isMovie) {
-  return isMovie ? '新しく作る映画の単語リストは、1〜2分ほどかかります' : '新しく作る単語リストは、1分ほどかかります';
-}
+// 待ち時間の目安の文と秒数は lib/genEta.js（テストできるよう JSX の外に置く）。
 export function elapsedLabel(sec) {
   const s = Math.max(0, Math.floor(sec));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
@@ -130,7 +125,7 @@ export default function GenLoading({ status, drama, season, episode, ready = fal
       {/* 待ち時間の目安と経過（キャッシュに当たらず長くかかっている時だけ） */}
       {!ready && elapsed >= ETA_SHOW_AFTER_SEC && (
         <div className="gen-eta" aria-live="polite">
-          {etaText(isMovie)}
+          {etaText(isMovie, elapsed)}
           <span className="gen-eta-time">（経過 {elapsedLabel(elapsed)}）</span>
         </div>
       )}
