@@ -5531,6 +5531,8 @@ html.cl-sheet-lock body { overflow: hidden; overscroll-behavior: none; }
 /* 黒縁：黒い額＋白いマット */
 .tcp-item.frame-black .tcp-frame { padding: 5px; background: #141414; }
 .tcp-item.frame-black .tcp-mat { padding: 3px; background: #f7f2ea; }
+/* ダーク表示の時だけ、黒縁の外側に細い明るい線（暗い背景に溶けないように・額縁の色は変えない・画像には重ねない・オーナー 2026-11-12） */
+html[data-theme="dark"] .tcp-item.frame-black .tcp-frame { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.28), 0 2px 6px rgba(0, 0, 0, 0.18); }
 /* 銀縁 */
 .tcp-item.frame-silver .tcp-frame {
   padding: 5px; background: linear-gradient(135deg, #f7f7f7, #a3a3a3 30%, #ececec 50%, #8a8a8a 75%, #d9d9d9);
