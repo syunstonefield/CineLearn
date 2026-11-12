@@ -297,7 +297,15 @@ export async function pullFromCloud(profileId = null) {
     } catch {
       /* 無視 */
     }
-    const { history: kept } = trimHistoryToBudget(history.map(historyRowToLocal), srsNow);
+    // 同じ作品名＋話数の行が複数あれば、更新が新しい1行だけ（押し出された後に作り直した作品はクラウドに2行ある）
+    const seenEp = new Set();
+    const rows = history.map(historyRowToLocal).filter((h) => {
+      const k = `${h.drama?.title}\u0000${h.season}\u0000${h.episode}`;
+      if (seenEp.has(k)) return false;
+      seenEp.add(k);
+      return true;
+    });
+    const { history: kept } = trimHistoryToBudget(rows, srsNow);
     try {
       localStorage.setItem('cl_history', JSON.stringify(kept));
     } catch {
