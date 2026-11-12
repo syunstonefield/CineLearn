@@ -6,6 +6,11 @@ import { wordMatchRegex, normApostrophes, exampleContainsWord } from './subtitle
 import { loadSrs, isMastered, isDue } from './storage';
 import { queueStatePush } from './supabase';
 
+// 見るだけのカード（予習ウォークスルー）の入口を出すか（2026-11-12 オーナー決定＝入口は「単語を学ぶ」に一本化）。
+//   既定は隠す。Vercel の env に NEXT_PUBLIC_PREP_WALK=on を入れて再デプロイすると元に戻る。
+//   隠すのは入口と「✓ 予習済み」の印だけ。PrepWalkthrough と端末の予習済みの記録はそのまま残す。
+export const PREP_WALK_ON = process.env.NEXT_PUBLIC_PREP_WALK === 'on';
+
 const CEFR_ORDER = ['A2', 'B1', 'B2', 'C1', 'C2'];
 
 // レベル高め優先のスコア（未指定/不明は最下位扱い）。

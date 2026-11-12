@@ -63,7 +63,7 @@ import { pushMyWord, ensureFreshSession, fetchHistoryRowFromCloud } from '@/lib/
 import { fetchJa } from '@/lib/jatranslate';
 import { fetchCtxJa } from '@/lib/ctxtranslate';
 import { getDeviceKey } from '@/lib/device';
-import { selectQuizWords, buildQuizQuestions, prepIntegrity, orderWordsForPrep, getPrepped } from '@/lib/prep';
+import { selectQuizWords, buildQuizQuestions, prepIntegrity, orderWordsForPrep, getPrepped, PREP_WALK_ON } from '@/lib/prep';
 // 読み上げは lib/speak に一本化（独自コピーは cancel 直後 speak で無音になる既知バグ持ちだった）
 import { speak } from '@/lib/speak';
 import { canLikeMore, LIKE_CAP_PER_EPISODE } from '@/lib/liked';
@@ -1640,6 +1640,8 @@ export default function VocabScreen() {
   const prepped = getPrepped(episodeId(drama, season, episode, isMovie));
   // まだ予習していない（生成直後／予習せず閉じた保存リスト）＝操作バーの右端を「予習する」にする。
   const prepNeeded = prepFresh && !prepped;
+  // 帯の「📖 予習する」を主ボタンにするか（入口を隠している間は復習／クイズが主・2026-11-12）。
+  const walkPrimary = PREP_WALK_ON && prepNeeded;
   // 単語リストが画面に出ている（学習状況カード＋語の一覧）。この時は上部のエピソード選択枠を隠し、
   // エピソード変更・削除はカードのバッジ→シートに逃がす（2026-10-18 オーナー案1）。
   const hasList = showVocab && sortedVocab.length > 0;
@@ -1747,12 +1749,14 @@ export default function VocabScreen() {
               <span className="prep-mode-name">今夜のリハーサル</span>
               <span className="prep-mode-desc">クイズ3問 ・ 〜90秒で耳を慣らす</span>
             </button>
-            <button className="prep-mode prep-mode-cards" onClick={startPrepCards}>
-              <span className="prep-mode-name">じっくり覚える</span>
-              <span className="prep-mode-desc">
-                フラッシュカードで新出{integrity.fresh}語を一周
-              </span>
-            </button>
+            {PREP_WALK_ON && (
+              <button className="prep-mode prep-mode-cards" onClick={startPrepCards}>
+                <span className="prep-mode-name">じっくり覚える</span>
+                <span className="prep-mode-desc">
+                  フラッシュカードで新出{integrity.fresh}語を一周
+                </span>
+              </button>
+            )}
             <button className="prep-mode prep-mode-watch" onClick={startPrepWatch}>
               <span className="prep-mode-name">今夜は観るだけ</span>
               <span className="prep-mode-desc">クイズとカードは後でも受けられます</span>
@@ -2077,7 +2081,7 @@ export default function VocabScreen() {
                         </button>
                       )}
                       <span className="srs-ep-title">単語リスト</span>
-                      {prepped && <span className="prepped-chip">✓ 予習済み</span>}
+                      {PREP_WALK_ON && prepped && <span className="prepped-chip">✓ 予習済み</span>}
                       {/* 「n% 覚えた」は見出し行ではなく、この段の右端（オーナー 2026-10-18） */}
                       <span className="srs-pct" style={{ color: pctColor }}>
                         {pct}% 覚えた
@@ -2377,7 +2381,7 @@ export default function VocabScreen() {
               </button>
               <button
                 type="button"
-                className={'vab-btn' + (!prepNeeded && stats.due > 0 ? ' is-primary' : '')}
+                className={'vab-btn' + (!walkPrimary && stats.due > 0 ? ' is-primary' : '')}
                 disabled={stats.due === 0}
                 onClick={() =>
                   // 復習カードの出所明示用に、各語へ作品/話メタ（_src）を付帯（Dashboard経路と同形）。
@@ -2402,13 +2406,14 @@ export default function VocabScreen() {
               </button>
               <button
                 type="button"
-                className={'vab-btn' + (!prepNeeded && stats.due === 0 ? ' is-primary' : '')}
+                className={'vab-btn' + (!walkPrimary && stats.due === 0 ? ' is-primary' : '')}
                 onClick={() => goToQuiz()}
               >
                 <span className="vab-main">🎯 クイズ</span>
                 <span className="vab-sub">腕試し</span>
               </button>
-              {prepNeeded ? (
+              {/* 見るだけのカードの入口（既定は隠す・NEXT_PUBLIC_PREP_WALK=on で戻る・2026-11-12） */}
+              {!PREP_WALK_ON ? null : prepNeeded ? (
                 <button type="button" className="vab-btn is-primary" onClick={openWalkthrough}>
                   <span className="vab-main">📖 予習する</span>
                   <span className="vab-sub">重要語から</span>
@@ -2423,7 +2428,7 @@ export default function VocabScreen() {
             {prepNeeded && (
               /* 副動線：クイズ／じっくり等の予習エンジン（控えめに温存）。 */
               <button type="button" className="vocab-cta-alt" onClick={() => setPrepModes(true)}>
-                クイズ・カードで予習する
+                {PREP_WALK_ON ? 'クイズ・カードで予習する' : 'クイズで予習する'}
               </button>
             )}
           </>
