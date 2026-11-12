@@ -1146,7 +1146,10 @@ export default function VocabScreen() {
 
   // ── ハンドラ ──
   // この話のカード（答える形・SRS に入る）。初めては5枚・2回目からは設定の語数・「続けて」は10枚（lib/cardDeck.js）。
-  const startCards = ({ rest = false } = {}) => {
+  // カードを始めた画面（'list'＝単語リスト／'cards'＝作品の画面）。✕・終わりの画面を閉じた時はここへ戻す（オーナー 2026-11-12）。
+  //   終わりの画面の「残りの単語も見る」で続けた時は、最初に始めた画面のまま。
+  const deckOriginRef = useRef('cards');
+  const startCards = ({ rest = false, fromDone = false } = {}) => {
     let first = false;
     try {
       first = localStorage.getItem(CARDS_FIRST_DONE_KEY) !== '1';
@@ -1164,13 +1167,21 @@ export default function VocabScreen() {
     } catch {
       /* ignore */
     }
+    if (!fromDone) deckOriginRef.current = view === 'list' ? 'list' : 'cards';
     setCardDone(null);
-    setView('cards');
     openCardDeck(deck, {
       breaks: rest, // 「残りの単語も見る」は10語ごとの区切り（設定 reviewBreak に従う）
       onFinish: (answered) => {
         reloadSrs();
-        setCardDone(answered && answered.length ? { answered } : null);
+        if (answered && answered.length) {
+          // 答えた語があれば終わりの画面（明日の予告）を出す（作品の画面の場所に出す）
+          setCardDone({ answered });
+          setView('cards');
+        } else {
+          // 1語も答えずに✕＝始めた画面のまま
+          setCardDone(null);
+          setView(deckOriginRef.current);
+        }
       },
       onList: () => {
         setCardDone(null);
@@ -1997,13 +2008,16 @@ export default function VocabScreen() {
                 count={cardDone.answered.length}
                 tomorrow={countDueTomorrow(cardDone.answered, srs)}
                 canMore={cardCandidates(sortedVocab, srs, todayStr()).length > 0}
-                onMore={() => startCards({ rest: true })}
+                onMore={() => startCards({ rest: true, fromDone: true })}
                 onWatch={startPrepWatch}
                 onList={() => {
                   setCardDone(null);
                   setView('list');
                 }}
-                onClose={() => setCardDone(null)}
+                onClose={() => {
+                  setCardDone(null);
+                  setView(deckOriginRef.current); // 始めた画面へ（単語リストから始めたら単語リスト）
+                }}
               />
             ) : (
               <CardHome
