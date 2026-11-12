@@ -1173,6 +1173,50 @@ export default function VocabScreen() {
   // カードを始めた画面（'list'＝単語リスト／'cards'＝作品の画面）。✕・終わりの画面を閉じた時はここへ戻す（オーナー 2026-11-12）。
   //   終わりの画面の「残りの単語も見る」で続けた時は、最初に始めた画面のまま。
   const deckOriginRef = useRef('cards');
+  // 作品の画面（CardHome）に出す記録と次の語（2026-11-12 オーナー決定・見直しの見本）。端末の SRS と履歴だけから作る。
+  //   次に出てくる単語＝startCards と同じ並び（cardCandidates）の先頭3語・枚数＝startCards と同じ数え方（出せる語が少ない時はその数）。
+  //   今日の復習＝もう答えていて今日が期日の語（まだ答えていない語は数えない）・明日＝lib/tomorrowPreview.js と同じ数え方。
+  //   作品の画面を出す時だけ作る（履歴の読み込みを毎回の描画でしない）。
+  const cardHomeData = () => {
+    const today = todayStr();
+    const cands = cardCandidates(sortedVocab, srs, today);
+    let first = false;
+    try {
+      first = localStorage.getItem(CARDS_FIRST_DONE_KEY) !== '1';
+    } catch {
+      /* ignore */
+    }
+    const n = cardCount({ first, setting: settings?.prepCoreCount, rest: false });
+    const st = episodeStats(sortedVocab, srs);
+    let todayDue = 0;
+    sortedVocab.forEach((w) => {
+      const e = srs[String(w.word || '').toLowerCase()];
+      if (e && isDue(e)) todayDue++;
+    });
+    const h = historyId ? loadHistory().find((x) => x.id === historyId) : null;
+    // 次に出てくる単語は1行に収まる分だけ（最大3語・文字数の合計が26まで・SE で画面が下に伸びないように）
+    const peek = [];
+    let chars = 0;
+    for (const w of cands.slice(0, 3)) {
+      const len = String(w.word || '').length;
+      if (peek.length > 0 && chars + len > 26) break;
+      peek.push(w.word);
+      chars += len;
+    }
+    return {
+      seen: seenCount(sortedVocab, srs),
+      learned: st.learned,
+      mastered: st.mastered,
+      peek,
+      peekMore: cands.length > peek.length,
+      cardN: n == null ? cands.length : Math.min(n, cands.length),
+      canStart: cands.length > 0,
+      todayDue,
+      tomorrow: todayDue > 0 ? 0 : countDueTomorrow(sortedVocab, srs),
+      quizPct: typeof h?.quizScore === 'number' ? h.quizScore : null,
+    };
+  };
+
   const startCards = ({ rest = false, fromDone = false } = {}) => {
     let first = false;
     try {
@@ -2061,8 +2105,7 @@ export default function VocabScreen() {
                 episode={episode}
                 isMovie={isMovie}
                 total={sortedVocab.length}
-                seen={seenCount(sortedVocab, srs)}
-                canStart={cardCandidates(sortedVocab, srs, todayStr()).length > 0}
+                {...cardHomeData()}
                 onStart={() => startCards()}
                 onList={() => setView('list')}
                 onOtherEpisode={() => setEpSheet(true)}

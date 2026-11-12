@@ -1,5 +1,7 @@
 'use client';
 
+import { LEARNED_LABEL, MASTERED_LABEL } from '@/lib/learnedTerms';
+
 // 作品を選んだあと＝カード中心（2026-11-12 オーナー決定・見本 reports/prep-card-first-2026-11-12/mock.html）。
 //   CardHome: 単語リストができた作品を開いた時の最初の画面（大きい「単語を学ぶ」＋下に「単語リストを見る」）。
 //   CardDone: カードを終えた時の画面（明日 復習できる単語 N個 → 残りの単語も見る／観に行く・今日はここまで／単語リストを見る）。
@@ -11,42 +13,130 @@ function Poster({ src, title }) {
   return <img className="ch-poster" src={src} alt="" loading="lazy" />;
 }
 
-export function CardHome({ drama, season, episode, isMovie, total, seen, canStart, onStart, onList, onOtherEpisode, onQuiz }) {
+// 作品の画面（2026-11-12 オーナー決定・見直しの見本 reports/card-home-redesign-2026-11-12/mock.html）。
+//   上の札＝ポスター＋題名・話数・この話の語の数＋記録の小さな札3つ（見ておいた／覚えた／マスター）＋進み具合の線（覚えた・見ておいた）。
+//   「次に出てくる単語」＝次に出るカードの見出し語を3つ（和訳・例文は出さない）＋「ほか」。「単語を学ぶ」の下に枚数。
+//   次につながる1行（今日の復習にこの話から N語／明日 復習できる単語 N個・0 は出さない）。下は札3つ（単語リスト・クイズ・ほかの話）。
+//   残りの数・「あと○語」・赤は使わない。時間の目安は測れていないので出さない（枚数だけ・受付 2026-11-12）。
+export function CardHome({
+  drama,
+  season,
+  episode,
+  isMovie,
+  total,
+  seen = 0,
+  learned = 0,
+  mastered = 0,
+  peek = [],
+  peekMore = false,
+  cardN = 0,
+  canStart,
+  todayDue = 0,
+  tomorrow = 0,
+  quizPct = null,
+  onStart,
+  onList,
+  onOtherEpisode,
+  onQuiz,
+}) {
+  const pct = (n) => (total > 0 ? Math.max(0, Math.min(100, (n / total) * 100)) : 0);
+  const learnedW = pct(learned);
+  const seenW = Math.max(0, pct(seen) - learnedW); // 見ておいた（覚えたの分を除く）
+  const nextLine =
+    todayDue > 0 ? (
+      <>
+        今日の復習に、この話から <b>{todayDue}語</b>
+      </>
+    ) : tomorrow > 0 ? (
+      <>
+        明日 復習できる単語 <b>{tomorrow}個</b>
+      </>
+    ) : null;
+  const showOther = !isMovie && !!onOtherEpisode;
+  const tiles = 1 + (onQuiz ? 1 : 0) + (showOther ? 1 : 0);
   return (
     <div className="ch-wrap">
       <div className="ch-work">
         <Poster src={drama?.posterPath} title={drama?.title} />
         <div className="ch-work-text">
           <h2 className="ch-work-title">{drama?.title}</h2>
-          <p className="ch-work-ep">{isMovie ? '映画' : `シーズン${season} 第${episode}話`}</p>
+          <p className="ch-work-ep">
+            {isMovie ? '映画' : `シーズン${season} 第${episode}話`}・この話の語 {total}
+          </p>
+          <div className="ch-stats">
+            <div className="ch-stat">
+              <b>{seen}</b>見ておいた
+            </div>
+            <div className="ch-stat">
+              <b>{learned}</b>
+              {LEARNED_LABEL}
+            </div>
+            <div className="ch-stat">
+              <b>{mastered}</b>
+              {MASTERED_LABEL}
+            </div>
+          </div>
+          <div className="ch-bar" aria-hidden="true">
+            <i className="ch-bar-a" style={{ width: `${learnedW}%` }} />
+            <i className="ch-bar-b" style={{ width: `${seenW}%` }} />
+          </div>
+          <div className="ch-legend" aria-hidden="true">
+            <span className="ch-lg-a">{LEARNED_LABEL}</span>
+            <span className="ch-lg-b">見ておいた</span>
+          </div>
         </div>
       </div>
-      <div className="ch-big">
-        <div className="ch-big-n">{total}</div>
-        <div className="ch-big-l">
-          この話の語{seen > 0 ? `（うち ${seen}語は見ておきました）` : ''}
-        </div>
+      <div className="ch-learn">
         {canStart ? (
-          <button type="button" className="ch-btn1" onClick={onStart}>
-            単語を学ぶ
-          </button>
+          <>
+            {peek.length > 0 && (
+              <>
+                <div className="ch-peek-t">次に出てくる単語</div>
+                <div className="ch-peek">
+                  {peek.map((w) => (
+                    <span key={w} lang="en">
+                      {w}
+                    </span>
+                  ))}
+                  {peekMore && <em>ほか</em>}
+                </div>
+              </>
+            )}
+            <button type="button" className="ch-btn1 ch-btn1-2l" onClick={onStart}>
+              単語を学ぶ
+              {cardN > 0 && <small>{cardN}枚</small>}
+            </button>
+          </>
         ) : (
-          <p className="ch-none">この話の単語は、今日はここまでです。明日の復習に出てきます。</p>
+          <p className="ch-none">
+            この話の単語は、今日はここまでです。
+            <br />
+            明日の復習に出てきます。
+          </p>
         )}
+        {nextLine && <div className="ch-next">{nextLine}</div>}
       </div>
-      <div className="ch-rows">
-        <button type="button" className="ch-row" onClick={onList}>
-          単語リストを見る<span>{total}語 ›</span>
+      <div className={`ch-tiles ch-tiles-${tiles}`}>
+        <button type="button" className="ch-tile" onClick={onList}>
+          <span className="ch-tile-i" aria-hidden="true">📖</span>
+          <b>単語リスト</b>
+          <small>{total}語</small>
         </button>
-        {/* この話のクイズ（誰でも・問題が作れる時だけ onQuiz が来る・オーナー決定 2026-11-12） */}
+        {/* クイズ（問題が作れる時だけ onQuiz が来る・ホームの続きから学習の「クイズ」と同じ行き先・2026-11-12） */}
         {onQuiz && (
-          <button type="button" className="ch-row" onClick={onQuiz}>
-            {isMovie ? 'この作品のクイズ' : 'この話のクイズ'}<span>›</span>
+          <button type="button" className="ch-tile" onClick={onQuiz}>
+            <span className="ch-tile-i" aria-hidden="true">🎯</span>
+            <b>クイズ</b>
+            {quizPct != null ? <small>前回 {quizPct}%</small> : <small>&nbsp;</small>}
           </button>
         )}
-        {!isMovie && onOtherEpisode && (
-          <button type="button" className="ch-row" onClick={onOtherEpisode}>
-            ほかの話を選ぶ<span>›</span>
+        {showOther && (
+          <button type="button" className="ch-tile" onClick={onOtherEpisode}>
+            <span className="ch-tile-i" aria-hidden="true">🎞</span>
+            <b>ほかの話</b>
+            <small>
+              S{season}E{episode}
+            </small>
           </button>
         )}
       </div>

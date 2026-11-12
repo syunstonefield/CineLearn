@@ -8194,16 +8194,41 @@ html[data-theme="dark"] .hm-row-pb { background: rgba(255,255,255,.08); }
 .intro-home-add:active { background: #f3e4cf; }
 
 /* ── 作品を選んだあと＝カード中心（2026-11-12・components/CardHome.js・見本 reports/prep-card-first-2026-11-12/mock.html）── */
-.ch-wrap { display: flex; flex-direction: column; gap: 12px; margin-top: 4px; }
+.ch-wrap { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
 .ch-work { display: flex; gap: 12px; background: var(--surface); border-radius: 16px; padding: 12px; box-shadow: 0 2px 8px rgba(80, 50, 20, 0.08); }
-.ch-poster { width: 84px; height: 126px; border-radius: 8px; object-fit: contain; background: var(--surface2); flex: none; }
+.ch-poster { width: 92px; height: 138px; border-radius: 8px; object-fit: contain; background: var(--surface2); flex: none; }
 .ch-poster-empty { display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 700; color: #7a4a2a; }
-.ch-work-text { min-width: 0; display: flex; flex-direction: column; justify-content: center; }
-.ch-work-title { font-size: 18px; margin: 0 0 4px; line-height: 1.3; overflow-wrap: anywhere; }
+.ch-work-text { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
+.ch-work-title { font-size: 19px; margin: 0 0 2px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.3; overflow-wrap: anywhere; }
 .ch-work-ep { margin: 0; font-size: 13px; color: var(--text-muted); }
-.ch-big { background: var(--surface); border-radius: 18px; padding: 18px 16px; text-align: center; box-shadow: 0 2px 8px rgba(80, 50, 20, 0.08); }
-.ch-big-n { font-family: 'Playfair Display', Georgia, serif; font-size: 38px; color: #7a4a2a; line-height: 1; font-weight: 700; }
-.ch-big-l { font-size: 13px; color: var(--text-muted); margin: 4px 0 14px; }
+.ch-stats { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.ch-stat { background: var(--surface2); border-radius: 10px; padding: 4px 8px; font-size: 11px; color: var(--text-muted); line-height: 1.3; }
+.ch-stat b { display: block; font-size: 16px; color: var(--text); font-family: 'Playfair Display', Georgia, serif; font-variant-numeric: lining-nums; }
+.ch-bar { height: 6px; border-radius: 4px; background: var(--surface2); margin-top: 9px; overflow: hidden; display: flex; }
+.ch-bar i { display: block; height: 100%; }
+.ch-bar-a { background: #7a4a2a; }
+.ch-bar-b { background: var(--gold); }
+.ch-legend { font-size: 11px; color: var(--text-muted); margin-top: 4px; display: flex; gap: 10px; }
+.ch-legend span::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+.ch-lg-a::before { background: #7a4a2a; }
+.ch-lg-b::before { background: var(--gold); }
+.ch-learn { background: var(--surface); border-radius: 18px; padding: 12px 14px; box-shadow: 0 2px 8px rgba(80, 50, 20, 0.08); }
+.ch-peek-t { font-size: 12.5px; color: var(--text-muted); margin-bottom: 6px; }
+.ch-peek { display: flex; gap: 6px; flex-wrap: nowrap; overflow: hidden; margin-bottom: 10px; }
+.ch-peek span { white-space: nowrap; flex: none; background: var(--surface2); border-radius: 999px; padding: 5px 11px; font-size: 14px; font-family: 'Playfair Display', Georgia, serif; color: #7a4a2a; }
+.ch-peek em { flex: none; font-style: normal; font-size: 12.5px; color: var(--text-muted); align-self: center; }
+.ch-btn1-2l { min-height: 58px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; }
+.ch-btn1-2l small { font-size: 11.5px; font-weight: 400; opacity: 0.85; }
+.ch-learn .ch-none { background: var(--surface2); border-radius: 14px; padding: 14px; text-align: center; color: var(--text); }
+.ch-next { font-size: 12.5px; color: var(--text-muted); text-align: center; margin-top: 7px; }
+.ch-next b { color: var(--text); }
+.ch-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.ch-tiles-2 { grid-template-columns: repeat(2, 1fr); }
+.ch-tiles-1 { grid-template-columns: 1fr; }
+.ch-tile { background: var(--surface); border: 0; border-radius: 14px; padding: 7px 6px; font: inherit; cursor: pointer; text-align: center; box-shadow: 0 2px 8px rgba(80, 50, 20, 0.08); min-height: 60px; color: var(--text); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.ch-tile-i { font-size: 19px; line-height: 1.2; }
+.ch-tile b { font-size: 13px; margin-top: 2px; }
+.ch-tile small { font-size: 11px; color: var(--text-muted); }
 .ch-none { margin: 0; font-size: 14px; color: var(--text-muted); line-height: 1.6; }
 .ch-btn1 { width: 100%; min-height: 56px; border-radius: 14px; border: 0; background: #3a261c; color: #fff; font: inherit; font-size: 17px; font-weight: 700; cursor: pointer; }
 .ch-btn1:hover { background: #4a3226; }
@@ -8229,8 +8254,10 @@ html[data-theme="dark"] .hm-row-pb { background: rgba(255,255,255,.08); }
 .ch-back { min-height: 44px; border: 0; background: none; font: inherit; font-size: 14px; color: #7a4a2a; cursor: pointer; padding: 0 4px; }
 .review-list-link { min-height: 36px; border: 0; background: none; font: inherit; font-size: 13px; color: #7a4a2a; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; padding: 0 8px; }
 html[data-theme="dark"] .ch-btn1 { background: var(--accent); color: var(--on-accent); }
-html[data-theme="dark"] .ch-big-n,
+html[data-theme="dark"] .ch-bar-a,
+html[data-theme="dark"] .ch-lg-a::before { background: #b0703f; }
 html[data-theme="dark"] .ch-poster-empty,
+html[data-theme="dark"] .ch-peek span,
 html[data-theme="dark"] .ch-back,
 html[data-theme="dark"] .review-list-link { color: var(--accent); }
 /* 作品を選んだあとのカード（ReviewModal の cardDeck）: 今の復習のカード（.review-cinema）を単語リストの画面の上に全面で重ねる */
