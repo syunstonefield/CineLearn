@@ -7598,6 +7598,7 @@ html[data-theme="dark"] .wb-recent-ic.is-heart { color: #f48fb1; }
   --rd-btn: #3b2414; --rd-btn-ink: #fdf0dc; --rd-btn2-line: rgba(59, 36, 20, 0.22);
   --rd-spark: #f0b419; --rd-spark-2: #f7d046; --rd-clap: #4a3426; --rd-clap-2: #f6ead8; /* 星＝黄色寄り（2026-11-12） */
   --rd-actions-bg: rgba(246, 238, 226, 0.88); /* 明るい背景に合わせる（2026-11-12） */
+  --rd-next-bg: rgba(255, 253, 249, 0.7);
   --rd-easy-line: #bfe0cc; --rd-hard-line: #efd59b; --rd-fail-line: #ecc8cf; /* 札のふち＝明るい背景で溶けないように */
   min-height: 100%; display: flex; flex-direction: column; color: var(--rd-ink); text-align: left;
 }
@@ -7613,6 +7614,7 @@ html[data-theme="dark"] .rd {
   --rd-spark: #f2c44a; --rd-spark-2: #f7d97a; --rd-clap: #7d5c41;
   --rd-easy-line: transparent; --rd-hard-line: transparent; --rd-fail-line: transparent;
   --rd-actions-bg: rgba(40, 28, 17, 0.78);
+  --rd-next-bg: rgba(58, 46, 33, 0.7);
 }
 /* 予習の重ね表示（モーダル）は地の色が面の色 */
 .review-overlay .rd { --rd-actions-bg: var(--surface); }
@@ -7657,6 +7659,12 @@ html[data-theme="dark"] .rd {
 .rd .exp-level-bar { height: 10px; margin-top: 8px; background: var(--rd-track); }
 .rd .exp-level-fill { background: linear-gradient(90deg, var(--rd-gold-a), var(--rd-gold-b)); }
 .rd .exp-level-next { margin-top: 6px; font-size: 12px; color: var(--rd-muted); text-align: right; }
+
+/* 明日の予告（TomorrowNote・2026-11-12）: EXP の札のすぐ下。目立たせすぎない淡い札・急がせない */
+.rd-next { padding: 10px 14px; border-radius: 14px; background: var(--rd-next-bg); border: 1px solid var(--rd-line); text-align: center; }
+.rd-next-main { margin: 0; font-size: 15px; font-weight: 700; color: var(--rd-ink); }
+.rd-next-main b { font-size: 18px; color: var(--rd-word); margin: 0 1px 0 4px; font-variant-numeric: tabular-nums; }
+.rd-next-sub { margin: 3px 0 0; font-size: 12px; color: var(--rd-muted); }
 
 /* 昇格（ある時だけ） */
 .rd-promo { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 14px; border-radius: 14px; background: var(--rd-promo-bg); color: var(--rd-promo-ink); font-size: 14px; font-weight: 700; text-align: center; }
