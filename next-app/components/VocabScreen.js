@@ -9,6 +9,7 @@ import GenLoading from './GenLoading';
 import {
   loadSrs,
   loadHistory,
+  insertHistoryRow,
   isDue,
   skipWord,
   unskipWord,
@@ -55,7 +56,7 @@ import {
   unstarWord,
   likeWord,
 } from '@/lib/words';
-import { pushMyWord, ensureFreshSession } from '@/lib/supabase';
+import { pushMyWord, ensureFreshSession, fetchHistoryRowFromCloud } from '@/lib/supabase';
 import { fetchJa } from '@/lib/jatranslate';
 import { fetchCtxJa } from '@/lib/ctxtranslate';
 import { getDeviceKey } from '@/lib/device';
@@ -396,10 +397,20 @@ export default function VocabScreen() {
   const checkSaved = useCallbackSafe(
     async (se, ep) => {
       if (!drama) return false;
-      const history = loadHistory();
-      const entry = history.find(
-        (h) => h.drama?.title === drama.title && h.season === se && h.episode === ep
-      );
+      const findEntry = () =>
+        loadHistory().find((h) => h.drama?.title === drama.title && h.season === se && h.episode === ep);
+      let entry = findEntry();
+      // 端末にリストが無ければ、本人のクラウドの行を1行だけ読んで戻す（2026-11-12: 端末の上限で押し出された
+      //   リストを、生成し直さずに戻す）。ログインしていない・見つからない時は今までどおり「リストを生成」。
+      if (!entry) {
+        const restoreReq = reqId.current;
+        const restored = await fetchHistoryRowFromCloud(drama.title, se, ep).catch(() => null);
+        if (restoreReq !== reqId.current) return true; // 別の話へ移っていたら何もしない
+        if (restored && !isPrunedRow(restored)) {
+          insertHistoryRow(restored);
+          entry = findEntry() || restored;
+        }
+      }
       // コレクションから消去して語を抜いた話（drama.prunedAt）は保存済みとして出さず作り直す（lib/workRemoval.js）。
       //   作り直した行は同じ id のまま全部の語に置き換わる（saveHistoryEntry）。共有の単語リストがあれば生成の枠も使わない。
       if (entry?.words?.length && !isPrunedRow(entry)) {

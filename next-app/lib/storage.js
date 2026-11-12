@@ -1,6 +1,7 @@
 // 既存アプリ（js/app.js）からの移植。
 // localStorage のキー・データ構造は既存実装と完全に同一に保つこと。
 
+import { HISTORY_BUDGET_CHARS, trimHistoryToBudget } from './historyBudget';
 import { pickAgainWords } from './againWords';
 import { pushHistoryEntry, deleteHistoryRow, deleteHistoryRowsByTitle, pushSrsWords, deleteSrsWord, pushProfiles, queueStatePush } from './supabase';
 import { PROFILES_AT_KEY } from './profileMerge';
@@ -638,6 +639,11 @@ export function overallVocabStats(
   };
   (history || []).forEach((h) => (h.words || []).forEach((w) => count(w.word)));
   (myWords || []).forEach((w) => count(w.word));
+  // SRS に記録のある語（「知ってる」で飛ばした語は除く）も母数に入れる（2026-11-12）。端末の履歴から押し出された
+  //   作品の語や、リストを消した作品の採点済みの語が、覚えた／マスターの合計から抜けないように。
+  Object.keys(srs || {}).forEach((k) => {
+    if (!srs[k]?.skipped) count(k);
+  });
   return { total, learned, mastered };
 }
 
@@ -912,6 +918,33 @@ export function restoreSrsEntry(word, before) {
 // ── 履歴の保存・更新（saveToHistory 相当）──────────────────
 // ctx = { drama, season, episode, userLevel, targetLevel, words }
 // 戻り値: currentHistoryId（保存したエントリのID）
+// 履歴を端末に保存する（大きさの上限つき・2026-11-12）。上限を超えた分は lib/historyBudget.js の順で外す。
+//   保存に失敗した時（端末の容量オーバー）は、上限を4分の3ずつ下げて同じ順で外し、最大3回やり直す。
+//   外した行はクラウドに残る（ログイン時）＝作品を開いた時に restoreHistoryRowFromCloud で戻せる。
+export function persistHistory(history, { keepIds = [] } = {}) {
+  const srs = loadSrs();
+  let budget = HISTORY_BUDGET_CHARS;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const { history: kept } = trimHistoryToBudget(history, srs, { budget, keepIds });
+    if (safeSet(HISTORY_KEY, JSON.stringify(kept))) return kept;
+    budget = Math.floor(budget * 0.75);
+  }
+  return null;
+}
+
+// クラウドから戻した1行を端末の履歴に入れる（同じ作品名＋話数の行があれば置き換え・無ければ日付の位置に入れる）。
+export function insertHistoryRow(row) {
+  if (!row?.id || !row?.drama?.title) return null;
+  const history = loadHistory().filter(
+    (h) => h.id !== row.id && !(h.drama?.title === row.drama.title && h.season === row.season && h.episode === row.episode)
+  );
+  const at = history.findIndex((h) => String(h.date || '') <= String(row.date || ''));
+  if (at < 0) history.push(row);
+  else history.splice(at, 0, row);
+  persistHistory(history, { keepIds: [row.id] });
+  return row.id;
+}
+
 export function saveHistoryEntry(ctx) {
   const { drama, season, episode, userLevel, targetLevel, words } = ctx;
   if (!drama || !words?.length) return null;
@@ -960,8 +993,7 @@ export function saveHistoryEntry(ctx) {
     pushed = entry;
   }
 
-  const saved = history.slice(0, 50);
-  safeSet(HISTORY_KEY, JSON.stringify(saved));
+  persistHistory(history, { keepIds: [resultId] }); // 2MB まで（行数では切らない・lib/historyBudget.js）
   markActivityToday();
   pushHistoryEntry(pushed); // クラウド history へ反映（ログイン時・fire-and-forget）
   return resultId;
@@ -1182,9 +1214,15 @@ export function collectRingWords(
       definition: w.ja || w.definition || '',
       _src: { title: w.dramaTitle, season: w.season, episode: w.episode, type: isMovieWork(w.dramaTitle) ? 'movie' : undefined },
     }));
+  // SRS に記録のある語（「知ってる」で飛ばした語は除く）で、履歴にも単語帳にも無い語（2026-11-12）。
+  //   端末の履歴から押し出された作品の語が円から抜けないように。意味・例文は持たない（出所は SRS の origin）。
+  const known = new Set([...fromHistory, ...extras].map((w) => String(w.word || '').toLowerCase()));
+  const srsOnly = Object.keys(srs || {})
+    .filter((k) => k && !known.has(k) && srs[k] && !srs[k].skipped)
+    .map((k) => ({ word: k, _src: srs[k].origin?.title ? srs[k].origin : undefined }));
   const out = [];
   const keys = new Set();
-  [...fromHistory, ...extras].forEach((w) => {
+  [...fromHistory, ...extras, ...srsOnly].forEach((w) => {
     const key = String(w.word || '').toLowerCase();
     if (!key || keys.has(key)) return;
     const e = srs[key];

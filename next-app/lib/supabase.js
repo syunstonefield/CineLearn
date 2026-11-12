@@ -16,6 +16,7 @@ import { ticketEpKey, trimTickets } from './ticketRules';
 import { mergeActivityDates, mergeReviewLog, mergeQuizAwarded, mergeTitleToggles, mergeRingMetReset } from './stateMergeRules';
 import { fetchAllSrs, mergeSrs } from './srsMerge';
 import { pgrstInFilter } from './wordbookFlags';
+import { HISTORY_BUDGET_CHARS, trimHistoryToBudget } from './historyBudget';
 
 const SUPABASE_URL = 'https://mndyexwdevkpdssglwpl.supabase.co';
 const SUPABASE_ANON_KEY =
@@ -195,6 +196,58 @@ async function fetchAllMyWords(uid) {
   return all;
 }
 
+// クラウドの history の1行 → 端末の cl_history の形。
+export function historyRowToLocal(h) {
+  return {
+    id: h.id,
+    date: h.date,
+    drama: h.drama,
+    season: h.season,
+    episode: h.episode,
+    level: h.level,
+    targetLevel: h.target_level,
+    words: h.words,
+    quiz: h.quiz,
+    quizScore: h.quiz_score,
+    quizDate: h.quiz_date,
+  };
+}
+
+// 取り込み用: 更新が新しい順に HISTORY_PAGE 行ずつ、合計が端末の上限（2MB）を超えるまで取る。
+//   1回の取得は Supabase の上限（1000行）より十分小さくする（infra-gotchas）。途中の失敗は null（＝上書きしない）。
+const HISTORY_PAGE = 100;
+const HISTORY_PULL_MAX_ROWS = 2000;
+export async function fetchHistoryForPull(uid, fetchPage = sbFetch) {
+  const all = [];
+  let size = 0;
+  for (let offset = 0; offset < HISTORY_PULL_MAX_ROWS; offset += HISTORY_PAGE) {
+    const page = await fetchPage(
+      `/rest/v1/history?user_id=eq.${uid}&select=*&order=updated_at.desc,id.desc&limit=${HISTORY_PAGE}&offset=${offset}`
+    );
+    if (!Array.isArray(page)) return offset === 0 ? page : null;
+    for (const h of page) {
+      all.push(h);
+      size += JSON.stringify(h).length;
+    }
+    if (page.length < HISTORY_PAGE || size > HISTORY_BUDGET_CHARS) break;
+  }
+  return all;
+}
+
+// 作品を開いた時に端末にリストが無ければ、本人のクラウドの行（作品名＋話数）を1行だけ読む（2026-11-12）。
+//   ログインしていない・見つからない・失敗は null（呼び出し側は「リストを生成」を出す）。
+export async function fetchHistoryRowFromCloud(title, season, episode, fetchPage = sbFetch) {
+  if (!title || !isLoggedIn()) return null;
+  const uid = getCurrentUser()?.id;
+  if (!uid) return null;
+  const eq = (v) => (v == null ? 'is.null' : `eq.${encodeURIComponent(v)}`);
+  const rows = await fetchPage(
+    `/rest/v1/history?user_id=eq.${uid}&drama->>title=eq.${encodeURIComponent(title)}&season=${eq(season)}&episode=${eq(episode)}&select=*&order=updated_at.desc&limit=1`
+  );
+  const h = Array.isArray(rows) ? rows[0] : null;
+  return h?.words?.length ? historyRowToLocal(h) : null;
+}
+
 // クラウド → localStorage に取り込む（★読み取り専用★）。
 // js/supabase.js の pullFromCloud を移植。DOM 更新は React 側に任せて削除。
 // profileId を渡すと my_words をプロフィール別キーにも反映する（既存挙動）。
@@ -234,29 +287,28 @@ export async function pullFromCloud(profileId = null) {
     }
   }
 
-  // history
-  const history = await sbFetch(
-    `/rest/v1/history?user_id=eq.${uid}&select=*&order=updated_at.desc&limit=50`
-  );
+  // history（2026-11-12: 50行で切らず、端末の上限 2MB 分までページ送りで取る・lib/historyBudget.js）。
+  //   途中で読み取りに失敗したら端末の履歴は上書きしない（少ない行で置き換えて消さないため）。
+  const history = await fetchHistoryForPull(uid);
   if (Array.isArray(history) && history.length) {
-    localStorage.setItem(
-      'cl_history',
-      JSON.stringify(
-        history.map((h) => ({
-          id: h.id,
-          date: h.date,
-          drama: h.drama,
-          season: h.season,
-          episode: h.episode,
-          level: h.level,
-          targetLevel: h.target_level,
-          words: h.words,
-          quiz: h.quiz,
-          quizScore: h.quiz_score,
-          quizDate: h.quiz_date,
-        }))
-      )
-    );
+    let srsNow = {};
+    try {
+      srsNow = JSON.parse(localStorage.getItem('cl_srs') || '{}') || {};
+    } catch {
+      /* 無視 */
+    }
+    const { history: kept } = trimHistoryToBudget(history.map(historyRowToLocal), srsNow);
+    try {
+      localStorage.setItem('cl_history', JSON.stringify(kept));
+    } catch {
+      // 容量オーバー＝さらに小さくして入れる（端末の他の保存を守る）
+      try {
+        const { history: smaller } = trimHistoryToBudget(kept, srsNow, { budget: Math.floor(HISTORY_BUDGET_CHARS / 2) });
+        localStorage.setItem('cl_history', JSON.stringify(smaller));
+      } catch {
+        /* 諦める（端末の履歴はそのまま） */
+      }
+    }
   }
 
   // srs（語単位マージ・2026-11-07 lib/srsMerge.js に集約）。
