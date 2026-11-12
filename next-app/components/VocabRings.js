@@ -2,7 +2,7 @@
 
 // 3重の円（あゆみタブの一番上）。docs/design-paid-features-2026-10-08.md「3重の円」「実装メモ 1」。
 //   2026-11-10 見直し（受付の見本 reports/journey-ui-2026-11-10/mock.html・オーナー了承）: 円（左・148px）と数字3行（右）を
-//   1枚の白い札に横並び。見出し・リード文はやめ、数字の説明は「ことばの意味」を押した時だけ。最近覚えた単語は横に送る札。
+//   1枚の白い札に横並び。見出し・リード文はやめる。ことばの意味は円の下にいつも3行（2026-11-12）。最近覚えた単語は横に送る札。
 //   外＝出会った（淡い金）／中＝覚えた（金）／内＝マスター（濃い金）。中心＝覚えた＋小さく「うち マスター N」（0の間は出さない）。
 //   開いた時は前回見た値→今の値へ広がり、増えた分の弧だけ光る（マスター→覚えた→出会ったの順）。
 //   prefers-reduced-motion では止まった絵で出す。
@@ -12,6 +12,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ringFractions, ringTier } from '@/lib/rings';
 import { subtitleCredit, loadRemovedWorks } from '@/lib/storage';
+import { LEARNED_LABEL, MASTERED_LABEL, LEARNED_MEANING, MASTERED_MEANING } from '@/lib/learnedTerms';
 
 const C = 160;
 const SW = 14; // 線幅（320 の箱で）。表示 148px で約 6.5px
@@ -164,7 +165,6 @@ export default function VocabRings({ values, from = null, glowFrom = null, gain 
   const { nums, fr, prevFr, glow } = useRingAnimation(values, from, glowFrom);
   const [all, setAll] = useState(false); // 「すべて見る」＝縦の一覧
   const [shown, setShown] = useState(RECENT_FIRST + RECENT_STEP); // 縦の一覧で何枚見せるか（20枚ずつ）
-  const [meaning, setMeaning] = useState(false); // 「ことばの意味」
   if (!values || values.met <= 0) return null;
   const mastered0 = values.mastered <= 0;
   const removed = loadRemovedWorks().length > 0;
@@ -176,8 +176,8 @@ export default function VocabRings({ values, from = null, glowFrom = null, gain 
       // 消去した作品がある人だけ数え方を足す（ボタン名は「棚から外す」・ホーム・あゆみ部門 2026-11-07）
       desc: removed ? '出会った語（棚から外した作品も含む・消去した作品は学習した語だけ）' : 'これまでに出会った語（棚から外した作品も含む）',
     },
-    { k: 'learned', name: '覚えた', num: fmt(nums.learned), desc: '2回以上思い出せた語' },
-    { k: 'mastered', name: 'マスター', num: mastered0 ? null : fmt(nums.mastered), wait: '約3週間後から増えます', desc: '3週間あけても思い出せた語' },
+    { k: 'learned', name: LEARNED_LABEL, num: fmt(nums.learned), desc: LEARNED_MEANING },
+    { k: 'mastered', name: MASTERED_LABEL, num: mastered0 ? null : fmt(nums.mastered), wait: '約3週間後から増えます', desc: MASTERED_MEANING },
   ];
   const canJump = !!onOpen && recent.length > 0;
   const Today = canJump ? 'button' : 'div';
@@ -218,20 +218,30 @@ export default function VocabRings({ values, from = null, glowFrom = null, gain 
             </div>
           </div>
 
-          <div className={`vr-nums${meaning ? ' is-open' : ''}`}>
+          <div className="vr-nums">
             {rows.map((r) => (
               <div className="vr-nrow" key={r.k}>
-                <i className={`vr-dot vr-dot-${r.k === 'met' ? 'met' : r.k === 'learned' ? 'learned' : 'mastered'}`} aria-hidden="true" />
+                <i className={`vr-dot vr-dot-${r.k}`} aria-hidden="true" />
                 <span className="vr-nname">{r.name}</span>
                 {r.num != null ? <b className="vr-nnum">{r.num}</b> : <span className="vr-nwait">{r.wait}</span>}
-                {meaning && <small className="vr-ndesc">{r.desc}</small>}
               </div>
             ))}
-            <button type="button" className="vr-mean" aria-expanded={meaning} onClick={() => setMeaning((m) => !m)}>
-              {meaning ? 'ことばの意味を閉じる' : 'ことばの意味'}
-            </button>
           </div>
         </div>
+
+        {/* ことばの意味はいつも出す（押す所は気づかれなかった・オーナー決定 2026-11-12）。数字の横の列は SE で狭く
+            1〜2字だけ次の行に落ちるので、円の下に幅いっぱいで。覚えた・マスターの文は lib/learnedTerms.js（復習・クイズと同じ）。 */}
+        <dl className="vr-legend">
+          {rows.map((r) => (
+            <div key={r.k}>
+              <dt>
+                <i className={`vr-dot vr-dot-${r.k}`} aria-hidden="true" />
+                {r.name}
+              </dt>
+              <dd>{r.desc}</dd>
+            </div>
+          ))}
+        </dl>
 
         <Today {...(canJump ? { type: 'button', onClick: onOpen } : {})} className="vr-today">
           <span className="vr-spark" aria-hidden="true">
