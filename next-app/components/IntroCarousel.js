@@ -13,7 +13,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
 import { trackUsage } from '@/lib/usage';
 import { TRIAL_LEVELS } from '@/lib/trial';
-import { INTRO_SAMPLE_NOTE, INTRO_HOME_NOTE, INTRO_STEP_KEY, HOME_SLIDE_TEXT, detectHomeScreenKind, introSlidesFor, lockPage, parseIntroStep } from '@/lib/introTour';
+import { INTRO_SAMPLE_NOTE, INTRO_HOME_NOTE, INTRO_STEP_KEY, HOME_IOS_HINT, detectHomeScreenKind, homeSlideText, introSlidesFor, lockPage, parseIntroStep } from '@/lib/introTour';
 
 
 function Heading({ lines }) {
@@ -177,18 +177,38 @@ function ArtExt() {
   );
 }
 
-// ホーム画面に追加（2026-11-12 試作・法務確認中）: 自作の絵＝ホーム画面のアイコンの並び（中身のない四角）と、手順の2つの札。
-//   配信サービスの名前・ポスター・作品名は出さない。iPhone は共有ボタン、Android は Chrome のメニュー（︙）。
-function ArtHome({ kind }) {
+// ホーム画面に追加（オーナー決定 2026-11-12・法務は条件付き可）: 自作の絵＝ホーム画面のアイコンの並び（中身のない四角）と、手順の2つの札。
+//   配信サービスの名前・ポスター・作品名は出さない。iPhone は共有ボタン（＋見つからない時は「…」の中）、Android は Chrome のメニュー（︙）。
+//   法務の条件: 共有の絵は自作（四角＋上向きの矢印・アプリの茶色）・ロゴや本物の画面の写しは使わない・機種の枠は角の丸い長方形だけ・
+//   「公式」「推奨」のような語は入れない・絵の下に INTRO_HOME_NOTE の1行。
+//   Android で Chrome から追加の合図（beforeinstallprompt・app/(app)/layout.js で取っておく）が来ている時は、手順の札の代わりに
+//   「ホーム画面に追加する」ボタン（押すと Chrome の追加の確認が出る）。合図が来ない端末では手順の札。
+function ArtHome({ kind, canPrompt, added, onAdd }) {
   const ios = kind === 'ios';
+  if (added || (kind === 'android' && canPrompt)) {
+    return (
+      <div className="intro-home">
+        <HomePhone />
+        <div className="intro-home-steps a2">
+          {added ? (
+            <div className="intro-home-step is-target is-done">
+              <span className="intro-home-ic" aria-hidden="true">
+                ✓
+              </span>
+              <span>ホーム画面に追加しました</span>
+            </div>
+          ) : (
+            <button type="button" className="intro-home-add" onClick={onAdd}>
+              <span aria-hidden="true">＋</span> ホーム画面に追加する
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="intro-home">
-      <div className="intro-home-phone a1" aria-hidden="true">
-        {Array.from({ length: 11 }, (_, i) => (
-          <i key={i} />
-        ))}
-        <img className="intro-home-app" src="/icon-192.png" alt="" />
-      </div>
+      <HomePhone />
       <div className="intro-home-steps a2">
         <div className="intro-home-step">
           <span className="intro-home-ic" aria-hidden="true">
@@ -202,8 +222,9 @@ function ArtHome({ kind }) {
               <b>︙</b>
             )}
           </span>
-          <span>{ios ? 'Safari の共有ボタン' : 'Chrome の右上のメニュー'}</span>
+          <span>{ios ? '共有ボタン' : 'Chrome の右上のメニュー'}</span>
         </div>
+        {ios && <span className="intro-home-hint">{HOME_IOS_HINT}</span>}
         <span className="intro-home-arrow" aria-hidden="true">
           ↓
         </span>
@@ -214,6 +235,17 @@ function ArtHome({ kind }) {
           <span>ホーム画面に追加</span>
         </div>
       </div>
+    </div>
+  );
+}
+
+function HomePhone() {
+  return (
+    <div className="intro-home-phone a1" aria-hidden="true">
+      {Array.from({ length: 11 }, (_, i) => (
+        <i key={i} />
+      ))}
+      <img className="intro-home-app" src="/icon-192.png" alt="" />
     </div>
   );
 }
@@ -236,6 +268,28 @@ export default function IntroCarousel({ mode = 'first' }) {
   // 「ホーム画面に追加」を出す端末か（iPhone・Android・まだホーム画面から開いていない）。開いている間は変えない。
   const [homeKind] = useState(() => detectHomeScreenKind());
   const slides = introSlidesFor(homeKind);
+  // Android の Chrome から来た追加の合図（app/(app)/layout.js が window.__clInstallPrompt に取っておく）。1回しか使えない。
+  const [installEvt, setInstallEvt] = useState(() => (typeof window === 'undefined' ? null : window.__clInstallPrompt || null));
+  const [added, setAdded] = useState(false);
+  useEffect(() => {
+    const sync = () => setInstallEvt(window.__clInstallPrompt || null);
+    window.addEventListener('cl-installprompt', sync);
+    return () => window.removeEventListener('cl-installprompt', sync);
+  }, []);
+  const canPrompt = homeKind === 'android' && !!installEvt;
+  const addToHome = async () => {
+    const e = installEvt;
+    if (!e) return;
+    window.__clInstallPrompt = null;
+    setInstallEvt(null); // 断られたら手順の札に戻る（合図は使い切り）
+    try {
+      await e.prompt();
+      const c = await e.userChoice;
+      if (c?.outcome === 'accepted') setAdded(true);
+    } catch {
+      /* 手順の札のまま */
+    }
+  };
   const LAST = slides.length - 1;
   // 初めての流れは、読み直されても続きの枚から（このタブのあいだだけ覚える）。
   const [saved] = useState(() => {
@@ -451,12 +505,12 @@ export default function IntroCarousel({ mode = 'first' }) {
           <div className="intro-head">
             <Heading lines={s.h} />
             <p className="intro-p">
-              <span className={'intro-p-sp' + (s.pcP ? ' has-pc' : '')}>{s.key === 'home' ? HOME_SLIDE_TEXT[homeKind] : s.p}</span>
+              <span className={'intro-p-sp' + (s.pcP ? ' has-pc' : '')}>{s.key === 'home' ? homeSlideText(homeKind, canPrompt, added) : s.p}</span>
               {s.pcP && <span className="intro-p-pc">{s.pcP}</span>}
             </p>
           </div>
           <div className={`intro-art intro-art-${s.key}`}>
-            <Art kind={homeKind} />
+            <Art kind={homeKind} canPrompt={canPrompt} added={added} onAdd={addToHome} />
           </div>
           <div className="intro-foot">
             <div className="intro-note">{s.key === 'home' ? INTRO_HOME_NOTE : INTRO_SAMPLE_NOTE}</div>

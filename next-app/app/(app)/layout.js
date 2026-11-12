@@ -53,6 +53,14 @@ export default function RootLayout({ children }) {
               "(function(){try{var t=localStorage.getItem('cl_theme');if(t!=='dark'&&t!=='light'){t=(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';}document.documentElement.dataset.theme=t;}catch(e){}})();",
           }}
         />
+        {/* Android の Chrome の「ホーム画面に追加」の合図（beforeinstallprompt）を、画面が組み上がる前から取っておく。
+            スライドの最後の「ホーム画面に追加する」ボタンが使う（components/IntroCarousel.js）。Chrome が自分で出す小さな帯は止める。 */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){try{window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__clInstallPrompt=e;window.dispatchEvent(new Event('cl-installprompt'));});window.addEventListener('appinstalled',function(){window.__clInstallPrompt=null;window.dispatchEvent(new Event('cl-installprompt'));});}catch(e){}})();",
+          }}
+        />
         {/* 既存 index.html と同じ Google Fonts（React が <head> へ巻き上げる） */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link

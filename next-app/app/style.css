@@ -8117,6 +8117,12 @@ html[data-theme="dark"] .hm-row-pb { background: rgba(255,255,255,.08); }
 .intro-home-steps { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .intro-home-step { display: flex; align-items: center; gap: 10px; width: 100%; max-width: 300px; padding: 10px 14px; border-radius: 12px; background: #fff; border: 1px solid rgba(0,0,0,.08); font-size: 14px; color: #2a2420; }
 .intro-home-step.is-target { border-color: #e2c194; background: #fbf3e8; font-weight: 600; }
-.intro-home-ic { flex: none; width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; background: #f1ece3; color: #3478f6; font-size: 18px; }
+.intro-home-ic { flex: none; width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; background: #f1ece3; color: #9a5f26; font-size: 18px; }
 .intro-home-step.is-target .intro-home-ic { color: #b97a3a; background: #fff; }
+.intro-home-step.is-done .intro-home-ic { color: #fff; background: #b97a3a; font-size: 16px; }
 .intro-home-arrow { color: #b8ab9b; font-size: 16px; line-height: 1; }
+/* iPhone: 共有ボタンが見つからない時の小さな補足（札のすぐ下） */
+.intro-home-hint { width: 100%; max-width: 300px; margin-top: -2px; padding-left: 4px; font-size: 11px; color: #8a7d6e; }
+/* Android: Chrome から追加の合図が来ている時のボタン（押すと Chrome の追加の確認が出る） */
+.intro-home-add { display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: 100%; max-width: 300px; min-height: 48px; padding: 10px 16px; border-radius: 12px; border: 1.5px solid #b97a3a; background: #fbf3e8; color: #7a4a1c; font-size: 15px; font-weight: 700; cursor: pointer; }
+.intro-home-add:active { background: #f3e4cf; }

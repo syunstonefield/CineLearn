@@ -1,6 +1,6 @@
 // スライド式チュートリアルとボタン案内（lib/introTour.js）・利用統計の項目（lib/usageEvents.js・lib/usageReport.js）の単体テスト。
 import assert from 'node:assert/strict';
-import { parseIntroStep, tourSteps, TOUR_STEPS, lastTipAction, shouldGlowAdd, tipPosition, spotRect, INTRO_SLIDES, FIRST_RUN_MODE, homeScreenKind, introSlidesFor } from '../lib/introTour.js';
+import { parseIntroStep, tourSteps, TOUR_STEPS, lastTipAction, shouldGlowAdd, tipPosition, spotRect, INTRO_SLIDES, FIRST_RUN_MODE, homeScreenKind, introSlidesFor, homeSlideText, HOME_SLIDE_TEXT, HOME_IOS_HINT, INTRO_HOME_NOTE } from '../lib/introTour.js';
 import { isUsageEvent } from '../lib/usageEvents.js';
 import { buildUsageReport, INTRO_STEPS } from '../lib/usageReport.js';
 
@@ -140,4 +140,13 @@ t('ホーム画面に追加のスライド: iPhone・Android だけ・ホーム�
   assert.equal(introSlidesFor('ios').at(-1).key, 'home');
   assert.equal(introSlidesFor(null).at(-1).key, 'ext');
   assert.equal(introSlidesFor(null).length, 6);
+  // 文: iPhone は「Safari の」を付けない・Android は合図が来ていればボタンの文・追加できたらその文
+  assert.ok(!homeSlideText('ios').includes('Safari'));
+  assert.ok(homeSlideText('ios').includes('共有ボタン'));
+  assert.ok(homeSlideText('android').includes('︙'));
+  assert.equal(homeSlideText('android', true), HOME_SLIDE_TEXT.android_button);
+  assert.equal(homeSlideText('ios', true), HOME_SLIDE_TEXT.ios); // iPhone に追加の合図は無い
+  assert.equal(homeSlideText('android', false, true), HOME_SLIDE_TEXT.added);
+  // 法務の条件: Apple・Google が関わるように読める語を入れない
+  for (const s of [...Object.values(HOME_SLIDE_TEXT), HOME_IOS_HINT, INTRO_HOME_NOTE]) assert.ok(!/公式|推奨/.test(s), s);
 });

@@ -102,7 +102,7 @@ export const INTRO_SLIDES = [
   { key: 'quiz', h: ['クイズで、', '覚えたか確かめる'], p: 'セリフの空欄に入る語を、4択で。' },
   { key: 'frames', h: ['学んだ作品が、', '記録として並ぶ'], p: '学習が進むと、記録の枠が豪華になります。' },
   { key: 'ext', h: ['観ながら、', '字幕の単語を保存'], p: 'PC の Chrome 拡張機能で、字幕の単語をクリック。', pcP: 'Chrome 拡張機能で、字幕の単語をクリック。' },
-  // 「ホーム画面に追加」（オーナー案 2026-11-12・法務確認中＝試作）。スマホだけ・端末で文を出し分ける（HOME_SLIDE_TEXT）。
+  // 「ホーム画面に追加」（オーナー決定 2026-11-12・法務は条件付き可）。スマホだけ・端末で文を出し分ける（homeSlideText）。
   //   PC とすでにホーム画面から開いている時（standalone）は出さない（introSlidesFor）。
   { key: 'home', h: ['ホーム画面に置くと、', 'すぐ開ける'] },
 ];
@@ -111,10 +111,23 @@ export const INTRO_SLIDES = [
 export const INTRO_HOME_NOTE = '手順の絵はイメージです。表示は端末やブラウザの版によって異なります。';
 
 // 「ホーム画面に追加」の手順の文（端末ごと）。絵は自作（配信サービスの名前・ポスター・作品名は出さない）。
+//   android_button＝Chrome から追加の合図（beforeinstallprompt）が来ていて、ボタンひとつで追加できる時。
 export const HOME_SLIDE_TEXT = {
-  ios: 'Safari の共有ボタンから「ホーム画面に追加」を選ぶだけ。',
+  ios: '共有ボタンから「ホーム画面に追加」を選ぶだけ。',
   android: 'Chrome のメニュー（︙）から「ホーム画面に追加」を選ぶだけ。',
+  android_button: '下のボタンを押すだけで、ホーム画面に置けます。',
+  added: 'ホーム画面に置きました。次からはアイコンから開けます。',
 };
+
+// iPhone の共有ボタンが見当たらない時の小さな補足（版によっては「…」の中にある・オーナー決定 2026-11-12）。
+export const HOME_IOS_HINT = '見つからない時は「…」の中にあります。';
+
+// 文を選ぶ（依存なしの純関数）。canPrompt＝Android でボタンひとつで追加できる時。
+export function homeSlideText(kind, canPrompt = false, added = false) {
+  if (added) return HOME_SLIDE_TEXT.added;
+  if (kind === 'android' && canPrompt) return HOME_SLIDE_TEXT.android_button;
+  return HOME_SLIDE_TEXT[kind] || '';
+}
 
 // 'ios'｜'android'｜null（PC・判断できない・すでにホーム画面から開いている）。依存なしの純関数。
 export function homeScreenKind({ ua = '', standalone = false } = {}) {
