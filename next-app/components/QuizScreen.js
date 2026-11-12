@@ -150,7 +150,7 @@ export default function QuizScreen() {
                 もう一度挑戦する
               </button>
               <button className="btn-secondary" style={{ marginTop: 8 }} onClick={goHome}>
-                ← マイドラマへ
+                ← ホーム
               </button>
             </div>
           </div>
