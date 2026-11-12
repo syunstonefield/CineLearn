@@ -606,10 +606,16 @@ export default function AppProvider({ children }) {
     setSettings((prev) => ({ ...prev, ...(typeof patch === 'function' ? patch(prev) : patch) }));
   }, []);
 
-  // 単語リスト/サービス選択の「戻る」の行き先（'main' | 'search'）。
+  // 単語リスト/サービス選択の「戻る」の行き先（'main' | 'search' | 'review-hub' | 'collection'）。
   // 検索から誤タップで開いた時にホームへ戻されるのが不便、の修正（2026-08-02）。
   // vocab への入口は openDrama に一本化されているので毎回上書きされ、汚染しない。
   const [vocabReturn, setVocabReturn] = useState('main');
+  // コレクションから作品の画面へ入った時は、戻る先もコレクションに（2026-11-12 オーナー決定・戻るの文字を下のタブの名前にそろえる）。
+  //   コレクションの入口は openDrama（作品の詳細の「学習する」）と、話の行（TicketDetailView が setScreen('vocab') を直接呼ぶ）の2つ。
+  //   どちらも直前の画面が 'collection' なので、ここでまとめて決める（クイズから作品の画面へ戻った時などは変えない）。
+  useEffect(() => {
+    if (screen === 'vocab' && screenTrackRef.current.prev === 'collection') setVocabReturn('collection');
+  }, [screen]);
 
   // ライブラリのカード/検索結果をクリック → サービス選択画面へ。
   // clearService=true（新規追加時）は前回の視聴サービスをクリアする（既存 selectDrama 準拠）。

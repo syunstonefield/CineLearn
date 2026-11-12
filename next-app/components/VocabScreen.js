@@ -1890,7 +1890,14 @@ export default function VocabScreen() {
             観るサービスをまだ選んでいない時は出さない（「入場する ▶」を押した時に聞く）。 */}
         <div className="screen-header vocab-header-compact">
           <button className="btn-back" onClick={() => setScreen(vocabReturn)}>
-            {vocabReturn === 'search' ? '← 作品を探す' : vocabReturn === 'review-hub' ? '← 復習' : '← マイドラマ'}
+            {/* 行き先の名前＝下のタブの名前（2026-11-12 オーナー決定・旧「← マイドラマ」） */}
+            {vocabReturn === 'search'
+              ? '← 作品を探す'
+              : vocabReturn === 'review-hub'
+                ? '← 復習'
+                : vocabReturn === 'collection'
+                  ? '← コレクション'
+                  : '← ホーム'}
           </button>
           {settings.selectedViewingService && (
             <span className="vocab-svc">
