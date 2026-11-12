@@ -6573,8 +6573,11 @@ html[data-theme="dark"] .vr-wrap {
 .vr-nname { flex: 1 0 auto; font-size: 13.5px; color: var(--vr-soft); white-space: nowrap; }
 .vr-nnum { font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 500; font-variant-numeric: tabular-nums; }
 .vr-nwait { width: 100%; margin-left: 17px; font-size: 11px; line-height: 1.5; color: var(--vr-muted); } /* マスター0の間の一言は名前の下の行に */
-.vr-ndesc { width: 100%; margin: 2px 0 2px 17px; font-size: 11px; line-height: 1.5; color: var(--vr-muted); }
-.vr-mean { margin-top: 4px; padding: 2px 0; border: 0; background: none; font: inherit; font-size: 11.5px; color: var(--vr-muted); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+/* 出会った・覚えた・マスターの意味（円の下に幅いっぱい・いつも出す・オーナー決定 2026-11-12・旧「ことばの意味」の押す所は廃止） */
+.vr-legend { margin: 14px 0 0; padding-top: 10px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; line-height: 1.5; color: var(--vr-muted); }
+.vr-legend div { display: flex; gap: 8px; }
+.vr-legend dt { flex: none; width: 5.6em; display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.vr-legend dd { margin: 0; min-width: 0; word-break: keep-all; overflow-wrap: anywhere; } /* 折り返しは「、」の後で */
 
 .vr-today {
   width: 100%;
@@ -6591,7 +6594,7 @@ button.vr-today { cursor: pointer; }
 .vr-today b { color: var(--vr-gold-deep); font-weight: 600; }
 .vr-today > span:last-child[aria-hidden] { color: var(--accent); }
 .vr-spark { color: var(--vr-learned); }
-.vr-mean:focus-visible, .vr-today:focus-visible, .vr-rh button:focus-visible { outline: 2px solid var(--vr-learned); outline-offset: 3px; }
+.vr-today:focus-visible, .vr-rh button:focus-visible { outline: 2px solid var(--vr-learned); outline-offset: 3px; }
 
 /* 最近覚えた単語: 最初は横に送る札（4枚）、「すべて見る」で縦の一覧。例文は全文（引用を途中で切らない）＝札の高さは中身で決まる */
 .vr-recent { margin-top: 22px; min-width: 0; }
