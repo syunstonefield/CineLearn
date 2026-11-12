@@ -260,6 +260,8 @@ export default function ReviewHubScreen() {
     setCurrentHistoryId(null);
     openReview(list.slice(0, AGAIN_BATCH), { again: kind });
   };
+  const hasAgain = again.unknown.length > 0 || again.shaky.length > 0;
+  const againMany = again.unknown.length > AGAIN_BATCH || again.shaky.length > AGAIN_BATCH;
 
   const myDue = useMemo(() => (myWords || []).filter((w) => isWordDue(w, srs)).length, [myWords, srs]);
 
@@ -388,23 +390,51 @@ export default function ReviewHubScreen() {
         )}
 
         {/* ① 今日の復習（従来のタブ動作＝全作品横断の期日到来分） */}
-        <div className={'rh-hero' + (todayCount > 0 ? '' : ' is-done')}>
+        {/* 直し B5（2026-11-12）: 今日の復習を主役に＝大きい主ボタンを幅いっぱいに。完了の時は小さな完了の札だけ */}
+        <div className={'rh-hero is-main' + (todayCount > 0 ? '' : ' is-done')}>
           <div className="rh-hero-main">
             <div className="rh-hero-title">{todayCount > 0 ? '今日の復習' : '今日の復習は完了！'}</div>
             <div className="rh-hero-sub">
               {todayCount > 0
                 ? `全作品から ${todayCount}語`
-                : work.usable
-                  ? 'エピソード別で追加の復習もできます'
-                  : 'また明日、期日の来た語から出します'}
+                : hasAgain
+                  ? '「もう一度」で、最近の語をもう一度確かめられます'
+                  : work.usable
+                    ? 'エピソード別で追加の復習もできます'
+                    : 'また明日、期日の来た語から出します'}
             </div>
           </div>
           {todayCount > 0 && (
             <button className="rh-hero-btn" onClick={startToday}>
-              はじめる →
+              今日の復習をはじめる →
             </button>
           )}
         </div>
+
+        {/* ①'' 知らなかった／うろ覚えの語をもう一度（無料・0語は出さない）。直し B5: 主ボタンの下に小さく、1行に2つ並べる線のボタン。
+            今日の復習が終わった日は、次の候補に見えるよう少しだけ色を付ける（is-next）。赤は使わない */}
+        {hasAgain && (
+          <div className={'rh-again-wrap' + (todayCount > 0 ? '' : ' is-next')}>
+            <div className="rh-again-label">
+              もう一度<span>・最近答えた語から{againMany ? ` ${AGAIN_BATCH}語ずつ` : ''}</span>
+            </div>
+            <div className="rh-again-row">
+              {[
+                ['unknown', '知らなかった語'],
+                ['shaky', 'うろ覚えの語'],
+              ].map(([kind, title]) => {
+                const n = again[kind].length;
+                if (!n) return null;
+                return (
+                  <button key={kind} type="button" className="rh-again-chip" onClick={() => startAgain(kind)}>
+                    <span className="rh-again-chip-title">{title}</span>
+                    <span className="rh-again-chip-count">{n}語</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* ①' マスター手前（今日の復習の真下・無料）。0語ならカードごと出さない。 */}
         {nearMastery.total > 0 && (
@@ -434,35 +464,6 @@ export default function ReviewHubScreen() {
             )}
           </div>
         )}
-
-        {/* ①'' 知らなかった／うろ覚えの語をもう一度（無料・0語のカードは出さない）。見た目は単語リストの枠にそろえる（光らせない） */}
-        {[
-          ['unknown', '知らなかった語をもう一度'],
-          ['shaky', 'うろ覚えの語をもう一度'],
-        ].map(([kind, title]) => {
-          const n = again[kind].length;
-          if (!n) return null;
-          return (
-            <div key={kind} className="rh-again">
-              <span className="rh-again-icon" aria-hidden="true">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M20 11a8 8 0 1 0-2.3 5.7" />
-                  <path d="M20 4v7h-7" />
-                </svg>
-              </span>
-              <div className="rh-again-main">
-                <div className="rh-again-title">{title}</div>
-                <div className="rh-again-sub">
-                  <span className="rh-again-count">{n}語</span>
-                  {n > AGAIN_BATCH ? `・最近答えた語から ${AGAIN_BATCH}語ずつ` : '・最近答えた語から'}
-                </div>
-              </div>
-              <button className="rh-again-btn" onClick={() => startAgain(kind)}>
-                はじめる
-              </button>
-            </div>
-          );
-        })}
 
         {/* ② エピソードを選ぶ */}
         <div className="rh-section-label">エピソードを選ぶ</div>

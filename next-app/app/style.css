@@ -6237,8 +6237,8 @@ html[data-theme="dark"] .rh-near-count { background: linear-gradient(100deg, var
 }
 
 .rh-section-label {
-  font-size: 12px; font-weight: 700; color: var(--text-muted);
-  margin: 20px 0 8px; letter-spacing: 0.04em;
+  font-size: 12px; font-weight: 500; color: var(--text-muted);
+  margin: 24px 0 8px; letter-spacing: 0.04em; /* 直し B5: 見出しを少し控えめに（太さ 700→500） */
 }
 .rh-groups { display: flex; flex-direction: column; gap: 14px; }
 .rh-group { border: 1px solid var(--review-border); border-radius: 14px; overflow: hidden; background: var(--surface); }
@@ -7669,6 +7669,9 @@ html[data-theme="dark"] .rd {
 /* 昇格（ある時だけ） */
 .rd-promo { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 14px; border-radius: 14px; background: var(--rd-promo-bg); color: var(--rd-promo-ink); font-size: 14px; font-weight: 700; text-align: center; }
 .rd-promo.is-master { background: var(--rd-master-bg); color: var(--rd-master-ink); }
+/* 昇格の行の下の意味の1行（直し A・2026-11-12）: 小さく淡く・行とくっつける */
+.rd-promo-wrap { display: flex; flex-direction: column; gap: 4px; }
+.rd-promo-note { margin: 0; font-size: 12px; line-height: 1.5; color: var(--rd-muted); text-align: center; text-wrap: balance; }
 .rd-perfect { padding: 10px 14px; border-radius: 14px; background: var(--rd-promo-bg); color: var(--rd-promo-ink); font-size: 14px; font-weight: 700; text-align: center; }
 
 /* 結果の3つ＝同じ形・淡い色 */
@@ -7992,6 +7995,35 @@ html[data-theme="dark"] .ht-tip-next { color: var(--on-accent); }
 html[data-theme="dark"] .rh-again-btn { background: var(--accent); color: #1f1812; }
 .rh-again-count { color: color-mix(in srgb, var(--accent) 78%, black); }
 html[data-theme="dark"] .rh-again-count { color: var(--accent); }
+
+/* ── 復習タブの主役＝今日の復習（直し B5・2026-11-12 オーナー決定）──
+   今日の復習は幅いっぱいの大きい主ボタン。「もう一度」はその下に小さく1行に2つの線のボタン（茶色系・赤は使わない）。
+   今日の復習が終わった日は「もう一度」に淡い色を付けて次の候補に見せる（is-next）。 */
+.rh-hero.is-main:not(.is-done) { flex-direction: column; align-items: stretch; gap: 14px; padding: 18px 18px 16px; }
+.rh-hero.is-main:not(.is-done) .rh-hero-title { font-size: 20px; }
+.rh-hero.is-main:not(.is-done) .rh-hero-sub { font-size: 13px; }
+.rh-hero.is-main:not(.is-done) .rh-hero-btn { width: 100%; min-height: 54px; padding: 14px 18px; font-size: 16px; border-radius: 14px; }
+.rh-again-wrap { margin: -2px 0 12px; }
+.rh-again-label { font-size: 12px; font-weight: 700; color: var(--text-muted); margin: 0 2px 6px; }
+.rh-again-label span { font-weight: 400; }
+.rh-again-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; }
+.rh-again-chip {
+  display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 46px; padding: 8px 10px;
+  border-radius: 12px; border: 1.5px solid var(--review-border); background: var(--surface); color: var(--text);
+  font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer; min-width: 0;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+.rh-again-chip:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--review-border)); }
+.rh-again-chip:active { transform: scale(0.98); }
+.rh-again-chip-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.rh-again-chip-count { flex-shrink: 0; font-weight: 800; color: color-mix(in srgb, var(--accent) 78%, black); }
+html[data-theme="dark"] .rh-again-chip-count { color: var(--accent); }
+.rh-again-wrap.is-next .rh-again-chip {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--review-border));
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface));
+}
+.rh-again-wrap.is-next .rh-again-label { color: var(--text); }
+@media (max-width: 600px) { .rh-hero.is-main:not(.is-done) { padding: 16px 15px 14px; } }
 
 /* ── ホーム（2026-11-12 見直し・components/HomeParts.js・受付の見本 reports/home-ui-2026-11-12/mock.html・オーナー了承）──────
    並び＝帯 → 今日の復習 → 記録（2枚） → 続きから学習 → 今日の語 → マイリスト → おすすめ。

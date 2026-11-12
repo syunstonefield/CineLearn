@@ -21,6 +21,7 @@ import {
 import { AGAIN_BATCH } from '@/lib/againWords';
 import { shouldShowBreak } from '@/lib/reviewBreak';
 import { countDueTomorrow } from '@/lib/tomorrowPreview';
+import { LEARNED_LINE, MASTERED_LINE } from '@/lib/learnedTerms';
 import { addExp, levelInfo, expForReviewSession } from '@/lib/exp';
 import { awardReviewSession } from '@/lib/reviewAward';
 import ExpBlock from './ExpBlock';
@@ -1158,16 +1159,23 @@ function ReviewDone({ showTomorrow = false, queue, partial = false, awardedRef, 
         )}
         {expGain && <ExpBlock earned={expGain.earned} lv={expGain.level} />}
         <TomorrowNote count={dueTomorrow} />
+        {/* 昇格の行が出た時だけ、その下に意味を小さく1行（直し A・2026-11-12・文は lib/learnedTerms.js）。昇格が無い回は何も出さない＝未達の数は出さない */}
         {gotLearned && (
-          <div className="rd-promo">
-            <CheckIcon />
-            {promo.learned.length}単語が「覚えた」に昇格！
+          <div className="rd-promo-wrap">
+            <div className="rd-promo">
+              <CheckIcon />
+              {promo.learned.length}単語が「覚えた」に昇格！
+            </div>
+            <p className="rd-promo-note">{LEARNED_LINE}</p>
           </div>
         )}
         {gotMaster && (
-          <div className="rd-promo is-master">
-            <StarIcon />
-            {promo.mastered.length}単語がマスターに到達！
+          <div className="rd-promo-wrap">
+            <div className="rd-promo is-master">
+              <StarIcon />
+              {promo.mastered.length}単語がマスターに到達！
+            </div>
+            <p className="rd-promo-note">{MASTERED_LINE}</p>
           </div>
         )}
         {/* 並びはカードの3択と同じ（左から 知らなかった・うろ覚え・知ってた・2026-11-12 オーナー指摘） */}
