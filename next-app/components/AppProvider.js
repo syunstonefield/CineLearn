@@ -783,8 +783,13 @@ export default function AppProvider({ children }) {
   }, []);
 
   // テスト画面へ（VocabScreen の「テストを受ける」）
-  const goToQuiz = useCallback(() => {
-    setQuizReturn('vocab');
+  //   opts.from: 'list'＝単語リストの帯の「クイズ」から→戻ると単語リスト（「← 単語リストに戻る」）／
+  //   それ以外＝作品の画面の「クイズ」の札から→戻ると作品の画面（「← 戻る」）（2026-11-12 オーナー指摘・戻るの文字と行き先をそろえる）。
+  const goToQuiz = useCallback((opts) => {
+    const fromList = opts?.from === 'list';
+    setQuizReturn(fromList ? 'vocab-list' : 'vocab');
+    //   base＝単語リストの上の「← 戻る」を出すか（作品の画面から単語リストを開いていた時は 'cards'）
+    vocabStartRef.current = fromList ? { view: 'list', cards: false, base: opts?.base || 'list' } : null;
     setScreen('quiz');
   }, []);
 

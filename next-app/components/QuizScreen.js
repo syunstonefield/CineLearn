@@ -26,7 +26,14 @@ export default function QuizScreen() {
   const backToHub = quizReturn === 'review-hub';
   const backToHome = quizReturn === 'main';
   const onBack = () => (backToHome ? goHome() : setScreen(backToHub ? 'review-hub' : 'vocab'));
-  const backLabel = backToHome ? '← ホーム' : backToHub ? '← 復習に戻る' : '← 単語リストに戻る';
+  //   単語リストの帯から＝'vocab-list'→「← 単語リストに戻る」（単語リストへ戻る）／作品の画面の札から＝'vocab'→「← 戻る」（作品の画面へ戻る・2026-11-12）。
+  const backLabel = backToHome
+    ? '← ホーム'
+    : backToHub
+      ? '← 復習に戻る'
+      : quizReturn === 'vocab-list'
+        ? '← 単語リストに戻る'
+        : '← 戻る';
 
   const [currentQ, setCurrentQ] = useState(0);
   const [score, setScore] = useState(0);

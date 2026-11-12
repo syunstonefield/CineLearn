@@ -61,7 +61,7 @@ export function CardHome({
         <div className="ch-work-text">
           <h2 className="ch-work-title">{drama?.title}</h2>
           <p className="ch-work-ep">
-            {isMovie ? '映画' : `シーズン${season} 第${episode}話`}・この話の語 {total}
+            {isMovie ? '映画・この映画の語' : `シーズン${season} 第${episode}話・この話の語`} {total}
           </p>
           <div className="ch-stats">
             <div className="ch-stat">

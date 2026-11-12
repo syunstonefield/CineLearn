@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
 import VocabItem from './VocabItem';
 import CefrNote from './CefrNote';
@@ -196,11 +196,17 @@ export default function VocabScreen() {
   //   ホームの「続きから学習」の行から開いた時も単語リストから（openDrama の opts・takeVocabStart・2026-11-12 オーナー決定）。
   //   行の「学ぶ」の札から開いた時は、単語リストを開いてすぐ単語のカード（autoCardsRef）。
   const [vocabStart] = useState(() => takeVocabStart?.() || null);
+  //   vocabStart.base＝クイズから単語リストへ戻った時の、もともとの始めの画面（'cards' なら単語リストの上に「← 戻る」を残す）。
   const startViewRef = useRef(
-    vocabStart?.view === 'list' || prevScreen === 'collection' || prevScreen === 'review-hub' ? 'list' : 'cards'
+    vocabStart?.base ||
+      (vocabStart?.view === 'list' || prevScreen === 'collection' || prevScreen === 'review-hub' ? 'list' : 'cards')
   );
   const autoCardsRef = useRef(!!vocabStart?.cards);
-  const [view, setView] = useState(startViewRef.current);
+  // 「学ぶ」の札から開いた時は、カードが開くまで後ろ（読み込み中・単語リスト）を見せない（2026-11-12 オーナー指摘＝一瞬 単語リストが映る）。
+  const [autoCover, setAutoCover] = useState(!!vocabStart?.cards);
+  const [view, setView] = useState(vocabStart?.view === 'list' ? 'list' : startViewRef.current);
+  // 最後に読み込んだ話（話が変わった時だけ始めの画面へ戻す＝クイズから単語リストへ戻った時などに、最初の読み込みで作品の画面へ戻さない）
+  const loadedEpRef = useRef(null);
   const [cardDone, setCardDone] = useState(null); // { answered:[…] }＝カードを終えた画面
 
   // 生成結果の付帯情報（2026-09-12）:
@@ -374,7 +380,8 @@ export default function VocabScreen() {
   // ── 生成直後＝予習ウォークスルーへ直行（justGenerated の一回限りトリガ）──
   // 新出語（sortedVocab）が揃い phase==='vocab' になった瞬間に1回だけ開く。
   // 閉じてもフラグは倒れているので再オープンしない（戻り先は従来のスクロール一覧のまま）。
-  useEffect(() => {
+  //   描いた画面が映る前に開く（useLayoutEffect＝待ち画面のあとに作品の画面が一瞬映らないように・2026-11-12）。
+  useLayoutEffect(() => {
     if (!justGenerated) return;
     if (!drama || phase !== 'vocab' || !sortedVocab.length) return;
     // 「単語を学ぶ →」（待ち画面の最後）＝この話のカードを答える形で開く（2026-11-12 カード中心・一覧は自動で出さない）
@@ -385,13 +392,27 @@ export default function VocabScreen() {
 
   // ホームの行の「学ぶ」の札（2026-11-12）: 保存済みの単語リストが揃ったら1回だけ、この話の単語のカードを開く。
   //   出せる語が無い時は札自体を出さない（Dashboard）。ここでも空なら何もしない（単語リストのまま）。
-  useEffect(() => {
+  //   単語リストが映る前に開く（useLayoutEffect）＋開くまでは autoCover で後ろを隠す（2026-11-12 オーナー指摘・iPhone）。
+  useLayoutEffect(() => {
     if (!autoCardsRef.current) return;
+    // 単語リストが無い・読めなかった時は隠すのをやめて今の画面を出す（カードは開かない）
+    if (phase === 'empty' || phase === 'ready' || phase === 'nosub' || phase === 'error' || phase === 'soon') {
+      autoCardsRef.current = false;
+      setAutoCover(false);
+      return;
+    }
     if (!drama || (phase !== 'saved' && phase !== 'vocab') || !sortedVocab.length) return;
     autoCardsRef.current = false;
     startCards();
+    setAutoCover(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, sortedVocab]);
+  // 念のため: 何かで開けないまま止まった時も、数秒で隠すのをやめる
+  useEffect(() => {
+    if (!autoCover) return undefined;
+    const t = setTimeout(() => setAutoCover(false), 6000);
+    return () => clearTimeout(t);
+  }, [autoCover]);
 
   // ── example_ja のバックグラウンド補完（二重実行ガードつき）──
   const fillJaRunning = useRef(false);
@@ -632,7 +653,9 @@ export default function VocabScreen() {
       setExtWords([]);
       setHistoryId(null);
       setPrepFresh(false); // 別エピソードへ移ったら下部3択は隠す（新規生成成功で再点灯）
-      setView(startViewRef.current);
+      const epKey = `${se}|${ep}`;
+      if (loadedEpRef.current !== null && loadedEpRef.current !== epKey) setView(startViewRef.current);
+      loadedEpRef.current = epKey;
       setCardDone(null);
       setNotShared(false);
       setGenNote(null);
@@ -1793,6 +1816,11 @@ export default function VocabScreen() {
 
   // ── 予習エンジン：モード選択ページ（「次に進む」で遷移）──────────────
   //   3つは同じ大きさ・色で誘導（リハーサル=アクセント/じっくり=accent2/観るだけ=中立）。
+  // 「学ぶ」の札から開いた直後（カードが開くまで）: 何も描かない＝単語リストや読み込み中の画面を一瞬も見せない
+  if (autoCover) {
+    return <div className="screen active vocab-auto-cover" id="screen-4" aria-busy="true" />;
+  }
+
   if (showVocab && sortedVocab.length > 0 && prepFresh && prepModes) {
     return (
       <div className="screen active" id="screen-4">
@@ -2109,7 +2137,7 @@ export default function VocabScreen() {
                 onStart={() => startCards()}
                 onList={() => setView('list')}
                 onOtherEpisode={() => setEpSheet(true)}
-                onQuiz={canQuiz({ words: sortedVocab }, srs) ? () => goToQuiz() : null}
+                onQuiz={canQuiz({ words: sortedVocab }, srs) ? () => goToQuiz({ from: 'cards' }) : null}
               />
             )
           ) : showVocab && sortedVocab.length ? (
@@ -2501,7 +2529,7 @@ export default function VocabScreen() {
               <button
                 type="button"
                 className={'vab-btn' + (!walkPrimary && stats.due === 0 ? ' is-primary' : '')}
-                onClick={() => goToQuiz()}
+                onClick={() => goToQuiz({ from: 'list', base: startViewRef.current })}
               >
                 <span className="vab-main">🎯 クイズ</span>
                 <span className="vab-sub">腕試し</span>
