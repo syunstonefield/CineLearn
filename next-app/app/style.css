@@ -8142,6 +8142,18 @@ html[data-theme="dark"] .hm-row-pb { background: rgba(255,255,255,.08); }
 }
 /* 区切りの言葉とイラストは画面の真ん中（縦も横も）に・ボタンは下のまま（オーナー 2026-11-12） */
 .rd-break .rd-body { justify-content: center; align-items: center; }
+/* 「今後は表示しない」の戻し方（2026-11-12）: リンクの下に小さく・押した直後は進み具合の行の上に短い知らせ（4秒・押せる所をふさがない） */
+.rd-break-note { margin: -6px 0 0; font-size: 12px; color: var(--rd-muted); text-align: center; }
+.rc-break-toast-wrap { position: relative; height: 0; z-index: 5; }
+.rc-break-toast {
+  position: absolute; left: 50%; top: 2px; transform: translateX(-50%); width: max-content; max-width: calc(100% - 24px);
+  margin: 0; padding: 7px 14px; border-radius: 999px; pointer-events: none;
+  background: var(--rc-flip-bg); color: var(--rc-flip-ink); font-size: 12px; font-weight: 600; line-height: 1.45; text-align: center;
+  box-shadow: 0 4px 14px rgba(40, 25, 10, 0.18);
+  animation: rc-toast-out 0.4s ease 3.6s both; /* 出た時はすぐ見える・終わりだけ薄く消える */
+}
+@keyframes rc-toast-out { from { opacity: 1; } to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .rc-break-toast { animation: none; } }
 .rd-break .rd-hero { align-self: stretch; } /* 星の置き場所は幅いっぱいの割合で決めるので、真ん中寄せでも幅を縮めない */
 
 /* 「ホーム画面に追加」のスライド（オーナー決定 2026-11-12・法務は条件付き可）。自作の絵＝ホーム画面のアイコンの並び（中身のない四角）＋手順の札2つ */

@@ -334,6 +334,14 @@ export default function ReviewModal({ asPage = false }) {
   const againContRef = useRef(false);
   // 区切り: 出している所（採点した枚数）と、この回で出し終えた所（戻るで取り消して答え直した時に二度出さない）
   const [breakAt, setBreakAt] = useState(null);
+  // 「今後は表示しない」を押した直後の短い知らせ（外の AI の感想・オーナー決定 2026-11-12）: 戻し方（設定）を伝える。
+  //   次のカードはそのまま出す（流れを止めない）・進み具合の行の上に重ねる（ボタンには重ねない）・4秒で消える。
+  const [breakHiddenNote, setBreakHiddenNote] = useState(false);
+  useEffect(() => {
+    if (!breakHiddenNote) return undefined;
+    const t = setTimeout(() => setBreakHiddenNote(false), 4000);
+    return () => clearTimeout(t);
+  }, [breakHiddenNote]);
   const breaksShownRef = useRef(new Set());
   const [builtKey, setBuiltKey] = useState(null);
 
@@ -518,6 +526,7 @@ export default function ReviewModal({ asPage = false }) {
   const hideBreaks = () => {
     updateSettings({ reviewBreak: false });
     setBreakAt(null);
+    setBreakHiddenNote(true);
   };
 
   // PCのキーボード操作（オーナー要望 2026-09-29・割り当てはスワイプの左右と一致させる）。
@@ -631,6 +640,13 @@ export default function ReviewModal({ asPage = false }) {
           </span>
         </div>
         {showKeys && <KeysHelp onClose={() => setShowKeys(false)} />}
+        {breakHiddenNote && !showDone && !showBreak && look && (
+          <div className="rc-break-toast-wrap">
+            <p className="rc-break-toast" role="status">
+              ひと区切りを止めました（設定で戻せます）
+            </p>
+          </div>
+        )}
         {!showDone && !showBreak && look && (
           <CinemaProgress
             idx={idx}
@@ -909,6 +925,8 @@ function ReviewBreak({ count, prep = false, onContinue, onStop, onHide }) {
         <button type="button" className="rd-break-hide" onClick={onHide}>
           今後は表示しない
         </button>
+        {/* 戻し方を先に伝える（うっかり押しても困らないように・2026-11-12） */}
+        <p className="rd-break-note">設定からいつでも戻せます</p>
       </div>
       <div className="rd-actions">
         <button type="button" className="rd-btn1" onClick={onContinue}>
