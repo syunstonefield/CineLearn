@@ -32,12 +32,15 @@ import {
   VOCAB_THINK_ROOM,
   VOCAB_TIGHT_COUNT,
   VOCAB_SPLIT_DRAMA,
+  VOCAB_SPLIT_MOVIE,
   GENERATE_DEADLINE_MS,
   UpstreamError,
 } from './constants.js';
 
 // vocab_cache.subtitle_provider に書く値（seed の 'opensubtitles' / 旧寄与の 'opensubtitles(auto)' と区別する）。
 export const SUBTITLE_PROVIDER = 'opensubtitles(server)';
+// 映画の終盤の線（2026-11-12 オーナー決定）。共有キャッシュの映画24行で、欠けの無い行は 76〜100%・欠けた行は 37%・71%。
+export const MOVIE_TAIL_RATIO = 0.75;
 
 // vocabCount を受理範囲に丸める（route の検証と同じ規則・既定 40）。
 export function clampVocabCount(v) {
@@ -50,7 +53,7 @@ export function clampVocabCount(v) {
 //   clean: definition あり／drama は example に語（活用形込み）が含まれる／plus は許容
 //   合格: clean ≥ MIN_WORDS(20) かつ drama ≥ MIN_DRAMA_WORDS(5) かつ ≤ MAX_WORDS、かつ coverageOk（📍の分布）
 //   戻り値: { ok, reason:'ok'|'gate'|'coverage', clean, dramaCount, storeWords }（storeWords＝transient フラグを落とした clean）
-export function qualityGate(words, rawSrt) {
+export function qualityGate(words, rawSrt, { isMovie = false } = {}) {
   const clean = (Array.isArray(words) ? words : []).filter(
     (w) =>
       w &&
@@ -64,7 +67,8 @@ export function qualityGate(words, rawSrt) {
   if (clean.length < MIN_WORDS || dramaCount < MIN_DRAMA_WORDS || clean.length > MAX_WORDS) {
     return { ok: false, reason: 'gate', clean, dramaCount, storeWords };
   }
-  if (!coverageOk(clean, rawSrt)) return { ok: false, reason: 'coverage', clean, dramaCount, storeWords };
+  // 映画は終盤も見る（最後の語の時刻が字幕の終わりの 75% より前＝後半が欠けている・2026-11-12 Apocalypse 37%）。
+  if (!coverageOk(clean, rawSrt, { tailRatio: isMovie ? MOVIE_TAIL_RATIO : 0 })) return { ok: false, reason: 'coverage', clean, dramaCount, storeWords };
   return { ok: true, reason: 'ok', clean, dramaCount, storeWords };
 }
 
@@ -95,14 +99,21 @@ export function capDramaExamples(words, cueCount) {
 }
 
 // 既定の LLM 注入（lib/server/anthropic.js）。deps.callLlm を差し替えればテスト/別モデルに切り替えられる。
-const defaultCallLlm = (prompt, maxTokens, o = {}) =>
-  callHaiku(prompt, maxTokens + VOCAB_THINK_ROOM, {
+//   戻り値は { text, stopReason }（出力が上限で切れたか＝stopReason 'max_tokens' を lib/vocab.js が見る・2026-11-12）。
+const defaultCallLlm = async (prompt, maxTokens, o = {}) => {
+  let stopReason = null;
+  const text = await callHaiku(prompt, maxTokens + VOCAB_THINK_ROOM, {
     model: VOCAB_MODEL,
     extra: VOCAB_EXTRA,
     deadlineAt: o.deadlineAt,
     onRetry: o.onRetry,
     label: o.nChunks > 1 ? `chunk ${o.chunk}/${o.nChunks}` : '',
+    onUsage: (_usage, stop) => {
+      stopReason = stop || null;
+    },
   });
+  return { text, stopReason };
+};
 
 // generateEpisodeVocab(input, deps)
 //   input: { tmdbId, type:'movie'|'tv', season, episode, vocabCount?, deadlineAt? }
@@ -157,10 +168,11 @@ export async function generateEpisodeVocab(input, deps = {}) {
 
   // 3) スーパーセット生成（LLM 注入・複数チャンクは並列・deadline 共有）
   const drama = { title: englishTitle, englishTitle, type: n.type, tmdbId: id };
+  const genStats = { truncated: 0 }; // 出力が上限で切れた回数（ログ用）
   let superset;
   try {
     superset = await generateSuperset(
-      { drama, season: n.season, episode: n.episode, subtitleText, vocabCount, deadlineAt, onProgress, tight: VOCAB_TIGHT_COUNT, splitDrama: VOCAB_SPLIT_DRAMA },
+      { drama, season: n.season, episode: n.episode, subtitleText, vocabCount, deadlineAt, onProgress, tight: VOCAB_TIGHT_COUNT, splitDrama: VOCAB_SPLIT_DRAMA, splitMovie: VOCAB_SPLIT_MOVIE, stats: genStats },
       onRetry,
       { callLlm, log }
     );
@@ -169,7 +181,7 @@ export async function generateEpisodeVocab(input, deps = {}) {
     throw new UpstreamError('generation', { cause: err }); // 0語チャンク等（本文はメッセージに含まれない）
   }
   if (!Array.isArray(superset) || !superset.length) throw new UpstreamError('generation');
-  const chunks = supersetChunkCount(subtitleText.length, { isMovie: n.type === 'movie', splitDrama: VOCAB_SPLIT_DRAMA });
+  const chunks = supersetChunkCount(subtitleText.length, { isMovie: n.type === 'movie', splitDrama: VOCAB_SPLIT_DRAMA, splitMovie: VOCAB_SPLIT_MOVIE });
 
   // 4) 📍（example 基準・plus は null）。配信/保存の2系統で同じ照合器（wordMatchRegex）を使う不変則。
   attachBaseTimestamps(superset, { title: englishTitle, season: n.season, episode: n.episode, rawSrt: sub.raw });
@@ -179,14 +191,14 @@ export async function generateEpisodeVocab(input, deps = {}) {
   if (capped) log.warn?.(`[CL:GEN] ${epLabel} example cap: ${capped} drama examples cleared`);
 
   // 5) 品質ゲート＋coverage
-  const gate = qualityGate(superset, sub.raw);
+  const gate = qualityGate(superset, sub.raw, { isMovie: n.type === 'movie' });
   // 生成した本人にも、品質の確認を通った語だけを返す（2026-11-12 Wakanda Forever: 例文のない語が本人にだけ出ていた）。
   //   共有キャッシュに書く storeWords と同じ一覧＝2人目以降に配る一覧と一致する。
   const words = gate.storeWords;
   const coverage = coverageRange(words);
   const elapsedMs = Date.now() - t0;
   log.info?.(
-    `[CL:GEN] ${epLabel} done ${elapsedMs}ms chunks=${chunks} words=${words.length} clean=${gate.clean.length} drama=${gate.dramaCount} gate=${gate.reason}`
+    `[CL:GEN] ${epLabel} done ${elapsedMs}ms chunks=${chunks} words=${words.length} clean=${gate.clean.length} drama=${gate.dramaCount} gate=${gate.reason} truncated=${genStats.truncated}`
   );
   if (!gate.ok) log.warn?.(`[CL:GEN] ${epLabel} not contributed: ${gate.reason}`);
 

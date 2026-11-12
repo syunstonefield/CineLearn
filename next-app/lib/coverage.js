@@ -16,7 +16,7 @@ export function srtTotalSec(rawSrt) {
   return Number(last[1]) * 3600 + Number(last[2]) * 60 + Number(last[3]);
 }
 
-export function coverageOk(words, rawSrt) {
+export function coverageOk(words, rawSrt, { tailRatio = 0 } = {}) {
   const secs = (words || []).map((w) => w?.tsSec).filter((s) => typeof s === 'number' && isFinite(s));
   if (secs.length < 5 || !rawSrt) return true; // 判定材料が無い＝止めない
   const total = srtTotalSec(rawSrt);
@@ -24,6 +24,7 @@ export function coverageOk(words, rawSrt) {
   if (total < 600) return true; // 10分未満は分割生成の対象外＝検査しない
   const sorted = [...secs].sort((a, b) => a - b);
   if (sorted[0] > total * 0.25) return false; // 序盤が丸ごと無い
+  if (tailRatio > 0 && sorted[sorted.length - 1] < total * tailRatio) return false; // 終盤が丸ごと無い（映画・2026-11-12）
   for (let i = 1; i < sorted.length; i++) {
     if (sorted[i] - sorted[i - 1] > 1800) return false; // 30分の空白＝1チャンク相当が欠けている
   }

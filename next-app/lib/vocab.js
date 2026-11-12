@@ -414,12 +414,20 @@ async function generateSupersetOnce(ctx, onRetry, deps) {
   const { prompt, maxTokens } = buildVocabPrompt({
     drama, season, episode, subtitleText, mode: 'superset', cur: 0, upper: 0, genVocabCount, minTotal, tight, quotaDiv,
   });
-  const text = await deps.callLlm(prompt, maxTokens, {
+  const res = await deps.callLlm(prompt, maxTokens, {
     onRetry,
     deadlineAt: ctx.deadlineAt,
     chunk: ctx.chunkIndex || 1,
     nChunks: ctx.nChunks || 1,
   });
+  // callLlm は文字列か { text, stopReason }（既定の呼び出しは後者・テストの差し替えは文字列のことがある）
+  const text = typeof res === 'string' ? res : String(res?.text || '');
+  if (res && typeof res === 'object' && res.stopReason === 'max_tokens') {
+    const label = `chunk ${ctx.chunkIndex || 1}/${ctx.nChunks || 1}${ctx.splitDepth ? ' (split)' : ''}`;
+    (deps.log || console).warn?.(`[CL:GEN] ${label} 切れた（max_tokens）`);
+    if (ctx.stats) ctx.stats.truncated = (ctx.stats.truncated || 0) + 1;
+    throw new TruncatedOutputError(label);
+  }
   return parseAndRefineWords(text, subtitleText, deps.log || console);
 }
 
@@ -433,14 +441,44 @@ export const CHUNK_CHARS = 45000;
 //   （思考が2本並ぶので待ち時間が短くなる。費用は1話 約¥0.2〜0.7 増）。作例の語・plus は回数で割る＝合計は1回書きと同じ。
 //   短すぎる字幕は割らない（片方が薄くなるため）。splitDrama=false なら従来の1回書き。
 export const DRAMA_SPLIT_MIN_CHARS = 6000;
-export function supersetChunkCount(textLength, { isMovie = false, splitDrama = false } = {}) {
+export function supersetChunkCount(textLength, { isMovie = false, splitDrama = false, splitMovie = false } = {}) {
   const len = Math.max(0, Number(textLength) || 0);
   const n = Math.min(3, Math.max(1, Math.ceil(len / CHUNK_CHARS)));
-  if (n === 1 && splitDrama && !isMovie && len >= DRAMA_SPLIT_MIN_CHARS) return 2;
+  if (n === 1 && len >= DRAMA_SPLIT_MIN_CHARS && (isMovie ? splitMovie : splitDrama)) return 2;
   return n;
+}
+
+// 出力が上限（max_tokens）で切れた印（2026-11-12）。切れた応答は「切れる手前までの語」しか無い
+//   （語は字幕の順に書かれる＝後半と最後に書く作例の語が消える）ので、拾い上げで済ませず区間を割って作り直す。
+export class TruncatedOutputError extends Error {
+  constructor(label = '') {
+    super(`出力が上限で切れました（max_tokens）${label ? ` ${label}` : ''}`);
+    this.name = 'TruncatedOutputError';
+  }
 }
 // 0語チャンクを引き直すのに必要な残予算（A1）。これ未満なら引き直さず失敗にする（関数の時間上限内で終わらせる）。
 const RETRY_MIN_BUDGET_MS = 60_000;
+
+// 区間ごとの語を結合する（小文字の語で重複排除・先着優先。ただし前の区間で plus だった語が後の区間で drama なら drama を採る）。
+function mergeParts(parts) {
+  const merged = [];
+  const seen = new Map(); // 小文字の語 → merged 内の添字
+  for (const part of parts) {
+    for (const w of part || []) {
+      const k = String(w.word || '').toLowerCase();
+      if (!k) continue;
+      const prev = seen.get(k);
+      if (prev == null) {
+        seen.set(k, merged.length);
+        merged.push(w);
+      } else if (merged[prev].source === 'plus' && w.source === 'drama') {
+        // 前のチャンクで plus（AI作例）だった語が後のチャンクの字幕に実在＝drama（逐語例文＋📍）を採る。
+        merged[prev] = w;
+      }
+    }
+  }
+  return merged;
+}
 
 // generateSuperset(ctx, onRetry, deps)
 //   ctx  = { drama, season, episode, subtitleText, vocabCount?, deadlineAt?, onProgress?, tight?, splitDrama? }
@@ -455,8 +493,29 @@ export async function generateSuperset(ctx, onRetry, deps) {
   }
   const log = deps.log || console;
   const subText = ctx.subtitleText || '';
-  const nChunks = supersetChunkCount(subText.length, { isMovie: ctx.drama?.type === 'movie', splitDrama: !!ctx.splitDrama });
-  if (nChunks === 1) return generateSupersetOnce({ ...ctx, chunkIndex: 1, nChunks: 1 }, onRetry, deps);
+  const nChunks = supersetChunkCount(subText.length, {
+    isMovie: ctx.drama?.type === 'movie',
+    splitDrama: !!ctx.splitDrama,
+    splitMovie: !!ctx.splitMovie,
+  });
+  // 1区間を作る。出力が上限で切れたら、その区間を2つに割って（語数も半分ずつ）1回だけ作り直す。
+  //   割ってもまだ切れたら生成の失敗（vocabGen が UpstreamError('generation') にする＝共有キャッシュに書かない）。
+  const once = async (c) => {
+    try {
+      return await generateSupersetOnce(c, onRetry, deps);
+    } catch (err) {
+      if (!(err instanceof TruncatedOutputError) || c.splitDepth) throw err;
+      const t = c.subtitleText || '';
+      const half = Math.ceil(t.length / 2);
+      const div = (c.quotaDiv || 1) * 2;
+      log.warn(`[CL:GEN] chunk ${c.chunkIndex}/${c.nChunks} を2つに割って作り直します（max_tokens）`);
+      const pieces = await Promise.all(
+        [t.slice(0, half), t.slice(half)].map((piece) => generateSupersetOnce({ ...c, subtitleText: piece, quotaDiv: div, splitDepth: 1 }, onRetry, deps))
+      );
+      return refineDramaWords(mergeParts(pieces), t);
+    }
+  };
+  if (nChunks === 1) return once({ ...ctx, chunkIndex: 1, nChunks: 1 });
 
   const size = Math.ceil(subText.length / nChunks);
   const remainingMs = () => (Number.isFinite(ctx.deadlineAt) ? ctx.deadlineAt - Date.now() : Infinity);
@@ -465,13 +524,13 @@ export async function generateSuperset(ctx, onRetry, deps) {
     // チャンク境界の文切れは許容（refineDramaWords の逐語チェックは各チャンク文に対して働く）。
     const chunkText = subText.slice(i * size, (i + 1) * size);
     const chunkCtx = { ...ctx, subtitleText: chunkText, quotaDiv: nChunks, chunkIndex: i + 1, nChunks };
-    let part = await generateSupersetOnce(chunkCtx, onRetry, deps);
+    let part = await once(chunkCtx);
     // ★0語チャンクを黙って捨てない（2026-08-08）。捨てていたため「映画の前半57分が丸ごと欠けたリスト」が
     //   成功扱いで完成し、共有キャッシュに焼き付いて全ユーザーに配られていた（アイアンマン）。
     //   残予算が RETRY_MIN_BUDGET_MS 以上あるときだけ1回引き直し、それでも0なら生成全体を失敗させる（A1）。
     if (!part.length && remainingMs() >= RETRY_MIN_BUDGET_MS) {
       log.warn(`[CL:GEN] chunk ${i + 1}/${nChunks} が0語。1回だけ再試行します（残り ${Math.round(remainingMs() / 1000)}s）`);
-      part = await generateSupersetOnce(chunkCtx, onRetry, deps);
+      part = await once(chunkCtx);
     }
     done++;
     ctx.onProgress?.(done, nChunks);
@@ -485,24 +544,7 @@ export async function generateSuperset(ctx, onRetry, deps) {
     return part;
   };
   const parts = await Promise.all(Array.from({ length: nChunks }, (_, i) => runChunk(i)));
-
-  const merged = [];
-  const seen = new Map(); // 小文字の語 → merged 内の添字
-  for (const part of parts) {
-    for (const w of part) {
-      const k = String(w.word || '').toLowerCase();
-      if (!k) continue;
-      const prev = seen.get(k);
-      if (prev == null) {
-        seen.set(k, merged.length);
-        merged.push(w);
-      } else if (merged[prev].source === 'plus' && w.source === 'drama') {
-        // 前のチャンクで plus（AI作例）だった語が後のチャンクの字幕に実在＝drama（逐語例文＋📍）を採る。
-        // 旧実装は先着優先で、字幕に実在する語が作例つきの plus のまま固定されていた。
-        merged[prev] = w;
-      }
-    }
-  }
+  const merged = mergeParts(parts);
   // 各チャンクの精査は「そのチャンクの本文」に対してだけ行われる。plus と判定された語が
   // 別区間の字幕に実在することがあるため、結合後に全編本文でもう一度 drama/plus を確定する
   // （実在すれば drama に再分類し例文を字幕の逐語文へ）。AI 呼び出しは無い＝コスト0。
