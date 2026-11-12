@@ -30,6 +30,7 @@ import { fetchJa } from '@/lib/jatranslate';
 import { getActiveWords, normTitleForMatch, prewarmTitleAliases, sameWorkTitle } from '@/lib/words';
 import { pickTodayWord } from '@/lib/liked';
 import { AGAIN_BATCH } from '@/lib/againWords';
+import { latestEpisode, canLearn, canQuiz } from '@/lib/continueRow';
 import {
   toIsoDate,
   loadStatsDaily,
@@ -45,6 +46,7 @@ import {
   loadArchived,
   loadHistory,
   loadSrs,
+  todayStr,
   overallVocabStats,
   activeWordKeys,
   getAgainWords,
@@ -94,6 +96,7 @@ export default function Dashboard() {
     sessionExpired,
     openWordbook,
     openSearch,
+    startEpisodeQuiz,
   } = useApp();
   // 今日の復習1回の語数＝復習タブ・ボトムナビのバッジと同じ（設定の語数・既定20語・無料）
   const plan = usePlan(loggedIn);
@@ -898,15 +901,36 @@ export default function Dashboard() {
                   )}
                 </div>
                 <div className="hm-rows">
-                  {(showAllContinue ? continueEntries : continueEntries.slice(0, 2)).map((entry) => (
-                    <ContinueCard
-                      key={entry.drama.title}
-                      entry={entry}
-                      stats={data.learnStats.get(entry.drama.title)}
-                      onSelect={(drama) => openDrama(drama)}
-                      onArchive={handleArchive}
-                    />
-                  ))}
+                  {/* 行＝単語リスト（作品の画面をはさまない）／「学ぶ」＝行の話の単語のカードを直接／「クイズ」＝その話のクイズ（誰でも・戻るは「← ホーム」）。
+                      札は出せる時だけ（lib/continueRow.js）。✕はやめ、単語リストのいちばん下の「ホームの続きから外す」へ（オーナー決定 2026-11-12）。 */}
+                  {(showAllContinue ? continueEntries : continueEntries.slice(0, 2)).map((entry) => {
+                    const ep = latestEpisode(entry.episodes);
+                    const h = ep
+                      ? (data.history || []).find(
+                          (x) =>
+                            x.drama?.title === entry.drama.title &&
+                            (x.season || 1) === (ep.season || 1) &&
+                            (x.episode || 1) === (ep.episode || 1)
+                        ) || null
+                      : null;
+                    const srsNow = loadSrs();
+                    const learnOk = !!h && canLearn(h, srsNow, todayStr());
+                    const quizOk = !!h && canQuiz(h, srsNow);
+                    return (
+                      <ContinueCard
+                        key={entry.drama.title}
+                        entry={entry}
+                        stats={data.learnStats.get(entry.drama.title)}
+                        onSelect={(drama) => openDrama(drama, false, { startView: 'list' })}
+                        onLearn={
+                          learnOk
+                            ? () => openDrama(entry.drama, false, { startView: 'list', startCards: true, season: h.season, episode: h.episode })
+                            : null
+                        }
+                        onQuiz={quizOk ? () => startEpisodeQuiz(h, { returnTo: 'main' }) : null}
+                      />
+                    );
+                  })}
                 </div>
               </section>
             )}

@@ -22,9 +22,11 @@ export default function QuizScreen() {
     });
   })();
   // 戻り先は入口によって変わる（単語リスト経由＝'vocab' / 復習ハブ経由＝'review-hub'）。
+  //   ホームの「続きから学習」の行の「クイズ」から＝'main'（2026-11-12）→「← ホーム」でホームへ。
   const backToHub = quizReturn === 'review-hub';
-  const onBack = () => setScreen(backToHub ? 'review-hub' : 'vocab');
-  const backLabel = backToHub ? '← 復習に戻る' : '← 単語リストに戻る';
+  const backToHome = quizReturn === 'main';
+  const onBack = () => (backToHome ? goHome() : setScreen(backToHub ? 'review-hub' : 'vocab'));
+  const backLabel = backToHome ? '← ホーム' : backToHub ? '← 復習に戻る' : '← 単語リストに戻る';
 
   const [currentQ, setCurrentQ] = useState(0);
   const [score, setScore] = useState(0);
@@ -110,7 +112,7 @@ export default function QuizScreen() {
                 このエピソードの単語はすべて習得済みか、例文が付いていません。
                 <br />
                 <br />
-                {backToHub ? '復習' : '単語リスト'}に戻って別のエピソードを選んでください。
+                {backToHome ? 'ホーム' : backToHub ? '復習' : '単語リスト'}に戻って別のエピソードを選んでください。
               </div>
             ) : (
               <div className="loading">

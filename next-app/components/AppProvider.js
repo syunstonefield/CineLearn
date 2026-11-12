@@ -610,6 +610,14 @@ export default function AppProvider({ children }) {
   // 検索から誤タップで開いた時にホームへ戻されるのが不便、の修正（2026-08-02）。
   // vocab への入口は openDrama に一本化されているので毎回上書きされ、汚染しない。
   const [vocabReturn, setVocabReturn] = useState('main');
+  // 単語リストの始め方（ホームの「続きから学習」の行から・2026-11-12）。openDrama の opts で決め、VocabScreen が開いた時に1回読む。
+  //   { view: 'list' }＝作品の画面をはさまず単語リストから／{ view: 'list', cards: true }＝開いたらすぐ単語のカード（「学ぶ」の札）。
+  const vocabStartRef = useRef(null);
+  const takeVocabStart = useCallback(() => {
+    const v = vocabStartRef.current;
+    vocabStartRef.current = null;
+    return v;
+  }, []);
   // コレクションから作品の画面へ入った時は、戻る先もコレクションに（2026-11-12 オーナー決定・戻るの文字を下のタブの名前にそろえる）。
   //   コレクションの入口は openDrama（作品の詳細の「学習する」）と、話の行（TicketDetailView が setScreen('vocab') を直接呼ぶ）の2つ。
   //   どちらも直前の画面が 'collection' なので、ここでまとめて決める（クイズから作品の画面へ戻った時などは変えない）。
@@ -649,13 +657,15 @@ export default function AppProvider({ children }) {
   const openDrama = useCallback((d, _clearService = false, opts) => {
     trackUsage('work_select'); // 利用データ: 作品を選んだ（入口はここに一本化されている）
     setVocabReturn(opts?.returnTo || 'main');
+    vocabStartRef.current = opts?.startView ? { view: opts.startView, cards: !!opts.startCards } : null;
     setDrama(d);
     // #18: この作品で最後に開いていた S/E を復元（無ければ従来どおり S1E1）。
     // 記憶は VocabScreen の loadEpisode → rememberEpisode が myDramas に書く
     // （viewingService と同じ作品別パターン＝設定同期でクラウドにも乗る）。
+    //   opts.season / opts.episode があればその話（ホームの行の「学ぶ」＝行に出ている話・2026-11-12）。
     const saved = (settingsRef.current.myDramas || []).find((x) => x.title === d.title);
-    setSeason(saved?.lastSeason || 1);
-    setEpisode(saved?.lastEpisode || 1);
+    setSeason(opts?.season || saved?.lastSeason || 1);
+    setEpisode(opts?.episode || saved?.lastEpisode || 1);
     // 棚から外していた作品・コレクションから消去した作品を開き直したら戻す（語を抜いた話は開いた時に作り直す・VocabScreen）
     reopenWork(d.title);
     // 作品を選んだらすぐ単語リストへ（「視聴サービスを選択」の画面ははさまない・オーナー 2026-11-10）。
@@ -782,7 +792,8 @@ export default function AppProvider({ children }) {
   // 履歴の drama は {title,genre,platform} だけなので、ライブラリ(myDramas)に
   // 同名があれば tmdbId/type を含む完全版とマージする（映画判定・出所表示のため）。
   // クイズ自体は QuizScreen がローカルで組む（AI不使用・毎回違う出題）。
-  const startEpisodeQuiz = useCallback((entry) => {
+  //   opts.returnTo: 'main'＝ホームの「続きから学習」の行の「クイズ」から（戻るは「← ホーム」・2026-11-12）。
+  const startEpisodeQuiz = useCallback((entry, opts) => {
     if (!entry) return;
     exitReviewPage();
     const full = (settingsRef.current.myDramas || []).find((x) => x.title === entry.drama?.title);
@@ -791,7 +802,7 @@ export default function AppProvider({ children }) {
     setEpisode(entry.episode);
     setCurrentHistoryId(entry.id);
     setQuizData([]);
-    setQuizReturn('review-hub');
+    setQuizReturn(opts?.returnTo === 'main' ? 'main' : 'review-hub');
     setScreen('quiz');
     if (entry.drama?.title) touchWorks([entry.drama.title]); // その作品のクイズも「最近触った」に
   }, [touchWorks]);
@@ -982,6 +993,7 @@ export default function AppProvider({ children }) {
     searchQuery,
     setSearchQuery,
     vocabReturn,
+    takeVocabStart,
     openSearch,
     startFromRecommend,
     goHome,

@@ -26,6 +26,8 @@ import {
   todayStr,
   episodeCredit,
   isEpisodeMismatch,
+  archiveDrama,
+  loadArchived,
 } from '@/lib/storage';
 import { isPrunedRow } from '@/lib/workRemoval';
 import {
@@ -64,6 +66,7 @@ import { fetchJa } from '@/lib/jatranslate';
 import { fetchCtxJa } from '@/lib/ctxtranslate';
 import { getDeviceKey } from '@/lib/device';
 import { selectQuizWords, buildQuizQuestions, prepIntegrity, orderWordsForPrep, getPrepped, PREP_WALK_ON } from '@/lib/prep';
+import { canQuiz } from '@/lib/continueRow';
 // 読み上げは lib/speak に一本化（独自コピーは cancel 直後 speak で無音になる既知バグ持ちだった）
 import { speak } from '@/lib/speak';
 import { canLikeMore, LIKE_CAP_PER_EPISODE } from '@/lib/liked';
@@ -105,6 +108,7 @@ export default function VocabScreen() {
     openPrepWalk,
     openCardDeck,
     prevScreen,
+    takeVocabStart,
     reviewVersion,
     openAuth,
     loggedIn,
@@ -189,7 +193,13 @@ export default function VocabScreen() {
   const [justGenerated, setJustGenerated] = useState(false);
   // カード中心（2026-11-12）: リストができた話は、まずカードの画面（'cards'）。単語リストは本人が開いた時だけ（'list'）。
   //   コレクション・復習タブの「リスト」から開いた時は、従来どおり単語リストから（オーナー 2026-11-12）。
-  const startViewRef = useRef(prevScreen === 'collection' || prevScreen === 'review-hub' ? 'list' : 'cards');
+  //   ホームの「続きから学習」の行から開いた時も単語リストから（openDrama の opts・takeVocabStart・2026-11-12 オーナー決定）。
+  //   行の「学ぶ」の札から開いた時は、単語リストを開いてすぐ単語のカード（autoCardsRef）。
+  const [vocabStart] = useState(() => takeVocabStart?.() || null);
+  const startViewRef = useRef(
+    vocabStart?.view === 'list' || prevScreen === 'collection' || prevScreen === 'review-hub' ? 'list' : 'cards'
+  );
+  const autoCardsRef = useRef(!!vocabStart?.cards);
   const [view, setView] = useState(startViewRef.current);
   const [cardDone, setCardDone] = useState(null); // { answered:[…] }＝カードを終えた画面
 
@@ -372,6 +382,16 @@ export default function VocabScreen() {
     setJustGenerated(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [justGenerated, phase, sortedVocab]);
+
+  // ホームの行の「学ぶ」の札（2026-11-12）: 保存済みの単語リストが揃ったら1回だけ、この話の単語のカードを開く。
+  //   出せる語が無い時は札自体を出さない（Dashboard）。ここでも空なら何もしない（単語リストのまま）。
+  useEffect(() => {
+    if (!autoCardsRef.current) return;
+    if (!drama || (phase !== 'saved' && phase !== 'vocab') || !sortedVocab.length) return;
+    autoCardsRef.current = false;
+    startCards();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, sortedVocab]);
 
   // ── example_ja のバックグラウンド補完（二重実行ガードつき）──
   const fillJaRunning = useRef(false);
@@ -2046,6 +2066,7 @@ export default function VocabScreen() {
                 onStart={() => startCards()}
                 onList={() => setView('list')}
                 onOtherEpisode={() => setEpSheet(true)}
+                onQuiz={canQuiz({ words: sortedVocab }, srs) ? () => goToQuiz() : null}
               />
             )
           ) : showVocab && sortedVocab.length ? (
@@ -2365,6 +2386,29 @@ export default function VocabScreen() {
         {hasList && isMovie && (
           <button type="button" className="bulkdel-link" onClick={onDelete}>
             この映画の単語リストを削除
+          </button>
+        )}
+
+        {/* ホームの「続きから学習」の行の ✕ の代わり（2026-11-12 オーナー決定）: 単語リストのいちばん下に小さなリンク。
+            確認の文と動き（棚から外す＝記録は残る・開き直すと戻る）はホームの ✕ と同じ。外したらホームへ。 */}
+        {hasList && view === 'list' && drama?.title && !loadArchived().includes(drama.title) && (
+          <button
+            type="button"
+            className="bulkdel-link vs-unshelf-link"
+            onClick={() => {
+              if (
+                !confirm(
+                  `「${drama.title}」を学習中から外しますか？\n` +
+                    `まだ復習していない語が「今日の復習」と覚えた数の母数から外れます。\n` +
+                    `覚えた・マスターの記録と単語リストは残り、作品を開き直すと元に戻ります。`
+                )
+              )
+                return;
+              archiveDrama(drama.title);
+              setScreen('main');
+            }}
+          >
+            ホームの続きから外す
           </button>
         )}
 

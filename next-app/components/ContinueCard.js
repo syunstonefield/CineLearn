@@ -4,10 +4,12 @@ import { useState } from 'react';
 import { platformColor } from '@/lib/storage';
 
 // 「続きから学習」の行（ポスター左＋本文右・2026-11-12 見直しで小さな行に）。
-//   右：作品名・現在地(S/E)・覚えた率・進みの線・✕（棚から外す）。
+//   中：作品名・現在地(S/E)・覚えた率・進みの線。右：小さな札2つ（上「学ぶ」・下「クイズ」・オーナー決定 2026-11-12）。
+//   行そのもの＝その作品の単語リスト（作品の画面をはさまない・戻るは「← ホーム」）。
+//   学ぶ＝行に出ている話の単語のカードを直接／クイズ＝その話のクイズ。出す条件は Dashboard（lib/continueRow.js）が決め、
+//   出さない札は onLearn / onQuiz を渡さない。✕（棚から外す）はやめ、単語リストのいちばん下の「ホームの続きから外す」へ移した。
 //   進捗％＝覚えた率（覚えた語 / 全保存語）。視聴は検知できないので“学習の進み”で正直に示す。
-//   タップ／ボタンで openDrama（→ サービス記憶があれば単語リストへ直行）。
-export default function ContinueCard({ entry, stats, onSelect, onArchive }) {
+export default function ContinueCard({ entry, stats, onSelect, onLearn, onQuiz }) {
   const { drama, episodes } = entry;
   const [imgFailed, setImgFailed] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
@@ -28,8 +30,7 @@ export default function ContinueCard({ entry, stats, onSelect, onArchive }) {
   // 覚えた率（全エピソード合算）。
   const pct = stats && stats.total > 0 ? Math.round((stats.learned / stats.total) * 100) : 0;
 
-  // 2026-11-12 見直し（受付の見本・オーナー了承）: 小さな行（ポスター小・作品名は茶色・SxEy・覚えた%・進みの線・✕）。
-  //   行を押すと今までどおり openDrama。✕＝棚から外す（確認文は Dashboard の handleArchive・今のまま）。
+  // 2026-11-12 見直し（受付の見本・オーナー了承）: 小さな行（ポスター小・作品名は茶色・SxEy・覚えた%・進みの線）。
   return (
     <div
       className="hm-row"
@@ -79,18 +80,36 @@ export default function ContinueCard({ entry, stats, onSelect, onArchive }) {
           </span>
         )}
       </span>
-      <button
-        type="button"
-        className="hm-row-x"
-        title="棚から外す（学習記録は残ります）"
-        aria-label={`${drama.title} を棚から外す`}
-        onClick={(e) => {
-          e.stopPropagation();
-          onArchive?.(drama.title);
-        }}
-      >
-        ✕
-      </button>
+      {(onLearn || onQuiz) && (
+        <span className="hm-row-acts">
+          {onLearn && (
+            <button
+              type="button"
+              className="hm-row-act"
+              aria-label={`${drama.title} ${seLabel} の単語を学ぶ`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onLearn();
+              }}
+            >
+              学ぶ
+            </button>
+          )}
+          {onQuiz && (
+            <button
+              type="button"
+              className="hm-row-act"
+              aria-label={`${drama.title} ${seLabel} のクイズ`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onQuiz();
+              }}
+            >
+              クイズ
+            </button>
+          )}
+        </span>
+      )}
     </div>
   );
 }

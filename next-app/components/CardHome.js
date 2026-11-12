@@ -11,7 +11,7 @@ function Poster({ src, title }) {
   return <img className="ch-poster" src={src} alt="" loading="lazy" />;
 }
 
-export function CardHome({ drama, season, episode, isMovie, total, seen, canStart, onStart, onList, onOtherEpisode }) {
+export function CardHome({ drama, season, episode, isMovie, total, seen, canStart, onStart, onList, onOtherEpisode, onQuiz }) {
   return (
     <div className="ch-wrap">
       <div className="ch-work">
@@ -38,6 +38,12 @@ export function CardHome({ drama, season, episode, isMovie, total, seen, canStar
         <button type="button" className="ch-row" onClick={onList}>
           単語リストを見る<span>{total}語 ›</span>
         </button>
+        {/* この話のクイズ（誰でも・問題が作れる時だけ onQuiz が来る・オーナー決定 2026-11-12） */}
+        {onQuiz && (
+          <button type="button" className="ch-row" onClick={onQuiz}>
+            {isMovie ? 'この作品のクイズ' : 'この話のクイズ'}<span>›</span>
+          </button>
+        )}
         {!isMovie && onOtherEpisode && (
           <button type="button" className="ch-row" onClick={onOtherEpisode}>
             ほかの話を選ぶ<span>›</span>
