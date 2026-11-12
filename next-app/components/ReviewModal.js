@@ -923,26 +923,18 @@ const CELEBRATE_STARS = [
   [84, 4, 17, 300],
   [2, 50, 12, 360],
   [92, 46, 11, 420],
-  [8, 84, 9, 480],
-  [89, 80, 9, 540],
+  [1, 86, 9, 480],
+  [95, 84, 9, 540],
 ];
 
-// celebrate＝復習完了・見直し完了（星を多く）。ひと区切り・途中でやめた画面は控えめな3つのまま（色だけそろえる）。
-function DoneHero({ title, sub, celebrate = false }) {
+// 星は全部の画面で同じ10個＋きらめき（復習完了・見直し完了・10枚の区切り・途中でやめた画面・オーナー 2026-11-12）。
+function DoneHero({ title, sub }) {
   return (
-    <section className={'rd-hero' + (celebrate ? ' is-celebrate' : '')}>
+    <section className="rd-hero">
       <DoneClapper />
-      {celebrate ? (
-        CELEBRATE_STARS.map(([x, y, size, d], i) => (
-          <Sparkle key={i} className="rd-star" size={size} style={{ left: `${x}%`, top: `${y}px`, '--rd-star-d': `${d}ms` }} />
-        ))
-      ) : (
-        <>
-          <Sparkle className="s1" size={14} />
-          <Sparkle className="s2" size={10} />
-          <Sparkle className="s3" size={7} />
-        </>
-      )}
+      {CELEBRATE_STARS.map(([x, y, size, d], i) => (
+        <Sparkle key={i} className="rd-star" size={size} style={{ left: `${x}%`, top: `${y}px`, '--rd-star-d': `${d}ms` }} />
+      ))}
       <h2 className="rd-title">{title}</h2>
       {sub && <p className="rd-sub">{sub}</p>}
     </section>
@@ -1019,7 +1011,7 @@ function ReviewDone({ queue, partial = false, awardedRef, ratings, promo, curren
     return (
       <div className="rd">
         <div className="rd-body">
-          <DoneHero celebrate title="見直し完了！" sub={`「${label}」だった ${queue.length}単語をもう一度確認しました`} />
+          <DoneHero title="見直し完了！" sub={`「${label}」だった ${queue.length}単語をもう一度確認しました`} />
           {expGain && <ExpBlock earned={expGain.earned} lv={expGain.level} />}
           <p className="rd-note">知ってた・うろ覚えと答えた語は、次の復習日はそのままです</p>
         </div>
@@ -1041,7 +1033,7 @@ function ReviewDone({ queue, partial = false, awardedRef, ratings, promo, curren
     return (
       <div className="rd">
         <div className="rd-body">
-          <DoneHero celebrate title="見直し完了！" sub={`知らなかった ${queue.length}単語をもう一度確認しました`} />
+          <DoneHero title="見直し完了！" sub={`知らなかった ${queue.length}単語をもう一度確認しました`} />
           {expGain && <ExpBlock earned={expGain.earned} lv={expGain.level} />}
           <p className="rd-note">次の復習日は変わりません（明日また出ます）</p>
         </div>
@@ -1105,7 +1097,7 @@ function ReviewDone({ queue, partial = false, awardedRef, ratings, promo, curren
         {partial ? (
           <DoneHero title="ここまで復習しました" sub={`今日 ${sessionNum}回目 ・ ${queue.length}単語を復習しました`} />
         ) : (
-          <DoneHero celebrate title="復習完了！" sub={`今日 ${sessionNum}回目 ・ ${queue.length}単語を復習しました`} />
+          <DoneHero title="復習完了！" sub={`今日 ${sessionNum}回目 ・ ${queue.length}単語を復習しました`} />
         )}
         {expGain && <ExpBlock earned={expGain.earned} lv={expGain.level} />}
         {gotLearned && (

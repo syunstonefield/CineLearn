@@ -7630,10 +7630,7 @@ html[data-theme="dark"] .rd {
 .rd-clap-play { fill: var(--rd-clap-2); }
 .rd-clap-pin { fill: #c58a3e; }
 .rd-spark { position: absolute; color: var(--rd-spark); opacity: 0.85; pointer-events: none; }
-.rd-spark.s1 { left: 18%; top: 6px; }
-.rd-spark.s2 { right: 20%; top: 20px; }
-.rd-spark.s3 { right: 28%; top: -2px; color: var(--rd-spark-2); opacity: 0.7; }
-/* 完了の画面の星（DoneHero celebrate・2026-11-12）: 出てくる時に軽くきらめく。動きを減らす設定の時は止める */
+/* 星（DoneHero・全部の画面で10個・2026-11-12）: 出てくる時に軽くきらめく。動きを減らす設定の時は止める */
 .rd-star { opacity: 0.95; animation: rd-star-in 0.9s cubic-bezier(0.2, 0.8, 0.3, 1) var(--rd-star-d, 0ms) both; }
 .rd-star:nth-of-type(even) { color: var(--rd-spark-2); }
 @keyframes rd-star-in {
@@ -8102,3 +8099,4 @@ html[data-theme="dark"] .hm-row-pb { background: rgba(255,255,255,.08); }
 }
 /* 区切りの言葉とイラストは画面の真ん中（縦も横も）に・ボタンは下のまま（オーナー 2026-11-12） */
 .rd-break .rd-body { justify-content: center; align-items: center; }
+.rd-break .rd-hero { align-self: stretch; } /* 星の置き場所は幅いっぱいの割合で決めるので、真ん中寄せでも幅を縮めない */
