@@ -8109,7 +8109,7 @@ html[data-theme="dark"] .hm-row-pb { background: rgba(255,255,255,.08); }
 .rd-break .rd-body { justify-content: center; align-items: center; }
 .rd-break .rd-hero { align-self: stretch; } /* 星の置き場所は幅いっぱいの割合で決めるので、真ん中寄せでも幅を縮めない */
 
-/* 「ホーム画面に追加」のスライド（2026-11-12 試作・法務確認中）。自作の絵＝ホーム画面のアイコンの並び（中身のない四角）＋手順の札2つ */
+/* 「ホーム画面に追加」のスライド（オーナー決定 2026-11-12・法務は条件付き可）。自作の絵＝ホーム画面のアイコンの並び（中身のない四角）＋手順の札2つ */
 .intro-home { display: flex; flex-direction: column; align-items: center; gap: 16px; width: 354px; max-width: 100%; }
 .intro-home-phone { position: relative; width: 196px; padding: 18px 16px; border-radius: 26px; background: linear-gradient(160deg, #e9e2d8, #d8cfc2); display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; box-shadow: inset 0 0 0 6px #2a2420; }
 .intro-home-phone i { aspect-ratio: 1; border-radius: 9px; background: rgba(255,255,255,.55); }
@@ -8126,3 +8126,45 @@ html[data-theme="dark"] .hm-row-pb { background: rgba(255,255,255,.08); }
 /* Android: Chrome から追加の合図が来ている時のボタン（押すと Chrome の追加の確認が出る） */
 .intro-home-add { display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: 100%; max-width: 300px; min-height: 48px; padding: 10px 16px; border-radius: 12px; border: 1.5px solid #b97a3a; background: #fbf3e8; color: #7a4a1c; font-size: 15px; font-weight: 700; cursor: pointer; }
 .intro-home-add:active { background: #f3e4cf; }
+
+/* ── 作品を選んだあと＝カード中心（2026-11-12・components/CardHome.js・見本 reports/prep-card-first-2026-11-12/mock.html）── */
+.ch-wrap { display: flex; flex-direction: column; gap: 12px; margin-top: 4px; }
+.ch-work { display: flex; gap: 12px; background: var(--surface); border-radius: 16px; padding: 12px; box-shadow: 0 2px 8px rgba(80, 50, 20, 0.08); }
+.ch-poster { width: 84px; height: 126px; border-radius: 8px; object-fit: contain; background: var(--surface2); flex: none; }
+.ch-poster-empty { display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 700; color: #7a4a2a; }
+.ch-work-text { min-width: 0; display: flex; flex-direction: column; justify-content: center; }
+.ch-work-title { font-size: 18px; margin: 0 0 4px; line-height: 1.3; overflow-wrap: anywhere; }
+.ch-work-ep { margin: 0; font-size: 13px; color: var(--text-muted); }
+.ch-big { background: var(--surface); border-radius: 18px; padding: 18px 16px; text-align: center; box-shadow: 0 2px 8px rgba(80, 50, 20, 0.08); }
+.ch-big-n { font-family: 'Playfair Display', Georgia, serif; font-size: 38px; color: #7a4a2a; line-height: 1; font-weight: 700; }
+.ch-big-l { font-size: 13px; color: var(--text-muted); margin: 4px 0 14px; }
+.ch-none { margin: 0; font-size: 14px; color: var(--text-muted); line-height: 1.6; }
+.ch-btn1 { width: 100%; min-height: 56px; border-radius: 14px; border: 0; background: #3a261c; color: #fff; font: inherit; font-size: 17px; font-weight: 700; cursor: pointer; }
+.ch-btn1:hover { background: #4a3226; }
+.ch-btn1-sm { width: auto; min-height: 44px; padding: 0 18px; font-size: 15px; }
+.ch-btn2 { width: 100%; min-height: 52px; border-radius: 14px; border: 1.5px solid var(--review-border); background: var(--surface); font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; color: var(--text); }
+.ch-rows { display: flex; flex-direction: column; }
+.ch-row { display: flex; justify-content: space-between; align-items: center; width: 100%; min-height: 50px; background: none; border: 0; border-top: 1px solid var(--border); font: inherit; font-size: 14px; color: inherit; cursor: pointer; padding: 0 4px; }
+.ch-row span { color: var(--text-muted); }
+.ch-small { font-size: 12.5px; color: var(--text-muted); text-align: center; margin: 2px 0 0; }
+.ch-small-sel { margin-top: 8px; }
+.ch-done { background: var(--surface); border-radius: 18px; padding: 8px 16px 12px; box-shadow: 0 2px 8px rgba(80, 50, 20, 0.08); gap: 10px; }
+.ch-done-head { display: flex; justify-content: flex-end; }
+.ch-close { min-width: 44px; height: 44px; border: 0; background: none; font-size: 18px; color: var(--text-muted); cursor: pointer; }
+.ch-done-body { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; padding: 0 4px 6px; }
+.ch-stars { font-size: 22px; color: var(--gold); letter-spacing: 10px; }
+.ch-done-title { font-size: 24px; margin: 0; }
+.ch-tom { background: var(--surface2); border-radius: 14px; padding: 12px 16px; width: 100%; }
+.ch-tom b { font-size: 17px; }
+.ch-tom div { font-size: 12.5px; color: var(--text-muted); margin-top: 2px; }
+.ch-list-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: 2px 0 10px; }
+.ch-back { min-height: 44px; border: 0; background: none; font: inherit; font-size: 14px; color: #7a4a2a; cursor: pointer; padding: 0 4px; }
+.review-list-link { min-height: 36px; border: 0; background: none; font: inherit; font-size: 13px; color: #7a4a2a; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; padding: 0 8px; }
+html[data-theme="dark"] .ch-btn1 { background: var(--accent); color: var(--on-accent); }
+html[data-theme="dark"] .ch-big-n,
+html[data-theme="dark"] .ch-poster-empty,
+html[data-theme="dark"] .ch-back,
+html[data-theme="dark"] .review-list-link { color: var(--accent); }
+/* 作品を選んだあとのカード（ReviewModal の cardDeck）: 今の復習のカード（.review-cinema）を単語リストの画面の上に全面で重ねる */
+.screen.review-screen.review-cinema.review-deck { position: fixed; inset: 0; z-index: 1150; height: 100dvh; min-height: 0; margin: 0; max-width: none; }
+.review-deck .review-panel { max-width: 560px; width: 100%; margin: 0 auto; }
