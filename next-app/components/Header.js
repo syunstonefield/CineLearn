@@ -121,10 +121,16 @@ export default function Header({
             <span>{profile.name}</span>
           </button>
         )}
-        {/* 作品追加（ホームのツールバーから移設）。どの画面からでも届く常設導線。 */}
+        {/* 作品追加（ホームのツールバーから移設）。どの画面からでも届く常設導線。
+            「＋」だけだと「単語を追加」と読み違えられた（外の AI の画面評価・2026-11-12）ので文字を添える:
+            スマホ＝「＋ 作品」・PC（769px〜）＝「＋ 作品を探す」（オーナー決定 2026-11-12）。 */}
         {profile && onAddDrama && (
           <button className="btn-header-icon btn-header-add" title="作品を探す" aria-label="作品を探す" data-tour="add" onClick={onAddDrama}>
             <IconPlus />
+            <span className="btn-header-add-t" aria-hidden="true">
+              <span className="btn-header-add-sp">作品</span>
+              <span className="btn-header-add-pc">作品を探す</span>
+            </span>
           </button>
         )}
         {/* 設定はボトムナビから上へ移した（オーナー 2026-10-08）＝どの幅でも常に出す */}

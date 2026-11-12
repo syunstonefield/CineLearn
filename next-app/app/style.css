@@ -1441,6 +1441,20 @@ header {
   background: color-mix(in srgb, var(--accent) 16%, transparent);
   border-color: var(--accent);
 }
+/* 「＋」に文字を添える（スマホ「＋ 作品」・PC「＋ 作品を探す」・オーナー決定 2026-11-12）。
+   幅ごとの .btn-header-icon の余白（下の @media）より強く効くように .header-right から指定する。 */
+.header-right .btn-header-add { gap: 3px; padding: 5px 10px 5px 7px; border-radius: 999px; }
+.btn-header-add-t { font-size: 13px; font-weight: 700; line-height: 1; white-space: nowrap; }
+.btn-header-add-pc { display: none; }
+@media (min-width: 769px) {
+  .btn-header-add-sp { display: none; }
+  .btn-header-add-pc { display: inline; }
+}
+/* 幅の狭い機種（〜340px）: 余白と文字を少し詰めて、ロゴ横の「ベータ」に触れないように */
+@media (max-width: 340px) {
+  .header-right .btn-header-add { gap: 2px; padding: 4px 7px 4px 5px; }
+  .btn-header-add-t { font-size: 12px; }
+}
 .header-badge {
   position: absolute;
   top: 2px; right: 2px;
