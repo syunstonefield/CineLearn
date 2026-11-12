@@ -22,7 +22,7 @@ const MOVIES_XMEN = [
 test('verifyKnownCandidate: 題名の検索結果に ID があれば使う・無ければ null（映画は映画で検索）', async () => {
   const calls = mockTmdb((b) => ({ results: b.action === 'search_movie' ? MOVIES_XMEN : [{ id: 4574, name: 'X-Men' }] }));
   const ok = knownTitleCandidate({ title: 'X-Men', englishTitle: 'X-Men', tmdbId: 36657, mediaType: 'movie' });
-  assert.equal(await verifyKnownCandidate(ok, 'X-Men'), ok);
+  assert.equal((await verifyKnownCandidate(ok, 'X-Men')).tmdbId, 36657);
   assert.equal(calls[0].action, 'search_movie');
   const broken = knownTitleCandidate({ title: 'X-Men', englishTitle: 'X-Men', tmdbId: 4574, mediaType: 'movie' });
   assert.equal(await verifyKnownCandidate(broken, 'X-Men'), null);
@@ -57,4 +57,27 @@ test('sameTitle: 大文字小文字・記号・空白の違いは同じ', () => 
   assert.ok(sameTitle({ title: 'Spider-Man: Homecoming' }, 'spider man homecoming'));
   assert.ok(sameTitle({ original_name: 'X-Men' }, 'X-MEN'));
   assert.ok(!sameTitle({ title: 'X-Men: Apocalypse' }, 'X-Men'));
+});
+
+test('verifyKnownCandidate: 一覧の題名で確かめる（英題が上書きされていても）・題名が完全一致する作品があれば ID はその中に限る', async () => {
+  const movies = [
+    { id: 246655, title: 'X-Men: Apocalypse', original_title: 'X-Men: Apocalypse', poster_path: '/apoc.jpg' },
+    { id: 36657, title: 'X-Men', original_title: 'X-Men', poster_path: '/xmen.jpg' },
+  ];
+  const calls = mockTmdb(() => ({ results: movies }));
+  // オーナーの端末の一覧: 題名は X-Men・英題と ID はアポカリプスに上書き済み → 合わない（題名で探し直す）
+  const owner = knownTitleCandidate({ title: 'X-Men', englishTitle: 'X-Men: Apocalypse', tmdbId: 246655, mediaType: 'movie', posterPath: '/apoc-old.jpg' });
+  assert.equal(await verifyKnownCandidate(owner, 'X-Men'), null);
+  assert.equal(calls.at(-1).query, 'X-Men');
+  // 正しい一覧は通り、ポスターはその ID の結果のものに付け直す
+  const good = knownTitleCandidate({ title: 'X-Men', englishTitle: 'X-Men', tmdbId: 36657, mediaType: 'movie', posterPath: '/apoc-old.jpg' });
+  const v = await verifyKnownCandidate(good, 'X-Men');
+  assert.equal(v.tmdbId, 36657);
+  assert.equal(v.posterPath, 'https://image.tmdb.org/t/p/w342/xmen.jpg');
+  // アポカリプスそのものの一覧は通る
+  const apoc = knownTitleCandidate({ title: 'X-Men: Apocalypse', tmdbId: 246655, mediaType: 'movie' });
+  assert.equal((await verifyKnownCandidate(apoc, 'X-Men: Apocalypse')).tmdbId, 246655);
+  // 邦題の古い一覧（英語の結果に完全一致が無い）は、ID が結果にあれば通る
+  const ja = knownTitleCandidate({ title: 'X-MEN：アポカリプス', tmdbId: 246655, mediaType: 'movie' });
+  assert.equal((await verifyKnownCandidate(ja, 'X-MEN：アポカリプス')).tmdbId, 246655);
 });

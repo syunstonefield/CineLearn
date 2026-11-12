@@ -114,18 +114,26 @@ export function knownTitleCandidate(drama) {
   };
 }
 
-// 保存された ID が、その作品の題名で検索した結果に入っているかを確かめる（2026-11-12）。
+// 保存された ID が、その作品の題名で検索した結果と合うかを確かめる（2026-11-12）。
 //   ホームのポスター取り直しが、映画の ID をドラマの検索結果の ID で上書きしていた（X-Men 映画 36657 → ドラマ 4574）。
-//   入っていなければ null＝呼び出し側は題名で探し直す（完全一致を優先）。通信に失敗した時は候補をそのまま返す。
+//   検索は一覧の題名（drama.title＝選んだ時の題名・上書きされない）で行う。英題（englishTitle）は以前の上書きで
+//   別作品の題名（X-Men: Apocalypse）になっていることがあるので使わない。
+//   合う＝題名が完全に一致する結果があれば、ID がその中にある。完全一致が無ければ、ID が結果のどれかにある。
+//   合わなければ null＝呼び出し側は題名で探し直す（完全一致を優先）。通信に失敗した時は候補をそのまま返す。
+//   合った時は、その結果のポスターを付け直す（前の別作品のポスターを引き継がない・2026-11-12 直し方2）。
 export async function verifyKnownCandidate(cand, title) {
   if (!cand) return null;
-  const q = cand.englishTitle || title;
+  const q = title || cand.englishTitle;
   if (!q) return cand;
   try {
     const data = await tmdb(cand.type === 'movie' ? { action: 'search_movie', query: q } : { action: 'search', query: q });
     const results = Array.isArray(data?.results) ? data.results : null;
     if (!results) return cand;
-    return results.some((r) => r.id === cand.tmdbId) ? cand : null;
+    const exact = results.filter((r) => sameTitle(r, q));
+    const pool = exact.length ? exact : results;
+    const hit = pool.find((r) => r.id === cand.tmdbId);
+    if (!hit) return null;
+    return { ...cand, posterPath: hit.poster_path ? `https://image.tmdb.org/t/p/w342${hit.poster_path}` : null };
   } catch {
     return cand;
   }
