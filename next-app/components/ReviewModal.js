@@ -600,7 +600,7 @@ export default function ReviewModal({ asPage = false }) {
     >
       <div className={look ? 'review-panel' : 'modal-panel review-modal-panel'}>
         <div className="modal-header">
-          <span className="modal-title">{cardDeck ? '🃏 予習' : '🃏 復習'}</span>
+          <span className="modal-title">{cardDeck ? '🃏 単語を学ぶ' : '🃏 復習'}</span>
           <span className="review-head-btns">
             {cardDeck?.onList && (
               <button
@@ -634,7 +634,7 @@ export default function ReviewModal({ asPage = false }) {
           <CinemaProgress
             idx={idx}
             total={queue.length}
-            label={cardDeck ? '予習' : again === 'unknown' ? '知らなかった語' : again === 'shaky' ? 'うろ覚えの語' : undefined}
+            label={cardDeck ? 'この話の単語' : again === 'unknown' ? '知らなかった語' : again === 'shaky' ? 'うろ覚えの語' : undefined}
             hideTotal={!!cardDeck?.breaks}
           />
         )}

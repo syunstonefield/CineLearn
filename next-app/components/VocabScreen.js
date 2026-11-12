@@ -153,7 +153,7 @@ export default function VocabScreen() {
   // 全エピソードのリスト一括削除（警告画面: null=閉 / {impact}=開）。bulkTick は削除後の再集計用。
   const [bulkDel, setBulkDel] = useState(null);
   const [bulkTick, setBulkTick] = useState(0);
-  const [genBtn, setGenBtn] = useState({ text: '予習をはじめる →', disabled: true, hidden: false });
+  const [genBtn, setGenBtn] = useState({ text: '単語を学ぶ →', disabled: true, hidden: false });
   const [vocab, setVocab] = useState([]);
   const [source, setSource] = useState('');
   const [extWords, setExtWords] = useState([]);
@@ -220,7 +220,7 @@ export default function VocabScreen() {
     if (resume && (phase === 'soon' || phase === 'error')) {
       // 本人の意図は「ログインして作る」なので、ボタンをもう一度押させずに生成へ進む
       setMessage('ログインしました。単語リストを作成します…');
-      setGenBtn({ text: '予習をはじめる →', disabled: false, hidden: false });
+      setGenBtn({ text: '単語を学ぶ →', disabled: false, hidden: false });
       setPhase('ready');
       onGenerate();
       return;
@@ -228,8 +228,8 @@ export default function VocabScreen() {
     // 別経路のログイン: カタログ外（soon）は解除されるので生成ボタンを出し直す（サーバが再判定する）
     if (phase === 'soon') {
       setPhase('ready');
-      setMessage('ログインしました。「予習をはじめる」で単語リストを作れます');
-      setGenBtn({ text: '予習をはじめる →', disabled: false, hidden: false });
+      setMessage('ログインしました。「単語を学ぶ」で単語リストを作れます');
+      setGenBtn({ text: '単語を学ぶ →', disabled: false, hidden: false });
     } else if (genNote?.login) {
       setMessage('ログインしました。「単語を再生成」で続けられます');
     }
@@ -465,8 +465,8 @@ export default function VocabScreen() {
         setStatusText(drama.type === 'movie' ? '🎬 映画' : `Season ${se} Episode ${ep}`);
         setVocab([]);
         setPhase('empty');
-        setMessage('「予習をはじめる」でAIが単語リストをつくります');
-        setGenBtn({ text: '予習をはじめる →', disabled: false, hidden: false });
+        setMessage('「単語を学ぶ」でAIが単語リストをつくります');
+        setGenBtn({ text: '単語を学ぶ →', disabled: false, hidden: false });
         loadExtWords(se, ep, []);
         return true;
       }
@@ -573,8 +573,8 @@ export default function VocabScreen() {
         if (r.found) {
           setStatusText(label('✓ 字幕あり'));
           setPhase('ready');
-          setMessage('「予習をはじめる」を押してください');
-          setGenBtn({ text: '予習をはじめる →', disabled: false, hidden: false });
+          setMessage('「単語を学ぶ」を押してください');
+          setGenBtn({ text: '単語を学ぶ →', disabled: false, hidden: false });
         } else {
           setStatusText(label('⚠ 字幕なし'));
           setPhase('nosub');
@@ -595,7 +595,7 @@ export default function VocabScreen() {
             : '字幕の確認に失敗しました。時間をおいてもう一度お試しください。'
         );
         // 確認に失敗しただけなので生成は試せる（サーバ側で改めて字幕を探す）
-        setGenBtn({ text: '予習をはじめる →', disabled: false, hidden: false });
+        setGenBtn({ text: '単語を学ぶ →', disabled: false, hidden: false });
       }
       if (myReq === reqId.current) loadExtWords(se, ep, []);
     },
@@ -616,7 +616,7 @@ export default function VocabScreen() {
       setCardDone(null);
       setNotShared(false);
       setGenNote(null);
-      setGenBtn({ text: '予習をはじめる →', disabled: true, hidden: false });
+      setGenBtn({ text: '単語を学ぶ →', disabled: true, hidden: false });
       // 保存済みリストがあればそれを表示して終わり（📍は保存済み tsSec・字幕の取得は要らない）。
       if (await checkSaved(se, ep)) return;
       if (myReq !== reqId.current) return;
@@ -749,7 +749,7 @@ export default function VocabScreen() {
     (async () => {
       setPhase('loading');
       setStatusText('シーズン情報を取得中...');
-      setGenBtn({ text: '予習をはじめる →', disabled: true, hidden: false });
+      setGenBtn({ text: '単語を学ぶ →', disabled: true, hidden: false });
       // ドラマ/映画の判定・シーズン構築が終わるまでエピソード選択枠ごと隠す。
       // 確定前に操作されると未確定のドラマ状態（englishTitle/type未設定）で
       // 字幕取得が走って壊れるため（既存 546da24 と同じ対策）。
@@ -847,7 +847,7 @@ export default function VocabScreen() {
     // 作品を特定できない（tmdbId 無し）作品は送らない（A12(4)）。サーバは tmdbId 必須。
     if (!drama.tmdbId) {
       fail('作品を特定できないため単語リストを作れません（作品を選び直してください）');
-      setGenBtn({ text: '予習をはじめる →', disabled: true, hidden: true });
+      setGenBtn({ text: '単語を学ぶ →', disabled: true, hidden: true });
       return;
     }
     // 共有の単語リストに無い話＝今月の生成枠を使う → 先に確認を出す（ある話は確認なしでそのまま開く）
@@ -869,7 +869,7 @@ export default function VocabScreen() {
     genConfirmedRef.current = false;
     const lobbyT0 = Date.now(); // ロビー最低滞在の起点（キャッシュ命中の即抜け防止）
     setRevealReady(false);
-    setGenBtn({ text: '生成中...', disabled: true, hidden: false });
+    setGenBtn({ text: '作成中...', disabled: true, hidden: false });
     setPhase('generating');
     setGenStatus('字幕を確認中...');
     setRetryMsg('');
@@ -893,7 +893,7 @@ export default function VocabScreen() {
         let left = waitSec;
         const tick = () => {
           if (ac.signal.aborted || left <= 0) return resolve();
-          setGenStatus(`他の方が同じ話を生成中です（残り約${Math.max(1, Math.round(remainSec - (waitSec - left)))}秒）`);
+          setGenStatus(`ほかの方が同じ話の単語リストを作っています（残り約${Math.max(1, Math.round(remainSec - (waitSec - left)))}秒）`);
           left -= 1;
           setTimeout(tick, 1000);
         };
@@ -960,7 +960,7 @@ export default function VocabScreen() {
         setPrepFresh(false); // soon では下部3択を出さない
         setMessage('');
         setPhase('soon');
-        setGenBtn({ text: '予習をはじめる →', disabled: true, hidden: true });
+        setGenBtn({ text: '単語を学ぶ →', disabled: true, hidden: true });
         // リクエスト状態（票数・対応予定・この端末の投票済み）を非同期で取得
         setCatReq({ votes: null, planned: false, requested: false, sending: false });
         try {
@@ -1001,7 +1001,7 @@ export default function VocabScreen() {
           gate: '生成した単語リストが品質基準に達しませんでした。しばらくしてから「単語を再生成」をお試しください',
           coverage: '生成した単語リストが作品の一部に偏っていました。しばらくしてから「単語を再生成」をお試しください',
           // 字幕サービスの共有枠が尽きた（A5）。作品側の問題ではない＝nosub と分ける
-          os_quota: '字幕サービスの本日の取得枠が上限です。生成済みの作品はそのまま使えます',
+          os_quota: '字幕サービスの本日の取得枠が上限です。すでに単語リストがある作品はそのまま使えます',
           os_search: UPSTREAM_NOGEN,
           os_download: UPSTREAM_NOGEN,
           llm: UPSTREAM_NOGEN,
@@ -1062,7 +1062,7 @@ export default function VocabScreen() {
       if (r.kind === 'upstream') {
         const UPSTREAM_MSG = {
           // 字幕サービスの共有枠が尽きた（A5）。nosub とは分ける＝作品側の問題ではない。
-          os_quota: '字幕サービスの本日の取得枠が上限です。生成済みの作品はそのまま使えます',
+          os_quota: '字幕サービスの本日の取得枠が上限です。すでに単語リストがある作品はそのまま使えます',
           timeout: '生成に時間がかかりすぎました。しばらくしてから「単語を再生成」をお試しください',
           tmdb: '作品情報の取得に失敗しました。しばらくしてからお試しください',
         };
@@ -1534,7 +1534,7 @@ export default function VocabScreen() {
     setPhase('empty');
     setMessage('エピソードを選んでください');
     setStatusText('');
-    setGenBtn({ text: '予習をはじめる →', disabled: false, hidden: false });
+    setGenBtn({ text: '単語を学ぶ →', disabled: false, hidden: false });
   };
   useEffect(() => {
     if (!bulkDel) return;
@@ -1563,7 +1563,7 @@ export default function VocabScreen() {
     setPhase('empty');
     setMessage('エピソードを選んでください');
     setStatusText('');
-    setGenBtn({ text: '予習をはじめる →', disabled: false, hidden: false });
+    setGenBtn({ text: '単語を学ぶ →', disabled: false, hidden: false });
   };
 
   if (!drama) return null;
@@ -1917,7 +1917,7 @@ export default function VocabScreen() {
         {selectorReady && phase !== 'generating' && !hasList && (
         <div className="episode-selector">
           {isMovie ? (
-            <div className="episode-label">🎬 映画（字幕から単語を予習）</div>
+            <div className="episode-label">🎬 映画（字幕から単語を学ぶ）</div>
           ) : (
             <button
               type="button"
@@ -1950,7 +1950,7 @@ export default function VocabScreen() {
             )}
           </div>
           <div className="episode-selected">{statusText}</div>
-          {!genBtn.hidden && <p className="ch-small ch-small-sel">予習しなくても、いつでも観られます</p>}
+          {!genBtn.hidden && <p className="ch-small ch-small-sel">学ばなくても、いつでも観られます</p>}
           {bulkListCount >= 2 && (
             <button type="button" className="bulkdel-link" onClick={openBulkDelete}>
               この作品の単語リストをすべて削除（{bulkListCount}話）
@@ -2186,16 +2186,11 @@ export default function VocabScreen() {
                 />
               )}
 
-              {source && phase === 'vocab' && (
-                <div className="source-label" style={{ marginBottom: 8 }}>
-                  📝 {source}から生成
-                </div>
-              )}
               {/* 品質/coverage ゲートを通らず共有キャッシュに書かれなかったリスト（A12(5)）。
                   表示はするが次回また生成枠を使うことを小さく伝える。 */}
               {notShared && phase === 'vocab' && (
                 <div className="source-label" style={{ marginBottom: 8, fontSize: 11, opacity: 0.8 }}>
-                  ※ このリストは共有されません（再生成は枠を消費します）
+                  ※ この単語リストは作り直すと、もう一度作成の回数を使います
                 </div>
               )}
 
@@ -2273,11 +2268,11 @@ export default function VocabScreen() {
                クリック保存は全作品で使えることを必ず添える（D0救済・改善4）。 */
             <div className="soon-panel">
               <div className="soon-emoji" aria-hidden="true">🎬</div>
-              <div className="soon-title">この作品はログインすると予習できます</div>
+              <div className="soon-title">この作品はログインすると単語を学べます</div>
               <div className="soon-sub">ログインなしで使えるのは対応作品のみです。ログインすれば、どの作品でも1日30話まで単語リストを作れます</div>
               {/* カタログゲートは未ログインだけに掛かる（2026-09-21 オーナー判断）。ログインが最短の解決なので最上段に置く */}
               <button type="button" className="soon-request-btn" onClick={loginThenGenerate}>
-                🔑 ログインしてこの作品を予習する
+                🔑 ログインしてこの作品の単語を学ぶ
               </button>
               <div className="soon-sub" style={{ marginTop: 14 }}>ログインしない場合は、リクエストの多い作品から毎週カタログに追加しています</div>
               {catReq.planned && <div className="soon-planned">📅 この作品は対応予定に入っています</div>}
@@ -2299,7 +2294,7 @@ export default function VocabScreen() {
                 🧩 字幕の単語クリック保存・意味表示は、この作品でも今すぐ使えます
               </div>
               <button type="button" className="soon-browse-link" onClick={() => setScreen('search')}>
-                対応作品から予習をはじめる →
+                対応作品を探す →
               </button>
             </div>
           ) : (

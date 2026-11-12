@@ -44,7 +44,7 @@ export function CardHome({ drama, season, episode, isMovie, total, seen, canStar
           </button>
         )}
       </div>
-      <p className="ch-small">予習しなくても、いつでも観られます</p>
+      <p className="ch-small">学ばなくても、いつでも観られます</p>
     </div>
   );
 }
