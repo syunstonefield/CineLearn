@@ -77,16 +77,17 @@ export function highlightExample(example, word) {
 }
 
 // 「12 / 125」＋フィルム10コマ（今の10枚のうち答えた枚数が点く）＋全体の細い線。見出しは「今日の復習」（チケット形の横で上映の券と紛れないよう「上映」は使わない・法務 2026-11-07）。
-export function CinemaProgress({ idx, total, label = '今日の復習' }) {
+//   hideTotal: 予習の「残りの単語も見る」では全体の数（＝残りの数）を出さない（2026-11-12・残りの数を出さない決まり）。
+export function CinemaProgress({ idx, total, label = '今日の復習', hideTotal = false }) {
   const blockStart = Math.floor(idx / FILM_FRAMES) * FILM_FRAMES;
   const frames = Math.max(1, Math.min(FILM_FRAMES, total - blockStart));
   const lit = idx - blockStart;
-  const overall = total ? Math.min(100, (idx / total) * 100) : 0;
+  const overall = total && !hideTotal ? Math.min(100, (idx / total) * 100) : 0;
   return (
     <div className="rc-progress">
       <div className="rc-progress-row">
         <span className="rc-count">
-          {Math.min(idx + 1, total)} <span className="rc-count-total">/ {total}</span>
+          {Math.min(idx + 1, total)} {!hideTotal && <span className="rc-count-total">/ {total}</span>}
         </span>
         <span className="rc-film" aria-hidden="true">
           {Array.from({ length: frames }, (_, i) => (

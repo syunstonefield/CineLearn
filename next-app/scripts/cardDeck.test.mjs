@@ -1,7 +1,7 @@
 // 2026-11-12 カード中心: 作品を選んだあとのカードに出す語と枚数（lib/cardDeck.js）。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cardCandidates, cardCount, takeCards, seenCount, CARDS_FIRST_COUNT, CARDS_MORE_COUNT } from '../lib/cardDeck.js';
+import { cardCandidates, cardCount, takeCards, seenCount, CARDS_FIRST_COUNT } from '../lib/cardDeck.js';
 
 const W = (word, level = 'B1') => ({ word, level, definition: 'x' });
 const today = '2026-11-12';
@@ -19,13 +19,13 @@ test('出す語: 「知ってる」で外した語と、答えて期日がまだ
   assert.ok(out.includes('due'));
 });
 
-test('枚数: 初めては5・2回目からは設定（15/30/全部）・続けては10', () => {
+test('枚数: 初めては5・2回目からは設定（15/30/全部）・残りの単語も見るは最後まで', () => {
   assert.equal(cardCount({ first: true, setting: 30 }), CARDS_FIRST_COUNT);
   assert.equal(cardCount({ setting: 30 }), 30);
   assert.equal(cardCount({ setting: 15 }), 15);
   assert.equal(cardCount({ setting: 0 }), null);
   assert.equal(cardCount({ setting: undefined }), 15);
-  assert.equal(cardCount({ more: true, first: true }), CARDS_MORE_COUNT);
+  assert.equal(cardCount({ rest: true, first: true }), null);
   assert.equal(takeCards([1, 2, 3], 2).length, 2);
   assert.equal(takeCards([1, 2, 3], null).length, 3);
 });

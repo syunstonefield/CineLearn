@@ -104,6 +104,7 @@ export default function VocabScreen() {
     openPrepLaunch,
     openPrepWalk,
     openCardDeck,
+    prevScreen,
     reviewVersion,
     openAuth,
     loggedIn,
@@ -187,7 +188,9 @@ export default function VocabScreen() {
   // onGenerate 成功でこの一回限りフラグを立て、新出語が揃った瞬間に effect が開く。
   const [justGenerated, setJustGenerated] = useState(false);
   // カード中心（2026-11-12）: リストができた話は、まずカードの画面（'cards'）。単語リストは本人が開いた時だけ（'list'）。
-  const [view, setView] = useState('cards');
+  //   コレクション・復習タブの「リスト」から開いた時は、従来どおり単語リストから（オーナー 2026-11-12）。
+  const startViewRef = useRef(prevScreen === 'collection' || prevScreen === 'review-hub' ? 'list' : 'cards');
+  const [view, setView] = useState(startViewRef.current);
   const [cardDone, setCardDone] = useState(null); // { answered:[…] }＝カードを終えた画面
 
   // 生成結果の付帯情報（2026-09-12）:
@@ -364,7 +367,7 @@ export default function VocabScreen() {
   useEffect(() => {
     if (!justGenerated) return;
     if (!drama || phase !== 'vocab' || !sortedVocab.length) return;
-    // 「カードをはじめる →」（待ち画面の最後）＝この話のカードを答える形で開く（2026-11-12 カード中心・一覧は自動で出さない）
+    // 「単語を学ぶ →」（待ち画面の最後）＝この話のカードを答える形で開く（2026-11-12 カード中心・一覧は自動で出さない）
     startCards();
     setJustGenerated(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -609,7 +612,7 @@ export default function VocabScreen() {
       setExtWords([]);
       setHistoryId(null);
       setPrepFresh(false); // 別エピソードへ移ったら下部3択は隠す（新規生成成功で再点灯）
-      setView('cards');
+      setView(startViewRef.current);
       setCardDone(null);
       setNotShared(false);
       setGenNote(null);
@@ -1143,14 +1146,14 @@ export default function VocabScreen() {
 
   // ── ハンドラ ──
   // この話のカード（答える形・SRS に入る）。初めては5枚・2回目からは設定の語数・「続けて」は10枚（lib/cardDeck.js）。
-  const startCards = ({ more = false } = {}) => {
+  const startCards = ({ rest = false } = {}) => {
     let first = false;
     try {
       first = localStorage.getItem(CARDS_FIRST_DONE_KEY) !== '1';
     } catch {
       /* ignore */
     }
-    const n = cardCount({ first, setting: settings?.prepCoreCount, more });
+    const n = cardCount({ first, setting: settings?.prepCoreCount, rest });
     const deck = takeCards(cardCandidates(sortedVocab, loadSrs(), todayStr()), n).map((w) => ({
       ...w,
       _src: { title: drama.title, season, episode, type: drama.type },
@@ -1164,6 +1167,7 @@ export default function VocabScreen() {
     setCardDone(null);
     setView('cards');
     openCardDeck(deck, {
+      breaks: rest, // 「残りの単語も見る」は10語ごとの区切り（設定 reviewBreak に従う）
       onFinish: (answered) => {
         reloadSrs();
         setCardDone(answered && answered.length ? { answered } : null);
@@ -1174,7 +1178,7 @@ export default function VocabScreen() {
       },
     });
   };
-  // ロビーの「カードをはじめる →」: ここで初めて単語リストの中身が揃い、この話のカードが開く（一覧は自動で出さない）
+  // ロビーの「単語を学ぶ →」: ここで初めて単語リストの中身が揃い、この話のカードが開く（一覧は自動で出さない）
   const revealList = () => {
     setRevealReady(false);
     setPhase('vocab');
@@ -1985,7 +1989,7 @@ export default function VocabScreen() {
               episode={episode}
               ready={revealReady}
               onReveal={revealList}
-              revealLabel="カードをはじめる →"
+              revealLabel="単語を学ぶ →"
             />
           ) : showVocab && sortedVocab.length && view === 'cards' ? (
             cardDone ? (
@@ -1993,7 +1997,7 @@ export default function VocabScreen() {
                 count={cardDone.answered.length}
                 tomorrow={countDueTomorrow(cardDone.answered, srs)}
                 canMore={cardCandidates(sortedVocab, srs, todayStr()).length > 0}
-                onMore={() => startCards({ more: true })}
+                onMore={() => startCards({ rest: true })}
                 onWatch={startPrepWatch}
                 onList={() => {
                   setCardDone(null);
@@ -2017,14 +2021,19 @@ export default function VocabScreen() {
             )
           ) : showVocab && sortedVocab.length ? (
             <>
-              {/* 単語リスト（本人が開いた時だけ・2026-11-12 カード中心）: 上にカードへ戻る行 */}
+              {/* 単語リスト（本人が開いた時だけ・2026-11-12 カード中心）: 上に戻る行と「単語を学ぶ」 */}
               <div className="ch-list-top">
-                <button type="button" className="ch-back" onClick={() => setView('cards')}>
-                  ← カードへ
-                </button>
+                {/* 単語リストから始めた時（コレクション・復習タブの「リスト」）は「戻る」を出さない（戻り先がカードの画面ではないため） */}
+                {startViewRef.current !== 'list' ? (
+                  <button type="button" className="ch-back" onClick={() => setView('cards')}>
+                    ← 戻る
+                  </button>
+                ) : (
+                  <span />
+                )}
                 {cardCandidates(sortedVocab, srs, todayStr()).length > 0 && (
                   <button type="button" className="ch-btn1 ch-btn1-sm" onClick={() => startCards()}>
-                    カードをはじめる
+                    単語を学ぶ
                   </button>
                 )}
               </div>

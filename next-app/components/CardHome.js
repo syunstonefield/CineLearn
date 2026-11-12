@@ -1,8 +1,8 @@
 'use client';
 
 // 作品を選んだあと＝カード中心（2026-11-12 オーナー決定・見本 reports/prep-card-first-2026-11-12/mock.html）。
-//   CardHome: 単語リストができた作品を開いた時の最初の画面（大きい「カードをはじめる」＋下に「単語リストを見る」）。
-//   CardDone: カードを終えた時の画面（明日 復習できる単語 N個 → 続けて10語／観に行く／単語リストを見る）。
+//   CardHome: 単語リストができた作品を開いた時の最初の画面（大きい「単語を学ぶ」＋下に「単語リストを見る」）。
+//   CardDone: カードを終えた時の画面（明日 復習できる単語 N個 → 残りの単語も見る／観に行く／単語リストを見る）。
 // 決まり: ポスターは縦のまま小さく・何も重ねない（TMDB の表示は画面の下の共通の行）／残りの数や「あと○語」は出さない／
 //   観ることは止めない（「観に行く」はいつでも押せる・← で抜けられる）。
 
@@ -28,10 +28,10 @@ export function CardHome({ drama, season, episode, isMovie, total, seen, canStar
         </div>
         {canStart ? (
           <button type="button" className="ch-btn1" onClick={onStart}>
-            カードをはじめる
+            単語を学ぶ
           </button>
         ) : (
-          <p className="ch-none">この話のカードは、今日はここまでです。明日の復習に出てきます。</p>
+          <p className="ch-none">この話の単語は、今日はここまでです。明日の復習に出てきます。</p>
         )}
       </div>
       <div className="ch-rows">
@@ -69,7 +69,7 @@ export function CardDone({ count, tomorrow, canMore, onMore, onWatch, onList, on
       </div>
       {canMore && (
         <button type="button" className="ch-btn1" onClick={onMore}>
-          続けて10語
+          残りの単語も見る
         </button>
       )}
       <button type="button" className="ch-btn2" onClick={onWatch}>

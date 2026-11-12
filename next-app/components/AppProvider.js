@@ -120,6 +120,10 @@ export default function AppProvider({ children }) {
   settingsRef.current = settings;
   // 'profile-select'（だれが観ますか）から開始。選択後に 'main' へ。
   const [screen, setScreen] = useState('profile-select'); // | 'vocab' | 'quiz' | 'settings'
+  // 直前の画面（2026-11-12）: 作品の画面（VocabScreen）を、コレクション・復習タブの「リスト」から開いた時は単語リストを最初に出すため。
+  //   描画の中で1回だけ進める（screen が変わった時だけ）。
+  const screenTrackRef = useRef({ cur: 'profile-select', prev: null });
+  if (screenTrackRef.current.cur !== screen) screenTrackRef.current = { cur: screen, prev: screenTrackRef.current.cur };
   const [wordbookVersion, setWordbookVersion] = useState(0); // 削除後のバッジ/一覧再集計
   // Supabase（読み取り専用）
   const [authOpen, setAuthOpen] = useState(false);
@@ -707,7 +711,13 @@ export default function AppProvider({ children }) {
   const exitReviewPage = () => {
     setReviewWords(null);
     setReviewAsPage(false);
+    clearCardDeck(); // 作品を選んだあとのカードを開いたまま別の画面へ移っても、次の復習に残さない
   };
+  // 作品を選んだあとのカード（openCardDeck）の印を消す（普通の復習・予習のカードを開く時と、画面を離れる時）。
+  function clearCardDeck() {
+    cardDeckRef.current = null;
+    setCardDeck(null);
+  }
 
   const goHome = useCallback(() => {
     exitReviewPage();
@@ -783,6 +793,7 @@ export default function AppProvider({ children }) {
   // 復習モーダルの開閉（ダッシュボード・単語リストの両方から呼ぶ）
   // opts.all=true で SRS の期日フィルタを通さず全語をカード化（半券のシーン記憶カード用）。
   const openReview = useCallback((words, opts) => {
+    clearCardDeck();
     setReviewAll(!!(opts && (opts.all || opts.again)));
     setReviewAgain((opts && opts.again) || null);
     setReviewAsPage(true); // タブ/今日の復習＝ページ表示（横スワイプ移動可）
@@ -820,6 +831,7 @@ export default function AppProvider({ children }) {
   }, []);
   // 予習からフラッシュカード（first-pass）を起動。閉じたら cards launch ramp を予約。
   const openPrepReview = useCallback((words, launchPayload) => {
+    clearCardDeck();
     pendingPrepCardsRef.current = launchPayload || null;
     setReviewAgain(null);
     setReviewAsPage(false); // 予習フラッシュカードは従来どおり没入オーバーレイ
@@ -983,6 +995,7 @@ export default function AppProvider({ children }) {
     openPrepReview,
     openCardDeck,
     cardDeck,
+    prevScreen: screenTrackRef.current.prev,
     reviewVersion,
     goToQuiz,
     prepQuiz,

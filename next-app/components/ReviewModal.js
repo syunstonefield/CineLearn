@@ -483,7 +483,8 @@ export default function ReviewModal({ asPage = false }) {
     setIdx((i) => i + 1);
     // 10枚でひと区切り（復習タブのページ表示・採点する回だけ＝今日の復習・作品の復習・もう一度。見直しは採点しないので出さない）
     const answered = idx + 1;
-    if (cinema && shouldShowBreak(answered, queue.length, breakOn, breaksShownRef.current)) {
+    // カード（cardDeck）の「残りの単語も見る」（breaks）も、同じ10語ごとの区切りを出す（2026-11-12 オーナー決定）
+    if ((cinema || cardDeck?.breaks) && shouldShowBreak(answered, queue.length, breakOn, breaksShownRef.current)) {
       breaksShownRef.current.add(answered);
       setBreakAt(answered);
     }
@@ -508,6 +509,7 @@ export default function ReviewModal({ asPage = false }) {
   // 区切りの画面: 続ける／ここまでにする（✕ と同じ＝答えた分は記録して「ここまで復習しました」）／今後は表示しない（設定を切って続ける）
   const continueAfterBreak = () => setBreakAt(null);
   const stopAtBreak = () => {
+    if (cardDeck) return finishDeck(); // カードの「ここまでにする」は予習の終わりの画面へ（答えた分は記録済み）
     recordReviewExit('x');
     setBreakAt(null);
     setPartial(true);
@@ -633,6 +635,7 @@ export default function ReviewModal({ asPage = false }) {
             idx={idx}
             total={queue.length}
             label={cardDeck ? '予習' : again === 'unknown' ? '知らなかった語' : again === 'shaky' ? 'うろ覚えの語' : undefined}
+            hideTotal={!!cardDeck?.breaks}
           />
         )}
         {!showDone && !look && (
@@ -642,7 +645,7 @@ export default function ReviewModal({ asPage = false }) {
         )}
         <div className={'review-content' + (showDone || showBreak ? ' is-done' : '')}>
           {showBreak ? (
-            <ReviewBreak count={breakAt} onContinue={continueAfterBreak} onStop={stopAtBreak} onHide={hideBreaks} />
+            <ReviewBreak count={breakAt} prep={!!cardDeck} onContinue={continueAfterBreak} onStop={stopAtBreak} onHide={hideBreaks} />
           ) : showDone ? (
             <ReviewDone
               showTomorrow={cinema}
@@ -897,11 +900,11 @@ function ReviewCard({ word: w, marks, idx, total, flipped, retryMode, onFlip, on
 
 // 10枚でひと区切りの画面（オーナー決定 2026-11-12・見本 reports/review-card-ui-2026-11-12/mock.html）。
 //   残りの数・「あと○語」は出さない（罪悪感UI禁止）。答えた分は reviewWord で記録済み＝「記録されています」は事実。
-function ReviewBreak({ count, onContinue, onStop, onHide }) {
+function ReviewBreak({ count, prep = false, onContinue, onStop, onHide }) {
   return (
     <div className="rd rd-break">
       <div className="rd-body">
-        <DoneHero title={`${count}語 復習しました`} sub="ひと区切りです。ここまでの分は記録されています。" />
+        <DoneHero title={prep ? `${count}語 見ておきました` : `${count}語 復習しました`} sub="ひと区切りです。ここまでの分は記録されています。" />
         <button type="button" className="rd-break-hide" onClick={onHide}>
           今後は表示しない
         </button>
