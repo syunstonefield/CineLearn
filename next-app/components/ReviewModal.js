@@ -863,7 +863,7 @@ function ReviewCard({ word: w, marks, idx, total, flipped, retryMode, onFlip, on
 //   残りの数・「あと○語」は出さない（罪悪感UI禁止）。答えた分は reviewWord で記録済み＝「記録されています」は事実。
 function ReviewBreak({ count, onContinue, onStop, onHide }) {
   return (
-    <div className="rd">
+    <div className="rd rd-break">
       <div className="rd-body">
         <DoneHero title={`${count}語 復習しました`} sub="ひと区切りです。ここまでの分は記録されています。" />
         <button type="button" className="rd-break-hide" onClick={onHide}>

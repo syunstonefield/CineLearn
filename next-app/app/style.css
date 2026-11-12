@@ -8080,3 +8080,5 @@ html[data-theme="dark"] .hm-row-pb { background: rgba(255,255,255,.08); }
   align-self: center; min-height: 44px; padding: 0 12px; border: 0; background: none; cursor: pointer;
   font-family: inherit; font-size: 13px; color: var(--rd-muted); text-decoration: underline; text-underline-offset: 3px;
 }
+/* 区切りの言葉とイラストは画面の真ん中（縦も横も）に・ボタンは下のまま（オーナー 2026-11-12） */
+.rd-break .rd-body { justify-content: center; align-items: center; }
