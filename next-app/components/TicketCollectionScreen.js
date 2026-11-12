@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
 import { loadHistory, learningStatsByTitle, buildLibraryEntries } from '@/lib/storage';
 import { loadFavorites, toggleFavorite } from '@/lib/favorites';
-import { fetchSeasons, getCachedSeasons } from '@/lib/collection';
+import { fetchSeasons, getCachedSeasons, pickPosterUrl, fetchMoviePosterById, getCachedMoviePoster } from '@/lib/collection';
 import TicketDetailView from './TicketDetailView';
 import TicketPoster from './TicketPoster';
 import { previewWorkRemoval, removeWork, undoWorkRemoval, UNDO_MS } from '@/lib/workRemovalStore';
@@ -115,6 +115,7 @@ export default function TicketCollectionScreen() {
   }, [framesOpen]);
   const attemptedPosters = useRef(new Set()); // 重複fetch防止
   const [posterOverrides, setPosterOverrides] = useState({}); // title → posterPath（表示補完）
+  const [moviePosters, setMoviePosters] = useState({}); // 映画の tmdbId → その ID のポスター（'' は無し）
 
   useEffect(() => {
     setFavs(loadFavorites(profile?.id));
@@ -163,7 +164,11 @@ export default function TicketCollectionScreen() {
     });
     return lib.map((e) => {
       const title = e.drama.title;
-      const en = e.drama.englishTitle || title;
+      // 作品の記録（myDramas）の ID が、学習の履歴の ID と違う時は、記録の英語名も古い作品のもの（11/11 の取り違え）。
+      //   その時は英語名を使わず作品名にする（X-Men が「X-Men: Apocalypse」と出ないように・2026-11-12）。
+      const md = (settings.myDramas || []).find((d) => d.title === title);
+      const staleEn = !!(md && md.tmdbId && e.drama.tmdbId && md.tmdbId !== e.drama.tmdbId);
+      const en = (!staleEn && e.drama.englishTitle) || title;
       return {
         title,
         enTitle: en,
@@ -332,6 +337,37 @@ export default function TicketCollectionScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entries]);
 
+  // 映画の ID のポスターを取る（端末に90日覚える・同時4件）。ドラマは上のシーズン情報の取得に入っている。
+  useEffect(() => {
+    let cancelled = false;
+    const want = entries.filter((e) => e.isMovie && e.tmdbId && !(e.tmdbId in moviePosters));
+    if (!want.length) return undefined;
+    const cachedUpd = {};
+    const toFetch = [];
+    want.forEach((e) => {
+      const c = getCachedMoviePoster(e.tmdbId);
+      if (c !== null) cachedUpd[e.tmdbId] = c;
+      else toFetch.push(e);
+    });
+    if (Object.keys(cachedUpd).length) setMoviePosters((m) => ({ ...m, ...cachedUpd }));
+    (async () => {
+      for (let i = 0; i < toFetch.length && !cancelled; i += 4) {
+        const chunk = toFetch.slice(i, i + 4);
+        const res = await Promise.all(chunk.map((e) => fetchMoviePosterById(e.tmdbId, [e.title, e.drama?.englishTitle, e.enTitle]).then((u) => [e.tmdbId, u])));
+        if (cancelled) return;
+        const upd = {};
+        res.forEach(([id, u]) => {
+          if (u !== null) upd[id] = u;
+        });
+        if (Object.keys(upd).length) setMoviePosters((m) => ({ ...m, ...upd }));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entries]);
+
   // total / progress / range を付与。
   const decorated = useMemo(
     () =>
@@ -345,11 +381,13 @@ export default function TicketCollectionScreen() {
         const isFav = favs.includes(e.title);
         // ポスター優先順位：解決済み override(w342縦) → myDramas → tmdb キャッシュ(w780)。
         // override はホームと同じ TMDB 検索結果＝表示を home と一致させる。
-        const posterPath = posterOverrides[e.title] || e.posterPath || sj?.posterPath || null;
+        // ID がある作品は、その ID のポスターを最優先（保存された URL が古い ID の画像でも直る・2026-11-12 X-Men の件）。
+        const idPoster = e.tmdbId ? (e.isMovie ? moviePosters[e.tmdbId] : sj?.posterPath) : null;
+        const posterPath = pickPosterUrl({ idPoster, override: posterOverrides[e.title], stored: e.posterPath, seasonsPoster: sj?.posterPath });
         const frame = FRAME_TIERS[frameTierOf(frameBest, e.title, progress)];
         return { ...e, posterPath, total, progress, isFav, frame };
       }),
-    [entries, seasonsMap, favs, posterOverrides, frameBest]
+    [entries, seasonsMap, favs, posterOverrides, frameBest, moviePosters]
   );
 
   // 今の達成度で新しい額縁に届いた作品があれば記録する（下げない）。

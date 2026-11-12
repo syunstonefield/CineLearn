@@ -82,3 +82,57 @@ export function fullRangeLabel(seasons, studiedEpisodes) {
   const b = sorted[sorted.length - 1];
   return a === b ? `S${a.season}·E${a.episode}` : `S${a.season}·E${a.episode} 〜 S${b.season}·E${b.episode}`;
 }
+
+// ── 作品の ID に結び付いたポスター（2026-11-12 X-Men の件）──────────────────
+// 作品の記録（myDramas）の posterPath は URL を文字のまま持つだけで、どの ID の画像かを持たない。
+// 作品の ID が直っても古い画像が残る（11/11 の取り違えで X-Men にアポカリプスの画像が残った）ので、
+// ID がある作品は、その ID の画像を TMDB から取り、保存された URL より優先する。
+//   ドラマ：fetchSeasons（ID で引く・ここにポスターも入る）。映画：題名で検索し、同じ ID の結果の poster_path。
+//   縦のポスターだけ（backdrop で代用しない）・w342（法務）。取得日を入れて端末に置き、90日で取り直す。
+
+// 表示に使うポスターの順番（純関数）。ID の画像 → 一覧で取り直した URL → 保存された URL → シーズン情報のキャッシュ。
+export function pickPosterUrl({ idPoster, override, stored, seasonsPoster } = {}) {
+  return idPoster || override || stored || seasonsPoster || null;
+}
+
+// 検索結果から、同じ ID の作品の縦のポスター（w342）を返す（無ければ ''）。
+export function posterForIdFromResults(results, tmdbId) {
+  const hit = (results || []).find((r) => r && r.id === tmdbId);
+  return hit?.poster_path ? `https://image.tmdb.org/t/p/w342${hit.poster_path}` : '';
+}
+
+const moviePosterKey = (id) => `cl_movie_poster_${id}`;
+
+export function getCachedMoviePoster(tmdbId) {
+  if (!tmdbId) return null;
+  try {
+    const o = JSON.parse(localStorage.getItem(moviePosterKey(tmdbId)) || 'null');
+    return o && typeof o.posterPath === 'string' && isFreshEpsCache(o) ? o.posterPath : null;
+  } catch {
+    return null;
+  }
+}
+
+// 映画の ID のポスター。queries（作品名・英語名）で順に検索し、同じ ID が見つかった時だけ採る。
+// 見つからない時は ''（＝ID の画像は無し・ほかの候補に回す）。通信の失敗は null（覚えない）。
+export async function fetchMoviePosterById(tmdbId, queries) {
+  if (!tmdbId) return '';
+  const cached = getCachedMoviePoster(tmdbId);
+  if (cached !== null) return cached;
+  let url = '';
+  try {
+    for (const q of [...new Set((queries || []).filter(Boolean))]) {
+      const data = await tmdb({ action: 'search_movie', query: q });
+      url = posterForIdFromResults(data?.results, tmdbId);
+      if (url) break;
+    }
+  } catch {
+    return null;
+  }
+  try {
+    localStorage.setItem(moviePosterKey(tmdbId), JSON.stringify({ posterPath: url, at: Date.now() }));
+  } catch {
+    /* 覚えられないだけ */
+  }
+  return url;
+}
