@@ -112,7 +112,7 @@ const defaultCallLlm = (prompt, maxTokens, o = {}) =>
 //     { nosub:true, cacheKey }                                            … 字幕なし（OS 検索が空・候補全滅）
 //     { nosub:false, words, storeWords, contributed, reason, coverage, wordCount, dramaCount, provider, model,
 //       englishTitle, displayTitle, posterPath, fileId, subtitleVia, cacheKey, chunks, elapsedMs }
-//       words        … 表示用の全語（example_ja_ok 等の transient は除去済み・plus は tsSec null）
+//       words        … 表示用の語＝品質の確認を通った語（storeWords と同じ・2026-11-12〜。transient は除去済み・plus は tsSec null）
 //       storeWords   … 品質ゲートを通った語（vocab_cache に書く形）。contributed=false でも参考値として返す
 //       contributed  … 品質/coverage ゲートを通った＝route は writeVocabRow して良い（実際に書けたかは route が確定）
 //       reason       … 'ok' | 'gate' | 'coverage'
@@ -180,8 +180,10 @@ export async function generateEpisodeVocab(input, deps = {}) {
 
   // 5) 品質ゲート＋coverage
   const gate = qualityGate(superset, sub.raw);
-  const words = superset.map(({ example_ja_ok, ...w }) => w);
-  const coverage = coverageRange(gate.ok ? gate.storeWords : words);
+  // 生成した本人にも、品質の確認を通った語だけを返す（2026-11-12 Wakanda Forever: 例文のない語が本人にだけ出ていた）。
+  //   共有キャッシュに書く storeWords と同じ一覧＝2人目以降に配る一覧と一致する。
+  const words = gate.storeWords;
+  const coverage = coverageRange(words);
   const elapsedMs = Date.now() - t0;
   log.info?.(
     `[CL:GEN] ${epLabel} done ${elapsedMs}ms chunks=${chunks} words=${words.length} clean=${gate.clean.length} drama=${gate.dramaCount} gate=${gate.reason}`

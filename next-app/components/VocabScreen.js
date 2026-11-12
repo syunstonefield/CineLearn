@@ -26,6 +26,7 @@ import {
 import { isPrunedRow } from '@/lib/workRemoval';
 import {
   fetchTitleCandidatesFromTMDb,
+  knownTitleCandidate,
   resolveTitleCandidate,
   fetchSeasonInfoFromTMDb,
   fetchMovieInfoFromTMDb,
@@ -718,6 +719,26 @@ export default function VocabScreen() {
       // 確定前に操作されると未確定のドラマ状態（englishTitle/type未設定）で
       // 字幕取得が走って壊れるため（既存 546da24 と同じ対策）。
       setSelectorReady(false);
+
+      // ID と映画/ドラマが分かっている作品は、題名で検索し直さずにその ID で開く（ドラマは ID でシーズン情報だけ取る）。
+      //   取れなかった時も題名検索に落とさない（別の作品に置き換わるのを防ぐ・applyTitleInfo(null) は既知の型と ID を保つ）。
+      const known = knownTitleCandidate(drama);
+      if (known) {
+        let info = null;
+        try {
+          info = await resolveTitleCandidate(known, drama.title);
+        } catch {
+          info = null;
+        }
+        if (cancelled || myReq !== reqId.current) return;
+        applyTitleInfo(info);
+        setSelectorReady(true);
+        const { se, ep } = clampInitialSE(info);
+        setSeason(se);
+        setEpisode(ep);
+        await loadEpisode(se, ep);
+        return;
+      }
 
       let candidates = { tv: null, movie: null };
       try {

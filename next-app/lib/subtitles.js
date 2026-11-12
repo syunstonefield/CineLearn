@@ -110,9 +110,13 @@ export function parseSrt(srtText) {
 export function selectSubtitleCandidates(subtitles, isMovie, season, episode) {
   if (!Array.isArray(subtitles) || !subtitles.length) return [];
 
-  let candidates = subtitles;
+  // 外国語の部分だけの字幕（OS の foreign_parts_only）は除く（2026-11-12 Wakanda Forever: 字幕がまばら＝例文のない語が多い）。
+  //   印が無くても版の名前に forced とあるものは同じ（外国語の場面の訳だけ）として除く。
+  const forcedName = (a) => /\bforced\b/.test(String(a.release || a.files?.[0]?.file_name || '').toLowerCase());
+  let candidates = subtitles.filter((s) => s?.attributes && !s.attributes.foreign_parts_only && !forcedName(s.attributes));
+  if (!candidates.length) return [];
   if (!isMovie) {
-    const matched = subtitles.filter((s) => {
+    const matched = candidates.filter((s) => {
       const f = s.attributes.feature_details || {};
       return (
         Number(f.season_number) === Number(season) &&
@@ -122,7 +126,10 @@ export function selectSubtitleCandidates(subtitles, isMovie, season, episode) {
     if (matched.length) candidates = matched;
   }
 
-  const rank = (sub) => {
+  // CD に分かれた版（files が2つ以上）は1つ目（CD1）しか落とさない＝前半だけになる → いちばん後回し（2026-11-12 X-Men 系）。
+  const multiCd = (sub) => (Array.isArray(sub.attributes.files) ? sub.attributes.files.length : 0) > 1;
+  const rank = (sub) => (multiCd(sub) ? 3 : 0) + baseRank(sub);
+  const baseRank = (sub) => {
     const attr = sub.attributes;
     const name = (attr.release || attr.files?.[0]?.file_name || '').toLowerCase();
     const featTitle = (
@@ -143,7 +150,7 @@ export function selectSubtitleCandidates(subtitles, isMovie, season, episode) {
     )
       return 2;
     if (attr.hearing_impaired) return 1;
-    if (/\b(hi|hearing|sdh|forced)\b/.test(name)) return 1;
+    if (/\b(hi|hearing|sdh)\b/.test(name)) return 1;
     return 0;
   };
   return [...candidates].sort(

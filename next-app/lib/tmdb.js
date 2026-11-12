@@ -79,6 +79,23 @@ export async function fetchTitleCandidatesFromTMDb(title) {
   }
 }
 
+// 検索・厳選から開いた作品は TMDB の ID と映画/ドラマが分かっている → 題名で検索し直さずにその ID を使う候補を返す。
+//   2026-11-12: 単語リストの画面が邦題「X-MEN」で検索し直し、映画の1番目（X-MEN：アポカリプス）で ID を上書きしていた
+//   （選んだのは X-Men 2000）。ID の無い古い一覧（mediaType 未設定を含む）は null＝従来どおり題名で探す。
+//   type は使わない（古い記録は映画でも type:'tv' が入っていることがある）。mediaType だけを信じる。
+export function knownTitleCandidate(drama) {
+  const id = Number(drama?.tmdbId);
+  const mt = drama?.mediaType;
+  if (!Number.isInteger(id) || id <= 0 || (mt !== 'movie' && mt !== 'tv')) return null;
+  return {
+    type: mt,
+    tmdbId: id,
+    englishTitle: drama.englishTitle || drama.title || '',
+    year: '',
+    posterPath: drama.posterPath || null,
+  };
+}
+
 // 候補からメタ情報を解決する（TVはシーズン詳細を追加取得）
 export async function resolveTitleCandidate(cand, title) {
   if (!cand) return null;
