@@ -54,11 +54,11 @@ const KEYS_SLIDES = [
         <circle cx="13.7" cy="10" r="0.6" fill="currentColor" /><circle cx="17" cy="10" r="0.6" fill="currentColor" />
       </svg>
     ),
-    title: '意味を確認する',
-    desc: '意味を開くまでは採点できません（見ずに答えないため）。PCは右手だけで Shift → 矢印 と回せます。',
+    title: '答え合わせ',
+    desc: '答え合わせの前は採点できません（見ずに答えないため）。PCは右手だけで Shift → 矢印 と回せます。',
     rows: [
-      { dev: '📱', gesture: 'カードをタップ', label: '意味を確認' },
-      { dev: '💻', keys: ['Shift', 'Space', 'Enter'], label: '意味を確認' },
+      { dev: '📱', gesture: 'カードをタップ', label: '答え合わせ' },
+      { dev: '💻', keys: ['Shift', 'Space', 'Enter'], label: '答え合わせ' },
     ],
   },
   {
@@ -521,7 +521,7 @@ export default function ReviewModal({ asPage = false }) {
   };
 
   // PCのキーボード操作（オーナー要望 2026-09-29・割り当てはスワイプの左右と一致させる）。
-  //   Space/Enter/Shift＝意味を確認。開いた後: →知ってた ←知らなかった ↓うろ覚え ↑/Backspace 前に戻る。
+  //   Space/Enter/Shift＝答え合わせ（意味を開く）。開いた後: →知ってた ←知らなかった ↓うろ覚え ↑/Backspace 前に戻る。
   //   1/2/3 も同じ（Anki 経験者向け）。開く前の矢印は無効（見ずに採点させない＝スワイプと同じ）。
   //   再挑戦パス（採点なし）は Space/Enter/→ のどれでも次へ。入力欄にフォーカス中は無効。
   useEffect(() => {
@@ -543,7 +543,7 @@ export default function ReviewModal({ asPage = false }) {
       }
       if (e.repeat) return; // 押しっぱなしで複数枚進まない（特に Shift／矢印）
       const k = e.key;
-      // Shift 単押しも「意味を確認」にする＝右手だけで Shift→矢印 と回せる（オーナー要望 2026-10-01）
+      // Shift 単押しも「答え合わせ」にする＝右手だけで Shift→矢印 と回せる（オーナー要望 2026-10-01）
       const isOpen = k === ' ' || k === 'Enter' || k === 'Shift';
       if (!flipped) {
         if (isOpen) {
@@ -851,10 +851,10 @@ function ReviewCard({ word: w, marks, idx, total, flipped, retryMode, onFlip, on
         {!flipped ? (
           <>
             <button className="review-flip" onClick={onFlip}>
-              タップして意味を確認 →
+              タップして答え合わせ →
             </button>
             <div className="review-key-hint" aria-hidden="true">
-              <kbd>Shift</kbd> / <kbd>Space</kbd> で意味を確認
+              <kbd>Shift</kbd> / <kbd>Space</kbd> で答え合わせ
             </div>
           </>
         ) : retryMode ? (

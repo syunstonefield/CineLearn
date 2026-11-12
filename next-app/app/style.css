@@ -4194,7 +4194,7 @@ html[data-theme="light"] .rh-hero:not(.is-done) .rh-hero-sub { color: var(--text
   .btn-rate { padding: 18px 6px; }
   .btn-rate-emoji { font-size: 24px; }
   .btn-rate-label { font-size: 15px; }
-  /* 「タップして意味を確認」も大きく */
+  /* 「タップして答え合わせ」も大きく */
   .review-flip { padding: 20px 28px; font-size: 16px; }
   .review-swipe-hint { display: block; }
 

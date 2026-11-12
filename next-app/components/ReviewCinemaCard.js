@@ -4,7 +4,7 @@
 //   予習の「じっくり覚える」（同じ ReviewModal の重ね表示）は従来の ReviewCard のまま＝見た目を分ける（オーナー「分けたい」）。
 //   変えない: 表→タップで裏→3択の流れ・3択の文言と意味・採点（SRS）・スワイプとキー操作・押し間違いの「戻る」。
 //   中身の改善（オーナー資料 2026-11-07）: 裏の読む順＝意味→例文と和訳（紙の上・対象語を強調）→作品情報／3択は同じ大きさで
-//   淡い色の地＋文字で区別（押す前に1つだけ光らせない）／表の下に「思い出してから開く」誘導／意味を確認するボタンは
+//   淡い色の地＋文字で区別（押す前に1つだけ光らせない）／表の下に「思い出してから開く」誘導／答え合わせのボタン（2026-11-12 まで「意味を確認する」）は
 //   3択と同じ位置・同じ高さ。場面の画像は出さない（法務の線）＝場面は実際のセリフと作品・話で見せる。
 //   2026-11-07 オーナー実機: 例文の黒い字幕の帯は浮いて見えるのでやめ、カードの紙の上に置く。
 //   見た目は CSS だけ（画像ゼロ・app/style.css「復習カード（夕焼けシネマ）」）。動き・10枚の区切りの演出は後の段。
@@ -338,7 +338,7 @@ export default function ReviewCinemaCard({ word: w, marks, flipped, retryMode, o
         {!flipped ? (
           <>
             <button type="button" className="rc-flip" onClick={onFlip}>
-              意味を確認する
+              答え合わせ
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M6 9l6 6 6-6" />
               </svg>
@@ -348,7 +348,7 @@ export default function ReviewCinemaCard({ word: w, marks, flipped, retryMode, o
               ← 知らなかった　｜　知ってた →
             </div>
             <div className="review-key-hint" aria-hidden="true">
-              <kbd>Shift</kbd> / <kbd>Space</kbd> で意味を確認
+              <kbd>Shift</kbd> / <kbd>Space</kbd> で答え合わせ
             </div>
           </>
         ) : retryMode ? (
