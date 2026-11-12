@@ -20,6 +20,7 @@ import {
 } from '@/lib/storage';
 import { AGAIN_BATCH } from '@/lib/againWords';
 import { shouldShowBreak } from '@/lib/reviewBreak';
+import { countDueTomorrow } from '@/lib/tomorrowPreview';
 import { addExp, levelInfo, expForReviewSession } from '@/lib/exp';
 import { awardReviewSession } from '@/lib/reviewAward';
 import ExpBlock from './ExpBlock';
@@ -610,6 +611,7 @@ export default function ReviewModal({ asPage = false }) {
             <ReviewBreak count={breakAt} onContinue={continueAfterBreak} onStop={stopAtBreak} onHide={hideBreaks} />
           ) : showDone ? (
             <ReviewDone
+              showTomorrow={cinema}
               queue={partial ? queue.slice(0, idx) : queue}
               partial={partial}
               awardedRef={awardedRef}
@@ -927,6 +929,21 @@ const CELEBRATE_STARS = [
   [95, 84, 9, 540],
 ];
 
+// 明日の予告（オーナー決定 2026-11-12・戻ってきてもらう工夫）: この回で答えた語のうち、SRS で明日 今日の復習に出る語の数。
+//   0 の時は出さない。急がせる言い方（あと○語・忘れる前に）はしない。利用統計の名前は足さない。
+//   出す画面: 復習完了（今日の復習・作品の復習）・もう一度の完了・途中でやめた画面。見直し・ひと区切りには出さない。
+function TomorrowNote({ count }) {
+  if (!(count > 0)) return null;
+  return (
+    <div className="rd-next">
+      <p className="rd-next-main">
+        明日 復習できる単語 <b>{count}</b>個
+      </p>
+      <p className="rd-next-sub">1日あけて思い出すと、覚えやすくなります</p>
+    </div>
+  );
+}
+
 // 星は全部の画面で同じ10個＋きらめき（復習完了・見直し完了・10枚の区切り・途中でやめた画面・オーナー 2026-11-12）。
 function DoneHero({ title, sub }) {
   return (
@@ -955,7 +972,7 @@ const StarIcon = () => (
 
 // partial＝途中でやめた時の成果画面（queue は採点済みの語だけ）。文言はやった分だけを肯定的に
 // （「未完了」「あと○語」は出さない＝罪悪感UI禁止）。awardedRef＝親と共有する「記録済み」旗。
-function ReviewDone({ queue, partial = false, awardedRef, ratings, promo, currentHistoryId, sessionInfo, setSessionInfo, retryMode, onRetryFailed, onDone, again = null, nextAgain = null, onNextAgain, markedRun = 0, onOpenWordbook }) {
+function ReviewDone({ showTomorrow = false, queue, partial = false, awardedRef, ratings, promo, currentHistoryId, sessionInfo, setSessionInfo, retryMode, onRetryFailed, onDone, again = null, nextAgain = null, onNextAgain, markedRun = 0, onOpenWordbook }) {
   // もう一度の続き（答えた日が新しい順の次の最大 20語・今回出した語は除く）。採点は reviewWord で保存済み＝開いた時点で数える
   const [nextWords] = useState(() => (again && nextAgain ? nextAgain() : []));
   const failed = queue.filter((w) => ratings[w.word] === 0);
@@ -964,6 +981,8 @@ function ReviewDone({ queue, partial = false, awardedRef, ratings, promo, curren
 
   // EXP: カード数×2＋昇格ボーナス。加算後の総EXPからレベルを出す（表示専用の状態）。
   const [expGain, setExpGain] = useState(null); // { earned, level } 記録後にセット
+  // 明日の予告の数（採点は reviewWord で保存済み＝開いた時点の SRS で数える・見直しは採点しないので出さない）
+  const [dueTomorrow] = useState(() => (retryMode || !showTomorrow ? 0 : countDueTomorrow(queue, loadSrs()))); // 予習の重ね表示（従来の見た目）には出さない
 
   // セッションを1回だけ記録（副作用なので effect 内で・StrictMode 二重実行と、途中の成果画面→✕→
   // アンマウント時の再加算は親の awardedRef で防ぐ）
@@ -1013,6 +1032,7 @@ function ReviewDone({ queue, partial = false, awardedRef, ratings, promo, curren
         <div className="rd-body">
           <DoneHero title="見直し完了！" sub={`「${label}」だった ${queue.length}単語をもう一度確認しました`} />
           {expGain && <ExpBlock earned={expGain.earned} lv={expGain.level} />}
+          <TomorrowNote count={dueTomorrow} />
           <p className="rd-note">知ってた・うろ覚えと答えた語は、次の復習日はそのままです</p>
         </div>
         <div className="rd-actions">
@@ -1100,6 +1120,7 @@ function ReviewDone({ queue, partial = false, awardedRef, ratings, promo, curren
           <DoneHero title="復習完了！" sub={`今日 ${sessionNum}回目 ・ ${queue.length}単語を復習しました`} />
         )}
         {expGain && <ExpBlock earned={expGain.earned} lv={expGain.level} />}
+        <TomorrowNote count={dueTomorrow} />
         {gotLearned && (
           <div className="rd-promo">
             <CheckIcon />
