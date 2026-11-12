@@ -74,3 +74,8 @@ test('終盤の確認: 映画は最後の語が字幕の終わりの 75% より�
   assert.equal(qualityGate(words, raw, { isMovie: true }).reason, 'coverage');
   assert.equal(qualityGate(words, raw, { isMovie: false }).reason, 'ok'); // ドラマは終盤を見ない（従来どおり）
 });
+
+test('1回の出力の上限: 思考の枠は 10,000（映画60語の区間で 9,100＋10,000＝19,100）', async () => {
+  const { VOCAB_THINK_ROOM } = await import('../lib/server/constants.js');
+  assert.equal(VOCAB_THINK_ROOM, 10000);
+});

@@ -23,7 +23,9 @@ export const TRANSLATE_MODEL = 'claude-haiku-5-5';
 //   思考ぶんも max_tokens に数えられる（実測の出力 9k〜14k/チャンク）ので、生成の max_tokens に VOCAB_THINK_ROOM を上乗せする。
 export const VOCAB_MODEL = 'claude-haiku-5-5';
 export const VOCAB_EXTRA = { output_config: { effort: 'low' } };
-export const VOCAB_THINK_ROOM = 8000;
+// 2026-11-12: 8,000 → 10,000。映画の2分割後も X-Men の区間1が 16,969／上限 17,100（あと131）だった＝余裕を足す。
+//   上限を上げても課金は使った分だけ。映画・ドラマ・切れた時の割り直しの全部の呼び出しに効く（vocabGen の defaultCallLlm）。
+export const VOCAB_THINK_ROOM = 10000;
 // A'（書きすぎを止める・2026-11-12 オーナー決定）。既定で有効。Vercel のサーバの環境変数 VOCAB_TIGHT_COUNT=off＋再デプロイで元の頼み方に戻る。
 //   新しく生成する話にだけ効く（共有キャッシュの既存の行は作り直さない＝VOCAB_CACHE_VERSION は上げない）。
 export const VOCAB_TIGHT_COUNT = process.env.VOCAB_TIGHT_COUNT !== 'off';
