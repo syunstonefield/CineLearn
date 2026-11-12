@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { loadHistory } from '@/lib/storage';
 import { FRAME_TIERS } from '@/lib/ticketFrame';
 import { useApp } from './AppProvider';
 import TicketPoster from './TicketPoster';
 
 // コレクションの作品の詳細（2026-11-12 作り替え・reports/collection-ui-current-2026-11-10/mock.html）。
+// ・2026-11-12: 1画面に収める（ポスター スマホ 136px・PC 240px＝法務の上限内・縦のまま切らない・何も重ねない）。
 // ・学習した話だけを並べる（「学習エピソード 4 / 140」やシーズン別の「0 / 16」の行はやめた＝未達を見せる分母を出さない）。
 // ・学習の記録＝単語リスト○話／覚えた○語／マスター○語＋達成度の線（30・60・90% に額縁の目印。「あと○語」は出さない）。
 // ・入口は上の「続きから学習（SxEy）」と、話ごとの行。学習時間は出さない（測っていない人が多い）。
@@ -46,6 +47,8 @@ export default function TicketDetailView({ entry, onBack, onFav, onStudy, onRemo
   const resume = saved?.lastSeason && saved?.lastEpisode ? { season: saved.lastSeason, episode: saved.lastEpisode } : eps[0] || null;
   const resumeLabel = !entry.isMovie && resume ? `続きから学習（S${resume.season}E${resume.episode}）` : '続きから学習';
 
+  // 話の行は絞る（スマホは新しい1話・PC は3話＝1画面に収める・オーナー 2026-11-12）。「すべての話」で全部を出す。
+  const [showAll, setShowAll] = useState(false);
   const progress = entry.progress;
   const fmtDate = (s) => (s || '').slice(0, 10).replace(/-/g, '.');
 
@@ -135,12 +138,23 @@ export default function TicketDetailView({ entry, onBack, onFav, onStudy, onRemo
 
         {eps.length > 0 && (
           <section className="cld-card">
-            <h2 className="cld-card-title">話ごとの単語リスト</h2>
-            <div className="cld-eps">
-              {eps.map((e) => (
+            <div className="cld-card-head">
+              <h2 className="cld-card-title">話ごとの単語リスト</h2>
+              {!showAll && eps.length > 1 && (
                 <button
                   type="button"
-                  className="cld-ep"
+                  className={'cld-all' + (eps.length <= 3 ? ' is-sp-only' : '')}
+                  onClick={() => setShowAll(true)}
+                >
+                  すべての話（{eps.length}話）›
+                </button>
+              )}
+            </div>
+            <div className={'cld-eps' + (showAll ? ' is-all' : '')}>
+              {eps.map((e, i) => (
+                <button
+                  type="button"
+                  className={'cld-ep' + (i >= 1 ? ' is-more-sp' : '') + (i >= 3 ? ' is-more-pc' : '')}
                   key={`${e.season}-${e.episode}`}
                   onClick={() => openWordList(e.season, e.episode)}
                 >
@@ -159,6 +173,16 @@ export default function TicketDetailView({ entry, onBack, onFav, onStudy, onRemo
             コレクションから消去
           </button>
         )}
+
+        {/* TMDB の表示（法務の条件 2026-11-12＝画面に見えていること）。画面下の帯はスマホでは下のタブバーの下になり、
+            この詳細を1画面に収めるとスクロールしないと見えないため、ここにも1行置く。 */}
+        <p className="cld-tmdb">
+          This product uses the TMDB API but is not endorsed or certified by{' '}
+          <a href="https://www.themoviedb.org" target="_blank" rel="noopener">
+            TMDB
+          </a>
+          .
+        </p>
       </div>
     </div>
   );

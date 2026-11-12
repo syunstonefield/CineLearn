@@ -5678,36 +5678,42 @@ html[data-theme="dark"] .tcp-item.frame-black .tcp-frame { box-shadow: 0 0 0 1px
 .wr-undo-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wr-undo-btn { flex-shrink: 0; background: none; border: none; padding: 4px 2px; font: inherit; font-weight: 700; color: inherit; text-decoration: underline; cursor: pointer; }
 
-/* 作品の詳細 */
-.cld-back { margin-bottom: 8px; align-self: flex-start; }
-.cld-head { display: flex; align-items: center; gap: 16px; }
-.cld-ps { width: 84px; flex: none; }
-.cld-head-tx { min-width: 0; }
-.cld-title { margin: 0; font-size: 21px; font-weight: 600; color: var(--text); line-height: 1.3; }
+/* 作品の詳細（2026-11-12 1画面に収める・reports/collection-tweaks-2026-11-12/plan2）。
+   ポスターはスマホ 136px（画面幅の50%以下）・PC 240px（上限）・w342・縦のまま（contain で切らない）・何も重ねない（法務）。 */
+.cld.screen-inner {
+  display: grid; grid-template-columns: 136px minmax(0, 1fr); column-gap: 14px; row-gap: 0; align-items: start;
+  padding-top: 4px; padding-bottom: 12px;
+}
+.cld-head { display: contents; }
+.cld-back { grid-column: 1 / -1; margin-bottom: 2px; padding: 2px 0; justify-self: start; }
+.cld-ps { grid-column: 1; grid-row: 2 / span 2; width: 136px; }
+.cld-ps .tcimg-poster-img { object-fit: contain; }
+.cld-head-tx { grid-column: 2; grid-row: 2; min-width: 0; }
+.cld-title { margin: 0; font-size: 18px; font-weight: 600; color: var(--text); line-height: 1.3; }
 .cld-ja { margin: 3px 0 0; font-size: 12px; color: var(--text-muted); }
-.cld-meta { margin: 6px 0 0; font-size: 12.5px; color: var(--text-soft); }
-.cld-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 18px; }
+.cld-meta { margin: 4px 0 0; font-size: 12px; color: var(--text-soft); }
+.cld-row2 { grid-column: 2; grid-row: 3; display: grid; grid-template-columns: 1fr; gap: 5px; margin-top: 10px; align-self: end; }
 .cld-btn2 {
-  display: flex; align-items: center; justify-content: center; padding: 10px; border: 1px solid var(--border);
-  border-radius: 10px; background: var(--surface); color: var(--text); font-size: 13.5px; font-family: inherit;
+  display: flex; align-items: center; justify-content: center; padding: 6px; border: 1px solid var(--border);
+  border-radius: 10px; background: var(--surface); color: var(--text); font-size: 12.5px; font-family: inherit;
   text-decoration: none; cursor: pointer;
 }
 .cld-btn2.is-on { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, var(--surface)); }
-.cld-go { margin-top: 12px; }
-.cld-card { margin-top: 14px; padding: 14px 16px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
-.cld-card-title { margin: 0 0 12px; font-size: 14px; font-weight: 600; color: var(--text); }
+.cld-go { grid-column: 1 / -1; margin-top: 8px; padding: 9px; }
+.cld-card { grid-column: 1 / -1; margin-top: 8px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.cld-card-title { margin: 0 0 4px; font-size: 12.5px; font-weight: 600; color: var(--text); }
 .cld-cells { display: grid; grid-template-columns: repeat(3, 1fr); text-align: center; }
 .cld-cell + .cld-cell { border-left: 1px solid var(--border); }
-.cld-cell small { display: block; font-size: 11px; color: var(--text-muted); }
-.cld-cell b { font-size: 22px; font-weight: 700; color: var(--text); }
+.cld-cell small { display: block; font-size: 10.5px; color: var(--text-muted); }
+.cld-cell b { font-size: 16px; font-weight: 700; color: var(--text); }
 .cld-cell i { margin-left: 2px; font-style: normal; font-size: 11px; color: var(--text-muted); }
-.cld-ach { margin-top: 16px; }
-.cld-ach-text { margin: 0; font-size: 12.5px; color: var(--text-soft); }
-.cld-track { position: relative; height: 8px; margin: 10px 0 20px; border-radius: 99px; background: var(--surface2); }
+.cld-ach { margin-top: 6px; }
+.cld-ach-text { margin: 0; font-size: 11.5px; color: var(--text-soft); }
+.cld-track { position: relative; height: 6px; margin: 6px 0 14px; border-radius: 99px; background: var(--surface2); }
 .cld-track-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 99px; background: var(--accent); }
-.cld-mark { position: absolute; top: -3px; width: 3px; height: 14px; margin-left: -1.5px; border-radius: 2px; }
+.cld-mark { position: absolute; top: -3px; width: 3px; height: 12px; margin-left: -1.5px; border-radius: 2px; }
 .cld-mark::after {
-  content: attr(data-l); position: absolute; top: 17px; left: 50%; transform: translateX(-50%);
+  content: attr(data-l); position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
   font-size: 10px; color: var(--text-muted); white-space: nowrap;
 }
 .cld-mark.mark-black { background: #141414; }
@@ -5715,16 +5721,35 @@ html[data-theme="dark"] .tcp-item.frame-black .tcp-frame { box-shadow: 0 0 0 1px
 .cld-mark.mark-gold { background: linear-gradient(180deg, #f5d77a, #a8741a); }
 .cld-eps { display: flex; flex-direction: column; }
 .cld-ep {
-  display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 2px; border: 0; border-top: 1px solid var(--border);
+  display: flex; align-items: center; gap: 12px; width: 100%; padding: 7px 2px; border: 0; border-top: 1px solid var(--border);
   background: none; text-align: left; font-family: inherit; color: var(--text); cursor: pointer;
 }
 .cld-ep:first-child { border-top: 0; }
 .cld-ep b { font-size: 14px; font-weight: 600; color: var(--accent); }
 .cld-ep span { font-size: 12.5px; color: var(--text-muted); }
 .cld-ep em { margin-left: auto; font-style: normal; color: var(--text-muted); }
+.cld-eps:not(.is-all) .cld-ep.is-more-sp { display: none; }
+.cld-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.cld-all {
+  display: block; margin: 0; padding: 2px; border: 0; background: none; color: var(--accent);
+  font-size: 12px; font-family: inherit; cursor: pointer;
+}
 .cld-del {
-  display: block; margin: 24px auto 0; padding: 6px; border: 0; background: none; color: var(--text-muted);
-  font-size: 12.5px; font-family: inherit; text-decoration: underline; cursor: pointer;
+  grid-column: 1 / -1; justify-self: center; margin: 2px auto 0; padding: 4px; border: 0; background: none; color: var(--text-muted);
+  font-size: 12px; font-family: inherit; text-decoration: underline; cursor: pointer;
+}
+.cld-tmdb { grid-column: 1 / -1; margin: 6px 0 0; text-align: center; font-size: 10.5px; color: var(--text-muted); }
+.cld-tmdb a { color: var(--text-muted); }
+@media (min-width: 769px) {
+  .cld.screen-inner { grid-template-columns: 240px minmax(0, 1fr); column-gap: 24px; padding-top: 24px; }
+  .cld-ps { grid-row: 2 / span 7; width: 240px; }
+  .cld-head-tx, .cld-row2, .cld-go, .cld-card, .cld-del, .cld-tmdb { grid-column: 2; }
+  .cld-row2 { grid-row: auto; grid-template-columns: 1fr 1fr; }
+  .cld-title { font-size: 22px; }
+  .cld-cell b { font-size: 20px; }
+  .cld-eps:not(.is-all) .cld-ep.is-more-sp { display: flex; }
+  .cld-eps:not(.is-all) .cld-ep.is-more-pc { display: none; }
+  .cld-all.is-sp-only { display: none; }
 }
 
 /* ── マイ単語帳（ページ版・表示は単語リスト＝VocabItem） ───────── */
