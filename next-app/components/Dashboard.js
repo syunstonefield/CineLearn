@@ -15,6 +15,7 @@ import { shouldShowTrialLaterBand, markTrialLaterBandShown } from '@/lib/trialSt
 import { trackUsage } from '@/lib/usage';
 import { clearExtInstallEntry, isExtInstallEntry } from '@/lib/extEntry';
 import { tmdb } from '@/lib/api';
+import { pickPosterUrl, fetchMoviePosterById, getCachedMoviePoster } from '@/lib/collection';
 import { computeRecap, computeWatchGroup } from '@/lib/reunion';
 import { settleRingValues } from '@/lib/rings';
 import { recencyMs } from '@/lib/workRemoval';
@@ -152,6 +153,9 @@ export default function Dashboard() {
   // 履歴由来のカード（posterPathが永続化されない）でも表示が消えないようにする。
   const attemptedPosters = useRef(new Set());
   const [posterOverrides, setPosterOverrides] = useState({}); // title → posterPath
+  // 映画の ID → その ID のポスター（'' は無し）。コレクションと同じ取り方（lib/collection.js・端末に90日）。
+  //   保存された URL は「どの ID の画像か」を持たないので、ID が直っても古い画像が残る（X-Men のアポカリプスの画像・2026-11-12）。
+  const [moviePosters, setMoviePosters] = useState({});
   // 進捗バー用のシーズン別話数（{ season番号: 話数 }）。posterOverrides と同じく override で補完。
   const attemptedEpisodes = useRef(new Set());
   const [episodeOverrides, setEpisodeOverrides] = useState({}); // title → seasonCounts
@@ -460,11 +464,57 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 
+  // 映画の作品の ID（作品の記録 → 履歴の行の順）。映画でなければ null。
+  function movieIdOf(e) {
+    const md = myDramas.find((d) => d.title === e.drama.title);
+    const isMovie = [md?.type, md?.mediaType, e.drama.type, e.drama.mediaType].includes('movie');
+    if (!isMovie) return null;
+    return Number(md?.tmdbId || e.drama.tmdbId) || null;
+  }
+  // 映画の ID のポスターを取る（端末に90日覚える・同時4件）。コレクションと同じ。
+  useEffect(() => {
+    let cancelled = false;
+    const ids = [...new Set(data.entries.map(movieIdOf).filter((id) => id && !(id in moviePosters)))];
+    if (!ids.length) return undefined;
+    const titlesOf = (id) =>
+      data.entries.filter((e) => movieIdOf(e) === id).flatMap((e) => {
+        const md = myDramas.find((d) => d.title === e.drama.title);
+        return [e.drama.title, md?.englishTitle, e.drama.englishTitle];
+      });
+    const cached = {};
+    const toFetch = [];
+    ids.forEach((id) => {
+      const c = getCachedMoviePoster(id);
+      if (c !== null) cached[id] = c;
+      else toFetch.push(id);
+    });
+    if (Object.keys(cached).length) setMoviePosters((m) => ({ ...m, ...cached }));
+    (async () => {
+      for (let i = 0; i < toFetch.length && !cancelled; i += 4) {
+        const res = await Promise.all(toFetch.slice(i, i + 4).map((id) => fetchMoviePosterById(id, titlesOf(id)).then((u) => [id, u])));
+        if (cancelled) return;
+        const upd = {};
+        res.forEach(([id, u]) => {
+          if (u !== null) upd[id] = u;
+        });
+        if (Object.keys(upd).length) setMoviePosters((m) => ({ ...m, ...upd }));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
+
   // 取得済みポスター・全話数をカードに適用（履歴由来カードは drama オブジェクトが
   // 再生成されるため、override で都度補完する）。縦ポスターへ取り直した既存カードも
   // override で上書きして表示を差し替える。
+  //   映画は、その ID のポスターを最優先（保存された URL が古い ID の画像でも直る）。ID は作品の記録（myDramas・
+  //   単語リストの画面で直される）を、学習の履歴の行の ID（取り違えた時の ID のまま残る）より優先する。
   const entries = data.entries.map((e) => {
-    const poster = posterOverrides[e.drama.title];
+    const id = movieIdOf(e);
+    const idPoster = id ? moviePosters[id] : null;
+    const poster = pickPosterUrl({ idPoster, override: posterOverrides[e.drama.title] });
     const seasonCounts = episodeOverrides[e.drama.title];
     if (!poster && !seasonCounts) return e;
     return {

@@ -625,7 +625,8 @@ export default function VocabScreen() {
       // ID が変わる時（壊れた ID を直す時を含む）は、前のポスターを引き継がない＝新しい ID のポスターか空
       //   （2026-11-12 直し方2: X-Men を 36657 に直してもアポカリプスのポスターが残っていた）。
       const idChanged = !!info?.tmdbId && info.tmdbId !== drama.tmdbId;
-      if (idChanged) drama.posterPath = info.posterPath || null;
+      //   空は '' にする（null だとクラウドの取り込みで古い記録の posterPath が穴埋めされて戻る・lib/profileMerge.js）。
+      if (idChanged) drama.posterPath = info.posterPath || '';
       if (info?.type === 'movie') {
         setIsMovie(true);
         setSeasons([]);
@@ -666,7 +667,7 @@ export default function VocabScreen() {
                 tmdbId: drama.tmdbId,
                 englishTitle: drama.englishTitle,
                 // ID が変わった時は一覧の前のポスターも使わない（空なら頭文字の札＝ホームが ID の結果で取り直す）
-                posterPath: idChanged ? drama.posterPath || null : drama.posterPath || d.posterPath,
+                posterPath: idChanged ? drama.posterPath || '' : drama.posterPath || d.posterPath,
               }
             : d
         ),
