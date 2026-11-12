@@ -473,6 +473,29 @@ export default function SettingsScreen() {
             </div>
           )}
 
+          {/* 10語ごとのひと区切り（復習・クイズ部門・オーナー決定 2026-11-12）。プロフィールの設定＝1回の復習の語数と同じく同期する。既定は入 */}
+          <div className="settings-section">
+            <div className="settings-section-title">🎬 復習のひと区切り</div>
+            <div className="tier-toggle-list">
+              <label className="tier-toggle-row">
+                <div className="tier-toggle-left">
+                  <div>
+                    <div className="tier-toggle-name">10語ごとにひと区切りを出す</div>
+                    <div className="tier-toggle-desc">
+                      復習の途中、10語答えるごとに「続ける」か「ここまでにする」かを選べる画面を出します。答えた分はいつでも記録されています。
+                    </div>
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  className="tier-checkbox"
+                  checked={settings.reviewBreak !== false}
+                  onChange={() => updateSettings({ reviewBreak: settings.reviewBreak === false })}
+                />
+              </label>
+            </div>
+          </div>
+
           {/* 利用統計（lib/usage.js・2026-10-09）。この端末だけの設定。オフの間はためるのも送るのも止める */}
           <div className="settings-section">
             <div className="settings-section-title">📊 利用統計</div>

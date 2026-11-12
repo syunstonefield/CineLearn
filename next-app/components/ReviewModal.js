@@ -19,6 +19,7 @@ import {
   getAgainWords,
 } from '@/lib/storage';
 import { AGAIN_BATCH } from '@/lib/againWords';
+import { shouldShowBreak } from '@/lib/reviewBreak';
 import { addExp, levelInfo, expForReviewSession } from '@/lib/exp';
 import { awardReviewSession } from '@/lib/reviewAward';
 import ExpBlock from './ExpBlock';
@@ -195,7 +196,10 @@ function KeysHelp({ onClose }) {
 
 // 既存 startReview / renderReviewCard（SRSフラッシュカード）の再現。
 export default function ReviewModal({ asPage = false }) {
-  const { reviewWords, reviewAll, reviewAgain, closeReview, currentHistoryId, profile, openWordbook, openReview } = useApp();
+  const { reviewWords, reviewAll, reviewAgain, closeReview, currentHistoryId, profile, openWordbook, openReview, settings, updateSettings } = useApp();
+  // 10枚でひと区切り（オーナー決定 2026-11-12・案5）: 採点した枚数が 10・20…になった所で区切りの画面を出す（最後の1枚の後は出さず完了へ）。
+  //   設定（プロフィールの settings.reviewBreak・既定は入＝1回の復習の語数と同じく同期する）で切れる。区切りの画面の「今後は表示しない」でも切れる。
+  const breakOn = settings?.reviewBreak !== false;
   // 「知らなかった／うろ覚えの語をもう一度」（2026-11-12）: 'unknown'｜'shaky'｜null。成功は練習・今日 N回目に数えない・EXP は見直しと同じ。
   const again = reviewAgain || null;
   // ★ 覚えたい／♡ お気に入りの例文（2026-11-07 オーナー決定）: カードの裏に出す。my_words の行を語ごとに持ち、
@@ -322,6 +326,9 @@ export default function ReviewModal({ asPage = false }) {
   // もう一度の「続きの N語」: 今回の続きで既に出した語（小文字）。復習タブから新しく始めた時だけ空にする。
   const againSeenRef = useRef(new Set());
   const againContRef = useRef(false);
+  // 区切り: 出している所（採点した枚数）と、この回で出し終えた所（戻るで取り消して答え直した時に二度出さない）
+  const [breakAt, setBreakAt] = useState(null);
+  const breaksShownRef = useRef(new Set());
   const [builtKey, setBuiltKey] = useState(null);
 
   // reviewWords がセットされたらキューを構築（レンダー中の同期初期化）
@@ -344,6 +351,8 @@ export default function ReviewModal({ asPage = false }) {
     setQueue(q);
     setIdx(0);
     setFlipped(false);
+    setBreakAt(null);
+    breaksShownRef.current = new Set();
     setRatings({});
     setPromo({ learned: [], mastered: [] });
     setSessionInfo(null);
@@ -453,6 +462,12 @@ export default function ReviewModal({ asPage = false }) {
     setRatings((r) => ({ ...r, [w.word]: q }));
     setFlipped(false);
     setIdx((i) => i + 1);
+    // 10枚でひと区切り（復習タブのページ表示・採点する回だけ＝今日の復習・作品の復習・もう一度。見直しは採点しないので出さない）
+    const answered = idx + 1;
+    if (cinema && shouldShowBreak(answered, queue.length, breakOn, breaksShownRef.current)) {
+      breaksShownRef.current.add(answered);
+      setBreakAt(answered);
+    }
   };
 
   // 直前の採点を取り消して1枚戻る（意味を開いた状態で戻す＝すぐ採点し直せる）。
@@ -470,6 +485,18 @@ export default function ReviewModal({ asPage = false }) {
   };
 
   const showDone = done || partial;
+  const showBreak = breakAt != null && !showDone;
+  // 区切りの画面: 続ける／ここまでにする（✕ と同じ＝答えた分は記録して「ここまで復習しました」）／今後は表示しない（設定を切って続ける）
+  const continueAfterBreak = () => setBreakAt(null);
+  const stopAtBreak = () => {
+    recordReviewExit('x');
+    setBreakAt(null);
+    setPartial(true);
+  };
+  const hideBreaks = () => {
+    updateSettings({ reviewBreak: false });
+    setBreakAt(null);
+  };
 
   // PCのキーボード操作（オーナー要望 2026-09-29・割り当てはスワイプの左右と一致させる）。
   //   Space/Enter/Shift＝意味を確認。開いた後: →知ってた ←知らなかった ↓うろ覚え ↑/Backspace 前に戻る。
@@ -484,6 +511,14 @@ export default function ReviewModal({ asPage = false }) {
       if (tag === 'input' || tag === 'textarea' || tag === 'select' || t?.isContentEditable) return;
       if (showKeys) return; // ガイド表示中は KeysHelp 側が受ける
       if (showDone) return;
+      if (showBreak) {
+        // 区切りの画面では Enter／Space で「続ける」だけ（矢印で採点が飛ばないように）
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          continueAfterBreak();
+        }
+        return;
+      }
       if (e.repeat) return; // 押しっぱなしで複数枚進まない（特に Shift／矢印）
       const k = e.key;
       // Shift 単押しも「意味を確認」にする＝右手だけで Shift→矢印 と回せる（オーナー要望 2026-10-01）
@@ -528,7 +563,7 @@ export default function ReviewModal({ asPage = false }) {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reviewWords, showKeys, showDone, flipped, retryMode, idx, queue, promo, ratings, undoStack]);
+  }, [reviewWords, showKeys, showDone, showBreak, flipped, retryMode, idx, queue, promo, ratings, undoStack]);
   // 進捗バー：消化済み（idx）/ 全体。完了画面では満タン表示。
   const pct = queue.length ? Math.round(((done ? queue.length : idx) / queue.length) * 100) : 0;
 
@@ -558,7 +593,7 @@ export default function ReviewModal({ asPage = false }) {
           </span>
         </div>
         {showKeys && <KeysHelp onClose={() => setShowKeys(false)} />}
-        {!showDone && cinema && (
+        {!showDone && !showBreak && cinema && (
           <CinemaProgress
             idx={idx}
             total={queue.length}
@@ -570,8 +605,10 @@ export default function ReviewModal({ asPage = false }) {
             <span className="review-progress-fill" style={{ width: `${pct}%` }} />
           </div>
         )}
-        <div className={'review-content' + (showDone ? ' is-done' : '')}>
-          {showDone ? (
+        <div className={'review-content' + (showDone || showBreak ? ' is-done' : '')}>
+          {showBreak ? (
+            <ReviewBreak count={breakAt} onContinue={continueAfterBreak} onStop={stopAtBreak} onHide={hideBreaks} />
+          ) : showDone ? (
             <ReviewDone
               queue={partial ? queue.slice(0, idx) : queue}
               partial={partial}
@@ -822,6 +859,29 @@ function ReviewCard({ word: w, marks, idx, total, flipped, retryMode, onFlip, on
   );
 }
 
+// 10枚でひと区切りの画面（オーナー決定 2026-11-12・見本 reports/review-card-ui-2026-11-12/mock.html）。
+//   残りの数・「あと○語」は出さない（罪悪感UI禁止）。答えた分は reviewWord で記録済み＝「記録されています」は事実。
+function ReviewBreak({ count, onContinue, onStop, onHide }) {
+  return (
+    <div className="rd">
+      <div className="rd-body">
+        <DoneHero title={`${count}語 復習しました`} sub="ひと区切りです。ここまでの分は記録されています。" />
+        <button type="button" className="rd-break-hide" onClick={onHide}>
+          今後は表示しない
+        </button>
+      </div>
+      <div className="rd-actions">
+        <button type="button" className="rd-btn1" onClick={onContinue}>
+          続ける
+        </button>
+        <button type="button" className="rd-btn2" onClick={onStop}>
+          ここまでにする
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // partial＝途中でやめた時の成果画面（queue は採点済みの語だけ）。文言はやった分だけを肯定的に
 // （「未完了」「あと○語」は出さない＝罪悪感UI禁止）。awardedRef＝親と共有する「記録済み」旗。
 // 完了画面（2026-11-09 オーナー OK のモックどおり＝reports/review-complete-redesign-2026-11-09/）:
@@ -1049,7 +1109,7 @@ function ReviewDone({ queue, partial = false, awardedRef, ratings, promo, curren
           </div>
         </section>
         {allPerfect && <div className="rd-perfect">全問正解！すばらしい</div>}
-        {hasList && <section className="rd-list">{listRows}</section>}
+        {hasList && <section className="rd-list">{listRows.map((el, i) => (el ? <Fragment key={i}>{el}</Fragment> : null))}</section>}
         {/* ★／♡ を付けた時だけ、単語帳への案内を一行（押しつけない・2026-11-07） */}
         {markedRun > 0 && (
           <button

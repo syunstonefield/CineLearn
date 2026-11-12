@@ -8074,3 +8074,9 @@ html[data-theme="dark"] .hm-row-pb { background: rgba(255,255,255,.08); }
 @media (max-width: 768px) {
   .hm { padding: 12px 16px 24px; }
 }
+
+/* 10枚でひと区切り（オーナー決定 2026-11-12）: 「今後は表示しない」＝控えめな文字のボタン（押せる高さ 44px） */
+.rd-break-hide {
+  align-self: center; min-height: 44px; padding: 0 12px; border: 0; background: none; cursor: pointer;
+  font-family: inherit; font-size: 13px; color: var(--rd-muted); text-decoration: underline; text-underline-offset: 3px;
+}
