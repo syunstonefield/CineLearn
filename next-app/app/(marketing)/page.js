@@ -45,8 +45,8 @@ const MARKUP = `
 <!-- HERO -->
 <section class="hero">
   <img class="hero-logo" src="/logo-hero.png" alt="CineLearn — 映画やドラマで英語をまなぶ">
-  <div class="hero-eyebrow">⭐ TOEIC 900点の壁を越えるために生まれた</div>
-  <h1>ドラマを観るだけで<br><em>生きた英語</em>が身につく</h1>
+  <div class="hero-eyebrow">海外ドラマで英語を続けたくて作った学習ツール</div>
+  <h1>観たいドラマが、<br><em>英語の教材</em>になる</h1>
   <p class="hero-sub">
     AIと間隔反復が、あなたのエンタメ時間をそのまま英語学習ルーティンに。
     「勉強だから続かない」を「観たいから続く」に変えて、
@@ -79,7 +79,7 @@ const MARKUP = `
   <div class="hero-visual">
     <div class="mock-bar">
       <div class="mock-dot"></div><div class="mock-dot"></div><div class="mock-dot"></div>
-      <div class="mock-url">Suits S3E4 — 今週の予習単語</div>
+      <div class="mock-url">見本：Suits S3E4 — 今週の予習単語</div>
     </div>
     <div class="mock-body">
       <div class="mock-label">AIが抽出した重要単語</div>
@@ -156,7 +156,7 @@ const MARKUP = `
           <div class="vs-icon">🎯</div>
           <div>
             <div class="vs-title">CineLearnのアプローチ</div>
-            <div class="vs-desc">視聴前に単語を予習 → ドラマに完全没入 → 間隔反復で定着</div>
+            <div class="vs-desc">観る前に単語を学ぶ → ドラマに没入 → 間隔反復で復習</div>
           </div>
         </div>
       </div>
@@ -186,7 +186,7 @@ const MARKUP = `
         <div class="step-num">3</div>
         <div class="step-icon">📈</div>
         <h3>最適タイミングで復習</h3>
-        <p>SM-2アルゴリズムが「忘れかけたタイミング」を算出。観たドラマの単語の復習が、ちょうどいい日に自動で並びます。</p>
+        <p>SM-2 をもとにした方式で、答えた結果から次の復習日を決めます。観たドラマの単語が、その日の復習に並びます。</p>
       </div>
     </div>
   </div>
@@ -205,13 +205,13 @@ const MARKUP = `
           <h3>視聴前の自動単語抽出で、動画を止めない</h3>
           <p>
             AIと字幕APIを組み合わせ「次に見るエピソード」の字幕データを裏側で解析。
-            ユーザーのTOEICレベルに合わせて既知単語を自動除外し、未知の重要単語だけを抽出します。
-            <strong style="color:var(--text)">あらかじめ予習しておくことで、再生後はドラマに没入するだけ。</strong>
+            設定した英語のレベルに合わせて、知っていそうな単語を自動で除外し、重要な単語だけを抽出します。
+            <strong style="color:var(--text)">観る前に単語を学んでおけば、再生中は止めずにドラマを楽しめます。予習しなくても、観るのはいつでも自由です。</strong>
           </p>
         </div>
         <div class="feat-visual">
           <div style="margin-bottom:18px">
-            <div style="font-size:11px;color:var(--text-light);margin-bottom:12px;letter-spacing:1px;text-transform:uppercase">Suits S3E4 — 抽出された重要単語</div>
+            <div style="font-size:11px;color:var(--text-light);margin-bottom:12px;letter-spacing:1px;text-transform:uppercase">見本：Suits S3E4 — 抽出された重要単語</div>
             <div class="word-chips">
               <span class="chip on">litigation</span>
               <span class="chip on">affidavit</span>
@@ -233,34 +233,33 @@ const MARKUP = `
           <span class="feat-tag">Spaced Repetition</span>
           <h3>忘れる前に、ちょうどいいタイミングで復習</h3>
           <p>
-            科学的に実証されている「間隔反復法（SM-2アルゴリズム）」をシステムに組み込み。
-            過去の記憶状態から「いつ復習すれば最も定着するか」を算出し、最適なタイミングで自動出題します。
-            各単語には復習回数・「知ってた／うろ覚え／知らなかった」の評価履歴も記録され、
-            <strong style="color:var(--text)">自分の定着度が一目でわかります。</strong>
+            間隔反復（SM-2 をもとにした方式）で、前回の答えから次の復習日を決めて自動で出題します。
+            各単語には復習回数・「知ってた／うろ覚え／知らなかった」の答えの記録も残り、
+            <strong style="color:var(--text)">語ごとの復習の記録を見返せます。</strong>
           </p>
         </div>
         <div class="feat-visual">
-          <div style="font-size:12px;color:var(--text-light);margin-bottom:14px">今日の復習スケジュール</div>
+          <div style="font-size:12px;color:var(--text-light);margin-bottom:14px">見本：今日の復習スケジュール</div>
           <div class="srs-item">
             <div>
               <div class="srs-word">litigation</div>
-              <div class="srs-from">Suits S3E4 · <span style="color:#d94f4f">😰 知らなかった</span> · 2回復習済み</div>
+              <div class="srs-from">Suits S3E4 · 知らなかった · 2回復習済み</div>
             </div>
-            <span class="pill red">🔴 今日</span>
+            <span class="pill gold">今日</span>
           </div>
           <div class="srs-item">
             <div>
               <div class="srs-word">leverage</div>
-              <div class="srs-from">Silicon Valley S1E2 · <span style="color:#2da87c">✅ 知ってた</span> · 4回復習済み</div>
+              <div class="srs-from">Silicon Valley S1E2 · 知ってた · 4回復習済み</div>
             </div>
-            <span class="pill gold">📅 明日</span>
+            <span class="pill gold">明日</span>
           </div>
           <div class="srs-item">
             <div>
               <div class="srs-word">affidavit</div>
               <div class="srs-from">Suits S2E8 · 7回復習済み</div>
             </div>
-            <span class="pill green">⭐ 習得済み</span>
+            <span class="pill gold">マスター</span>
           </div>
         </div>
       </div>
@@ -302,7 +301,7 @@ const MARKUP = `
           </p>
         </div>
         <div class="feat-visual">
-          <div style="font-size:11px;color:var(--text-light);margin-bottom:14px;letter-spacing:1px;text-transform:uppercase">単語カード</div>
+          <div style="font-size:11px;color:var(--text-light);margin-bottom:14px;letter-spacing:1px;text-transform:uppercase">見本：単語カード</div>
           <!-- word card mock -->
           <div style="background:#fff;border:1px solid #e8e4dc;border-radius:14px;padding:16px 18px;margin-bottom:10px">
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">
@@ -340,16 +339,16 @@ const MARKUP = `
           <span class="feat-tag">Smart Notifications</span>
           <h3>復習タイミングをプッシュ通知でお知らせ</h3>
           <p>
-            朝7時に「今日の復習単語数」、夜21時に「次のエピソードを見る前に復習しよう」という
+            朝7時に「今日の復習単語数」、夕方17時半に「次のエピソードを見る前に復習しよう」という
             2種類のリマインダーをスマホ・PCへ自動送信。
-            <strong style="color:var(--text)">視聴と学習をセットにする習慣が、自然と身につきます。</strong>
+            <strong style="color:var(--text)">観る前に、その話の単語をまとめて見返せます。</strong>
           </p>
           <ul style="list-style:none;padding:0;margin-top:16px;display:flex;flex-direction:column;gap:8px">
             <li style="display:flex;align-items:center;gap:10px;font-size:14px;color:var(--text-muted)">
               <span style="font-size:18px">🌅</span> <strong style="color:var(--text)">朝7時</strong>　今日の復習 N単語をお知らせ
             </li>
             <li style="display:flex;align-items:center;gap:10px;font-size:14px;color:var(--text-muted)">
-              <span style="font-size:18px">🌙</span> <strong style="color:var(--text)">夜21時</strong>　視聴前の復習リマインダー
+              <span style="font-size:18px">🌙</span> <strong style="color:var(--text)">夕方17時半</strong>　視聴前の復習リマインダー
             </li>
           </ul>
         </div>
@@ -367,38 +366,37 @@ const MARKUP = `
             <div style="width:36px;height:36px;background:#b8923a;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:18px">🎬</div>
             <div>
               <div style="color:#fff;font-size:13px;font-weight:600;margin-bottom:2px">次のエピソードを見る前に</div>
-              <div style="color:#aaa;font-size:12px;line-height:1.5">観る前の3分復習。今夜のセリフが、聞き取れる 📖✨</div>
-              <div style="color:#666;font-size:11px;margin-top:4px">CineLearn · 夜21:00</div>
+              <div style="color:#aaa;font-size:12px;line-height:1.5">観る前の3分復習。今夜のエピソードの前に 📖</div>
+              <div style="color:#666;font-size:11px;margin-top:4px">CineLearn · 17:30</div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- NEW: 半券コレクション -->
+      <!-- コレクション（学習の記録・2026-11-12 半券の節を書き換え） -->
       <div class="feat-row flip">
         <div>
-          <span class="feat-tag">Ticket Stub Collection</span>
-          <h3>観るたびに、"半券"がたまる</h3>
+          <span class="feat-tag">Collection</span>
+          <h3>学習した作品が、記録として並ぶ</h3>
           <p>
-            予習を終えてドラマを観ると、その夜の半券が発行されます。
-            たまった半券はコレクションでいつでも見返せて、そのままその回の復習の入口に。
-            <strong style="color:var(--text)">ノルマも連続記録もありません。観た夜だけに残る、小さな記念品です。</strong>
+            単語リストを作った作品は、コレクションに学習の記録として並びます。
+            作品ごとに、単語リストを作った話・覚えた語・マスターした語を見返せて、そのまま続きの学習や話ごとの単語リストへ戻れます。
+            <strong style="color:var(--text)">覚えた語の割合が上がると、記録の枠が変わります（一度届いた枠は戻りません）。ノルマはありません。</strong>
           </p>
         </div>
         <div class="feat-visual" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px">
-          <!-- ticket stub mock -->
-          <div style="max-width:290px;width:100%;background:linear-gradient(135deg,#fffdf8,#f7ecd6);border:1px solid #e8d5b0;border-radius:14px;overflow:hidden;box-shadow:0 10px 28px rgba(184,146,58,0.2)">
-            <div style="padding:16px 18px 12px">
-              <div style="font-size:10px;letter-spacing:2px;color:#b8923a;text-transform:uppercase;margin-bottom:6px">🎟 Cinelearn Ticket</div>
-              <div style="font-size:17px;font-weight:700;color:#1a1a1a">Suits</div>
-              <div style="font-size:12px;color:#888">S3E4</div>
+          <!-- collection record mock（作品名・ポスターは出さない） -->
+          <div style="max-width:290px;width:100%;background:#fff;border:1px solid #e8e4dc;border-radius:12px;padding:16px 18px;box-shadow:0 10px 28px rgba(184,146,58,0.12)">
+            <div style="font-size:10px;letter-spacing:2px;color:#b8923a;text-transform:uppercase;margin-bottom:8px">見本：学習の記録</div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;color:#555;margin-bottom:10px">
+              <span>単語リスト <b style="color:#1a1a1a">4</b>話</span>
+              <span>覚えた <b style="color:#1a1a1a">38</b>語</span>
+              <span>マスター <b style="color:#1a1a1a">20</b>語</span>
             </div>
-            <div style="border-top:2px dashed #e8d5b0;display:flex;align-items:center;justify-content:space-between;padding:10px 18px;background:rgba(255,255,255,0.65)">
-              <span style="font-size:11px;color:#999">予習 12語 → 視聴</span>
-              <span style="font-size:12px;font-weight:600;color:#2da87c">✓ 観た証</span>
-            </div>
+            <div style="font-size:12px;color:#888;margin-bottom:6px">達成度 95%</div>
+            <div style="height:6px;border-radius:99px;background:#f0eeea;overflow:hidden"><div style="width:95%;height:100%;background:#c17f3b"></div></div>
           </div>
-          <div style="font-size:12px;color:var(--text-light)">予習を終えて観た夜に、1枚だけ発行</div>
+          <div style="font-size:12px;color:var(--text-light)">覚えた語の割合で、記録の枠が変わります</div>
         </div>
       </div>
 
@@ -458,7 +456,7 @@ const MARKUP = `
           <h3>Chrome Web Store で「Chrome に追加」</h3>
           <p>Chrome Web Store の CineLearn ページを開き、「Chrome に追加」を押すだけ。zip の解凍やデベロッパーモードの設定は不要です（Edge など他の Chromium 系ブラウザも同じ手順）。</p>
           <a href="${STORE_URL}" target="_blank" rel="noopener" class="btn-primary install-cta">🧩 Chrome Web Store で追加（無料）</a>
-          <div class="note"><strong>💻 PC の Chrome / Edge 専用。</strong>スマホは Web アプリで予習・復習・テストに対応しています。スマホの方は <a href="/app">/app で予習から</a>始めてください。</div>
+          <div class="note"><strong>💻 PC の Chrome / Edge 専用。</strong>スマホは Web アプリで、単語を学ぶ・復習・クイズに対応しています。スマホの方は <a href="/app">/app で作品を選んで</a>始めてください。</div>
         </div>
         <div class="illus">
           <div class="illus-bar">

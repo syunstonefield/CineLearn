@@ -116,7 +116,7 @@ export async function GET(req) {
     for (const sub of subscriptions) {
       const ok = await sendPush(sub, {
         title: '🎬 次のエピソードを見る前に',
-        body: '観る前の3分復習。今夜のセリフが、聞き取れる 📖✨',
+        body: '観る前の3分復習。今夜のエピソードの前に 📖',
         url: '/app',
       });
       if (ok) sent++;
