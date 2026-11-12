@@ -197,7 +197,9 @@ function KeysHelp({ onClose }) {
 
 // 既存 startReview / renderReviewCard（SRSフラッシュカード）の再現。
 export default function ReviewModal({ asPage = false }) {
-  const { reviewWords, reviewAll, reviewAgain, closeReview, currentHistoryId, profile, openWordbook, openReview, settings, updateSettings } = useApp();
+  const { reviewWords, reviewAll, reviewAgain, closeReview, currentHistoryId, profile, openWordbook, openReview, settings, updateSettings, cardDeck } = useApp();
+  // 作品を選んだあとのカード（2026-11-12 カード中心・AppProvider openCardDeck）: 渡された並びのまま出し、終わり／✕ で
+  //   cardDeck.onFinish(答えた語) を呼んで閉じる（終わりの画面は単語リストの画面が出す＝ここの完了画面・途中の成果画面は出さない）。
   // 10枚でひと区切り（オーナー決定 2026-11-12・案5）: 採点した枚数が 10・20…になった所で区切りの画面を出す（最後の1枚の後は出さず完了へ）。
   //   設定（プロフィールの settings.reviewBreak・既定は入＝1回の復習の語数と同じく同期する）で切れる。区切りの画面の「今後は表示しない」でも切れる。
   const breakOn = settings?.reviewBreak !== false;
@@ -274,6 +276,8 @@ export default function ReviewModal({ asPage = false }) {
   // 夕焼けシネマの見た目と復習の利用データは、復習タブのページ表示だけ（2026-11-07 オーナー決定）。
   // 予習の「じっくり覚える」（重ね表示・asPage=false）は従来の見た目のまま・予習の利用データにも数えない。
   const cinema = asPage;
+  // 見た目だけ: 作品を選んだあとのカード（cardDeck）も今の復習のカード（明るい背景）にする。利用データ・区切り・明日の予告は cinema のまま（復習の数に混ぜない）。
+  const look = asPage || !!cardDeck;
 
   // ページ表示（スマホの復習タブ）の間はページ全体のスクロールを止める（CSS: html.cl-review-lock）。
   // 下の TMDB 表記の分だけページが画面からはみ出し、上下に触るとカードがずれていた（オーナー報告 2026-10-20）。
@@ -282,12 +286,12 @@ export default function ReviewModal({ asPage = false }) {
   //   （useEffect だと「止めたままのページにタブバーを差し込み→あとで止めを外す」順になり、iPhone の WebKit で
   //    固定のタブバーがページと一緒にスクロールして途中に浮いた・オーナー実機 2026-11-09）。
   useLayoutEffect(() => {
-    if (!asPage) return;
+    if (!look || !reviewWords) return;
     const root = document.documentElement;
-    window.scrollTo(0, 0);
+    if (asPage) window.scrollTo(0, 0);
     root.classList.add('cl-review-lock');
     return () => root.classList.remove('cl-review-lock');
-  }, [asPage]);
+  }, [look, asPage, !!reviewWords]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 初期キュー：未学習 or 期日到来のみ・シャッフル（reviewWords が変わるたびに作り直す）
   const [queue, setQueue] = useState([]);
@@ -343,7 +347,7 @@ export default function ReviewModal({ asPage = false }) {
         return !e || isDue(e);
       })
       // もう一度は「答えた日が新しい順」のまま（lib/againWords.js）。それ以外は混ぜる
-      .sort(again ? () => 0 : () => Math.random() - 0.5);
+      .sort(again || cardDeck ? () => 0 : () => Math.random() - 0.5);
     if (again) {
       if (!againContRef.current) againSeenRef.current = new Set();
       againContRef.current = false;
@@ -420,12 +424,26 @@ export default function ReviewModal({ asPage = false }) {
     []
   );
 
+  // カード（cardDeck）: 最後の1枚に答えたら、単語リストの画面の終わりの画面へ渡して閉じる。
+  const deckDone = !!cardDeck && !!reviewWords && builtKey === initKey && queue.length > 0 && idx >= queue.length;
+  const finishDeck = () => {
+    const answered = queue.filter((w) => ratings[w.word] != null);
+    const cb = cardDeck?.onFinish;
+    closeReview();
+    cb?.(answered);
+  };
+  useEffect(() => {
+    if (deckDone) finishDeck();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deckDone]);
+
   if (!reviewWords) return null;
 
   const done = idx >= queue.length;
   const ratedCount = retryMode ? 0 : Object.keys(ratings).length;
   // ✕／オーバーレイ：途中で採点済みの語があれば成果画面へ。0語・完了後・再挑戦パスはそのまま閉じる。
   const requestClose = () => {
+    if (cardDeck) return finishDeck(); // カードはいつでも✕で抜けられる（答えた分は記録済み）
     if (!done) recordReviewExit('x');
     if (!done && !partial && ratedCount > 0) setPartial(true);
     else closeReview();
@@ -568,17 +586,33 @@ export default function ReviewModal({ asPage = false }) {
   // 進捗バー：消化済み（idx）/ 全体。完了画面では満タン表示。
   const pct = queue.length ? Math.round(((done ? queue.length : idx) / queue.length) * 100) : 0;
 
+  if (deckDone) return null; // フックを全部呼んだあと（早い return の後にもフックがあるため・2026-11-12）
   return (
     <div
-      className={asPage ? 'screen active review-screen review-cinema' : 'modal-overlay review-overlay'}
+      className={
+        asPage ? 'screen active review-screen review-cinema' : cardDeck ? 'screen active review-screen review-cinema review-deck' : 'modal-overlay review-overlay'
+      }
       id={asPage ? 'screen-review' : undefined}
-      style={asPage ? undefined : { display: 'flex' }}
-      onClick={asPage ? undefined : overlayClick}
+      style={look ? undefined : { display: 'flex' }}
+      onClick={look ? undefined : overlayClick}
     >
-      <div className={asPage ? 'review-panel' : 'modal-panel review-modal-panel'}>
+      <div className={look ? 'review-panel' : 'modal-panel review-modal-panel'}>
         <div className="modal-header">
-          <span className="modal-title">🃏 復習</span>
+          <span className="modal-title">{cardDeck ? '🃏 予習' : '🃏 復習'}</span>
           <span className="review-head-btns">
+            {cardDeck?.onList && (
+              <button
+                type="button"
+                className="review-list-link"
+                onClick={() => {
+                  const cb = cardDeck.onList;
+                  finishDeck();
+                  cb();
+                }}
+              >
+                単語リスト
+              </button>
+            )}
             <button
               type="button"
               className="modal-close review-keys-btn"
@@ -594,14 +628,14 @@ export default function ReviewModal({ asPage = false }) {
           </span>
         </div>
         {showKeys && <KeysHelp onClose={() => setShowKeys(false)} />}
-        {!showDone && !showBreak && cinema && (
+        {!showDone && !showBreak && look && (
           <CinemaProgress
             idx={idx}
             total={queue.length}
-            label={again === 'unknown' ? '知らなかった語' : again === 'shaky' ? 'うろ覚えの語' : undefined}
+            label={cardDeck ? '予習' : again === 'unknown' ? '知らなかった語' : again === 'shaky' ? 'うろ覚えの語' : undefined}
           />
         )}
-        {!showDone && !cinema && (
+        {!showDone && !look && (
           <div className="review-progress" aria-hidden="true">
             <span className="review-progress-fill" style={{ width: `${pct}%` }} />
           </div>
@@ -652,7 +686,7 @@ export default function ReviewModal({ asPage = false }) {
               markedRun={markedRun}
               onOpenWordbook={openWordbook}
             />
-          ) : cinema ? (
+          ) : look ? (
             <ReviewCinemaCard
               word={queue[idx]}
               marks={marksFor(queue[idx])}

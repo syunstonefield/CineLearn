@@ -791,7 +791,22 @@ export default function AppProvider({ children }) {
     const titles = [...new Set((words || []).map((w) => w?._src?.title).filter(Boolean))];
     if (titles.length === 1) touchWorks(titles);
   }, [touchWorks]);
+  // 作品を選んだあとのカード（2026-11-12 カード中心）: 単語リストの画面から、この話の語だけを答える形で開く。
+  //   { onFinish(answeredWords), onList? }。復習と同じカード（重ね表示）・答えは SRS に入る・終わり／✕ で onFinish を呼んで閉じる。
+  const cardDeckRef = useRef(null);
+  const [cardDeck, setCardDeck] = useState(null);
+  const openCardDeck = useCallback((words, meta) => {
+    pendingPrepCardsRef.current = null;
+    cardDeckRef.current = meta || {};
+    setCardDeck(meta || {});
+    setReviewAgain(null);
+    setReviewAll(true); // 期日で絞らない（呼び出し側が出す語を決めて渡す）
+    setReviewAsPage(false); // 単語リストの画面の上に重ねる（画面はそのまま＝終わったら同じ画面の終わりの画面へ）
+    setReviewWords(words || []);
+  }, []);
   const closeReview = useCallback(() => {
+    cardDeckRef.current = null;
+    setCardDeck(null);
     setReviewWords(null);
     setReviewAgain(null);
     setReviewAsPage(false);
@@ -966,6 +981,8 @@ export default function AppProvider({ children }) {
     openReview,
     closeReview,
     openPrepReview,
+    openCardDeck,
+    cardDeck,
     reviewVersion,
     goToQuiz,
     prepQuiz,

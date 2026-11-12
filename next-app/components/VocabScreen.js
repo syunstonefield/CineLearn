@@ -6,6 +6,9 @@ import VocabItem from './VocabItem';
 import CefrNote from './CefrNote';
 import { cefrHintOf } from '@/lib/cefrHint';
 import GenLoading from './GenLoading';
+import { CardHome, CardDone } from './CardHome';
+import { cardCandidates, cardCount, takeCards, seenCount, CARDS_FIRST_DONE_KEY } from '@/lib/cardDeck';
+import { countDueTomorrow } from '@/lib/tomorrowPreview';
 import {
   loadSrs,
   loadHistory,
@@ -100,6 +103,7 @@ export default function VocabScreen() {
     openPrepQuiz,
     openPrepLaunch,
     openPrepWalk,
+    openCardDeck,
     reviewVersion,
     openAuth,
     loggedIn,
@@ -182,6 +186,9 @@ export default function VocabScreen() {
   // 生成直後は単語リストを経由せず予習ウォークスルーへ直行する（ユーザー要望）。
   // onGenerate 成功でこの一回限りフラグを立て、新出語が揃った瞬間に effect が開く。
   const [justGenerated, setJustGenerated] = useState(false);
+  // カード中心（2026-11-12）: リストができた話は、まずカードの画面（'cards'）。単語リストは本人が開いた時だけ（'list'）。
+  const [view, setView] = useState('cards');
+  const [cardDone, setCardDone] = useState(null); // { answered:[…] }＝カードを終えた画面
 
   // 生成結果の付帯情報（2026-09-12）:
   //   genNote  … error 相の補助導線。{ login:true } で「ログインする」ボタン（生成枠の 429・A12(3)）
@@ -357,10 +364,8 @@ export default function VocabScreen() {
   useEffect(() => {
     if (!justGenerated) return;
     if (!drama || phase !== 'vocab' || !sortedVocab.length) return;
-    listToWalk();
-    openPrepWalk(
-      buildWalkPayload({ sortedVocab, timestamps, srs, drama, season, episode, isMovie, service: settings.selectedViewingService || '', core: prepCoreOf(settings) })
-    );
+    // 「カードをはじめる →」（待ち画面の最後）＝この話のカードを答える形で開く（2026-11-12 カード中心・一覧は自動で出さない）
+    startCards();
     setJustGenerated(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [justGenerated, phase, sortedVocab]);
@@ -604,6 +609,8 @@ export default function VocabScreen() {
       setExtWords([]);
       setHistoryId(null);
       setPrepFresh(false); // 別エピソードへ移ったら下部3択は隠す（新規生成成功で再点灯）
+      setView('cards');
+      setCardDone(null);
       setNotShared(false);
       setGenNote(null);
       setGenBtn({ text: '予習をはじめる →', disabled: true, hidden: false });
@@ -1135,11 +1142,44 @@ export default function VocabScreen() {
   }, [drama, season, episode, settings, loggedIn, openAuth, reloadSrs, loadExtWords]);
 
   // ── ハンドラ ──
-  // ロビーの「リストを見る →」: ここで初めてリスト表示＋予習ウォークスルー直行が発火する
+  // この話のカード（答える形・SRS に入る）。初めては5枚・2回目からは設定の語数・「続けて」は10枚（lib/cardDeck.js）。
+  const startCards = ({ more = false } = {}) => {
+    let first = false;
+    try {
+      first = localStorage.getItem(CARDS_FIRST_DONE_KEY) !== '1';
+    } catch {
+      /* ignore */
+    }
+    const n = cardCount({ first, setting: settings?.prepCoreCount, more });
+    const deck = takeCards(cardCandidates(sortedVocab, loadSrs(), todayStr()), n).map((w) => ({
+      ...w,
+      _src: { title: drama.title, season, episode, type: drama.type },
+    }));
+    if (!deck.length) return;
+    try {
+      localStorage.setItem(CARDS_FIRST_DONE_KEY, '1');
+    } catch {
+      /* ignore */
+    }
+    setCardDone(null);
+    setView('cards');
+    openCardDeck(deck, {
+      onFinish: (answered) => {
+        reloadSrs();
+        setCardDone(answered && answered.length ? { answered } : null);
+      },
+      onList: () => {
+        setCardDone(null);
+        setView('list');
+      },
+    });
+  };
+  // ロビーの「カードをはじめる →」: ここで初めて単語リストの中身が揃い、この話のカードが開く（一覧は自動で出さない）
   const revealList = () => {
     setRevealReady(false);
     setPhase('vocab');
-    setJustGenerated(true); // 生成直後は予習ウォークスルーへ直行（effect が新出語の揃った瞬間に開く）
+    setView('cards');
+    setJustGenerated(true); // 新出語の揃った瞬間にカードを開く（effect）
   };
   const handleSkip = (word, isSkip) => {
     isSkip ? unskipWord(word) : skipWord(word);
@@ -1895,6 +1935,7 @@ export default function VocabScreen() {
             )}
           </div>
           <div className="episode-selected">{statusText}</div>
+          {!genBtn.hidden && <p className="ch-small ch-small-sel">予習しなくても、いつでも観られます</p>}
           {bulkListCount >= 2 && (
             <button type="button" className="bulkdel-link" onClick={openBulkDelete}>
               この作品の単語リストをすべて削除（{bulkListCount}話）
@@ -1944,9 +1985,49 @@ export default function VocabScreen() {
               episode={episode}
               ready={revealReady}
               onReveal={revealList}
+              revealLabel="カードをはじめる →"
             />
+          ) : showVocab && sortedVocab.length && view === 'cards' ? (
+            cardDone ? (
+              <CardDone
+                count={cardDone.answered.length}
+                tomorrow={countDueTomorrow(cardDone.answered, srs)}
+                canMore={cardCandidates(sortedVocab, srs, todayStr()).length > 0}
+                onMore={() => startCards({ more: true })}
+                onWatch={startPrepWatch}
+                onList={() => {
+                  setCardDone(null);
+                  setView('list');
+                }}
+                onClose={() => setCardDone(null)}
+              />
+            ) : (
+              <CardHome
+                drama={drama}
+                season={season}
+                episode={episode}
+                isMovie={isMovie}
+                total={sortedVocab.length}
+                seen={seenCount(sortedVocab, srs)}
+                canStart={cardCandidates(sortedVocab, srs, todayStr()).length > 0}
+                onStart={() => startCards()}
+                onList={() => setView('list')}
+                onOtherEpisode={() => setEpSheet(true)}
+              />
+            )
           ) : showVocab && sortedVocab.length ? (
             <>
+              {/* 単語リスト（本人が開いた時だけ・2026-11-12 カード中心）: 上にカードへ戻る行 */}
+              <div className="ch-list-top">
+                <button type="button" className="ch-back" onClick={() => setView('cards')}>
+                  ← カードへ
+                </button>
+                {cardCandidates(sortedVocab, srs, todayStr()).length > 0 && (
+                  <button type="button" className="ch-btn1 ch-btn1-sm" onClick={() => startCards()}>
+                    カードをはじめる
+                  </button>
+                )}
+              </div>
               {/* 進捗バー */}
               <div className="srs-progress-wrap">
                 <div className="srs-progress-header">
@@ -2260,7 +2341,7 @@ export default function VocabScreen() {
             - 復習: 今日の復習（期日の語だけ・#7b）。0語なら無効表示
             - クイズ: 「テスト」の語感は避ける（視聴前のテスト予告は偶発学習を阻害しがち＝Montero Perez 2022系）
             - カード: 予習前は「予習する」（設定の語数で重要語から）／予習後・再表示は「カード」（全語） */}
-        {showVocab && sortedVocab.length > 0 && !barHidden && (
+        {showVocab && sortedVocab.length > 0 && view === 'list' && !barHidden && (
           <>
             <div className="vocab-action-bar" role="toolbar" aria-label="学習のアクション">
               <button

@@ -34,7 +34,7 @@ function genPhaseFloorOf(status) {
 
 // ready=true でスピナーを完了表示に替え「リストを見る →」ボタンを出す（自動遷移しない）。
 // あらすじ/Tipsを読み終わってから本人のタップで進む＝強制の待ちを増やさずロビー滞在を本人の選択にする。
-export default function GenLoading({ status, drama, season, episode, ready = false, onReveal }) {
+export default function GenLoading({ status, drama, season, episode, ready = false, onReveal, revealLabel = 'リストを見る →' }) {
   // Tips：ランダム開始で4秒ごとにローテーション
   const [tipIdx, setTipIdx] = useState(() => Math.floor(Math.random() * LEARNING_TIPS.length));
   const [synopsis, setSynopsis] = useState(null);
@@ -138,7 +138,7 @@ export default function GenLoading({ status, drama, season, episode, ready = fal
       {/* 完了 → 自動遷移せず本人のタップで開く（あらすじ/Tipsの読了は本人のペース） */}
       {ready && (
         <button className="gen-reveal-btn" onClick={onReveal}>
-          リストを見る →
+          {revealLabel}
         </button>
       )}
 
