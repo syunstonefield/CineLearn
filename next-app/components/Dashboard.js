@@ -371,25 +371,37 @@ export default function Dashboard() {
       const found = {}; // title → posterPath
       const md = [...myDramas];
       let mdChanged = false;
+      // ★ここでは作品の ID（tmdbId）を書き換えない（2026-11-12）。以前は題名でドラマを検索し、1番目の ID で上書きしていた
+      //   ＝映画の X-Men（36657）がドラマの X-メン（4574）に置き換わり、単語リストが別の作品で作られる原因になった。
       for (const { drama } of missing) {
         try {
-          const res = await fetch('/api/tmdb', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'search', query: drama.englishTitle || drama.title }),
-          });
-          const json = await res.json();
-          const hit = json.results?.[0];
-          // 縦のポスターだけ。無ければ頭文字の札のまま（横長の backdrop＝場面写真を縦の枠で代用しない・法務 2026-11-12）
-          if (!hit?.poster_path) continue;
-          const imgPath = hit.poster_path;
-          const p = `https://image.tmdb.org/t/p/w342${imgPath}`;
+          let p = null;
+          const old = drama.posterPath || '';
+          if (/\/w(500|780)\//.test(old)) {
+            // 同じポスターの大きさ違い＝通信なしで縦の w342 に付け替える
+            p = old.replace(/\/w(500|780)\//, '/w342/');
+          } else {
+            const res = await fetch('/api/tmdb', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: drama.type === 'movie' || drama.mediaType === 'movie' ? 'search_movie' : 'search',
+                query: drama.englishTitle || drama.title,
+              }),
+            });
+            const json = await res.json();
+            const results = json.results || [];
+            // ID の分かっている作品は、その ID の結果だけ使う（別の作品のポスターを付けない）。映画で一致が無ければ頭文字の札のまま。
+            const hit = drama.tmdbId ? results.find((r) => r.id === drama.tmdbId) : results[0];
+            // 縦のポスターだけ。無ければ頭文字の札のまま（横長の backdrop＝場面写真を縦の枠で代用しない・法務 2026-11-12）
+            if (!hit?.poster_path) continue;
+            p = `https://image.tmdb.org/t/p/w342${hit.poster_path}`;
+          }
           found[drama.title] = p;
 
           const m = md.find((d) => d.title === drama.title);
           if (m) {
             m.posterPath = p;
-            if (hit.id) m.tmdbId = hit.id;
             mdChanged = true;
           }
         } catch {

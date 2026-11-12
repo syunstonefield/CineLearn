@@ -39,6 +39,19 @@ export async function fetchMovieInfoFromTMDb(title) {
   }
 }
 
+// 題名の比べ方（大文字小文字・空白・記号の違いは同じとみなす）。x は TMDB の結果（映画/ドラマ）。
+export function normTitleKey(t) {
+  return String(t || '')
+    .toLowerCase()
+    .replace(/[\s　]+/g, '')
+    .replace(/[：:／/・･｜|〜~‐‑–—\-!！?？.。,、'’"”“…]+/g, '');
+}
+export function sameTitle(x, title) {
+  const k = normTitleKey(title);
+  if (!k) return false;
+  return [x?.title, x?.original_title, x?.name, x?.original_name].some((t) => t && normTitleKey(t) === k);
+}
+
 // /search/multi で TVと映画の最上位候補をそれぞれ取得
 export async function fetchTitleCandidatesFromTMDb(title) {
   const posterOf = (x) => {
@@ -70,9 +83,14 @@ export async function fetchTitleCandidatesFromTMDb(title) {
         year: yearOf(x),
         posterPath: posterOf(x),
       };
+    // 題名が完全に一致する作品を優先し、無ければ1番目（2026-11-12: 「X-Men」の映画の1番目は X-MEN：アポカリプス）。
+    const pick = (mt) => {
+      const list = results.filter((x) => x.media_type === mt);
+      return list.find((x) => sameTitle(x, title)) || list[0];
+    };
     return {
-      tv: shape(results.find((x) => x.media_type === 'tv')),
-      movie: shape(results.find((x) => x.media_type === 'movie')),
+      tv: shape(pick('tv')),
+      movie: shape(pick('movie')),
     };
   } catch {
     return { tv: null, movie: null };
@@ -94,6 +112,23 @@ export function knownTitleCandidate(drama) {
     year: '',
     posterPath: drama.posterPath || null,
   };
+}
+
+// 保存された ID が、その作品の題名で検索した結果に入っているかを確かめる（2026-11-12）。
+//   ホームのポスター取り直しが、映画の ID をドラマの検索結果の ID で上書きしていた（X-Men 映画 36657 → ドラマ 4574）。
+//   入っていなければ null＝呼び出し側は題名で探し直す（完全一致を優先）。通信に失敗した時は候補をそのまま返す。
+export async function verifyKnownCandidate(cand, title) {
+  if (!cand) return null;
+  const q = cand.englishTitle || title;
+  if (!q) return cand;
+  try {
+    const data = await tmdb(cand.type === 'movie' ? { action: 'search_movie', query: q } : { action: 'search', query: q });
+    const results = Array.isArray(data?.results) ? data.results : null;
+    if (!results) return cand;
+    return results.some((r) => r.id === cand.tmdbId) ? cand : null;
+  } catch {
+    return cand;
+  }
 }
 
 // 候補からメタ情報を解決する（TVはシーズン詳細を追加取得）

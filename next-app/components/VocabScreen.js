@@ -27,6 +27,7 @@ import { isPrunedRow } from '@/lib/workRemoval';
 import {
   fetchTitleCandidatesFromTMDb,
   knownTitleCandidate,
+  verifyKnownCandidate,
   resolveTitleCandidate,
   fetchSeasonInfoFromTMDb,
   fetchMovieInfoFromTMDb,
@@ -722,7 +723,10 @@ export default function VocabScreen() {
 
       // ID と映画/ドラマが分かっている作品は、題名で検索し直さずにその ID で開く（ドラマは ID でシーズン情報だけ取る）。
       //   取れなかった時も題名検索に落とさない（別の作品に置き換わるのを防ぐ・applyTitleInfo(null) は既知の型と ID を保つ）。
-      const known = knownTitleCandidate(drama);
+      //   保存された ID は、題名で検索した結果に入っている時だけ使う（ホームのポスター取り直しで別作品の ID に
+      //   置き換わっていた一覧がある・2026-11-12）。入っていなければ下の題名検索（完全一致を優先）へ。
+      const known = await verifyKnownCandidate(knownTitleCandidate(drama), drama.title);
+      if (cancelled || myReq !== reqId.current) return;
       if (known) {
         let info = null;
         try {
