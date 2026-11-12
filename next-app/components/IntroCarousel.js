@@ -13,9 +13,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
 import { trackUsage } from '@/lib/usage';
 import { TRIAL_LEVELS } from '@/lib/trial';
-import { INTRO_SLIDES, INTRO_SAMPLE_NOTE, INTRO_STEP_KEY, lockPage, parseIntroStep } from '@/lib/introTour';
+import { INTRO_SAMPLE_NOTE, INTRO_STEP_KEY, HOME_SLIDE_TEXT, detectHomeScreenKind, introSlidesFor, lockPage, parseIntroStep } from '@/lib/introTour';
 
-const LAST = INTRO_SLIDES.length - 1;
 
 function Heading({ lines }) {
   return (
@@ -178,12 +177,53 @@ function ArtExt() {
   );
 }
 
-const ART = { list: ArtList, review: ArtReview, quiz: ArtQuiz, frames: ArtFrames, ext: ArtExt };
+// ホーム画面に追加（2026-11-12 試作・法務確認中）: 自作の絵＝ホーム画面のアイコンの並び（中身のない四角）と、手順の2つの札。
+//   配信サービスの名前・ポスター・作品名は出さない。iPhone は共有ボタン、Android は Chrome のメニュー（︙）。
+function ArtHome({ kind }) {
+  const ios = kind === 'ios';
+  return (
+    <div className="intro-home">
+      <div className="intro-home-phone a1" aria-hidden="true">
+        {Array.from({ length: 11 }, (_, i) => (
+          <i key={i} />
+        ))}
+        <img className="intro-home-app" src="/icon-192.png" alt="" />
+      </div>
+      <div className="intro-home-steps a2">
+        <div className="intro-home-step">
+          <span className="intro-home-ic" aria-hidden="true">
+            {ios ? (
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 3v12" />
+                <path d="M8 7l4-4 4 4" />
+                <path d="M6 11v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-8" />
+              </svg>
+            ) : (
+              <b>︙</b>
+            )}
+          </span>
+          <span>{ios ? 'Safari の共有ボタン' : 'Chrome の右上のメニュー'}</span>
+        </div>
+        <span className="intro-home-arrow" aria-hidden="true">
+          ↓
+        </span>
+        <div className="intro-home-step is-target">
+          <span className="intro-home-ic" aria-hidden="true">
+            {ios ? '＋' : '⊕'}
+          </span>
+          <span>ホーム画面に追加</span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-function Progress({ at }) {
+const ART = { list: ArtList, review: ArtReview, quiz: ArtQuiz, frames: ArtFrames, ext: ArtExt, home: ArtHome };
+
+function Progress({ at, slides }) {
   return (
     <div className="intro-prog" aria-hidden="true">
-      {INTRO_SLIDES.map((s, i) => (
+      {slides.map((s, i) => (
         <i key={s.key} className={i <= at ? 'on' : ''} />
       ))}
     </div>
@@ -193,6 +233,10 @@ function Progress({ at }) {
 export default function IntroCarousel({ mode = 'first' }) {
   const { openAuth, loggedIn, closeTutorial, finishIntro, startTour } = useApp();
   const first = mode === 'first';
+  // 「ホーム画面に追加」を出す端末か（iPhone・Android・まだホーム画面から開いていない）。開いている間は変えない。
+  const [homeKind] = useState(() => detectHomeScreenKind());
+  const slides = introSlidesFor(homeKind);
+  const LAST = slides.length - 1;
   // 初めての流れは、読み直されても続きの枚から（このタブのあいだだけ覚える）。
   const [saved] = useState(() => {
     if (!first) return null;
@@ -345,7 +389,7 @@ export default function IntroCarousel({ mode = 'first' }) {
     );
   }
 
-  const s = INTRO_SLIDES[step];
+  const s = slides[step];
   const isLast = step === LAST;
   const Art = ART[s.key];
 
@@ -367,7 +411,7 @@ export default function IntroCarousel({ mode = 'first' }) {
             <p className="intro-cover-p a3">観たいドラマが、英単語の教材に。</p>
           </div>
           <div className="intro-foot">
-            <Progress at={0} />
+            <Progress at={0} slides={slides} />
             <button type="button" className="intro-btn" onClick={() => go(1)}>
               次へ
             </button>
@@ -407,16 +451,16 @@ export default function IntroCarousel({ mode = 'first' }) {
           <div className="intro-head">
             <Heading lines={s.h} />
             <p className="intro-p">
-              <span className={'intro-p-sp' + (s.pcP ? ' has-pc' : '')}>{s.p}</span>
+              <span className={'intro-p-sp' + (s.pcP ? ' has-pc' : '')}>{s.key === 'home' ? HOME_SLIDE_TEXT[homeKind] : s.p}</span>
               {s.pcP && <span className="intro-p-pc">{s.pcP}</span>}
             </p>
           </div>
           <div className={`intro-art intro-art-${s.key}`}>
-            <Art />
+            <Art kind={homeKind} />
           </div>
           <div className="intro-foot">
-            <div className="intro-note">{INTRO_SAMPLE_NOTE}</div>
-            <Progress at={step} />
+            {s.key !== 'home' && <div className="intro-note">{INTRO_SAMPLE_NOTE}</div>}
+            <Progress at={step} slides={slides} />
             {!isLast ? (
               <button type="button" className="intro-btn" onClick={() => go(step + 1)}>
                 次へ

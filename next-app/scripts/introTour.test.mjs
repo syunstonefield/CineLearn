@@ -1,6 +1,6 @@
 // スライド式チュートリアルとボタン案内（lib/introTour.js）・利用統計の項目（lib/usageEvents.js・lib/usageReport.js）の単体テスト。
 import assert from 'node:assert/strict';
-import { parseIntroStep, tourSteps, TOUR_STEPS, lastTipAction, shouldGlowAdd, tipPosition, spotRect, INTRO_SLIDES, FIRST_RUN_MODE } from '../lib/introTour.js';
+import { parseIntroStep, tourSteps, TOUR_STEPS, lastTipAction, shouldGlowAdd, tipPosition, spotRect, INTRO_SLIDES, FIRST_RUN_MODE, homeScreenKind, introSlidesFor } from '../lib/introTour.js';
 import { isUsageEvent } from '../lib/usageEvents.js';
 import { buildUsageReport, INTRO_STEPS } from '../lib/usageReport.js';
 
@@ -95,7 +95,7 @@ t('明かりはボタンより少し広い', () => {
 });
 
 t('スライドは6枚（ようこそ／単語リスト／復習／クイズ／コレクション／拡張機能）', () => {
-  assert.deepEqual(INTRO_SLIDES.map((s) => s.key), ['cover', 'list', 'review', 'quiz', 'frames', 'ext']);
+  assert.deepEqual(INTRO_SLIDES.map((s) => s.key), ['cover', 'list', 'review', 'quiz', 'frames', 'ext', 'home']);
   assert.equal(INTRO_SLIDES[3].p, 'セリフの空欄に入る語を、4択で。');
 });
 
@@ -124,7 +124,20 @@ t('読み直した時の続き：覚えた値を読む（範囲外・壊れた�
   assert.equal(parseIntroStep('3'), 3);
   assert.equal(parseIntroStep('0'), 0);
   assert.equal(parseIntroStep('level'), 'level');
-  for (const v of [null, '', '6', '-1', '2.5', 'abc', undefined]) assert.equal(parseIntroStep(v), null, String(v));
+  for (const v of [null, '', '7', '-1', '2.5', 'abc', undefined]) assert.equal(parseIntroStep(v), null, String(v));
 });
 
 console.log(`${n} tests passed`);
+
+t('ホーム画面に追加のスライド: iPhone・Android だけ・ホーム画面から開いている時と PC は出さない', () => {
+  const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1';
+  const ANDROID = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/130.0 Mobile Safari/537.36';
+  const MAC = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/130.0 Safari/537.36';
+  assert.equal(homeScreenKind({ ua: IPHONE }), 'ios');
+  assert.equal(homeScreenKind({ ua: ANDROID }), 'android');
+  assert.equal(homeScreenKind({ ua: MAC }), null);
+  assert.equal(homeScreenKind({ ua: IPHONE, standalone: true }), null);
+  assert.equal(introSlidesFor('ios').at(-1).key, 'home');
+  assert.equal(introSlidesFor(null).at(-1).key, 'ext');
+  assert.equal(introSlidesFor(null).length, 6);
+});

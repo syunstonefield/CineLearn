@@ -8100,3 +8100,15 @@ html[data-theme="dark"] .hm-row-pb { background: rgba(255,255,255,.08); }
 /* 区切りの言葉とイラストは画面の真ん中（縦も横も）に・ボタンは下のまま（オーナー 2026-11-12） */
 .rd-break .rd-body { justify-content: center; align-items: center; }
 .rd-break .rd-hero { align-self: stretch; } /* 星の置き場所は幅いっぱいの割合で決めるので、真ん中寄せでも幅を縮めない */
+
+/* 「ホーム画面に追加」のスライド（2026-11-12 試作・法務確認中）。自作の絵＝ホーム画面のアイコンの並び（中身のない四角）＋手順の札2つ */
+.intro-home { display: flex; flex-direction: column; align-items: center; gap: 16px; width: 354px; max-width: 100%; }
+.intro-home-phone { position: relative; width: 196px; padding: 18px 16px; border-radius: 26px; background: linear-gradient(160deg, #e9e2d8, #d8cfc2); display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; box-shadow: inset 0 0 0 6px #2a2420; }
+.intro-home-phone i { aspect-ratio: 1; border-radius: 9px; background: rgba(255,255,255,.55); }
+.intro-home-app { aspect-ratio: 1; width: 100%; border-radius: 9px; box-shadow: 0 0 0 2px #b97a3a, 0 4px 10px rgba(185,122,58,.35); }
+.intro-home-steps { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.intro-home-step { display: flex; align-items: center; gap: 10px; width: 100%; max-width: 300px; padding: 10px 14px; border-radius: 12px; background: #fff; border: 1px solid rgba(0,0,0,.08); font-size: 14px; color: #2a2420; }
+.intro-home-step.is-target { border-color: #e2c194; background: #fbf3e8; font-weight: 600; }
+.intro-home-ic { flex: none; width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; background: #f1ece3; color: #3478f6; font-size: 18px; }
+.intro-home-step.is-target .intro-home-ic { color: #b97a3a; background: #fff; }
+.intro-home-arrow { color: #b8ab9b; font-size: 16px; line-height: 1; }

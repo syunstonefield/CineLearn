@@ -87,7 +87,7 @@ export function lockPage() {
 
 // 初めての流れで何枚目まで進んだか（読み直されても続きから・このタブのあいだだけ＝sessionStorage）。
 export const INTRO_STEP_KEY = 'cl_intro_step';
-export function parseIntroStep(v, last = 5) {
+export function parseIntroStep(v, last = 6) {
   if (v === 'level') return 'level';
   const n = Number(v);
   return v != null && v !== '' && Number.isInteger(n) && n >= 0 && n <= last ? n : null;
@@ -102,4 +102,38 @@ export const INTRO_SLIDES = [
   { key: 'quiz', h: ['クイズで、', '覚えたか確かめる'], p: 'セリフの空欄に入る語を、4択で。' },
   { key: 'frames', h: ['学んだ作品が、', '記録として並ぶ'], p: '学習が進むと、記録の枠が豪華になります。' },
   { key: 'ext', h: ['観ながら、', '字幕の単語を保存'], p: 'PC の Chrome 拡張機能で、字幕の単語をクリック。', pcP: 'Chrome 拡張機能で、字幕の単語をクリック。' },
+  // 「ホーム画面に追加」（オーナー案 2026-11-12・法務確認中＝試作）。スマホだけ・端末で文を出し分ける（HOME_SLIDE_TEXT）。
+  //   PC とすでにホーム画面から開いている時（standalone）は出さない（introSlidesFor）。
+  { key: 'home', h: ['ホーム画面に置くと、', 'すぐ開ける'] },
 ];
+
+// 「ホーム画面に追加」の手順の文（端末ごと）。絵は自作（配信サービスの名前・ポスター・作品名は出さない）。
+export const HOME_SLIDE_TEXT = {
+  ios: 'Safari の共有ボタンから「ホーム画面に追加」を選ぶだけ。',
+  android: 'Chrome のメニュー（︙）から「ホーム画面に追加」を選ぶだけ。',
+};
+
+// 'ios'｜'android'｜null（PC・判断できない・すでにホーム画面から開いている）。依存なしの純関数。
+export function homeScreenKind({ ua = '', standalone = false } = {}) {
+  if (standalone) return null;
+  if (/iPhone|iPad|iPod/.test(ua)) return 'ios';
+  if (/Android/.test(ua)) return 'android';
+  return null;
+}
+
+// その端末で出すスライド（ホーム画面に追加は kind がある時だけ）。
+export function introSlidesFor(kind) {
+  return INTRO_SLIDES.filter((s) => s.key !== 'home' || !!kind);
+}
+
+// ブラウザで kind を調べる（クライアントだけ）。
+export function detectHomeScreenKind() {
+  if (typeof window === 'undefined') return null;
+  let standalone = false;
+  try {
+    standalone = !!(window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone);
+  } catch {
+    /* ignore */
+  }
+  return homeScreenKind({ ua: window.navigator.userAgent || '', standalone });
+}
