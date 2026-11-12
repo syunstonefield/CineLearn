@@ -487,7 +487,7 @@ export default function ReviewHubScreen() {
             <br />
             <br />
             <button type="button" className="btn-secondary" onClick={() => setScreen('search')}>
-              作品を追加して予習する →
+              作品を追加して単語を学ぶ →
             </button>
           </div>
         ) : (
