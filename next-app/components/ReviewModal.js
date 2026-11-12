@@ -1055,15 +1055,15 @@ function ReviewDone({ queue, partial = false, awardedRef, ratings, promo, curren
         </summary>
         <div className="rd-log">
           <span />
-          <span>知ってた</span>
-          <span>うろ覚え</span>
           <span>知らなかった</span>
+          <span>うろ覚え</span>
+          <span>知ってた</span>
           {sessions.map((s) => (
             <Fragment key={s.sessionNum}>
               <b>{s.sessionNum}回目</b>
-              <span>{s.easy}</span>
-              <span>{s.hard}</span>
               <span>{s.fail}</span>
+              <span>{s.hard}</span>
+              <span>{s.easy}</span>
             </Fragment>
           ))}
         </div>
@@ -1094,18 +1094,19 @@ function ReviewDone({ queue, partial = false, awardedRef, ratings, promo, curren
             {promo.mastered.length}単語がマスターに到達！
           </div>
         )}
+        {/* 並びはカードの3択と同じ（左から 知らなかった・うろ覚え・知ってた・2026-11-12 オーナー指摘） */}
         <section className="rd-tiles" aria-label="今回の答え">
-          <div className="rd-tile t-easy">
-            <b>{easy.length}</b>
-            <span>知ってた</span>
+          <div className="rd-tile t-fail">
+            <b>{failed.length}</b>
+            <span>知らなかった</span>
           </div>
           <div className="rd-tile t-hard">
             <b>{hard.length}</b>
             <span>うろ覚え</span>
           </div>
-          <div className="rd-tile t-fail">
-            <b>{failed.length}</b>
-            <span>知らなかった</span>
+          <div className="rd-tile t-easy">
+            <b>{easy.length}</b>
+            <span>知ってた</span>
           </div>
         </section>
         {allPerfect && <div className="rd-perfect">全問正解！すばらしい</div>}
