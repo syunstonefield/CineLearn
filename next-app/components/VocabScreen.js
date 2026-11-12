@@ -1115,9 +1115,13 @@ export default function VocabScreen() {
       setPrepFresh(true); // 新規生成成功 → 下部「予習する」（再入場用）を残す
       setPrepModes(false);
       setGenBtn({ text: '単語を再生成', disabled: false, hidden: true });
-      // 自動でリストへ遷移しない: 「準備ができました — リストを見る →」を出して本人のタップで開く
-      // （phase は 'generating' のまま・GenLoading が ready 表示に切り替わる）。
-      setRevealReady(true);
+      // 待ちが終わったら、押さなくても単語のカードを始める（オーナー決定 2026-11-12・直し B4「1分待ったあとにもう1つ操作があるのは良くない」）。
+      //   ここに来るのは「単語を学ぶ →」を押した人がこの話の画面にいる時だけ（別の話・別の画面へ移ると stale()/中断で上で抜ける）。
+      //   カードは音を自動で鳴らさない（読み上げは押した時だけ）＝押した流れの外で始まっても音の決まりに触れない。
+      setRevealReady(false);
+      setPhase('vocab');
+      setView('cards');
+      setJustGenerated(true); // 新出語が揃った描画のあとにカードを開く（effect・startCards）
 
       // 履歴に保存
       const id = saveHistoryEntry({
