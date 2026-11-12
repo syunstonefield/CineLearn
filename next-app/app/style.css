@@ -7744,7 +7744,7 @@ html[data-theme="dark"] .intro-root {
 .intro-p-pc { display: none; }
 .intro-art { grid-area: art; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px 0; min-height: 0; }
 .intro-foot { grid-area: foot; display: flex; flex-direction: column; }
-.intro-note { text-align: center; font-size: 10px; color: var(--in-mute); margin-bottom: 12px; letter-spacing: 0.02em; }
+.intro-note { text-align: center; font-size: 10px; color: var(--in-mute); margin-bottom: 12px; letter-spacing: 0.02em; text-wrap: balance; }
 .intro-prog { display: flex; gap: 5px; margin-bottom: 16px; }
 .intro-prog i { flex: 1; height: 2px; border-radius: 1px; background: var(--in-line); }
 .intro-prog i.on { background: var(--in-brown); }

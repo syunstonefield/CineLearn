@@ -13,7 +13,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
 import { trackUsage } from '@/lib/usage';
 import { TRIAL_LEVELS } from '@/lib/trial';
-import { INTRO_SAMPLE_NOTE, INTRO_STEP_KEY, HOME_SLIDE_TEXT, detectHomeScreenKind, introSlidesFor, lockPage, parseIntroStep } from '@/lib/introTour';
+import { INTRO_SAMPLE_NOTE, INTRO_HOME_NOTE, INTRO_STEP_KEY, HOME_SLIDE_TEXT, detectHomeScreenKind, introSlidesFor, lockPage, parseIntroStep } from '@/lib/introTour';
 
 
 function Heading({ lines }) {
@@ -459,7 +459,7 @@ export default function IntroCarousel({ mode = 'first' }) {
             <Art kind={homeKind} />
           </div>
           <div className="intro-foot">
-            {s.key !== 'home' && <div className="intro-note">{INTRO_SAMPLE_NOTE}</div>}
+            <div className="intro-note">{s.key === 'home' ? INTRO_HOME_NOTE : INTRO_SAMPLE_NOTE}</div>
             <Progress at={step} slides={slides} />
             {!isLast ? (
               <button type="button" className="intro-btn" onClick={() => go(step + 1)}>
