@@ -8226,7 +8226,7 @@ html[data-theme="dark"] .hm-row-pb { background: rgba(255,255,255,.08); }
 .ch-tiles-2 { grid-template-columns: repeat(2, 1fr); }
 .ch-tiles-1 { grid-template-columns: 1fr; }
 .ch-tile { background: var(--surface); border: 0; border-radius: 14px; padding: 7px 6px; font: inherit; cursor: pointer; text-align: center; box-shadow: 0 2px 8px rgba(80, 50, 20, 0.08); min-height: 60px; color: var(--text); display: flex; flex-direction: column; align-items: center; justify-content: center; }
-.ch-tile-i { font-size: 19px; line-height: 1.2; }
+.ch-tile-i { display: flex; height: 22px; color: #7a4a2a; }
 .ch-tile b { font-size: 13px; margin-top: 2px; }
 .ch-tile small { font-size: 11px; color: var(--text-muted); }
 .ch-none { margin: 0; font-size: 14px; color: var(--text-muted); line-height: 1.6; }
@@ -8258,6 +8258,7 @@ html[data-theme="dark"] .ch-bar-a,
 html[data-theme="dark"] .ch-lg-a::before { background: #b0703f; }
 html[data-theme="dark"] .ch-poster-empty,
 html[data-theme="dark"] .ch-peek span,
+html[data-theme="dark"] .ch-tile-i,
 html[data-theme="dark"] .ch-back,
 html[data-theme="dark"] .review-list-link { color: var(--accent); }
 /* 作品を選んだあとのカード（ReviewModal の cardDeck）: 今の復習のカード（.review-cinema）を単語リストの画面の上に全面で重ねる */
