@@ -179,8 +179,8 @@ const MARKUP = `
       <div class="step-card">
         <div class="step-num">2</div>
         <div class="step-icon">📖</div>
-        <h3>予習してドラマに没入</h3>
-        <p>「予習をはじめる」でカードを1枚ずつめくったら、あとは再生ボタンを押してストーリーに熱中するだけ。観終わった夜には"半券"が残ります。</p>
+        <h3>単語を学んでドラマへ</h3>
+        <p>「単語を学ぶ」でカードに1枚ずつ答えたら、あとは再生ボタンを押してストーリーを楽しむだけ。答えた単語は、次の日からの復習に並びます。</p>
       </div>
       <div class="step-card">
         <div class="step-num">3</div>

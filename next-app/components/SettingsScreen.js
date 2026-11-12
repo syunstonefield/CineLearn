@@ -340,13 +340,13 @@ export default function SettingsScreen() {
             </div>
           </div>
 
-          {/* 予習カードで最初に見せる語数（無料・端末設定）。全部にすると生成直後から全語を1枚ずつ。 */}
+          {/* 「単語を学ぶ」のカードの枚数（無料・端末設定・lib/cardDeck.js）。その端末で初めては5枚・2回目からこの枚数（2026-11-12 言葉を「単語を学ぶ」にそろえた）。 */}
           <div className="settings-section">
-            <div className="settings-section-title">📖 予習で最初に見る語数</div>
+            <div className="settings-section-title">📖 「単語を学ぶ」のカードの枚数</div>
             <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8, lineHeight: 1.7 }}>
-              単語リストを作った直後の「予習する →」で、まず1枚ずつ見せる語数です。重要な語から並びます。残りはカードの途中で「残りも見る」から続けられます。
+              「単語を学ぶ」で1回に答えるカードの枚数です。重要な語から並びます。その端末で初めての時は5枚から始まり、2回目からこの枚数になります。残りは、終わりの画面の「残りの単語も見る」から続けられます。
             </div>
-            <div className="rc-options" role="radiogroup" aria-label="予習で最初に見る語数">
+            <div className="rc-options" role="radiogroup" aria-label="「単語を学ぶ」のカードの枚数">
               {PREP_CORE_OPTIONS.map((v) => (
                 <button
                   key={String(v)}
