@@ -19,6 +19,16 @@ export function reviewTimeEvent(sec) {
   return REVIEW_TIME_BUCKETS.find(([, max]) => s < max)[0];
 }
 
+// 入口の印（?from=<値>・2026-11-13・宣伝の動画のプロフィールのリンクと「PC で開くリンク」）。決まった値だけ受け付ける。
+//   値ごとに固定名 from_<値> を「来た回数」として数える（だれが・どの動画から・時刻は入れない）。
+//   ext_install は lib/extEntry.js の別の印（ext_install_open）なのでここには入れない。
+export const FROM_SOURCES = ['tiktok', 'youtube', 'share'];
+export const FROM_EVENTS = FROM_SOURCES.map((s) => `from_${s}`);
+export function fromEvent(value) {
+  const v = String(value || '').trim().toLowerCase();
+  return FROM_SOURCES.includes(v) ? `from_${v}` : null;
+}
+
 export const USAGE_EVENTS = [
   'open', // アプリを開いた（ページの読み込みごと）
   'work_review', // 作品・話の復習を始めた
@@ -123,6 +133,8 @@ export const USAGE_EVENTS = [
   'learn_first', // 初めての5枚を見た（端末ごとに1回・人数としては読まない）
   'home_learn', // ホームの「学ぶ」を押した
   'home_quiz', // ホームの「クイズ」を押した
+  // 入口の印（上の FROM_SOURCES）。紹介ページでも /app でも、?from= 付きで来た時にタブごとに1回。
+  ...FROM_EVENTS,
 ];
 
 // 拡張で保存した語か。拡張は source に配信サイトの画面タイトル（Netflix 等）を入れ、アプリの保存は

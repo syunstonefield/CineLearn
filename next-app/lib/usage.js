@@ -11,7 +11,7 @@
 import { authHeaders } from './api';
 import { getDeviceKey } from './device';
 import { loadSrs, todayStr, isDue } from './storage';
-import { isUsageEvent, hasExtSavedWord } from './usageEvents';
+import { isUsageEvent, hasExtSavedWord, fromEvent } from './usageEvents';
 import { takeExtInstallEntry, isExtInstallEntry } from './extEntry';
 
 const TALLY_KEY = 'cl_usage_tally';
@@ -170,12 +170,43 @@ function noteEntryParam() {
   trackUsage('ext_install_open');
 }
 
+// 入口の印 ?from=<決まった値>（lib/usageEvents.js FROM_SOURCES・2026-11-13）。紹介ページ（/）でも /app でも読む。
+//   決まった値の時だけ from_<値> を1回数えて URL から消す（再読み込み・共有・ブックマークで二重に数えない）。
+//   決まっていない値（ext_install など）はさわらない。どの人がどこから来たかは集計側で、その端末の行と
+//   ログインの前後をつなぐ（lib/usageReport.js joinGuestRows）＝端末に別の印を残さない。
+export function noteFromParam() {
+  if (typeof window === 'undefined') return null;
+  let ev = null;
+  try {
+    const url = new URL(window.location.href);
+    ev = fromEvent(url.searchParams.get('from'));
+    if (!ev) return null;
+    url.searchParams.delete('from');
+    window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+  } catch {
+    return null;
+  }
+  trackUsage(ev);
+  return ev;
+}
+
+// 紹介ページ（/）で1回。?from= の印があった時だけ数えてすぐ送る（紹介ページでは「開いた」は数えない）。
+export function initLandingUsage() {
+  if (typeof window === 'undefined') return () => {};
+  if (!noteFromParam()) return () => {};
+  flushUsage();
+  const onHide = () => flushUsage({ keepalive: true });
+  window.addEventListener('pagehide', onHide);
+  return () => window.removeEventListener('pagehide', onHide);
+}
+
 // アプリの起動時に1回（AppProvider）。開いた回数を数え、送るきっかけを仕掛ける。戻り値＝後片付け。
 export function initUsage() {
   if (typeof window === 'undefined') return () => {};
   noteStaffParam();
   trackUsage('open');
   noteEntryParam();
+  noteFromParam();
   const onVis = () => {
     if (document.visibilityState === 'hidden') flushUsage({ keepalive: true });
   };

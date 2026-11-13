@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { NON_AFFILIATION } from '@/lib/legal';
 import { CURATION_ON } from '@/lib/curation';
+import { initLandingUsage } from '@/lib/usage';
 
 // landing.html を忠実に移植したマーケLP。
 // 静的マークアップは dangerouslySetInnerHTML でそのまま描画し（SSR されるため SEO も維持）、
@@ -607,6 +608,9 @@ const MARKUP = `
 
 export default function LandingPage() {
   const rootRef = useRef(null);
+
+  // 宣伝のリンク（?from=tiktok など）で来た回数（lib/usage.js initLandingUsage・印がある時だけ送る）
+  useEffect(() => initLandingUsage(), []);
 
   useEffect(() => {
     const root = rootRef.current;

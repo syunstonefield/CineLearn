@@ -2,7 +2,7 @@
 //   入力 rows＝/api/stats の usageRows（1人＋端末×1日の行 { day, p, d, L, c, r }）。人の数は p（人の番号）で数える。
 //   週＝today（端末の日付・JST）から7日ずつさかのぼる。新しい週が先。
 
-import { parseExitEvent } from './usageEvents.js';
+import { parseExitEvent, FROM_SOURCES, FROM_EVENTS } from './usageEvents.js';
 
 export const PLUS_FEATURES = [
   ['work_review', '作品・話の復習'],
@@ -188,13 +188,63 @@ const LEFT_EDGES = [
   [Infinity, '101-'],
 ];
 
+// 紹介ページで ?from= の印だけを数えた行（アプリはまだ開いていない）。今までの表（開いた人・新規の人など）には入れない。
+export function isLandingOnlyRow(r) {
+  const keys = Object.entries(r?.c || {}).filter(([, n]) => n > 0).map(([k]) => k);
+  return keys.length > 0 && keys.every((k) => FROM_EVENTS.includes(k)) && !(r.r && r.r.n + r.r.c > 0);
+}
+
+// ⑬ 入口別（?from= の値ごと・2026-11-13）。人ごとに「最初に印付きで来た日と値」を入口とし（ゲスト→ログインは同じ端末で寄せた後）、
+//   その週に初めて来た人が、その日以降にアプリで何をしたかを数える。来た回数はその週の from_<値> の合計（同じ人の2回目も入る）。
+export const FROM_STEPS = [
+  ['open', 'アプリを開いた'],
+  ['work_select', '作品を選んだ'],
+  ['list_open', 'リストを開いた'],
+  ['learn_start', '単語を学ぶを始めた'],
+  ['auth_signup', '新規登録'],
+];
+export function buildFromTable(rows, wins) {
+  const firstFrom = new Map(); // p → { day, src }
+  for (const r of [...rows].sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0))) {
+    if (firstFrom.has(r.p)) continue;
+    const src = FROM_SOURCES.find((s) => (r.c[`from_${s}`] || 0) > 0);
+    if (src) firstFrom.set(r.p, { day: r.day, src });
+  }
+  const byPerson = new Map();
+  for (const r of rows) {
+    if (!byPerson.has(r.p)) byPerson.set(r.p, []);
+    byPerson.get(r.p).push(r);
+  }
+  const out = [];
+  for (const win of wins) {
+    const label = `${win.from.slice(5)}〜${win.to.slice(5)}`;
+    for (const src of FROM_SOURCES) {
+      const times = rows.filter((r) => r.day >= win.from && r.day <= win.to).reduce((n, r) => n + (r.c[`from_${src}`] || 0), 0);
+      const ps = [...firstFrom.entries()].filter(([, f]) => f.src === src && f.day >= win.from && f.day <= win.to).map(([p]) => p);
+      if (!times && !ps.length) continue;
+      const after = (p) => byPerson.get(p).filter((r) => r.day >= firstFrom.get(p).day);
+      const o = { 週: label, 入口: src, 来た回数: times, 初めて来た人: ps.length };
+      for (const [k, name] of FROM_STEPS) {
+        const u = ps.filter((p) => after(p).some((r) => (r.c[k] || 0) > 0)).length;
+        o[name] = `${u} ${pct(u, ps.length)}`;
+      }
+      const again = ps.filter((p) => after(p).some((r) => r.day > firstFrom.get(p).day && (r.c.open || 0) > 0)).length;
+      o['別の日にも開いた'] = `${again} ${pct(again, ps.length)}`;
+      out.push(o);
+    }
+  }
+  if (!out.length) out.push({ 週: `${wins[0].from.slice(5)}〜${wins[0].to.slice(5)}`, 入口: '（まだ無し）', 来た回数: 0, 初めて来た人: 0 });
+  return out;
+}
+
 function weekRows(rows, win) {
   return rows.filter((r) => r.day >= win.from && r.day <= win.to);
 }
 
 export function buildUsageReport(rawRows, { today, weeks = 8, excludePersons = [], excludeDevices = [], includeStaff = false } = {}) {
   const staff = includeStaff ? { rows: rawRows, excluded: null } : excludeStaff(rawRows, { persons: excludePersons, devices: excludeDevices });
-  const rows = joinGuestRows(staff.rows); // ゲスト→登録を同じ人に（⑦の「2人に数える」誤差の解消）
+  const allRows = joinGuestRows(staff.rows); // ゲスト→登録を同じ人に（⑦の「2人に数える」誤差の解消）
+  const rows = allRows.filter((r) => !isLandingOnlyRow(r)); // 紹介ページだけの行は今までの表に入れない（⑬だけが使う）
   const wins = weekWindows(today, weeks);
   const plus = [];
   const funnel = [];
@@ -327,7 +377,7 @@ export function buildUsageReport(rawRows, { today, weeks = 8, excludePersons = [
     }
   }
   const joined = rows.filter((r) => r.joined).length;
-  return { plus, funnel, exits, review, onboarding, entry, trial, intro, reviewFlow, learn, newUsers: buildNewUsers(rows, wins, today), joinedRows: joined, staffExcluded: staff.excluded };
+  return { plus, funnel, exits, review, onboarding, entry, trial, intro, reviewFlow, learn, newUsers: buildNewUsers(rows, wins, today), from: buildFromTable(allRows, wins), joinedRows: joined, staffExcluded: staff.excluded };
 }
 
 // ⑦ 新規の人（初めて開いた週ごと）。rows の中で最初に現れた日＝初めて開いた日。
@@ -395,7 +445,9 @@ export function genMonthTable(genMonth, { free = 5, plus = 30 } = {}) {
 
 // 判断の目安（直近の週＝表の先頭）
 export function usageHints(report, rawRows, { today, excludePersons = [], excludeDevices = [], includeStaff = false } = {}) {
-  const rows = joinGuestRows(includeStaff ? rawRows : excludeStaff(rawRows, { persons: excludePersons, devices: excludeDevices }).rows);
+  const rows = joinGuestRows(includeStaff ? rawRows : excludeStaff(rawRows, { persons: excludePersons, devices: excludeDevices }).rows).filter(
+    (r) => !isLandingOnlyRow(r)
+  );
   const [w0] = weekWindows(today, 1);
   const rs = weekRows(rows, w0);
   const people = new Set(rs.map((r) => r.p)).size;
