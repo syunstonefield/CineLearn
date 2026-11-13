@@ -301,7 +301,7 @@ export default function WordbookScreen() {
           <h1 className="wb-h1">
             <IconOpenBook className="wb-h1-ic" /> マイ単語帳
           </h1>
-          <p className="wb-en">Words you met on screen</p>
+          <p className="wb-en">画面で出会った語</p>
         </div>
 
         {words === null ? (

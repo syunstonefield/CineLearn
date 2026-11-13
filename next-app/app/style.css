@@ -7558,7 +7558,7 @@ html[data-theme="dark"] .htw-label { color: #f48fb1; }
 .word-marks .btn-like-example { border-radius: 999px; }
 
 /* ── マイ単語帳の一新（オーナー決定 2026-11-07）: 2タイル＋今日の語＋最近入れた語 ── */
-.wb-en { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-muted); margin: 2px 0 0; }
+.wb-en { font-size: 12px; letter-spacing: 0.04em; color: var(--text-muted); margin: 2px 0 0; }
 .wb-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 4px 0 14px; }
 .wb-tile {
   display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left;
