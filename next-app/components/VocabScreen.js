@@ -110,6 +110,7 @@ export default function VocabScreen() {
     openCardDeck,
     prevScreen,
     takeVocabStart,
+    goHome,
     reviewVersion,
     openAuth,
     loggedIn,
@@ -1268,10 +1269,17 @@ export default function VocabScreen() {
     setCardDone(null);
     openCardDeck(deck, {
       breaks: rest, // 「残りの単語も見る」は10語ごとの区切り（設定 reviewBreak に従う）
-      onFinish: (answered) => {
+      onFinish: (answered, opts = {}) => {
         // 利用統計: その回のカードを全部答えた＝learn_done／途中で ✕・「ここまでにする」・「単語リスト」で抜けた＝learn_quit
         trackUsage((answered?.length || 0) >= deck.length ? 'learn_done' : 'learn_quit');
         reloadSrs();
+        // 区切りの画面の「ここまでにする」＝今日はここまで → 終わりの画面を挟まずホームへ（2026-11-13 オーナー指摘・2回押すことになっていた）
+        if (opts.stop) {
+          setCardDone(null);
+          setView(deckOriginRef.current);
+          goHome();
+          return;
+        }
         if (answered && answered.length) {
           // 答えた語があれば終わりの画面（明日の予告）を出す（作品の画面の場所に出す）
           setCardDone({ answered });
@@ -2144,7 +2152,13 @@ export default function VocabScreen() {
                 }}
                 onClose={() => {
                   setCardDone(null);
-                  setView(deckOriginRef.current); // 始めた画面へ（単語リストから始めたら単語リスト）
+                  setView(deckOriginRef.current); // ✕＝始めた画面へ（単語リストから始めたら単語リスト）
+                }}
+                onDoneToday={() => {
+                  // 「今日はここまで」＝ホームへ（2026-11-13 オーナー指摘・どの入口から開いても同じ）
+                  setCardDone(null);
+                  setView(deckOriginRef.current);
+                  goHome();
                 }}
               />
             ) : (

@@ -6,7 +6,7 @@ import { IconOpenBook, IconTarget, IconFilm, IconClose, IconSparkle } from './ic
 
 // 作品を選んだあと＝カード中心（2026-11-12 オーナー決定・見本 reports/prep-card-first-2026-11-12/mock.html）。
 //   CardHome: 単語リストができた作品を開いた時の最初の画面（大きい「単語を学ぶ」＋下に「単語リストを見る」）。
-//   CardDone: カードを終えた時の画面（明日 復習できる単語 N個 → 残りの単語も見る／観に行く・今日はここまで／単語リストを見る）。
+//   CardDone: カードを終えた時の画面（明日 復習できる単語 N個 → 残りの単語も見る／観に行く・今日はここまで＝ホームへ／単語リストを見る・✕＝始めた画面へ）。
 // 決まり: ポスターは縦のまま小さく・何も重ねない（TMDB の表示は画面の下の共通の行）／残りの数や「あと○語」は出さない／
 //   観ることは止めない（「観に行く」はいつでも押せる・← で抜けられる）。
 
@@ -154,7 +154,7 @@ export function CardHome({
   );
 }
 
-export function CardDone({ count, tomorrow, canMore, onMore, onWatch, onList, onClose }) {
+export function CardDone({ count, tomorrow, canMore, onMore, onWatch, onList, onClose, onDoneToday }) {
   return (
     <div className="ch-wrap ch-done">
       <div className="ch-done-head">
@@ -186,7 +186,7 @@ export function CardDone({ count, tomorrow, canMore, onMore, onWatch, onList, on
         <button type="button" className="ch-btn2" onClick={onWatch}>
           観に行く
         </button>
-        <button type="button" className="ch-btn2" onClick={onClose}>
+        <button type="button" className="ch-btn2" onClick={onDoneToday || onClose}>
           今日はここまで
         </button>
       </div>

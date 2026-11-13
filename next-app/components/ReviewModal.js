@@ -438,11 +438,12 @@ export default function ReviewModal({ asPage = false }) {
 
   // カード（cardDeck）: 最後の1枚に答えたら、単語リストの画面の終わりの画面へ渡して閉じる。
   const deckDone = !!cardDeck && !!reviewWords && builtKey === initKey && queue.length > 0 && idx >= queue.length;
-  const finishDeck = () => {
+  //   opts.stop＝区切りの画面の「ここまでにする」で終えた（2026-11-13 オーナー指摘: 終わりの画面を挟まずホームへ＝呼ぶ側が決める）
+  const finishDeck = (opts) => {
     const answered = queue.filter((w) => ratings[w.word] != null);
     const cb = cardDeck?.onFinish;
     closeReview();
-    cb?.(answered);
+    cb?.(answered, opts || {});
   };
   useEffect(() => {
     if (deckDone) finishDeck();
@@ -532,7 +533,7 @@ export default function ReviewModal({ asPage = false }) {
   // 区切りの画面: 続ける／ここまでにする（✕ と同じ＝答えた分は記録して「ここまで復習しました」）／今後は表示しない（設定を切って続ける）
   const continueAfterBreak = () => setBreakAt(null);
   const stopAtBreak = () => {
-    if (cardDeck) return finishDeck(); // カードの「ここまでにする」は予習の終わりの画面へ（答えた分は記録済み）
+    if (cardDeck) return finishDeck({ stop: true }); // カードの「ここまでにする」＝ホームへ（作品・予習の onFinish・答えた分は記録済み・2026-11-13）
     recordReviewExit('x');
     setBreakAt(null);
     setPartial(true);
