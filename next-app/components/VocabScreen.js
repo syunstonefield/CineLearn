@@ -1809,12 +1809,10 @@ export default function VocabScreen() {
 
   // 進捗バー（buildProgressHTML 準拠）
   const pct = stats.total === 0 ? 0 : Math.round((stats.learned / stats.total) * 100);
-  // テンションの上がるゲージ：グレーは使わない。低〜中=鮮やかなエメラルド、達成=ゴールドで祝福。
-  const pctColor = pct === 100 ? '#d99a00' : pct >= 60 ? '#13967f' : '#16a06a';
-  const barFill =
-    pct === 100
-      ? 'linear-gradient(90deg, #19a06a, #f5c518)'
-      : 'linear-gradient(90deg, #16a06a, #3ccb8d)';
+  // テンションの上がるゲージ：グレーは使わない。鮮やかなエメラルド。
+  //   100% も緑のまま（2026-11-13 オーナー決定・旧＝100% で緑→金のグラデーションと橙の文字・2026-06-21 e83edca から）。
+  const pctColor = pct >= 60 ? '#13967f' : '#16a06a';
+  const barFill = 'linear-gradient(90deg, #16a06a, #3ccb8d)';
   const completeMsg =
     stats.total > 0 && stats.learned === stats.total
       ? stats.mastered === stats.total
@@ -2219,7 +2217,10 @@ export default function VocabScreen() {
                   復習対象：{stats.due}単語 / スキップ：{stats.skipped}単語
                   {stats.reviewedToday > 0 ? ` / 今日復習済み：${stats.reviewedToday}単語` : ''}
                 </div>
-                {completeMsg && <div className="srs-complete">{completeMsg}</div>}
+                {/* 達成の1行: 全部「覚えた」＝緑（線と同じ）・全部マスター＝マスターの金（2026-11-13） */}
+                {completeMsg && (
+                  <div className={'srs-complete' + (stats.mastered === stats.total ? ' is-mastered' : '')}>{completeMsg}</div>
+                )}
                 {episodeMismatch && (
                   <div className="srs-episode-note">
                     この回の字幕が見つからなかったため、同じ作品の別の回の字幕から作った単語リストです（📍時刻は出しません）
@@ -2266,7 +2267,8 @@ export default function VocabScreen() {
                     borderRadius: 10,
                     fontSize: 14,
                     fontFamily: 'inherit',
-                    background: 'var(--card-bg, #fff)',
+                    // ダークで白いままだった（--card-bg は定義が無く #fff に落ちていた・2026-11-13）→ 札と同じ地の色
+                    background: 'var(--surface)',
                     color: 'inherit',
                   }}
                 />

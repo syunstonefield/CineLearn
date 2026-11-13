@@ -2134,7 +2134,7 @@ header {
 .srs-complete {
   font-size: 13px;
   font-weight: 600;
-  color: #f5c518;
+  color: var(--green);
   text-align: center;
   padding: 4px 0 2px;
   letter-spacing: 0.02em;
@@ -4026,7 +4026,7 @@ html[data-theme="light"] .rh-hero:not(.is-done) .rh-hero-sub { color: var(--text
 /* 綴りミスの候補シート（2026-10-30 オーナー決定＝案B）。「単語を追加」の下に出す。例文は最も近い1語だけ。 */
 .spell-sheet {
   margin-top: 8px;
-  background: var(--card-bg, #fff);
+  background: var(--surface); /* 旧 var(--card-bg, #fff)＝定義が無くダークでも白だった（2026-11-13） */
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 12px;
@@ -8272,3 +8272,6 @@ html[data-theme="dark"] .review-list-link { color: var(--accent); }
 html[data-theme="dark"] .media-type-icon,
 html[data-theme="dark"] .soon-emoji { color: var(--accent); }
 .word-example-source .li-ic { margin-right: 1px; }
+/* 全部マスター＝マスターの数と同じ金（2026-11-13） */
+.srs-complete.is-mastered { color: #b8921a; }
+html[data-theme="dark"] .srs-complete.is-mastered { color: var(--gold); }
