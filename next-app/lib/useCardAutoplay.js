@@ -23,8 +23,8 @@ export function useCardAutoplay({ text, index, active = true }) {
     speak(text);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [on, active, key]);
-  // オフにしたら印を消す（またオンにした時に今のカードを1回鳴らせるように）
+  // オフにした・カードが閉じた／区切りの画面が出た時は印を消す（またオンにした時・開き直した時・区切りから続けた時に、出ているカードを1回鳴らす）
   useEffect(() => {
-    if (!on) lastKeyRef.current = null;
-  }, [on]);
+    if (!on || !active) lastKeyRef.current = null;
+  }, [on, active]);
 }
