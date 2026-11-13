@@ -24,6 +24,7 @@ const stripCreditMark = (s) => String(s || '').replace(/^📺\s*/, '');
 
 export default function VocabItem({ word, srs, testTiers, ts, exampleSource, added, starred, liked, showCefr, readOnly, defaultExpanded, onSpeak, onSkip, onCopyTime, onDelete, onStar, onLike }) {
   const [expanded, setExpanded] = useState(!!defaultExpanded);
+  const [moreOpen, setMoreOpen] = useState(false); // 「…」＝この語は出さない・削除（目立たせない・2026-11-14 案6）
   const w = word;
   const e = srs[w.word.toLowerCase()];
   const status = (() => {
@@ -46,7 +47,8 @@ export default function VocabItem({ word, srs, testTiers, ts, exampleSource, add
   const BadgeIcon = badge ? BADGE_ICON[badge.icon] : null; // 未学習は絵なし（芽は「学習した日」用・2026-11-13）
   const tier = w.tier || 'core';
   const tierCls = tier === 'context' ? 'tier-context' : tier === 'advanced' ? 'tier-advanced' : 'tier-core';
-  const tierText = tier === 'context' ? 'Context' : tier === 'advanced' ? 'Advanced' : 'Core';
+  // 英語のラベルを日本語に（2026-11-14 オーナー採用 案4）
+  const tierText = tier === 'context' ? '場面の語' : tier === 'advanced' ? '上級の語' : '中心の語';
   const notInTest = !testTiers.includes(tier);
   const next = nextReviewLabel(w.word, srs);
   const tsLabel = ts?.label;
@@ -122,7 +124,8 @@ export default function VocabItem({ word, srs, testTiers, ts, exampleSource, add
       </button>
 
       <div className="vocab-detail">
-        <div className="vocab-detail-tags">
+        {/* 開いた行は3段（2026-11-14 オーナー採用 案6）: 上＝語と意味（行の見出し）＋印を1行に小さく／中＝例文・訳・出所／下＝することを2つ（聞く・覚えたい）＋「…」 */}
+        <div className="vocab-detail-tags is-compact">
           {badge && !readOnly && (
             <span className={`srs-badge ${badge.cls}`}>
               {BadgeIcon ? (
@@ -139,7 +142,7 @@ export default function VocabItem({ word, srs, testTiers, ts, exampleSource, add
               「目安」であることと出典は単語リストの一行（CefrNote）で伝える（法務 条件2） */}
           {cefr && (
             <span className={'vocab-cefr-chip' + (cefr.ai ? ' is-ai' : '')} title={cefrHintTitle(cefr)} aria-label={cefrHintTitle(cefr)}>
-              {cefr.level}
+              {cefr.level} 目安
             </span>
           )}
           {/* 薄い表示の理由を初見でも分かるように明示（実使用フィードバック#3） */}
@@ -248,17 +251,10 @@ export default function VocabItem({ word, srs, testTiers, ts, exampleSource, add
         )}
 
         <div className="vocab-detail-actions">
+          {/* 発音は1か所（開いている間は見出しの🔊を隠し、ここの「聞く」だけ） */}
           <button className="btn-speak" title="発音を聞く" onClick={() => onSpeak(w.word)}>
-            <IconSpeaker /> 発音
+            <IconSpeaker /> 聞く
           </button>
-          {!readOnly && (
-            <button
-              className={'btn-srs-skip' + (isSkip ? ' btn-srs-resume' : '')}
-              onClick={() => onSkip(w.word, isSkip)}
-            >
-              {isSkip ? 'Resume' : 'Skip'}
-            </button>
-          )}
           {/* ★マイ単語帳に入れる/外す（紙の単語帳に付箋を貼る感覚・オーナー判断 2026-09-22） */}
           {onStar && (
             <button
@@ -271,13 +267,35 @@ export default function VocabItem({ word, srs, testTiers, ts, exampleSource, add
               <IconStar filled={!!starred} /> 覚えたい
             </button>
           )}
-          {/* 🗑完全削除＝視聴中に拾った語の誤保存/タイポ救済（単語帳から外すだけなら★） */}
-          {onDelete && (
-            <button className="btn-srs-skip btn-word-del" onClick={() => onDelete(w.word)}>
-              <IconTrash /> 削除
+          {/* 「…」＝あまり使わない操作（この語は出さない／また出す・削除）を目立たない文字のリンクに（案6） */}
+          {(!readOnly || onDelete) && (
+            <button
+              type="button"
+              className="vocab-more-btn"
+              aria-expanded={moreOpen}
+              aria-label="ほかの操作"
+              title="ほかの操作"
+              onClick={() => setMoreOpen((v) => !v)}
+            >
+              …
             </button>
           )}
         </div>
+        {moreOpen && (
+          <div className="vocab-more-links">
+            {!readOnly && (
+              <button type="button" className="vocab-more-link" onClick={() => onSkip(w.word, isSkip)}>
+                {isSkip ? 'また出す' : 'この語は出さない'}
+              </button>
+            )}
+            {/* 完全削除＝視聴中に拾った語の誤保存/タイポ救済（単語帳から外すだけなら★） */}
+            {onDelete && (
+              <button type="button" className="vocab-more-link is-del" onClick={() => onDelete(w.word)}>
+                <IconTrash /> 削除
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
