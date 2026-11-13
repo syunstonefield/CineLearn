@@ -5741,6 +5741,19 @@ html[data-theme="dark"] .tcp-item.frame-black .tcp-frame { box-shadow: 0 0 0 1px
 .settings-screen { max-width: 680px; margin: 0 auto; padding: 16px 16px 24px; }
 .settings-head { margin-bottom: 14px; }
 .settings-h1 { font-size: 22px; font-weight: 800; margin: 4px 0; }
+/* 設定の6つのまとまり（2026-11-13 作り替え）。見出しは文字だけ・まとまりは白いカード、中の項目は細い線で区切る */
+.settings-group {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; padding: 14px 14px 4px; margin-bottom: 18px;
+}
+.settings-group .level-pill { white-space: nowrap; }
+.settings-group-title {
+  font-size: 12px; font-weight: 600; letter-spacing: 0.08em; color: var(--text-muted);
+  margin: 0 0 12px;
+}
+.settings-group .settings-section { margin-bottom: 16px; padding-bottom: 16px; }
+.settings-group .settings-section:last-child { border-bottom: none; margin-bottom: 0; }
+.settings-group .settings-section-title { font-weight: 600; }
 
 .wb-screen { max-width: 680px; margin: 0 auto; padding: 16px 16px 24px; }
 .wb-head { margin-bottom: 14px; }
