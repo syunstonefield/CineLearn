@@ -8327,3 +8327,8 @@ html[data-theme="dark"] .autoplay-switch.is-on { color: var(--accent); border-co
 .service-check { display: inline-flex; align-items: center; justify-content: center; }
 .btn-wordbook-star .li-ic, .btn-like-example .li-ic { width: 1.1em; height: 1.1em; }
 
+
+/* 文の中の小さな線の絵（MarkText・2026-11-13）: 文字と同じ高さ・同じ色。行の高さを押し広げない */
+.li-mark { display: inline; white-space: nowrap; }
+.li-mark .li-ic { width: 1em; height: 1em; vertical-align: -0.14em; }
+.wb-h1 .wb-h1-ic { width: 0.95em; height: 0.95em; vertical-align: -0.12em; margin-right: 2px; }

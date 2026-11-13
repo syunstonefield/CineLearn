@@ -228,3 +228,25 @@ export function IconSparkle(p) {
   );
 }
 
+
+// 文の中の記号（★ ♡ ♥ 📺）を、文の高さに合わせた線の絵に置き換えて出す（2026-11-13 受付経由・外の AI の指摘「文字の★が浮く」）。
+//   色は文と同じ（currentColor）。読み上げは絵ごとに名前を付ける（「星 覚えたい」のように文が通る）。
+//   Chrome 拡張のボタン名を説明する文（拡張の画面は本当に文字の★）には使わない。
+const MARKS = {
+  '★': { label: '星', el: () => <IconStar filled /> },
+  '♡': { label: 'ハート', el: () => <IconHeart /> },
+  '♥': { label: 'ハート', el: () => <IconHeart filled /> },
+  '📺': { label: '作品', el: () => <IconFilm /> },
+};
+export function MarkText({ text }) {
+  const parts = String(text ?? '').split(/(★|♡|♥|📺)/u);
+  return parts.map((p, i) =>
+    MARKS[p] ? (
+      <span key={i} className="li-mark" role="img" aria-label={MARKS[p].label}>
+        {MARKS[p].el()}
+      </span>
+    ) : (
+      p
+    ),
+  );
+}

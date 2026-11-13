@@ -1,6 +1,6 @@
 'use client';
 
-import { IconStar, IconHeart } from './icons/LineIcons';
+import { IconStar, IconHeart, IconOpenBook, MarkText } from './icons/LineIcons';
 import { useEffect, useMemo, useState } from 'react';
 import { useApp } from './AppProvider';
 import VocabItem from './VocabItem';
@@ -298,7 +298,9 @@ export default function WordbookScreen() {
     <div className="screen active" id="screen-wordbook">
       <div className="wb-screen">
         <div className="wb-head">
-          <h1 className="wb-h1">📖 マイ単語帳</h1>
+          <h1 className="wb-h1">
+            <IconOpenBook className="wb-h1-ic" /> マイ単語帳
+          </h1>
           <p className="wb-en">Words you met on screen</p>
         </div>
 
@@ -313,9 +315,9 @@ export default function WordbookScreen() {
             <br />
             {CURATION_ON ? (
               <>
-                単語リストや復習カードで「★ 覚えたい」を付けた語と、
+                <MarkText text="単語リストや復習カードで「★ 覚えたい」を付けた語と、" />
                 <br />
-                例文に「♡」を付けた語がここに集まります。
+                <MarkText text="例文に「♡」を付けた語がここに集まります。" />
               </>
             ) : (
               <>
@@ -323,7 +325,7 @@ export default function WordbookScreen() {
                 <br />
                 字幕の各単語をクリックしてここに保存できます。
                 <br />
-                単語リストや復習カードの「★ 覚えたい」「♡」でも入ります。
+                <MarkText text="単語リストや復習カードの「★ 覚えたい」「♡」でも入ります。" />
               </>
             )}
             {!loggedIn && (
@@ -378,7 +380,9 @@ export default function WordbookScreen() {
                   <IconStar filled />
                 </span>
                 <span className="wb-tile-t">{starTile.title}</span>
-                <span className="wb-tile-d">{starTile.desc}</span>
+                <span className="wb-tile-d">
+                  <MarkText text={starTile.desc} />
+                </span>
                 {/* 語数だけ戻す（オーナー 2026-11-07）。「今日 +N」と★一覧の集計タイルは外したまま */}
                 <span className="wb-tile-n">
                   <b>{starList.length}</b> 語
@@ -414,7 +418,9 @@ export default function WordbookScreen() {
                       <span className="htw-def">{wordJa[todayWord.word.toLowerCase()] || todayWord.ja || todayWord.definition}</span>
                     )}
                     <span className="htw-ex">“{todayWord.sentence || todayWord.example}”</span>
-                    <span className="htw-src">{wordSource(todayWord)}</span>
+                    <span className="htw-src">
+                      <MarkText text={wordSource(todayWord)} />
+                    </span>
                   </button>
                 )}
                 {recent.length > 0 && (
@@ -451,7 +457,9 @@ export default function WordbookScreen() {
                                 </>
                               )}
                               {src && (
-                                <span className="wb-recent-src">{w.liked ? src : src.replace(/（字幕：[^）]*）\s*$/, '')}</span>
+                                <span className="wb-recent-src">
+                                  <MarkText text={w.liked ? src : src.replace(/（字幕：[^）]*）\s*$/, '')} />
+                                </span>
                               )}
                             </span>
                             <span className="wb-recent-chev" aria-hidden="true">›</span>
@@ -462,9 +470,11 @@ export default function WordbookScreen() {
                   </section>
                 )}
                 <p className="wb-foot">
-                  {CURATION_ON
+                  <MarkText
+                    text={CURATION_ON
                     ? '★ は単語リストや復習カードの「★ 覚えたい」、♡ は例文の下の「♡ この例文を保存」で入ります。外しても作品の単語リストと復習には残ります。'
                     : '字幕で保存した語と、単語リストや復習カードの「★ 覚えたい」を付けた語は ★ に、例文の下の「♡ この例文を保存」を押した語は ♡ に入ります。外しても作品の単語リストと復習には残ります。'}
+                  />
                 </p>
               </>
             )}
@@ -477,7 +487,9 @@ export default function WordbookScreen() {
 
             {/* ♡ を付けた語（例文つき）＝語が見出し・例文は “ ” と出所付きの従（法務 条件付きOK 2026-11-07）。例文が見えるよう開いた状態で出す */}
             {view === 'liked' && likedList.length === 0 && (
-              <div className="wb-note">気に入った例文は、例文の下の「♡ この例文を保存」で、語といっしょに残せます。</div>
+              <div className="wb-note">
+                <MarkText text="気に入った例文は、例文の下の「♡ この例文を保存」で、語といっしょに残せます。" />
+              </div>
             )}
             {view === 'liked' && likedList.length > 0 && (
               <section className="wb-section">
@@ -519,7 +531,9 @@ export default function WordbookScreen() {
               </h2>
             )}
             {view !== 'star' ? null : starList.length === 0 ? (
-              <div className="wb-note">単語リストや復習カードで「★ 覚えたい」を付けた語がここに集まります。</div>
+              <div className="wb-note">
+                <MarkText text="単語リストや復習カードで「★ 覚えたい」を付けた語がここに集まります。" />
+              </div>
             ) : (
             <>
             {/* 語数の表示は外した（オーナー 2026-11-07）。再読込・すべて削除は右寄せで残す */}

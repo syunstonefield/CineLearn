@@ -1,6 +1,6 @@
 'use client';
 
-import { IconClose, IconStar } from './icons/LineIcons';
+import { IconClose, IconStar, MarkText } from './icons/LineIcons';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
 import { loadHistory, learningStatsByTitle, buildLibraryEntries } from '@/lib/storage';
@@ -594,7 +594,9 @@ export default function TicketCollectionScreen() {
             </div>
 
             {list.length === 0 ? (
-              <p className="cl-fav-empty">★ を付けた作品が、ここに並びます。</p>
+              <p className="cl-fav-empty">
+                <MarkText text="★ を付けた作品が、ここに並びます。" />
+              </p>
             ) : view === 'poster' ? (
               <div className="cl-wall">
                 {list.map((e, i) => (

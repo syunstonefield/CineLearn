@@ -1,6 +1,6 @@
 'use client';
 
-import { IconClose } from './icons/LineIcons';
+import { IconClose, MarkText } from './icons/LineIcons';
 import { useCardAutoplay } from '@/lib/useCardAutoplay';
 import { AutoplaySwitch } from './AutoplaySwitch';
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -1240,7 +1240,7 @@ function ReviewDone({ showTomorrow = false, queue, partial = false, awardedRef, 
               onOpenWordbook?.();
             }}
           >
-            ★／♡ を付けた {markedRun} 語を単語帳で見る →
+            <MarkText text={`★／♡ を付けた ${markedRun} 語を単語帳で見る →`} />
           </button>
         )}
         {partial && <p className="rd-note">残りの単語は、また復習に出てきます</p>}

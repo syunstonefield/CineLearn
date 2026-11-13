@@ -15,6 +15,7 @@ import { useApp } from './AppProvider';
 import { trackUsage } from '@/lib/usage';
 import { loadHistory } from '@/lib/storage';
 import { tourSteps, lastTipAction, shouldGlowAdd, tipPosition, spotRect, lockPage, TOUR_ADD_USED_KEY } from '@/lib/introTour';
+import { MarkText } from './icons/LineIcons';
 
 function visibleTargets() {
   const out = {};
@@ -171,7 +172,9 @@ export default function HomeTour() {
               {idx + 1} / {steps.length}
             </span>
           </div>
-          <p className="ht-tip-text">{current.text}</p>
+          <p className="ht-tip-text">
+            <MarkText text={current.text} />
+          </p>
           <div className="ht-tip-foot">
             {isLast && last.add ? (
               <button type="button" className="ht-tip-skip" onClick={() => finish()}>
