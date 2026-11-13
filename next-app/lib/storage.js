@@ -660,19 +660,20 @@ export function getWordStatus(word, srs = loadSrs()) {
   return 'scheduled';
 }
 
-// ステータスバッジの絵文字＋ラベル＋CSSクラス（既存 statusBadgeHTML 準拠）
+// ステータスバッジのラベル＋CSSクラス＋線の絵の種類（既存 statusBadgeHTML 準拠）。
+//   2026-11-13: 絵文字をやめ、絵は呼ぶ側（VocabItem）が icon から線の絵を出す。未学習は絵なし（芽は「学習した日」用）。
 export function statusBadge(status) {
   switch (status) {
     case 'mastered':
-      return { cls: 'badge-mastered', text: '⭐ マスター' };
+      return { cls: 'badge-mastered', text: 'マスター', icon: 'star' };
     case 'learned':
-      return { cls: 'badge-learned', text: '✅ 覚えた' };
+      return { cls: 'badge-learned', text: '覚えた', icon: 'check' };
     case 'skipped':
       return null; // スキップは vocab-skipped クラスで表現
     case 'new':
-      return { cls: 'badge-new', text: '🌱 未学習' };
+      return { cls: 'badge-new', text: '未学習', icon: null };
     default:
-      return { cls: 'badge-learning', text: '🔄 学習中' };
+      return { cls: 'badge-learning', text: '学習中', icon: 'repeat' };
   }
 }
 

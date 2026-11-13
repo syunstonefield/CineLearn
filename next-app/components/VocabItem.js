@@ -1,5 +1,7 @@
 'use client';
-import { IconSpeaker, IconPin, IconPencil, IconFilm } from './icons/LineIcons';
+import { IconSpeaker, IconPin, IconPencil, IconFilm, IconStar, IconCheck, IconRepeat, IconCalendar, IconTrash } from './icons/LineIcons';
+
+const BADGE_ICON = { star: IconStar, check: IconCheck, repeat: IconRepeat };
 import { surfaceFormInExample } from '@/lib/subtitles';
 
 import { useState } from 'react';
@@ -120,7 +122,15 @@ export default function VocabItem({ word, srs, testTiers, ts, exampleSource, add
 
       <div className="vocab-detail">
         <div className="vocab-detail-tags">
-          {badge && !readOnly && <span className={`srs-badge ${badge.cls}`}>{badge.text}</span>}
+          {badge && !readOnly && (
+            <span className={`srs-badge ${badge.cls}`}>
+              {BADGE_ICON[badge.icon] ? (() => {
+                const Ic = BADGE_ICON[badge.icon];
+                return <Ic />;
+              })() : null}{' '}
+              {badge.text}
+            </span>
+          )}
           <span className={`tier-pill ${tierCls}`}>{tierText}</span>
           {/* CEFR の目安＝段階だけ（オーナー 2026-10-30「スッキリ」）。Core/Advanced/Context の横に並べる
               （オーナー 2026-10-30・見出し語のそばから移設）。表に無く AI の推定の値は淡く。
@@ -141,7 +151,11 @@ export default function VocabItem({ word, srs, testTiers, ts, exampleSource, add
               })()}
             </span>
           )}
-          {next && <span className="srs-next-review">📅 次回: {next}</span>}
+          {next && (
+            <span className="srs-next-review">
+              <IconCalendar /> 次回: {next}
+            </span>
+          )}
           {reviewCountLabel && <span className="review-count-label">{reviewCountLabel}</span>}
         </div>
 
@@ -258,7 +272,7 @@ export default function VocabItem({ word, srs, testTiers, ts, exampleSource, add
           {/* 🗑完全削除＝視聴中に拾った語の誤保存/タイポ救済（単語帳から外すだけなら★） */}
           {onDelete && (
             <button className="btn-srs-skip btn-word-del" onClick={() => onDelete(w.word)}>
-              🗑 削除
+              <IconTrash /> 削除
             </button>
           )}
         </div>

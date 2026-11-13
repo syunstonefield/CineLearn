@@ -1,6 +1,6 @@
 'use client';
 
-import { IconCheck, IconStar, IconPencil, IconRepeat, IconTarget, IconOpenBook, IconClapper, IconTv } from './icons/LineIcons';
+import { IconCheck, IconStar, IconPencil, IconRepeat, IconTarget, IconOpenBook, IconClapper, IconTv, IconCalendar, IconWarning } from './icons/LineIcons';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
 import VocabItem from './VocabItem';
@@ -1813,11 +1813,12 @@ export default function VocabScreen() {
   //   100% も緑のまま（2026-11-13 オーナー決定・旧＝100% で緑→金のグラデーションと橙の文字・2026-06-21 e83edca から）。
   const pctColor = pct >= 60 ? '#13967f' : '#16a06a';
   const barFill = 'linear-gradient(90deg, #16a06a, #3ccb8d)';
+  // 達成の1行（2026-11-13: 絵文字をやめ線の絵＝マスターは星・覚えたはチェック）
   const completeMsg =
     stats.total > 0 && stats.learned === stats.total
       ? stats.mastered === stats.total
-        ? '🌟 全単語マスター達成！'
-        : '✨ 全単語「覚えた」達成！'
+        ? '全単語マスター達成！'
+        : '全単語「覚えた」達成！'
       : '';
 
   // ── 予習エンジン：モード選択ページ（「次に進む」で遷移）──────────────
@@ -2219,7 +2220,9 @@ export default function VocabScreen() {
                 </div>
                 {/* 達成の1行: 全部「覚えた」＝緑（線と同じ）・全部マスター＝マスターの金（2026-11-13） */}
                 {completeMsg && (
-                  <div className={'srs-complete' + (stats.mastered === stats.total ? ' is-mastered' : '')}>{completeMsg}</div>
+                  <div className={'srs-complete' + (stats.mastered === stats.total ? ' is-mastered' : '')}>
+                    {stats.mastered === stats.total ? <IconStar /> : <IconCheck />} {completeMsg}
+                  </div>
                 )}
                 {episodeMismatch && (
                   <div className="srs-episode-note">
@@ -2345,7 +2348,7 @@ export default function VocabScreen() {
               {plusWords.length > 0 && (
                 <div className="plus-words-section">
                   <div className="source-label" style={{ marginTop: 16, marginBottom: 6 }}>
-                    📌 関連おすすめ単語（字幕外）
+                    関連おすすめ単語（字幕外）
                   </div>
                   <div className="vocab-list">
                     {plusWords.map((w) => (
@@ -2401,10 +2404,14 @@ export default function VocabScreen() {
               <div className="soon-sub">ログインなしで使えるのは対応作品のみです。ログインすれば、どの作品でも1日30話まで単語リストを作れます</div>
               {/* カタログゲートは未ログインだけに掛かる（2026-09-21 オーナー判断）。ログインが最短の解決なので最上段に置く */}
               <button type="button" className="soon-request-btn" onClick={loginThenGenerate}>
-                🔑 ログインしてこの作品の単語を学ぶ
+                ログインしてこの作品の単語を学ぶ
               </button>
               <div className="soon-sub" style={{ marginTop: 14 }}>ログインしない場合は、リクエストの多い作品から毎週カタログに追加しています</div>
-              {catReq.planned && <div className="soon-planned">📅 この作品は対応予定に入っています</div>}
+              {catReq.planned && (
+                <div className="soon-planned">
+                  <IconCalendar /> この作品は対応予定に入っています
+                </div>
+              )}
               <button
                 className="soon-request-btn"
                 disabled={catReq.requested || catReq.sending}
@@ -2414,13 +2421,13 @@ export default function VocabScreen() {
                   ? '✓ リクエストを受け付けました'
                   : catReq.sending
                     ? '送信中...'
-                    : '🙋 この作品をリクエストする'}
+                    : 'この作品をリクエストする'}
               </button>
               {catReq.votes != null && catReq.votes > 0 && (
                 <div className="soon-votes">現在 {catReq.votes} 票のリクエスト</div>
               )}
               <div className="soon-note">
-                🧩 字幕の単語クリック保存・意味表示は、この作品でも今すぐ使えます
+                字幕の単語クリック保存・意味表示は、この作品でも今すぐ使えます
               </div>
               <button type="button" className="soon-browse-link" onClick={() => setScreen('search')}>
                 対応作品を探す →
@@ -2643,7 +2650,9 @@ export default function VocabScreen() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="bulkdel-body">
-              <div className="bulkdel-icon" aria-hidden="true">⚠️</div>
+              <div className="bulkdel-icon" aria-hidden="true">
+                <IconWarning />
+              </div>
               <h2 id="bulkdel-title" className="bulkdel-title">単語リストをすべて削除しますか？</h2>
               <p className="bulkdel-lead">
                 「{drama.title}」の<strong>{bulkDel.impact.lists}話分</strong>の単語リスト（{bulkDel.impact.words}語）を削除します。

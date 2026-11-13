@@ -155,3 +155,37 @@ export function IconTv(p) {
     </Svg>
   );
 }
+
+// カレンダー（次の復習の日・対応予定）
+export function IconCalendar(p) {
+  return (
+    <Svg {...p}>
+      <rect x="4" y="5.5" width="16" height="14.5" rx="2" />
+      <path d="M4 10h16M8.5 3.5v4M15.5 3.5v4" />
+    </Svg>
+  );
+}
+
+// ごみ箱（削除）
+export function IconTrash(p) {
+  return (
+    <Svg {...p}>
+      <path d="M4.5 7h15" />
+      <path d="M9.5 7V5.2a1.2 1.2 0 0 1 1.2-1.2h2.6a1.2 1.2 0 0 1 1.2 1.2V7" />
+      <path d="M6.5 7l.9 11.6a1.6 1.6 0 0 0 1.6 1.4h6a1.6 1.6 0 0 0 1.6-1.4L17.5 7" />
+      <path d="M10.3 11v5.5M13.7 11v5.5" />
+    </Svg>
+  );
+}
+
+// 注意（取り消せない操作の前）
+export function IconWarning(p) {
+  return (
+    <Svg {...p}>
+      <path d="M10.6 4.6a1.6 1.6 0 0 1 2.8 0l7.2 12.8a1.6 1.6 0 0 1-1.4 2.4H4.8a1.6 1.6 0 0 1-1.4-2.4z" />
+      <path d="M12 9.5v4.2" />
+      <circle cx="12" cy="16.6" r="0.6" fill="currentColor" />
+    </Svg>
+  );
+}
+

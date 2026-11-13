@@ -1,5 +1,7 @@
 'use client';
 
+import { IconCheck, IconOpenBook } from './icons/LineIcons';
+import { MASTERED_LABEL, MASTERED_MEANING } from '@/lib/learnedTerms';
 import { useEffect, useRef, useState } from 'react';
 import { fetchEpisodeSynopsis } from '@/lib/tmdb';
 import { etaText, ETA_SHOW_AFTER_SEC } from '@/lib/genEta';
@@ -7,13 +9,15 @@ import { etaText, ETA_SHOW_AFTER_SEC } from '@/lib/genEta';
 // 生成中のリッチローディング（案C: ステップ表示つき）。
 // 「字幕取得 → 単語分析 → 仕上げ」の工程表示＋ポスター＋あらすじ＋学習Tips。
 // スタイルは next-app/app/style.css 末尾の「next-app 独自オーバーライド」ブロック。
+// 豆知識（2026-11-13 オーナー決定）: 効果の言い切りはしない（事実だけ・紹介ページの法務の線と同じ）／
+//   ボタンの言葉は今の画面どおり（知らなかった）／文の中に絵文字を入れない。マスターの意味は lib/learnedTerms.js の文。
 const LEARNING_TIPS = [
-  '観た翌日に復習すると忘れにくくなります',
-  '「わからない」が続いても大丈夫。最適なタイミングで再出題されます',
-  '単語の🔊をタップすると発音が聞けます',
-  '3週間後も思い出せたら⭐マスターです',
+  '答えた単語は、次の日から復習のカードに出てきます',
+  '「知らなかった」と答えた単語は、次の日の復習にまた出てきます',
+  '単語の横の音のボタンを押すと、発音が聞けます',
+  `${MASTERED_LABEL}は、${MASTERED_MEANING}です`,
   '学習した日と覚えた単語は、あゆみで見返せます',
-  '📍タイムスタンプはその単語が登場する時間です',
+  '単語の横の時刻は、その単語が出てくる場面の時間です',
 ];
 
 const STEPS = ['字幕取得', '単語分析', '仕上げ'];
@@ -104,7 +108,13 @@ export default function GenLoading({ status, drama, season, episode, ready = fal
       {/* ステータス帯：スピナー＋文言＋工程インジケーター */}
       <div className="gen-strip">
         <div className="gen-strip-status">
-          {ready ? <span aria-hidden="true">✅</span> : <div className="spinner"></div>}
+          {ready ? (
+            <span className="gen-ready-ic">
+              <IconCheck />
+            </span>
+          ) : (
+            <div className="spinner"></div>
+          )}
           <span>{ready ? '準備ができました' : status}</span>
         </div>
         <div className="gen-steps">
@@ -155,7 +165,9 @@ export default function GenLoading({ status, drama, season, episode, ready = fal
               <img className="gen-cover-poster" src={drama.posterPath} alt="" />
             ) : null}
             <div className="gen-synopsis-inner">
-              <div className="gen-synopsis-heading">📖 {heading}</div>
+              <div className="gen-synopsis-heading">
+                <IconOpenBook /> {heading}
+              </div>
               {synopsis?.overview ? (
                 <div className="gen-synopsis-body">{synopsis.overview}</div>
               ) : (
@@ -185,7 +197,7 @@ export default function GenLoading({ status, drama, season, episode, ready = fal
       {/* 学習Tips：ラベル＋帯＋ローテーションのドット表示。key 再マウントで tipFade を再トリガー */}
       <div className="gen-tipbar">
         <div className="gen-tipbar-main">
-          <div className="gen-tipbar-label">💡 英語学習のヒント</div>
+          <div className="gen-tipbar-label">英語学習のヒント</div>
           <div key={tipIdx} className="gen-tipbar-text gen-tip-show">
             {LEARNING_TIPS[dotOn]}
           </div>
