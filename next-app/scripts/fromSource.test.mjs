@@ -5,12 +5,13 @@ import { fromEvent, isUsageEvent, FROM_SOURCES } from '../lib/usageEvents.js';
 import { buildUsageReport, buildFromTable, isLandingOnlyRow, weekWindows } from '../lib/usageReport.js';
 
 test('決まった値だけを from_<値> にする', () => {
-  assert.deepEqual(FROM_SOURCES, ['tiktok', 'youtube', 'share']);
+  assert.deepEqual(FROM_SOURCES, ['tiktok', 'youtube', 'share', 'instagram']);
+  assert.equal(fromEvent('instagram'), 'from_instagram');
   assert.equal(fromEvent('tiktok'), 'from_tiktok');
   assert.equal(fromEvent(' YouTube '), 'from_youtube');
   assert.equal(fromEvent('share'), 'from_share');
   for (const v of ['ext_install', 'x', '', null, 'tiktok123', 'tik tok']) assert.equal(fromEvent(v), null, String(v));
-  for (const k of ['from_tiktok', 'from_youtube', 'from_share']) assert.ok(isUsageEvent(k), k);
+  for (const k of ['from_tiktok', 'from_youtube', 'from_share', 'from_instagram']) assert.ok(isUsageEvent(k), k);
   for (const k of ['from_ext_install', 'from_x', 'from_']) assert.ok(!isUsageEvent(k), k);
 });
 

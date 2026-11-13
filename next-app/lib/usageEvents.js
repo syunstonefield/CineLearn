@@ -19,10 +19,10 @@ export function reviewTimeEvent(sec) {
   return REVIEW_TIME_BUCKETS.find(([, max]) => s < max)[0];
 }
 
-// 入口の印（?from=<値>・2026-11-13・宣伝の動画のプロフィールのリンクと「PC で開くリンク」）。決まった値だけ受け付ける。
+// 入口の印（?from=<値>・2026-11-13・宣伝の動画のプロフィールのリンクと「PC で開くリンク」・instagram はオーナーのストーリーでの告知）。決まった値だけ受け付ける。
 //   値ごとに固定名 from_<値> を「来た回数」として数える（だれが・どの動画から・時刻は入れない）。
 //   ext_install は lib/extEntry.js の別の印（ext_install_open）なのでここには入れない。
-export const FROM_SOURCES = ['tiktok', 'youtube', 'share'];
+export const FROM_SOURCES = ['tiktok', 'youtube', 'share', 'instagram'];
 export const FROM_EVENTS = FROM_SOURCES.map((s) => `from_${s}`);
 export function fromEvent(value) {
   const v = String(value || '').trim().toLowerCase();
