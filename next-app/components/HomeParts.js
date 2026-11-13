@@ -12,7 +12,7 @@ import { WEEKDAYS } from '@/lib/journey';
 import { studiedLine } from '@/lib/studiedDays';
 import { IconSprout } from './icons/LineIcons';
 
-const HOME_WEEKS = 8; // ホームの学習した日に出す直近の週の数（スマホ 390 の半分の札に収まる数）。記録が短い人も列の数は8のまま（マスが大きくならないように）
+const HOME_WEEKS = 8; // ホームの学習した日に出す直近の週の数（スマホ 390 の半分の札に収まる数）。記録が短い人は列をその週の数にし、マスの大きさは8週の時のまま（表の幅を CSS で週の数に合わせ、札の真ん中に置く・2026-11-13）
 
 // 1行の細い帯（文＋リンク＋✕）。出す条件・順番・回数は Dashboard 側（今のまま）。
 export function HomeBand({ text, linkLabel, onLink, onClose }) {
@@ -145,7 +145,7 @@ export function HomeRecord({ learned, mastered, total, grass, onOpenJourney, onO
               ›
             </span>
           )}
-          <span className="hm-days-cal" aria-hidden="true" style={{ '--hm-weeks': HOME_WEEKS }}>
+          <span className="hm-days-cal" aria-hidden="true" style={{ '--hm-weeks': weeks.length || HOME_WEEKS }}>
             <span />
             <span className="hm-days-mo">
               {weeks.map((w, i) => (

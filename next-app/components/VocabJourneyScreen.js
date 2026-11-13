@@ -70,6 +70,8 @@ function TrendChart({ series }) {
   const base = T0 + LH + GAP + BH;
   const bh = (v) => (BH * v) / okMax;
   const bw = Math.min(14, ((W - Lp - R) / n) * 0.5);
+  const colW = Math.max(bw, (W - Lp - R) / n); // 棒の週の押せる幅（週の幅いっぱい）
+  const [tip, setTip] = useState(null); // 数を出している週（カーソル・タップ・キーボード）
   const path = (arr) => arr.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(' ');
   const labelEvery = Math.max(1, Math.ceil(n / Math.max(2, Math.floor((W - Lp - R) / 64))));
   const last = n - 1;
@@ -121,8 +123,46 @@ function TrendChart({ series }) {
           その週に思い出せた数
         </text>
         {ok.map((v, i) =>
-          v > 0 ? <rect key={i} x={x(i) - bw / 2} y={base - bh(v)} width={bw} height={bh(v)} rx="2.5" className="vj-bar" /> : null
+          v > 0 ? (
+            <rect key={i} x={x(i) - bw / 2} y={base - bh(v)} width={bw} height={bh(v)} rx="2.5" className={'vj-bar' + (tip === i ? ' is-on' : '')} />
+          ) : null
         )}
+        {/* 棒にカーソルを合わせる／タップすると、その週の数（2026-11-13 オーナー依頼）。数だけの中立な言い方・未達や分母は出さない。
+            押せる所は棒の段の週ごとの縦の帯（棒が細いので、指でも当たる幅にする）。0 の週は出さない。 */}
+        {ok.map((v, i) =>
+          v > 0 ? (
+            <rect
+              key={`hit${i}`}
+              x={x(i) - colW / 2}
+              y={T0 + LH + GAP - 4}
+              width={colW}
+              height={BH + 4}
+              className="vj-bar-hit"
+              tabIndex={0}
+              role="button"
+              aria-label={`${md(series[i].weekStart)}週 思い出せた ${v}回`}
+              onMouseEnter={() => setTip(i)}
+              onMouseLeave={() => setTip((t) => (t === i ? null : t))}
+              onFocus={() => setTip(i)}
+              onBlur={() => setTip((t) => (t === i ? null : t))}
+              onClick={() => setTip((t) => (t === i ? null : i))}
+            />
+          ) : null
+        )}
+        {tip != null && ok[tip] > 0 && (() => {
+          const label = `${md(series[tip].weekStart)}週　思い出せた ${ok[tip]}回`; // 棒＝その週の採点で思い出せた回数（同じ語の2回目も数える）
+          const tw = 16 + label.length * 10.5;
+          const tx = Math.min(Math.max(x(tip) - tw / 2, 2), W - tw - 2); // 画面の端からはみ出さない
+          const ty = Math.max(T0 + LH + 2, base - bh(ok[tip]) - 30);
+          return (
+            <g className="vj-tip" pointerEvents="none">
+              <rect x={tx} y={ty} width={tw} height={22} rx="6" className="vj-tip-bg" />
+              <text x={tx + tw / 2} y={ty + 15} textAnchor="middle" className="vj-tip-tx">
+                {label}
+              </text>
+            </g>
+          );
+        })()}
         <line x1={Lp} x2={W - R} y1={base + 0.5} y2={base + 0.5} className="vj-grid" />
         {series.map((s, i) =>
           (last - i) % labelEvery === 0 ? (
