@@ -50,6 +50,7 @@ export default function ProfileSelect() {
               <button
                 type="button"
                 className="profile-delete-btn"
+                aria-label={`${p.name} を削除`}
                 title="削除"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -94,7 +95,7 @@ export default function ProfileSelect() {
           <div className="modal-panel" style={{ maxWidth: 360 }}>
             <div className="modal-header">
               <span className="modal-title">プロフィールを追加</span>
-              <button className="modal-close" onClick={() => setAddOpen(false)}>
+              <button className="modal-close" onClick={() => setAddOpen(false)} aria-label="閉じる">
                 <IconClose />
               </button>
             </div>
@@ -127,7 +128,7 @@ export default function ProfileSelect() {
           <div className="modal-panel" style={{ maxWidth: 360 }}>
             <div className="modal-header">
               <span className="modal-title">プロフィールを削除</span>
-              <button className="modal-close" onClick={() => setDelTarget(null)}>
+              <button className="modal-close" onClick={() => setDelTarget(null)} aria-label="閉じる">
                 <IconClose />
               </button>
             </div>

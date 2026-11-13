@@ -51,6 +51,7 @@ export default function LibraryCard({ entry, onSelect, onArchive, stats }) {
         <button
           className="library-card-delete"
           title="棚から外す（学習記録は残ります）"
+          aria-label="棚から外す（学習記録は残ります）"
           onClick={(e) => {
             e.stopPropagation();
             onArchive(drama.title);

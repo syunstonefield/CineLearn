@@ -649,7 +649,7 @@ export default function ReviewModal({ asPage = false }) {
             >
               ?
             </button>
-            <button className="modal-close" onClick={requestClose}>
+            <button className="modal-close" onClick={requestClose} aria-label="閉じる">
             <IconClose />
           </button>
           </span>

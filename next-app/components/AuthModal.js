@@ -89,7 +89,7 @@ export default function AuthModal() {
           <span className="modal-title" style={{ fontSize: 22 }}>
             🎬 CineLearn
           </span>
-          <button className="modal-close" onClick={closeAuth}>
+          <button className="modal-close" onClick={closeAuth} aria-label="閉じる">
             <IconClose />
           </button>
         </div>
