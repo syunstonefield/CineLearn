@@ -10,18 +10,19 @@ globalThis.localStorage = {
   removeItem: (k) => void store.delete(k),
 };
 const events = [];
-globalThis.window = { dispatchEvent: (e) => void events.push(e.type), localStorage: globalThis.localStorage };
-globalThis.CustomEvent = class { constructor(type) { this.type = type; } };
+const troubles = []; // 同期の不調（cl:sync-trouble）は失効とは別に記録する（2026-11-13）
+globalThis.window = { dispatchEvent: (e) => void (e.type === 'cl:sync-trouble' ? troubles.push(e.detail) : events.push(e.type)), localStorage: globalThis.localStorage };
+globalThis.CustomEvent = class { constructor(type, init) { this.type = type; this.detail = init?.detail; } };
 let fetchLog = [];
 let fetchImpl = async () => new Response('{}', { status: 200 });
 globalThis.fetch = (...a) => { fetchLog.push(a[0]); return fetchImpl(...a); };
 
-const { ensureFreshSession, ensureSessionForSync, SESSION_EXPIRED_EVENT, getSession, sessionRetry, sbFetch } = await import('../lib/supabase.js');
+const { ensureFreshSession, ensureSessionForSync, SESSION_EXPIRED_EVENT, getSession, sessionRetry, sbFetch, lastRefreshFailure, getSyncTrouble } = await import('../lib/supabase.js');
 sessionRetry.delayMs = 20; // 拡張の書き戻しを待つ時間（本番 1.5 秒）を短く
 
 const now = () => Math.floor(Date.now() / 1000);
 const session = (over = {}) => ({ access_token: 'old', refresh_token: 'r1', expires_at: now() + 30, user: { id: 'u1' }, ...over });
-const reset = () => { store.clear(); events.length = 0; fetchLog = []; };
+const reset = () => { store.clear(); events.length = 0; troubles.length = 0; fetchLog = []; };
 
 test('期限が近い時に更新し、成功したら新しいセッションを保存する', async () => {
   reset();
@@ -38,6 +39,7 @@ test('更新に失敗（使用済み refresh_token など）したら失効を�
   fetchImpl = async () => new Response(JSON.stringify({ error_code: 'refresh_token_already_used', msg: 'Invalid Refresh Token: Already Used' }), { status: 400 });
   assert.equal(await ensureFreshSession(), false);
   assert.deepEqual(events, [SESSION_EXPIRED_EVENT]);
+  assert.equal(lastRefreshFailure(), 'rejected'); // 本当の期限切れ＝下からのシート
   assert.equal(getSession().access_token, 'old');
 });
 
@@ -94,6 +96,8 @@ test('オフライン（fetch 失敗）・5xx・429 は失効ではない: false
   fetchImpl = async () => { throw new TypeError('Failed to fetch'); };
   assert.equal(await ensureFreshSession(), false);
   assert.deepEqual(events, []);
+  assert.equal(lastRefreshFailure(), 'offline'); // 起動時はこれを見て期限切れにしない（AppProvider）
+  assert.equal(getSyncTrouble(), 'offline'); // 小さな札
   assert.equal(getSession().access_token, 'old');
   for (const status of [500, 503, 429]) {
     reset();
@@ -101,10 +105,14 @@ test('オフライン（fetch 失敗）・5xx・429 は失効ではない: false
     fetchImpl = async () => new Response('oops', { status });
     assert.equal(await ensureFreshSession(), false);
     assert.deepEqual(events, [], String(status));
+    assert.equal(lastRefreshFailure(), 'temporary', String(status));
+    assert.equal(getSyncTrouble(), 'temporary', String(status));
   }
-  // 通信が戻って更新が通れば、そのまま続く
+  // 通信が戻って更新が通れば、そのまま続く（札も消える）
   fetchImpl = async () => new Response(JSON.stringify({ access_token: 'new', refresh_token: 'r2', expires_at: now() + 3600, user: { id: 'u1' } }), { status: 200 });
   assert.equal(await ensureFreshSession(), true);
+  assert.equal(lastRefreshFailure(), null);
+  assert.equal(getSyncTrouble(), null);
 });
 
 test('REST の 401: 更新を1回試して同じ要求をやり直す。更新後も 401 なら失効、更新が通信エラーなら失効にしない', async () => {

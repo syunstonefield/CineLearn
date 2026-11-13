@@ -61,6 +61,8 @@ export async function sbFetch(path, opts = {}) {
   const { _retried, ...init } = opts;
   try {
     const res = await fetch(`${SUPABASE_URL}${path}`, { ...init, headers: sbHeaders(init.headers || {}) });
+    if (res.ok && getSession()?.access_token) setSyncTrouble(null);
+    else if ((res.status >= 500 || res.status === 429) && getSession()?.access_token) setSyncTrouble('temporary');
     if (res.status === 401 && getSession()?.access_token && !path.startsWith('/auth/')) {
       if (!_retried && (await ensureFreshSession({ force: true }))) return sbFetch(path, { ...init, _retried: true });
       if (_retried) notifySessionExpired(); // 更新後も 401＝本当に無効
@@ -68,6 +70,7 @@ export async function sbFetch(path, opts = {}) {
     if (res.status === 204 || res.status === 201) return null;
     return await res.json();
   } catch {
+    if (getSession()?.access_token && typeof navigator !== 'undefined' && navigator.onLine === false) setSyncTrouble('offline');
     return null;
   }
 }
@@ -107,6 +110,31 @@ function notifySessionExpired() {
   }
 }
 
+// 同期の不調（2026-11-13・オーナー決定）。期限切れ（上の SESSION_EXPIRED_EVENT＝ログインし直しが要る）とは分ける。
+//   'offline'＝通信できない／'temporary'＝サーバの一時的な不調（5xx・429）／null＝問題なし。
+//   画面（components/SyncNotice.js）はこれを小さな札で出すだけ＝ログインは求めない。
+export const SYNC_TROUBLE_EVENT = 'cl:sync-trouble';
+let _syncTrouble = null;
+export function getSyncTrouble() {
+  return _syncTrouble;
+}
+export function setSyncTrouble(kind) {
+  const next = kind === 'offline' || kind === 'temporary' ? kind : null;
+  if (next === _syncTrouble) return;
+  _syncTrouble = next;
+  try {
+    if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(SYNC_TROUBLE_EVENT, { detail: next }));
+  } catch {
+    /* ignore */
+  }
+}
+// 最後にログインを延ばせなかった理由（起動時の判断用）。'rejected'＝サーバが refresh_token を断った（本当の期限切れ）／
+//   'offline'／'temporary'／'no_refresh_token'／null＝延ばせた・まだ試していない。
+let _lastRefreshFailure = null;
+export function lastRefreshFailure() {
+  return _lastRefreshFailure;
+}
+
 // 更新を一本化（同時に複数の送信が失効を見ても refresh_token を二度使わない＝使い捨てトークンの再利用拒否を避ける）
 let _refreshing = null;
 // 更新に失敗した時、拡張（bridge v1.2.12〜）の書き戻しを待つ時間（テストから短くできる）
@@ -120,6 +148,7 @@ export async function ensureFreshSession({ force = false } = {}) {
   const now = Date.now() / 1000;
   if (!force && s.expires_at && s.expires_at - now > 600) return true;
   if (!s.refresh_token) {
+    _lastRefreshFailure = 'no_refresh_token';
     notifySessionExpired();
     return false;
   }
@@ -136,7 +165,11 @@ export async function ensureFreshSession({ force = false } = {}) {
             headers: sbHeaders(),
             body: JSON.stringify({ refresh_token: s.refresh_token }),
           });
-          if (res.status >= 500 || res.status === 429) return false; // 一時的な不調
+          if (res.status >= 500 || res.status === 429) {
+            _lastRefreshFailure = 'temporary';
+            setSyncTrouble('temporary');
+            return false; // 一時的な不調
+          }
           try {
             d = await res.json();
           } catch {
@@ -144,13 +177,20 @@ export async function ensureFreshSession({ force = false } = {}) {
           }
           rejected = !res.ok; // 400/401/403＝トークンが無効（used / invalid / revoked）
         } catch {
+          _lastRefreshFailure = 'offline';
+          setSyncTrouble('offline');
           return false; // オフライン・通信エラー
         }
         if (d?.access_token) {
           setSession(d);
+          _lastRefreshFailure = null;
+          setSyncTrouble(null);
           return true;
         }
-        if (!rejected) return false; // 2xx なのに access_token が無い（想定外）＝失効とは言い切れない
+        if (!rejected) {
+          _lastRefreshFailure = 'temporary';
+          return false; // 2xx なのに access_token が無い（想定外）＝失効とは言い切れない
+        }
         // 失敗。Chrome 拡張（bridge.js v1.2.12〜）が先に更新して新しいセッションを localStorage に書き戻していれば、それを採る
         // （同じ refresh_token を拡張が先に使うと、こちらの更新は「使用済み」で拒否される）。ほぼ同時に更新した場合の救済として
         // 少し待ってから読み直す。セッションは消さない。古い拡張（書き戻さない）でも動きは従来どおり（失敗→失効の通知）。
@@ -161,6 +201,7 @@ export async function ensureFreshSession({ force = false } = {}) {
         if (fresher()) return true;
         await new Promise((r) => setTimeout(r, sessionRetry.delayMs));
         if (fresher()) return true;
+        _lastRefreshFailure = 'rejected';
         notifySessionExpired();
         return false;
       } finally {

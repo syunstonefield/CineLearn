@@ -23,6 +23,10 @@ import {
   ensureFreshSession,
   SESSION_EXPIRED_EVENT,
   SESSION_UPDATED_EVENT,
+  SYNC_TROUBLE_EVENT,
+  getSyncTrouble,
+  setSyncTrouble as setSyncTroubleState,
+  lastRefreshFailure,
   pullFromCloud,
   isLoggedIn,
   getSession,
@@ -128,7 +132,8 @@ export default function AppProvider({ children }) {
   // Supabase（読み取り専用）
   const [authOpen, setAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState(null); // 開くタブ（'login' | 'signup'）。null は AuthModal の既定
-  const [sessionExpired, setSessionExpired] = useState(false); // ログインの期限切れ（ホームの帯で案内）
+  const [sessionExpired, setSessionExpired] = useState(false); // ログインの期限切れ（ホームの下からのシートで案内・components/SyncNotice.js）
+  const [syncTrouble, setSyncTrouble] = useState(null); // 'offline' | 'temporary' | null（小さな札・ログインは求めない）
   const [loggedIn, setLoggedIn] = useState(false);
   const [cloudVersion, setCloudVersion] = useState(0); // pull 後のプロフィール再読込
   const [drama, setDrama] = useState(null); // selectedDrama
@@ -241,6 +246,11 @@ export default function AppProvider({ children }) {
         } else if (isLoggedIn()) {
           rememberAccount(getCurrentUser()?.id);
           setLoggedIn(true);
+        } else if (getSession()?.access_token && ['offline', 'temporary'].includes(lastRefreshFailure())) {
+          // ログインを延ばせなかったのが通信のせい（オフライン・サーバの一時的な不調）＝期限切れではない（2026-11-13）。
+          //   以前はここで期限切れの帯を出していた。ログインのまま扱い、つながった時（下の online）に延ばして取り直す。
+          rememberAccount(getCurrentUser()?.id);
+          setLoggedIn(true);
         } else {
           // 未ログイン：起動時にログイン画面は出さない（初回体験の修正 D・lib/firstRun.js）。
           //   新規は体験へ、既存ゲストはホームへ（下の自動遷移エフェクトと selectProfile）。
@@ -271,11 +281,23 @@ export default function AppProvider({ children }) {
     const onExpired = () => {
       setLoggedIn(false);
       setSessionExpired(true);
+      setSyncTroubleState(null);
     };
+    // 同期の不調（lib/supabase.js setSyncTrouble）を画面へ。オフラインの間は札を出し、つながったら下の online で消す。
+    const onTrouble = (e) => setSyncTrouble(e?.detail ?? null);
+    const onOffline = () => {
+      if (getSession()?.access_token) setSyncTroubleState('offline');
+    };
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) onOffline();
+    setSyncTrouble(getSyncTrouble());
     window.addEventListener(SESSION_EXPIRED_EVENT, onExpired);
+    window.addEventListener(SYNC_TROUBLE_EVENT, onTrouble);
+    window.addEventListener('offline', onOffline);
     return () => {
       clearInterval(timer);
       window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired);
+      window.removeEventListener(SYNC_TROUBLE_EVENT, onTrouble);
+      window.removeEventListener('offline', onOffline);
     };
   }, []);
 
@@ -347,6 +369,7 @@ export default function AppProvider({ children }) {
     // 通信が戻った時（機内モード解除など）: オフライン中の更新失敗は失効ではないので、ここで更新をやり直してクラウドから取り直す。
     const onOnline = () => {
       if (!getSession()?.access_token) return;
+      if (getSyncTrouble() === 'offline') setSyncTroubleState(null); // つながった＝札を消す（送れなければ送る側がまた付ける）
       ensureFreshSession()
         .then((ok) => {
           if (!ok) return;
@@ -984,6 +1007,7 @@ export default function AppProvider({ children }) {
     authOpen,
     authMode,
     sessionExpired,
+    syncTrouble,
     leaveTrialForAccount,
     openAuth,
     closeAuth,

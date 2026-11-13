@@ -4,6 +4,7 @@ import { IconHeart } from './icons/LineIcons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
 import { HomeBand, HomeTodayCard, HomeRecord, HomeStart } from './HomeParts';
+import SyncNotice from './SyncNotice';
 import { CURATION_ON, SAVE_STAR_SENTENCE } from '@/lib/curation';
 import { buildGrass, statsStart } from '@/lib/journey';
 import { loadExpLedger } from '@/lib/exp';
@@ -94,7 +95,6 @@ export default function Dashboard() {
     wordbookVersion,
     loggedIn,
     openAuth,
-    sessionExpired,
     openWordbook,
     openSearch,
     startEpisodeQuiz,
@@ -113,7 +113,6 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mounted, plan, reviewVersion, cloudVersion]);
   const [tick, setTick] = useState(0); // 再読込トリガ
-  const [expiredBandClosed, setExpiredBandClosed] = useState(false); // 期限切れの帯を閉じた（次に開くとまた出る）
   // 拡張機能の導入バナー（最初の関門対策で常設）。拡張未検出の判定はできないため、
   // インストール済みの人向けに×で消せる（消去は端末ローカルに記憶）。
   const [extBannerDismissed, setExtBannerDismissed] = useState(true); // SSR/初回は隠す
@@ -820,15 +819,9 @@ export default function Dashboard() {
   return (
     <div className="screen active" id="screen-main">
       <div className="hm">
-        {/* ログインの期限切れ（起動時にログイン画面を出さない代わりの案内・初回体験の修正 D）。「この端末の記録は消えません」は必ず添える */}
-        {sessionExpired && !loggedIn && !expiredBandClosed && (
-          <HomeBand
-            text="同期が止まっています。この端末の記録は消えません"
-            linkLabel="ログイン"
-            onLink={() => openAuth({ mode: 'login' })}
-            onClose={() => setExpiredBandClosed(true)}
-          />
-        )}
+        {/* 同期が止まった時の案内（2026-11-13・components/SyncNotice.js）: 期限切れ＝下からのシートを起動ごとに1回／
+            オフライン・一時的な不調＝小さな札。以前の細い帯（期限切れだけ）はこれに置き換えた。 */}
+        <SyncNotice />
         {extEntry && (
           <HomeBand
             text={

@@ -1,0 +1,161 @@
+/* 同期の案内（components/SyncNotice.js）。色はテーマの変数（ダークも同じ変数で切り替わる）。 */
+.chip {
+  position: sticky;
+  top: 8px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: fit-content;
+  max-width: calc(100% - 32px);
+  margin: 8px auto 4px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 13px;
+  line-height: 1.4;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.18);
+}
+.dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(20, 17, 13, 0.42);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.sheet {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  box-sizing: border-box;
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 22px 22px 0 0;
+  padding: 26px 22px calc(28px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -6px 30px rgba(0, 0, 0, 0.15);
+}
+@media (min-width: 600px) {
+  .backdrop {
+    align-items: center;
+  }
+  .sheet {
+    border-radius: 22px;
+    padding-bottom: 28px;
+  }
+  .grab {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .sheet {
+    animation: syncSheetUp 0.24s ease-out;
+  }
+}
+@keyframes syncSheetUp {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.grab {
+  width: 40px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--border);
+  margin: -12px auto 18px;
+}
+.x {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--bg);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.ic {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+.t {
+  margin: 0 0 8px;
+  padding-right: 36px;
+  font-size: 20px;
+  line-height: 1.4;
+}
+.p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--text-soft);
+}
+.safe {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 14px 0 20px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, #3f8a4b 12%, transparent);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.55;
+}
+.safe svg {
+  flex: none;
+  margin-top: 2px;
+  color: #3f8a4b;
+}
+.btn {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: 14px;
+  padding: 15px;
+  margin-bottom: 6px;
+  font-size: 16px;
+  font-weight: 700;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+.later {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: none;
+  padding: 10px;
+  font-size: 15px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.nb {
+  display: inline-block;
+}
