@@ -43,6 +43,7 @@ export default function VocabItem({ word, srs, testTiers, ts, exampleSource, add
     reviewCount > 0 ? `${reviewCount}回復習済み` : hasReviewed ? '復習済み' : '';
 
   const badge = statusBadge(status === 'learning' ? 'due' : status);
+  const BadgeIcon = badge ? BADGE_ICON[badge.icon] : null; // 未学習は絵なし（芽は「学習した日」用・2026-11-13）
   const tier = w.tier || 'core';
   const tierCls = tier === 'context' ? 'tier-context' : tier === 'advanced' ? 'tier-advanced' : 'tier-core';
   const tierText = tier === 'context' ? 'Context' : tier === 'advanced' ? 'Advanced' : 'Core';
@@ -124,10 +125,11 @@ export default function VocabItem({ word, srs, testTiers, ts, exampleSource, add
         <div className="vocab-detail-tags">
           {badge && !readOnly && (
             <span className={`srs-badge ${badge.cls}`}>
-              {BADGE_ICON[badge.icon] ? (() => {
-                const Ic = BADGE_ICON[badge.icon];
-                return <Ic />;
-              })() : null}{' '}
+              {BadgeIcon ? (
+                <>
+                  <BadgeIcon />{' '}
+                </>
+              ) : null}
               {badge.text}
             </span>
           )}
