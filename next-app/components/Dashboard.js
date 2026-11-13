@@ -831,7 +831,7 @@ export default function Dashboard() {
   const journeyOk = featureAccess('ring', plan).usable;
 
   // 2026-11-12 見直し（受付の見本 reports/home-ui-2026-11-12/mock.html・オーナー了承）:
-  //   帯 → 今日の復習 → 記録（2枚） → 続きから学習 → 今日の語 → マイリスト → おすすめ（→ TMDB の表示は layout）。
+  //   帯 → 今日の復習 → 続きから学習 → 記録（2枚） → 今日の語 → マイリスト → おすすめ（→ TMDB の表示は layout）。2026-11-14 に続きから学習を記録の上へ。
   //   帯は1行の細い帯に（出す条件・順番・1回だけ等は今のまま）。文は短くした（オーナー確認用に受付へ報告）。
   return (
     <div className="screen active" id="screen-main">
@@ -862,20 +862,18 @@ export default function Dashboard() {
           />
         )}
         {/* 拡張機能の案内は ✕ で閉じるまで一番上に出す（オーナー 2026-10-08）。スマホは入れられないので PC の手順への案内 */}
-        {!extBannerDismissed && (
+        {/* スマホの幅では出さない（スマホでは拡張機能を入れられない・オーナー採用 2026-11-14・画面の改善案 2）。PC だけ */}
+        {!extBannerDismissed && !isMobile && (
           <HomeBand
-            text={
-              isMobile
-                ? 'PC の Chrome 拡張機能で、観ながら字幕の単語を保存できます'
-                : '無料の Chrome 拡張機能とログインで、Netflix・Prime Video の字幕の単語を集められます'
-            }
-            linkLabel={isMobile ? '導入手順' : '入れ方を見る'}
+            text="無料の Chrome 拡張機能とログインで、Netflix・Prime Video の字幕の単語を集められます"
+            linkLabel="入れ方を見る"
             onLink={openGuide}
             onClose={dismissExtBanner}
           />
         )}
 
-        {data.hasAnyWord && (
+        {/* まだ作品を1つも選んでいない人には、0語の今日の復習の札は出さない（改善案 10）。語がある（拡張機能で保存した等）なら出す */}
+        {data.hasAnyWord && (entries.length > 0 || Math.min(data.dueCount, todayCap) > 0) && (
           <HomeTodayCard
             studied={data.studied}
             todayCount={Math.min(data.dueCount, todayCap)}
@@ -885,18 +883,6 @@ export default function Dashboard() {
             onAgain={startAgain}
           />
         )}
-
-        {/* 記録（2枚）: 左＝覚えた・マスター（分母＝出会った語）、右＝学習した日（誰でも・押すとあゆみの学習した日の欄へ＝journey_grass）。
-            左を押すとあゆみ（journey_tab と同じ数え方）。正式版の無料では、学習した日だけ押せる（あゆみの学習した日へ・無料 2026-11-12）。
-            覚えた・マスターの札は押せない（あゆみの円はプラス＝押すとプラスの説明に進む形にしない）。 */}
-        <HomeRecord
-          learned={data.totalLearned}
-          mastered={data.totalMastered}
-          total={data.totalWords}
-          grass={homeGrass?.grass || null}
-          onOpenJourney={journeyOk ? () => openJourney() : null}
-          onOpenGrass={() => openJourney('grass')}
-        />
 
         {entries.length === 0 ? (
           <HomeStart items={recommendItems} userLevel={settings.userLevel || 'B1'} onFind={() => openSearch()} onPick={startFromRecommend} />
@@ -948,6 +934,20 @@ export default function Dashboard() {
             )}
             {SHOW_WATCH_CARD && <div className="hm-watch">{midSections}</div>}
           </>
+        )}
+
+        {/* 記録（2枚）: 左＝覚えた・マスター（数だけ・分母は出さない）、右＝学習した日（誰でも・押すとあゆみの学習した日の欄へ＝journey_grass）。
+            並びは 今日の復習 → 続きから学習 → 記録（オーナー採用 2026-11-14・画面の改善案 2）。
+            まだ作品を1つも選んでいない人には、空の記録の札は出さない（改善案 10・覚えた/マスターが 0 の間）。 */}
+        {(entries.length > 0 || data.totalLearned > 0 || data.totalMastered > 0) && (
+          <HomeRecord
+            learned={data.totalLearned}
+            mastered={data.totalMastered}
+            total={data.totalWords}
+            grass={homeGrass?.grass || null}
+            onOpenJourney={journeyOk ? () => openJourney() : null}
+            onOpenGrass={() => openJourney('grass')}
+          />
         )}
 
         {/* ♡今日の語（2026-11-07・法務の条件＝語が見出し・例文は “ ”＋出所の従）。ほかの札と同じ幅・同じ札に */}

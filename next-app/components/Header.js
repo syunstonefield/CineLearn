@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 // 既存 index.html の <header> を再現。
 // アイコンは OS依存の絵文字をやめ、単色のラインアイコン（currentColor）で統一する。
@@ -70,6 +70,101 @@ function IconLogout() {
   );
 }
 
+function IconMore() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" {...ICON} aria-hidden="true">
+      <circle cx="5.5" cy="12" r="1.2" />
+      <circle cx="12" cy="12" r="1.2" />
+      <circle cx="18.5" cy="12" r="1.2" />
+    </svg>
+  );
+}
+
+// スマホの幅（〜768px）だけの「…」メニュー（オーナー採用 2026-11-14・画面の改善案 1）。設定・使い方・ログイン／ログアウトと「ベータ版」の印をまとめる。
+//   PC の幅では出さない（今までどおりヘッダーに並べる）。キーボード（↑↓・Esc）と読み上げで使える・外を押すと閉じる。
+function HeaderMenu({ profile, onSettings, onHelp, loggedIn, onAuth, onSignOut }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+  const btnRef = useRef(null);
+  const items = [
+    { key: 'settings', label: '設定', icon: <IconSettings />, run: onSettings },
+    profile && onHelp ? { key: 'help', label: '使い方ガイド', icon: <IconHelp />, run: onHelp } : null,
+    loggedIn
+      ? { key: 'logout', label: 'ログアウト', icon: <IconLogout />, run: onSignOut }
+      : { key: 'login', label: 'ログイン（クラウド読込）', icon: <IconLogin />, run: onAuth },
+  ].filter(Boolean);
+  const focusItem = (i) => {
+    const list = wrapRef.current?.querySelectorAll('[role="menuitem"]');
+    if (list && list.length) list[(i + list.length) % list.length].focus();
+  };
+  useEffect(() => {
+    if (!open) return undefined;
+    focusItem(0);
+    const onDown = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('pointerdown', onDown);
+    return () => document.removeEventListener('pointerdown', onDown);
+  }, [open]);
+  const close = (refocus) => {
+    setOpen(false);
+    if (refocus) btnRef.current?.focus();
+  };
+  const onKeyDown = (e) => {
+    const list = [...(wrapRef.current?.querySelectorAll('[role="menuitem"]') || [])];
+    const i = list.indexOf(document.activeElement);
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      close(true);
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      focusItem(i + 1);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      focusItem(i - 1);
+    } else if (e.key === 'Tab') {
+      setOpen(false);
+    }
+  };
+  return (
+    <div className="hdr-menu hdr-sp-only" ref={wrapRef} onKeyDown={onKeyDown}>
+      <button
+        ref={btnRef}
+        type="button"
+        className="btn-header-icon"
+        aria-label="メニュー"
+        title="メニュー"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        data-tour="menu"
+        onClick={() => setOpen((o) => !o)}
+      >
+        <IconMore />
+      </button>
+      {open && (
+        <div className="hdr-menu-panel" role="menu" aria-label="メニュー">
+          {items.map((it) => (
+            <button
+              key={it.key}
+              type="button"
+              role="menuitem"
+              className="hdr-menu-item"
+              onClick={() => {
+                close(false);
+                it.run?.();
+              }}
+            >
+              {it.icon}
+              <span>{it.label}</span>
+            </button>
+          ))}
+          <div className="hdr-menu-note">ベータ版（いまは無料で公開中）</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Header({
   profile,
   wordCount,
@@ -103,7 +198,7 @@ export default function Header({
         <img className="logo-mark" src="/icon-192.png" alt="" />
         Cine<span>Learn</span>
         {/* ベータ表示（2026-10-08 オーナー決定）。正式版で外す */}
-        <span className="beta-tag" title="ベータ版・いまは無料で公開中">ベータ</span>
+        <span className="beta-tag hdr-pc-only" title="ベータ版・いまは無料で公開中">ベータ</span>
       </div>
       <div className="header-right">
         {/* .btn-profile-switch のCSS既定は display:none。既存JSと同様に表示時だけ flex を当てる。
@@ -134,7 +229,7 @@ export default function Header({
           </button>
         )}
         {/* 設定はボトムナビから上へ移した（オーナー 2026-10-08）＝どの幅でも常に出す */}
-        <button className="btn-header-icon" title="設定" aria-label="設定" data-tour="settings" onClick={onSettings}>
+        <button className="btn-header-icon hdr-pc-only" title="設定" aria-label="設定" data-tour="settings" onClick={onSettings}>
           <IconSettings />
         </button>
         {/* 単語帳はモバイルではボトムナビと重複するため隠す（PCのみ表示） */}
@@ -144,19 +239,21 @@ export default function Header({
         </button>
         {/* 使い方ガイド再表示。モバイルでもボトムナビに枠が無いのでヘッダーに常設する */}
         {profile && onHelp && (
-          <button className="btn-header-icon" title="使い方ガイド" data-tour="help" onClick={onHelp}>
+          <button className="btn-header-icon hdr-pc-only" title="使い方ガイド" data-tour="help" onClick={onHelp}>
             <IconHelp />
           </button>
         )}
         {loggedIn ? (
-          <button className="btn-header-icon" title="ログアウト" onClick={onSignOut}>
+          <button className="btn-header-icon hdr-pc-only" title="ログアウト" onClick={onSignOut}>
             <IconLogout />
           </button>
         ) : (
-          <button className="btn-header-icon" title="ログイン（クラウド読込）" data-tour="login" onClick={onAuth}>
+          <button className="btn-header-icon hdr-pc-only" title="ログイン（クラウド読込）" data-tour="login" onClick={onAuth}>
             <IconLogin />
           </button>
         )}
+        {/* スマホの幅だけ: 設定・使い方・ログイン／ログアウトは「…」の中（2026-11-14）。上の3つと「ベータ」はスマホでは隠す（hdr-pc-only） */}
+        <HeaderMenu profile={profile} onSettings={onSettings} onHelp={onHelp} loggedIn={loggedIn} onAuth={onAuth} onSignOut={onSignOut} />
       </div>
     </header>
   );

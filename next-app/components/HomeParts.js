@@ -10,7 +10,7 @@ import { tmdb } from '@/lib/api';
 import { GENRE_LABELS, levelMark } from '@/lib/recommended';
 import { WEEKDAYS } from '@/lib/journey';
 import { studiedLine } from '@/lib/studiedDays';
-import { IconSprout, IconClose, IconCheck } from './icons/LineIcons';
+import { IconSprout, IconClose, IconCheck, IconStar } from './icons/LineIcons';
 
 const HOME_WEEKS = 8; // ホームの学習した日に出す直近の週の数（スマホ 390 の半分の札に収まる数）。記録が短い人は列をその週の数にし、マスの大きさは8週の時のまま（表の幅を CSS で週の数に合わせ、札の真ん中に置く・2026-11-13）
 
@@ -118,18 +118,22 @@ export function HomeRecord({ learned, mastered, total, grass, onOpenJourney, onO
   return (
     <div className={`hm-duo${grass ? '' : ' is-single'}`}>
       <Left
-        {...(onOpenJourney ? { type: 'button', onClick: onOpenJourney, 'aria-label': `覚えた ${learned}語、マスター ${mastered}語（出会った ${total}語のうち）。あゆみを開く` } : {})}
+        {...(onOpenJourney ? { type: 'button', onClick: onOpenJourney, 'aria-label': `覚えた ${learned}語、マスター ${mastered}語。あゆみを開く` } : {})}
         className="hm-card hm-nums"
       >
         <span className="hm-num hm-num-l">
-          <small>✅ 覚えた</small>
+          <small>
+            <IconCheck /> 覚えた
+          </small>
           <b>{learned}</b>
-          <i>/ {total}</i>
+          <i>語</i>
         </span>
         <span className="hm-num hm-num-m">
-          <small>⭐ マスター</small>
+          <small>
+            <IconStar /> マスター
+          </small>
           <b>{mastered}</b>
-          <i>/ {total}</i>
+          <i>語</i>
         </span>
       </Left>
       {grass && (

@@ -16,22 +16,27 @@ t('既定はスライド式（NEXT_PUBLIC_FIRST_RUN 未設定）', () => {
   assert.equal(FIRST_RUN_MODE, process.env.NEXT_PUBLIC_FIRST_RUN === 'trial' ? 'trial' : 'intro');
 });
 
-t('9か所の並び順（ヘッダー右の4つ → 下のタブ5つ）', () => {
-  assert.deepEqual(ALL, ['add', 'settings', 'help', 'login', 'home', 'wordbook', 'review', 'journey', 'collection']);
+t('並び順（ヘッダー右 → スマホの「…」 → 下のタブ5つ）', () => {
+  assert.deepEqual(ALL, ['add', 'settings', 'help', 'login', 'menu', 'home', 'wordbook', 'review', 'journey', 'collection']);
 });
 
-t('未ログインで全部ある時は9か所', () => {
-  assert.equal(tourSteps({ loggedIn: false, present: ALL }).length, 9);
+// PC の幅＝設定・使い方・ログインがヘッダーに見えていて「…」は無い／スマホの幅＝その3つが「…」の中（2026-11-14）
+const PC = ALL.filter((k) => k !== 'menu');
+const SP = ALL.filter((k) => !['settings', 'help', 'login'].includes(k));
+
+t('PC で未ログインの時は9か所・スマホは7か所（「…」で設定・使い方・ログインをまとめて案内）', () => {
+  assert.equal(tourSteps({ loggedIn: false, present: PC }).length, 9);
+  assert.deepEqual(tourSteps({ loggedIn: false, present: SP }).map((s) => s.key), ['add', 'menu', 'home', 'wordbook', 'review', 'journey', 'collection']);
 });
 
 t('ログイン済みは4番（ログイン）を飛ばす', () => {
-  const keys = tourSteps({ loggedIn: true, present: ALL }).map((s) => s.key);
+  const keys = tourSteps({ loggedIn: true, present: PC }).map((s) => s.key);
   assert.equal(keys.length, 8);
   assert.ok(!keys.includes('login'));
 });
 
 t('あゆみのタブが出ない人は8番を飛ばす', () => {
-  const keys = tourSteps({ loggedIn: false, present: ALL.filter((k) => k !== 'journey') }).map((s) => s.key);
+  const keys = tourSteps({ loggedIn: false, present: PC.filter((k) => k !== 'journey') }).map((s) => s.key);
   assert.equal(keys.length, 8);
   assert.ok(!keys.includes('journey'));
 });

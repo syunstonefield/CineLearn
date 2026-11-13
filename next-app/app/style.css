@@ -1455,6 +1455,21 @@ header {
   .header-right .btn-header-add { gap: 2px; padding: 4px 7px 4px 5px; }
   .btn-header-add-t { font-size: 12px; }
 }
+/* スマホの幅（〜768px）はロゴと「＋ 作品」と「…」だけ（オーナー採用 2026-11-14・画面の改善案 1）。PC の幅は今のまま。 */
+@media (max-width: 768px) { .hdr-pc-only { display: none !important; } }
+@media (min-width: 769px) { .hdr-sp-only { display: none !important; } }
+.hdr-menu { position: relative; display: inline-flex; }
+.hdr-menu-panel {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 1200; min-width: 240px; max-width: calc(100vw - 24px); padding: 6px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 10px 28px rgba(40, 25, 10, 0.16);
+}
+.hdr-menu-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 0 12px; border: 0; border-radius: 8px;
+  background: none; color: var(--text); font: inherit; font-size: 14px; text-align: left; cursor: pointer; white-space: nowrap;
+}
+.hdr-menu-item svg { flex: none; color: var(--text-muted); }
+.hdr-menu-item:hover, .hdr-menu-item:focus-visible { background: var(--surface2); outline: none; }
+.hdr-menu-note { margin: 4px 6px 2px; padding-top: 8px; border-top: 1px solid var(--border); font-size: 11.5px; color: var(--text-muted); }
 .header-badge {
   position: absolute;
   top: 2px; right: 2px;
@@ -8091,6 +8106,10 @@ button.hm-card:hover { border-color: color-mix(in srgb, var(--accent) 35%, var(-
 .hm-num small { display: block; font-size: 12.5px; font-weight: 600; line-height: 1.25; color: var(--text-soft); }
 .hm-num b { font-family: 'Playfair Display', serif; font-size: 25px; font-weight: 500; line-height: 1.05; font-variant-numeric: tabular-nums; }
 .hm-num i { font-style: normal; font-size: 13px; color: var(--text-muted); margin-left: 3px; }
+/* 覚えた・マスターの線の絵（✅⭐ の絵文字をやめた・数だけで分母は出さない・2026-11-14 画面の改善案 2） */
+.hm-num small .li-ic { width: 1.1em; height: 1.1em; vertical-align: -0.18em; margin-right: 2px; }
+.hm-num-l small .li-ic { color: var(--green); }
+.hm-num-m small .li-ic { color: var(--gold); }
 .hm-num-l b { color: var(--green); }
 .hm-num-m b { color: var(--gold); }
 .hm-num-m { padding-top: 4px; border-top: 1px solid var(--border); }
