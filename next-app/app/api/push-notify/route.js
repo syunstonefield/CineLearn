@@ -97,8 +97,8 @@ export async function GET(req) {
     for (const sub of subscriptions) {
       const count = dueCounts[sub.user_id] || 0;
       const ok = await sendPush(sub, {
-        title: '📚 今日の復習があります',
-        body: `${count}単語の復習日です！忘れないうちにサクッと復習しよう 💪`,
+        title: '今日の復習があります',
+        body: `${count}語が今日の復習に並んでいます`,
         url: '/app',
       });
       if (ok) sent++;
@@ -115,8 +115,8 @@ export async function GET(req) {
     let sent = 0;
     for (const sub of subscriptions) {
       const ok = await sendPush(sub, {
-        title: '🎬 次のエピソードを見る前に',
-        body: '観る前の3分復習。今夜のエピソードの前に 📖',
+        title: '次のエピソードを見る前に',
+        body: '観る前に、その話の単語を見返せます',
         url: '/app',
       });
       if (ok) sent++;

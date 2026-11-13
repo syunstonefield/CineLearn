@@ -12,7 +12,7 @@ export const metadata = {
   metadataBase: new URL('https://cinelearn-next.vercel.app'),
   title: 'CineLearn — 観たいドラマが教材になる',
   description:
-    'Netflix・Amazon Prime Video の字幕から英語が身につく。AIと間隔反復が、あなたの視聴体験を学習ルーティンに変える。',
+    '観たいドラマや映画のエピソードを選ぶと、その話の単語リストができます。観る前にカードで学んで、観たあとは復習へ。Netflix・Amazon Prime Video・Disney+ に対応。いまはベータ版で無料。',
   openGraph: {
     title: 'CineLearn — ドラマで英語を学ぶ',
     description:
