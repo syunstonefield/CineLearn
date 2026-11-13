@@ -37,17 +37,17 @@ export default function ExpBlock({ earned, lv }) {
     <div className="exp-block">
       <div className="exp-gain">
         <span className="exp-gain-num">+{shown}</span>
-        <span className="exp-gain-unit">EXP</span>
+        <span className="exp-gain-unit">けいけん値</span>
       </div>
       <div className="exp-level">
         <div className="exp-level-head">
-          <span className="exp-level-name">Lv {lv.level}</span>
-          <span className="exp-level-total">通算 {lv.total.toLocaleString()} EXP</span>
+          <span className="exp-level-name">レベル {lv.level}</span>
+          <span className="exp-level-total">これまで {lv.total.toLocaleString()}</span>
         </div>
         <div className="exp-level-bar">
           <span className="exp-level-fill" style={{ width: `${Math.round(lv.progress * 100)}%` }} />
         </div>
-        {lv.next != null && <div className="exp-level-next">Lv {lv.level + 1} まで あと {lv.toNext.toLocaleString()}</div>}
+        {/* 「次のレベルまで あと○」は出さない（足りない数を見せない・2026-11-14 オーナー採用 #p8）。英語のラベルは日本語に（#p4） */}
       </div>
     </div>
   );

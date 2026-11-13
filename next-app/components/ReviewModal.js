@@ -1017,30 +1017,19 @@ function TomorrowNote({ count, word }) {
 }
 
 // 星は全部の画面で同じ10個＋きらめき（復習完了・見直し完了・10枚の区切り・途中でやめた画面・オーナー 2026-11-12）。
-function DoneHero({ title, sub }) {
+function DoneHero({ title, sub, long = false }) {
   return (
     <section className="rd-hero">
       <DoneClapper />
       {CELEBRATE_STARS.map(([x, y, size, d], i) => (
         <Sparkle key={i} className="rd-star" size={size} style={{ left: `${x}%`, top: `${y}px`, '--rd-star-d': `${d}ms` }} />
       ))}
-      <h2 className="rd-title">{title}</h2>
+      <h2 className={"rd-title" + (long ? " is-long" : "")}>{title}</h2>
       {sub && <p className="rd-sub">{sub}</p>}
     </section>
   );
 }
 
-const CheckIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-    <circle cx="12" cy="12" r="10" fill="currentColor" opacity=".18" />
-    <path d="M7 12.5l3.2 3.2L17 9" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-const StarIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-    <path d="M12 3.2l2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 17l-5.4 2.9 1.1-6.1-4.5-4.2 6.1-.8z" fill="currentColor" />
-  </svg>
-);
 
 // partial＝途中でやめた時の成果画面（queue は採点済みの語だけ）。文言はやった分だけを肯定的に
 // （「未完了」「あと○語」は出さない＝罪悪感UI禁止）。awardedRef＝親と共有する「記録済み」旗。
@@ -1104,7 +1093,6 @@ function ReviewDone({ showTomorrow = false, queue, partial = false, awardedRef, 
       <div className="rd">
         <div className="rd-body">
           <DoneHero title="見直し完了！" sub={`「${label}」だった ${queue.length}単語をもう一度確認しました`} />
-          {expGain && <ExpBlock earned={expGain.earned} lv={expGain.level} />}
           <TomorrowNote count={dueTomorrow} word={dueTomorrowWord} />
           <p className="rd-note">知ってた・うろ覚えと答えた語は、次の復習日はそのままです</p>
         </div>
@@ -1127,7 +1115,6 @@ function ReviewDone({ showTomorrow = false, queue, partial = false, awardedRef, 
       <div className="rd">
         <div className="rd-body">
           <DoneHero title="見直し完了！" sub={`知らなかった ${queue.length}単語をもう一度確認しました`} />
-          {expGain && <ExpBlock earned={expGain.earned} lv={expGain.level} />}
           <p className="rd-note">次の復習日は変わりません（明日また出ます）</p>
         </div>
         {actions(false)}
@@ -1181,55 +1168,63 @@ function ReviewDone({ showTomorrow = false, queue, partial = false, awardedRef, 
       </details>
     ) : null;
 
+  // いちばん良い知らせ（マスター → 覚えた → 今の題）。ほかの昇格は1行で添える
+  const nMaster = promo.mastered.length;
+  const nLearned = promo.learned.length;
+  const headline = gotMaster
+    ? `${nMaster}語がマスターになりました`
+    : gotLearned
+      ? `${nLearned}語が「覚えた」になりました`
+      : partial
+        ? 'ここまで復習しました'
+        : '復習完了！';
+  const extraPromo = gotMaster && gotLearned ? `ほかに ${nLearned}語が「覚えた」に` : null;
+
   const listRows = allPerfect ? [log] : [group(failed, 'd-fail', '知らなかった語'), group(hard, 'd-hard', 'うろ覚えの語'), group(easy, 'd-easy', '知ってた語'), log];
   const hasList = listRows.some(Boolean);
 
   return (
     <div className="rd">
       <div className="rd-body">
-        {partial ? (
-          <DoneHero title="ここまで復習しました" sub={`今日 ${sessionNum}回目 ・ ${queue.length}単語を復習しました`} />
-        ) : (
-          <DoneHero title="復習完了！" sub={`今日 ${sessionNum}回目 ・ ${queue.length}単語を復習しました`} />
-        )}
-        {expGain && <ExpBlock earned={expGain.earned} lv={expGain.level} />}
+        {/* 終わりの画面＝1つの言葉にしぼる（2026-11-14 オーナー採用 #p8）: その回でいちばん良い知らせを1つだけ大きく
+            （マスター到達 → 「覚えた」に昇格 → どちらも無ければ今の題）。ほかの昇格は1行で添える。その下に明日の予告。
+            3つの数・意味の説明・けいけん値とレベル・語の一覧は「この回をくわしく見る」を開いた時だけ。足りない数（あと○）は出さない。 */}
+        <DoneHero title={headline} sub={`今日 ${sessionNum}回目 ・ ${queue.length}単語を復習しました`} long={headline.length > 10} />
+        {extraPromo && <p className="rd-promo-extra">{extraPromo}</p>}
         <TomorrowNote count={dueTomorrow} word={dueTomorrowWord} />
-        {/* 昇格の行が出た時だけ、その下に意味を小さく1行（直し A・2026-11-12・文は lib/learnedTerms.js）。昇格が無い回は何も出さない＝未達の数は出さない */}
-        {gotLearned && (
-          <div className="rd-promo-wrap">
-            <div className="rd-promo">
-              <CheckIcon />
-              {promo.learned.length}単語が「覚えた」に昇格！
-            </div>
-            <p className="rd-promo-note">{LEARNED_LINE}</p>
+        <details className="rd-more">
+          <summary>
+            この回をくわしく見る
+            <span className="rd-chev" aria-hidden="true">›</span>
+          </summary>
+          <div className="rd-more-body">
+            {/* 並びはカードの3択と同じ（左から 知らなかった・うろ覚え・知ってた・2026-11-12 オーナー指摘） */}
+            <section className="rd-tiles" aria-label="今回の答え">
+              <div className="rd-tile t-fail">
+                <b>{failed.length}</b>
+                <span>知らなかった</span>
+              </div>
+              <div className="rd-tile t-hard">
+                <b>{hard.length}</b>
+                <span>うろ覚え</span>
+              </div>
+              <div className="rd-tile t-easy">
+                <b>{easy.length}</b>
+                <span>知ってた</span>
+              </div>
+            </section>
+            {allPerfect && <div className="rd-perfect">全問正解！すばらしい</div>}
+            {/* 意味の説明（文は lib/learnedTerms.js）は昇格があった回だけ */}
+            {(gotLearned || gotMaster) && (
+              <div className="rd-promo-notes">
+                {gotMaster && <p className="rd-promo-note">{MASTERED_LINE}</p>}
+                {gotLearned && <p className="rd-promo-note">{LEARNED_LINE}</p>}
+              </div>
+            )}
+            {expGain && <ExpBlock earned={expGain.earned} lv={expGain.level} />}
+            {hasList && <section className="rd-list">{listRows.map((el, i) => (el ? <Fragment key={i}>{el}</Fragment> : null))}</section>}
           </div>
-        )}
-        {gotMaster && (
-          <div className="rd-promo-wrap">
-            <div className="rd-promo is-master">
-              <StarIcon />
-              {promo.mastered.length}単語がマスターに到達！
-            </div>
-            <p className="rd-promo-note">{MASTERED_LINE}</p>
-          </div>
-        )}
-        {/* 並びはカードの3択と同じ（左から 知らなかった・うろ覚え・知ってた・2026-11-12 オーナー指摘） */}
-        <section className="rd-tiles" aria-label="今回の答え">
-          <div className="rd-tile t-fail">
-            <b>{failed.length}</b>
-            <span>知らなかった</span>
-          </div>
-          <div className="rd-tile t-hard">
-            <b>{hard.length}</b>
-            <span>うろ覚え</span>
-          </div>
-          <div className="rd-tile t-easy">
-            <b>{easy.length}</b>
-            <span>知ってた</span>
-          </div>
-        </section>
-        {allPerfect && <div className="rd-perfect">全問正解！すばらしい</div>}
-        {hasList && <section className="rd-list">{listRows.map((el, i) => (el ? <Fragment key={i}>{el}</Fragment> : null))}</section>}
+        </details>
         {/* ★／♡ を付けた時だけ、単語帳への案内を一行（押しつけない・2026-11-07） */}
         {markedRun > 0 && (
           <button
