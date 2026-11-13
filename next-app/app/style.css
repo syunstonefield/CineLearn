@@ -3912,7 +3912,7 @@ html[data-theme="light"] .rh-hero:not(.is-done) .rh-hero-sub { color: var(--text
 .today-hero-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
 
 
-/* 「今日の復習は完了！」の週次サマリ（ストリークチップの隣・主張は控えめ） */
+/* 「今日の復習は完了！」の週次サマリ（主張は控えめ） */
 .today-week-chip {
   display: inline-flex;
   align-items: center;
