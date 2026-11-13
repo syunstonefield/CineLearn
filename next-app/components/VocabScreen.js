@@ -1254,6 +1254,11 @@ export default function VocabScreen() {
       _src: { title: drama.title, season, episode, type: drama.type },
     }));
     if (!deck.length) return;
+    // 利用統計（2026-11-13 オーナー決定・固定の名前と回数だけ・語／作品／枚数は送らない）:
+    //   learn_start＝「単語を学ぶ」を始めた／learn_more＝終わりの画面の「残りの単語も見る」／learn_first＝その端末で初めての5枚
+    //   （初めてかどうかは端末の「済み」の印 cl_cards_first_done だけで決める・印そのものは送らない）
+    trackUsage(rest ? 'learn_more' : 'learn_start');
+    if (first && !rest) trackUsage('learn_first');
     try {
       localStorage.setItem(CARDS_FIRST_DONE_KEY, '1');
     } catch {
@@ -1264,6 +1269,8 @@ export default function VocabScreen() {
     openCardDeck(deck, {
       breaks: rest, // 「残りの単語も見る」は10語ごとの区切り（設定 reviewBreak に従う）
       onFinish: (answered) => {
+        // 利用統計: その回のカードを全部答えた＝learn_done／途中で ✕・「ここまでにする」・「単語リスト」で抜けた＝learn_quit
+        trackUsage((answered?.length || 0) >= deck.length ? 'learn_done' : 'learn_quit');
         reloadSrs();
         if (answered && answered.length) {
           // 答えた語があれば終わりの画面（明日の予告）を出す（作品の画面の場所に出す）

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { platformColor } from '@/lib/storage';
+import { trackUsage } from '@/lib/usage';
 
 // 「続きから学習」の行（ポスター左＋本文右・2026-11-12 見直しで小さな行に）。
 //   中：作品名・現在地(S/E)・覚えた率・進みの線。右：小さな札2つ（上「学ぶ」・下「クイズ」・オーナー決定 2026-11-12）。
@@ -89,6 +90,7 @@ export default function ContinueCard({ entry, stats, onSelect, onLearn, onQuiz }
               aria-label={`${drama.title} ${seLabel} の単語を学ぶ`}
               onClick={(e) => {
                 e.stopPropagation();
+                trackUsage('home_learn'); // 利用統計（2026-11-13・名前と回数だけ）
                 onLearn();
               }}
             >
@@ -102,6 +104,7 @@ export default function ContinueCard({ entry, stats, onSelect, onLearn, onQuiz }
               aria-label={`${drama.title} ${seLabel} のクイズ`}
               onClick={(e) => {
                 e.stopPropagation();
+                trackUsage('home_quiz'); // 利用統計（2026-11-13・名前と回数だけ）
                 onQuiz();
               }}
             >
