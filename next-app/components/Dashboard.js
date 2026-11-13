@@ -1,6 +1,7 @@
 'use client';
 
-import { IconHeart } from './icons/LineIcons';
+import { IconHeart, IconOpenBook } from './icons/LineIcons';
+import { pickYesterdayWord } from '@/lib/yesterdayWord';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
 import { HomeBand, HomeTodayCard, HomeRecord, HomeStart } from './HomeParts';
@@ -49,6 +50,8 @@ import {
   loadHistory,
   loadSrs,
   todayStr,
+  episodeCredit,
+  isMovieWork,
   overallVocabStats,
   activeWordKeys,
   getAgainWords,
@@ -515,6 +518,20 @@ export default function Dashboard() {
   // override で上書きして表示を差し替える。
   //   映画は、その ID のポスターを最優先（保存された URL が古い ID の画像でも直る）。ID は作品の記録（myDramas・
   //   単語リストの画面で直される）を、学習の履歴の行の ID（取り違えた時の ID のまま残る）より優先する。
+  // 「昨日の語」（2026-11-13 オーナー OK・法務は条件付き可）: ♡ の語が無い日だけ、昨日学んだ語から日付で1つ（lib/yesterdayWord.js）。
+  //   例文は単語リストの OpenSubtitles 由来だけ・昨日学んでいなければ出さない。札の見た目は「今日の語」と同じ。
+  const yesterdayWord = useMemo(
+    () => (!mounted || todayWord ? null : pickYesterdayWord(data.history || [], loadSrs(), todayStr())),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [mounted, todayWord, data, reviewVersion]
+  );
+  const openYesterdayWord = () => {
+    const yw = yesterdayWord;
+    if (!yw?.drama?.title) return;
+    const full = (settings.myDramas || []).find((x) => x.title === yw.drama.title) || yw.drama;
+    openDrama(full, false, { startView: 'list', season: yw.season || undefined, episode: yw.episode || undefined });
+  };
+
   const entries = data.entries.map((e) => {
     const id = movieIdOf(e);
     const idPoster = id ? moviePosters[id] : null;
@@ -946,6 +963,28 @@ export default function Dashboard() {
               <span className="htw-src">
                 📺 {todayWord.dramaTitle}
                 {todayWord.season != null && todayWord.episode != null ? ` S${todayWord.season}E${todayWord.episode}` : ''}（字幕：OpenSubtitles）
+              </span>
+            )}
+          </button>
+        )}
+
+        {/* 昨日の語（♡ の語が無い日だけ・語が見出し・例文は “ ” と出所の従・ポスターなし・和訳は語の意味だけ）。押すとその話の単語リスト */}
+        {!todayWord && yesterdayWord && (
+          <button type="button" className="hm-card home-today-word is-yday" onClick={openYesterdayWord} title="単語リストで見る">
+            <span className="htw-label">
+              <IconOpenBook /> 昨日の語
+            </span>
+            <span className="htw-word">{yesterdayWord.word}</span>
+            {yesterdayWord.ja && <span className="htw-def">{yesterdayWord.ja}</span>}
+            <span className="htw-ex">“{yesterdayWord.example}”</span>
+            {yesterdayWord.drama?.title && (
+              <span className="htw-src">
+                {episodeCredit(
+                  yesterdayWord.drama.title,
+                  yesterdayWord.season,
+                  yesterdayWord.episode,
+                  isMovieWork(yesterdayWord.drama.title, yesterdayWord.drama.type)
+                )}
               </span>
             )}
           </button>
