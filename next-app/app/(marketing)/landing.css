@@ -186,7 +186,7 @@ h2 {
   transition: transform 0.2s, box-shadow 0.2s;
 }
 .service-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
-.service-icon { font-size: 36px; margin-bottom: 10px; }
+.service-icon { font-size: 32px; margin-bottom: 10px; color: var(--gold); line-height: 1; }
 .service-name { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
 .service-note { font-size: 12px; color: var(--text-light); }
 .service-card.featured { border-color: #e8d5b0; background: #fffdf8; }
@@ -210,7 +210,9 @@ h2 {
   border-radius: var(--radius); padding: 20px 24px;
   display: flex; align-items: flex-start; gap: 14px;
 }
-.vs-icon { font-size: 26px; flex-shrink: 0; }
+.vs-icon { font-size: 26px; flex-shrink: 0; line-height: 1; }
+.vs-card.bad .vs-icon { color: #d94f4f; }
+.vs-card.good .vs-icon { color: #2da87c; }
 .vs-title { font-size: 14px; font-weight: 600; margin-bottom: 3px; }
 .vs-desc { font-size: 13px; color: var(--text-muted); line-height: 1.7; }
 .vs-card.bad .vs-title { color: #d94f4f; }
@@ -236,7 +238,7 @@ h2 {
   display: flex; align-items: center; justify-content: center;
   margin-bottom: 20px;
 }
-.step-icon { font-size: 30px; margin-bottom: 14px; }
+.step-icon { font-size: 30px; margin-bottom: 14px; color: var(--gold); line-height: 1; }
 .step-card h3 { font-size: 17px; font-weight: 600; margin-bottom: 10px; }
 .step-card p { color: var(--text-muted); font-size: 14px; line-height: 1.85; }
 
@@ -318,7 +320,7 @@ h2 {
   transition: transform 0.2s, box-shadow 0.2s;
 }
 .forwho-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
-.forwho-icon { font-size: 32px; margin-bottom: 14px; }
+.forwho-icon { font-size: 32px; margin-bottom: 14px; color: var(--gold); line-height: 1; }
 .forwho-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
 .forwho-card p { color: var(--text-muted); font-size: 14px; line-height: 1.8; }
 
@@ -443,7 +445,7 @@ footer a { color: var(--gold-bg); text-decoration: none; font-size: 13px; }
 .netflix-scene {
   position: absolute; inset: 0; background: linear-gradient(135deg, #1a0a0a 0%, #0d1a2a 100%);
   display: flex; align-items: center; justify-content: center;
-  font-size: 32px; opacity: 0.4;
+  font-size: 40px; color: #fff; opacity: 0.3;
 }
 
 /* スクロール出現アニメ用（JSでobserveする要素の初期状態） */
@@ -471,3 +473,9 @@ footer a { color: var(--gold-bg); text-decoration: none; font-size: 13px; }
 /* 拡張の「★ 覚えたい」（旗 NEXT_PUBLIC_WORDBOOK_CURATION=on の時だけ出る・2026-11-08） */
 .popup-save.popup-star { margin: -8px 16px 16px; background: transparent; color: #8a6400; border: 1px solid rgba(245, 197, 24, 0.6); }
 .netflix-popup .ps.ps-star { margin-top: 5px; background: transparent; color: #8a6400; border: 1px solid rgba(245, 197, 24, 0.6); }
+
+/* 線の絵（components/icons/lineIconMarkup.js・2026-11-13 絵文字から置き換え） */
+.li-ic { display: inline-block; vertical-align: -0.14em; flex-shrink: 0; }
+.service-icon .li-ic, .step-icon .li-ic, .forwho-icon .li-ic, .vs-icon .li-ic { display: block; }
+.illus-url .li-ic { vertical-align: -0.12em; margin-right: 2px; }
+.service-icon .li-ic { margin: 0 auto; }
