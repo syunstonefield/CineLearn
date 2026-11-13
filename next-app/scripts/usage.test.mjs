@@ -351,3 +351,24 @@ test('端末の番号の除外リスト: 印を付けられない確認用ブラ
   assert.equal(rep.newUsers[0].新規の人, 1);
   assert.equal(rep.newUsers[0]['拡張から来た'], '0 0%');
 });
+
+test('単語を学ぶの流れ（⑫）: 7つの名前を通し、始めた人に対する割合・作品を選んだ人のうち・初めての5枚は端末で数える', () => {
+  for (const k of ['learn_start', 'learn_done', 'learn_more', 'learn_quit', 'learn_first', 'home_learn', 'home_quiz']) assert.ok(isUsageEvent(k), k);
+  assert.ok(!isUsageEvent('learn_word_trust'));
+  const rows = [
+    { day: '2026-11-13', p: 'a', d: 'a', L: 0, c: { work_select: 1, learn_start: 2, learn_done: 1, learn_more: 1, learn_first: 1, home_learn: 1 } },
+    { day: '2026-11-13', p: 'b', d: 'b', L: 0, c: { work_select: 1, learn_start: 1, learn_quit: 1, learn_first: 1, home_quiz: 2 } },
+    { day: '2026-11-13', p: 'c', d: 'c', L: 0, c: { work_select: 1 } },
+    { day: '2026-11-13', p: 'u1', d: 'pc', L: 1, c: { work_select: 1, learn_start: 1, learn_done: 1, learn_first: 1 } },
+    { day: '2026-11-13', p: 'u1', d: 'phone', L: 1, c: { learn_first: 1 } }, // 同じ人の別の端末＝初めての5枚は端末で2
+  ];
+  const lf = buildUsageReport(rows, { today: '2026-11-13', weeks: 1 }).learn[0];
+  assert.equal(lf['始めた'], '3人 / 4回');
+  assert.equal(lf['作品を選んだ人のうち'], '75%');
+  assert.equal(lf['最後まで'], '2人 67% / 2回');
+  assert.equal(lf['続けた'], '1人 33% / 1回');
+  assert.equal(lf['途中で抜けた'], '1人 33% / 1回');
+  assert.equal(lf['初めての5枚（端末）'], 4);
+  assert.equal(lf['ホームの「学ぶ」'], '1人 / 1回');
+  assert.equal(lf['ホームの「クイズ」'], '1人 / 2回');
+});
