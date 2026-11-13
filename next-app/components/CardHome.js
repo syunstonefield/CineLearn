@@ -102,14 +102,11 @@ export function CardHome({
             {peek.length > 0 && (
               <>
                 <div className="ch-peek-t">次に出てくる単語</div>
-                <div className="ch-peek">
-                  {peek.map((w) => (
-                    <span key={w} lang="en">
-                      {w}
-                    </span>
-                  ))}
-                  {peekMore && <em>ほか</em>}
-                </div>
+                {/* 押せない文字だと分かる見た目（丸い背景の札はやめた・2026-11-13 外の AI の指摘）。語は「・」で区切る */}
+                <p className="ch-peek">
+                  <span lang="en">{peek.join('・')}</span>
+                  {peekMore && <em> ほか</em>}
+                </p>
               </>
             )}
             <button type="button" className="ch-btn1 ch-btn1-2l" onClick={onStart}>
@@ -131,13 +128,15 @@ export function CardHome({
           <span className="ch-tile-i"><IconOpenBook /></span>
           <b>単語リスト</b>
           <small>{total}語</small>
-        </button>
+          <span className="ch-tile-go" aria-hidden="true">›</span>
+          </button>
         {/* クイズ（問題が作れる時だけ onQuiz が来る・ホームの続きから学習の「クイズ」と同じ行き先・2026-11-12） */}
         {onQuiz && (
           <button type="button" className="ch-tile" onClick={onQuiz}>
             <span className="ch-tile-i"><IconTarget /></span>
             <b>クイズ</b>
             {quizPct != null ? <small>前回 {quizPct}%</small> : <small>&nbsp;</small>}
+            <span className="ch-tile-go" aria-hidden="true">›</span>
           </button>
         )}
         {showOther && (
@@ -147,6 +146,7 @@ export function CardHome({
             <small>
               S{season}E{episode}
             </small>
+            <span className="ch-tile-go" aria-hidden="true">›</span>
           </button>
         )}
       </div>

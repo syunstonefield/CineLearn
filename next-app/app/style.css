@@ -8224,9 +8224,9 @@ html[data-theme="dark"] .hm-row-pb { background: rgba(255,255,255,.08); }
 .ch-lg-b::before { background: #ecd9b4; }
 .ch-learn { background: var(--surface); border-radius: 18px; padding: 12px 14px; box-shadow: 0 2px 8px rgba(80, 50, 20, 0.08); }
 .ch-peek-t { font-size: 12.5px; color: var(--text-muted); margin-bottom: 6px; }
-.ch-peek { display: flex; gap: 6px; flex-wrap: nowrap; overflow: hidden; margin-bottom: 10px; }
-.ch-peek span { white-space: nowrap; flex: none; background: var(--surface2); border-radius: 999px; padding: 5px 11px; font-size: 14px; font-family: 'Playfair Display', Georgia, serif; color: #7a4a2a; }
-.ch-peek em { flex: none; font-style: normal; font-size: 12.5px; color: var(--text-muted); align-self: center; }
+.ch-peek { margin: 0 0 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ch-peek span { font-size: 15px; font-family: 'Playfair Display', Georgia, serif; color: #7a4a2a; }
+.ch-peek em { font-style: normal; font-size: 12.5px; color: var(--text-muted); }
 .ch-btn1-2l { min-height: 58px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; }
 .ch-btn1-2l small { font-size: 11.5px; font-weight: 400; opacity: 0.85; }
 .ch-learn .ch-none { background: var(--surface2); border-radius: 14px; padding: 14px; text-align: center; color: var(--text); }
@@ -8235,7 +8235,7 @@ html[data-theme="dark"] .hm-row-pb { background: rgba(255,255,255,.08); }
 .ch-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .ch-tiles-2 { grid-template-columns: repeat(2, 1fr); }
 .ch-tiles-1 { grid-template-columns: 1fr; }
-.ch-tile { background: var(--surface); border: 0; border-radius: 14px; padding: 7px 6px; font: inherit; cursor: pointer; text-align: center; box-shadow: 0 2px 8px rgba(80, 50, 20, 0.08); min-height: 60px; color: var(--text); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.ch-tile { position: relative; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; transition: background-color .12s ease, border-color .12s ease; padding: 7px 6px; font: inherit; cursor: pointer; text-align: center; box-shadow: 0 2px 8px rgba(80, 50, 20, 0.08); min-height: 60px; color: var(--text); display: flex; flex-direction: column; align-items: center; justify-content: center; }
 .ch-tile-i { display: flex; height: 22px; color: #7a4a2a; }
 .ch-tile b { font-size: 13px; margin-top: 2px; }
 .ch-tile small { font-size: 11px; color: var(--text-muted); }
@@ -8334,3 +8334,8 @@ html[data-theme="dark"] .autoplay-switch.is-on { color: var(--accent); border-co
 .li-mark { display: inline; white-space: nowrap; }
 .li-mark .li-ic { width: 1em; height: 1em; vertical-align: -0.14em; }
 .wb-h1 .wb-h1-ic { width: 0.95em; height: 0.95em; vertical-align: -0.12em; margin-right: 2px; }
+/* 下の札＝押せる手がかり（2026-11-13 外の AI の指摘）: 薄い枠線・右下の小さな「›」・押した時に地の色が少し変わる。目立たせすぎない */
+.ch-tile-go { position: absolute; right: 8px; bottom: 5px; font-size: 14px; line-height: 1; color: var(--text-muted); }
+.ch-tile:hover { border-color: #dcb98f; }
+.ch-tile:active { background: var(--surface2); }
+
