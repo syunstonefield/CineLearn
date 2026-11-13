@@ -11,6 +11,7 @@
 //   2026-11-04: ⑦ 新規の人（初めて開いた週ごと: ログイン画面→登録/ログイン/このデバイスのみ→作品を選んだ→
 //     拡張で初保存→翌日・7日内の再訪）と ⑧ 入口とログイン画面（全員）を追加。⑦の「初めて」を確かめるため
 //     利用データは表より1週ぶん前から読む（docs/research-2026-11-new-user-dropoff.md）。
+//   2026-11-13: ⑫ 単語を学ぶの流れ（learn_*・home_learn／home_quiz）を追加。
 //   2026-11-10: ⑪ スライド式チュートリアルの流れ（intro_*／tour_*）を追加。
 //   2026-11-07: ⑩ 復習の流れ（始めた・終えた・抜けた・答えの内訳・1枚の時間の幅）を追加。
 //   2026-11-07: 運営の端末・アカウントを既定で外す（/app?cl_staff=1 の印・seed/.env CL_STATS_EXCLUDE_UIDS・--include-staff で含める）。
@@ -118,6 +119,8 @@ console.log('\n⑪ スライド式チュートリアルの流れ（人数 よう
 console.table(rep.intro);
 console.log('\n⑩ 復習の流れ（復習タブのカード・2026-11-07〜。答えの内訳と1枚の時間は割合。途中で抜けた場所は③の下の「⑩復習のカード」）');
 console.table(rep.reviewFlow);
+console.log('\n⑫ 単語を学ぶの流れ（2026-11-13〜。人数 始めた人に対する% / 回数・「作品を選んだ人のうち」＝その週に作品を選んだ人のうち始めた人の割合・初めての5枚は端末の数）');
+console.table(rep.learn);
 for (const line of usageHints(rep, usageRows, { today, ...staffOpts })) console.log(`判断の目安: ${line}`);
 console.log(`利用データの行数: ${usageRows.length}（数え始めは利用データのデプロイ以降）`);
 

@@ -59,6 +59,14 @@ export const TRIAL_STEPS = [
   ['trial_later_band', '次回の帯'],
 ];
 
+// ⑫ 単語を学ぶの流れ（2026-11-13〜・作品・予習部門の画面）。人数は learn_start に対する%。
+//   learn_first は端末ごとに1回の印なので、人ではなく端末の数で出す。
+export const LEARN_STEPS = [
+  ['learn_done', '最後まで'],
+  ['learn_more', '続けた'],
+  ['learn_quit', '途中で抜けた'],
+];
+
 // ⑪ スライド式チュートリアルの流れ（2026-11-10〜・NEXT_PUBLIC_FIRST_RUN が trial の間は 0）。人数は intro_start に対する%。
 export const INTRO_STEPS = [
   ['intro_start', 'ようこそ'],
@@ -196,6 +204,7 @@ export function buildUsageReport(rawRows, { today, weeks = 8, excludePersons = [
   const trial = [];
   const intro = [];
   const reviewFlow = [];
+  const learn = [];
   for (const win of wins) {
     const rs = weekRows(rows, win);
     const label = `${win.from.slice(5)}〜${win.to.slice(5)}`;
@@ -278,6 +287,16 @@ export function buildUsageReport(rawRows, { today, weeks = 8, excludePersons = [
     const tms = REVIEW_TIMES.reduce((n, [k]) => n + timesOf(k), 0);
     for (const [k, name] of REVIEW_TIMES) rf[name] = pct(timesOf(k), tms);
     reviewFlow.push(rf);
+
+    // ⑫ 単語を学ぶの流れ（人数（始めた人に対する%）／回数・作品を選んだ人に対する始めた人の割合・初めての5枚は端末）
+    const l0 = usersOf('learn_start').size;
+    const picked = usersOf('work_select').size;
+    const lf = { 週: label, 始めた: `${l0}人 / ${timesOf('learn_start')}回`, '作品を選んだ人のうち': pct(l0, picked) };
+    for (const [k, name] of LEARN_STEPS) lf[name] = `${usersOf(k).size}人 ${pct(usersOf(k).size, l0)} / ${timesOf(k)}回`;
+    lf['初めての5枚（端末）'] = new Set(rs.filter((r) => (r.c.learn_first || 0) > 0).map((r) => r.d)).size;
+    lf['ホームの「学ぶ」'] = `${usersOf('home_learn').size}人 / ${timesOf('home_learn')}回`;
+    lf['ホームの「クイズ」'] = `${usersOf('home_quiz').size}人 / ${timesOf('home_quiz')}回`;
+    learn.push(lf);
   }
 
   // ③の下: 抜けた場所（表示した全期間の合計）。段階×（何割まで／抜け方）
@@ -308,7 +327,7 @@ export function buildUsageReport(rawRows, { today, weeks = 8, excludePersons = [
     }
   }
   const joined = rows.filter((r) => r.joined).length;
-  return { plus, funnel, exits, review, onboarding, entry, trial, intro, reviewFlow, newUsers: buildNewUsers(rows, wins, today), joinedRows: joined, staffExcluded: staff.excluded };
+  return { plus, funnel, exits, review, onboarding, entry, trial, intro, reviewFlow, learn, newUsers: buildNewUsers(rows, wins, today), joinedRows: joined, staffExcluded: staff.excluded };
 }
 
 // ⑦ 新規の人（初めて開いた週ごと）。rows の中で最初に現れた日＝初めて開いた日。
