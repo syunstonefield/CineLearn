@@ -381,7 +381,7 @@ const MARKUP = `
           <p>
             単語リストを作った作品は、コレクションに学習の記録として並びます。
             作品ごとに、単語リストを作った話・覚えた語・マスターした語を見返せて、そのまま続きの学習や話ごとの単語リストへ戻れます。
-            <strong style="color:var(--text)">覚えた語の割合が上がると、記録の枠が変わります（一度届いた枠は戻りません）。ノルマはありません。</strong>
+            <strong style="color:var(--text)">覚えた語の割合が上がると、記録の枠が変わります（一度届いた枠は戻りません）。ノルマも連続記録もありません。</strong>
           </p>
         </div>
         <div class="feat-visual" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px">
