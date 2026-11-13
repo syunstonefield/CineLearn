@@ -17,10 +17,12 @@ import { buildQuizQuestions } from './prep';
 import { episodeCredit } from './storage';
 
 export const TRIAL_LEVELS = [
-  { score: 300, level: 'A2', range: '〜 400点', label: '初級' },
-  { score: 550, level: 'B1', range: '400〜 600点', label: '中級' },
-  { score: 750, level: 'B2', range: '600〜 800点', label: '中上級' },
-  { score: 900, level: 'C1', range: '800点〜', label: '上級' },
+  // hint＝TOEIC を受けたことがない人のための目安の1行（自分で選ぶ手がかり「〜な人に」・点数と力の対応を言い切らない・CEFR/「公式」「換算」は出さない・法務 2026-11-13）。
+  //   pick＝「迷ったらここ」の印を付ける段（1つだけ・印だけで最初から選んだ状態にはしない）。
+  { score: 300, level: 'A2', range: '〜 400点', label: '初級', hint: '字幕があっても、追いかけるのが大変な人に' },
+  { score: 550, level: 'B1', range: '400〜 600点', label: '中級', hint: '字幕があれば、だいたい分かる人に', pick: true },
+  { score: 750, level: 'B2', range: '600〜 800点', label: '中上級', hint: '字幕なしでも、話の流れは追える人に' },
+  { score: 900, level: 'C1', range: '800点〜', label: '上級', hint: '字幕なしで、ほとんど聞き取れる人に' },
 ];
 
 // チュートリアルの4段階（オーナー決定 2026-11-05）。案内の画面の一覧と、各画面の「ステップ○/4」と一行の説明はここから出す。

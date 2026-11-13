@@ -7861,7 +7861,15 @@ html.cl-intro-lock .modal-overlay { z-index: 1160; }
 }
 @media (hover: hover) { .intro-level-btn:hover { border-color: var(--in-brown); } } /* iPhone で1回目のタップが「なぞり」になって押せない、を防ぐ */
 .intro-level-name { font-size: 16px; font-weight: 700; }
-.intro-level-range { font-size: 13px; color: var(--in-mute); }
+.intro-level-range { font-size: 13px; color: var(--in-mute); flex: none; }
+/* 目安の1行と「迷ったらここ」（オーナー決定 2026-11-13） */
+.intro-level-btn { flex-wrap: wrap; row-gap: 4px; }
+.intro-level-hint { flex: 1 0 100%; font-size: 12px; color: var(--in-soft); line-height: 1.45; word-break: keep-all; overflow-wrap: anywhere; } /* 名前と点の下に幅いっぱい */
+.intro-level-pick { margin-left: 8px; padding: 1px 8px; border-radius: 999px; font-style: normal; font-size: 11px; font-weight: 700; color: var(--in-brown-dk); background: color-mix(in srgb, var(--in-brown) 14%, transparent); vertical-align: 2px; }
+/* 拡張機能のスライド: スマホだけ「PC で開くリンクを送る」（オーナー決定 2026-11-13） */
+.intro-ext-share { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 14px; }
+.intro-ext-share-btn { min-height: 44px; padding: 0 20px; border-radius: 999px; border: 1.5px solid var(--in-brown); background: transparent; color: var(--in-brown-dk); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.intro-ext-share-note { font-size: 11.5px; color: var(--in-mute); }
 
 /* 動き（どれも「最初の姿 → いつもの姿」） */
 @keyframes intro-up { from { opacity: 0; transform: translateY(12px); } }

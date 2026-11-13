@@ -102,6 +102,8 @@ t('スライドは6枚（ようこそ／単語リスト／復習／クイズ／�
 t('利用統計：新しい項目は受け付け、値を足した名前は受け付けない', () => {
   for (const [k] of INTRO_STEPS) assert.ok(isUsageEvent(k), k);
   for (const k of ['intro_level_b1', 'tour_step_3', 'intro_s7', 'tour_add_37680']) assert.ok(!isUsageEvent(k), k);
+  assert.ok(isUsageEvent('intro_share')); // 拡張機能のスライドの「PC で開くリンクを送る」（固定名と回数だけ・2026-11-13）
+  assert.ok(!isUsageEvent('intro_share_line') && !isUsageEvent('intro_share_cancel')); // 送り先・内訳は名前にしない
 });
 
 t('集計：⑪ スライド式の流れ（ようこそに対する%）', () => {

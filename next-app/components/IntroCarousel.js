@@ -11,6 +11,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
+import { isMobileDevice } from '@/lib/device';
 import { trackUsage } from '@/lib/usage';
 import { TRIAL_LEVELS } from '@/lib/trial';
 import { INTRO_SAMPLE_NOTE, INTRO_HOME_NOTE, INTRO_STEP_KEY, HOME_IOS_HINT, detectHomeScreenKind, homeSlideText, introSlidesFor, lockPage, parseIntroStep } from '@/lib/introTour';
@@ -250,6 +251,43 @@ function HomePhone() {
   );
 }
 
+
+// 拡張機能のスライド（スマホで見ている人だけ・オーナー決定 2026-11-13・法務は条件付き可）: 「PC で開くリンクを送る」（自分の PC へ）。
+//   押すと端末の共有（navigator.share）で、アプリの紹介ページの「はじめかた」の URL と当社の案内の文を渡す。共有が使えない端末ではリンクをコピー。
+//   法務の条件: 文は当社の案内（利用者の感想のようにしない）・配信サービス名/作品名/効果の言い切り/「無料」を入れない・紹介の特典なし・
+//   URL の印は固定値 ?from=share だけ（人を特定できる値は付けない）・人に勧める呼びかけにしない・
+//   回数は固定名 intro_share だけ（送り先・共有したか取りやめたかの内訳・アプリ名は記録しない）。
+const EXT_SHARE_URL = 'https://cinelearn-next.vercel.app/?from=share#setup';
+const EXT_SHARE_TEXT = 'CineLearn を PC で開く';
+function ExtShare() {
+  const [copied, setCopied] = useState(false);
+  const onShare = async () => {
+    trackUsage('intro_share'); // 押した回数だけ（共有したか・取りやめたか・送り先は記録しない）
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: 'CineLearn', text: EXT_SHARE_TEXT, url: EXT_SHARE_URL });
+        return;
+      }
+    } catch {
+      return; // 閉じた・断った時は何もしない
+    }
+    try {
+      await navigator.clipboard.writeText(`${EXT_SHARE_TEXT}：${EXT_SHARE_URL}`);
+      setCopied(true);
+    } catch {
+      /* コピーもできない端末は何もしない */
+    }
+  };
+  return (
+    <div className="intro-ext-share a3">
+      <button type="button" className="intro-ext-share-btn" onClick={onShare}>
+        PC で開くリンクを送る
+      </button>
+      <span className="intro-ext-share-note">{copied ? 'リンクをコピーしました' : '自分の PC に送って、あとで開けます'}</span>
+    </div>
+  );
+}
+
 const ART = { list: ArtList, review: ArtReview, quiz: ArtQuiz, frames: ArtFrames, ext: ArtExt, home: ArtHome };
 
 function Progress({ at, slides }) {
@@ -267,6 +305,8 @@ export default function IntroCarousel({ mode = 'first' }) {
   const first = mode === 'first';
   // 「ホーム画面に追加」を出す端末か（iPhone・Android・まだホーム画面から開いていない）。開いている間は変えない。
   const [homeKind] = useState(() => detectHomeScreenKind());
+  // スマホで見ている人だけ、拡張機能のスライドに「PC で開くリンクを送る」（オーナー決定 2026-11-13）
+  const [onPhone] = useState(() => isMobileDevice());
   const slides = introSlidesFor(homeKind);
   // Android の Chrome から来た追加の合図（app/(app)/layout.js が window.__clInstallPrompt に取っておく）。1回しか使えない。
   const [installEvt, setInstallEvt] = useState(() => (typeof window === 'undefined' ? null : window.__clInstallPrompt || null));
@@ -432,8 +472,12 @@ export default function IntroCarousel({ mode = 'first' }) {
             <div className="intro-levels">
               {TRIAL_LEVELS.map((lv) => (
                 <button key={lv.score} type="button" className="intro-level-btn" onClick={() => chooseLevel(lv)}>
-                  <span className="intro-level-name">{lv.label}</span>
+                  <span className="intro-level-name">
+                    {lv.label}
+                    {lv.pick && <em className="intro-level-pick">迷ったらここ</em>}
+                  </span>
                   <span className="intro-level-range">{lv.range}</span>
+                  {lv.hint && <span className="intro-level-hint">{lv.hint}</span>}
                 </button>
               ))}
             </div>
@@ -511,6 +555,7 @@ export default function IntroCarousel({ mode = 'first' }) {
           </div>
           <div className={`intro-art intro-art-${s.key}`}>
             <Art kind={homeKind} canPrompt={canPrompt} added={added} onAdd={addToHome} />
+            {s.key === 'ext' && onPhone && <ExtShare />}
           </div>
           <div className="intro-foot">
             <div className="intro-note">{s.key === 'home' ? INTRO_HOME_NOTE : INTRO_SAMPLE_NOTE}</div>

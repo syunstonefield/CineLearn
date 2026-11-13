@@ -91,6 +91,7 @@ export const USAGE_EVENTS = [
   'intro_s5',
   'intro_s6', // 6枚目（拡張機能）に進んだ
   'intro_skip', // スライドの「スキップ」を押した（レベルの質問へ）
+  'intro_share', // 拡張機能のスライド（スマホだけ）の「PC で開くリンクを送る」を押した回数（送り先・内訳は記録しない・2026-11-13）
   'intro_guest', // 「登録せずに開始」を押した
   'intro_auth_click', // 「ログイン・新規登録」かログインの文字リンクを押した（登録の成功は auth_signup）
   'intro_level', // レベルを選んだ（値は入れない）
