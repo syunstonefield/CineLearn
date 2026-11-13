@@ -28,6 +28,7 @@ import { getSession } from '@/lib/supabase';
 const PREP_CORE_OPTIONS = [15, 30, 0];
 const prepCoreLabel = (v) => (v === 0 ? '全部' : `${v}語`);
 import { usageOptedOut, setUsageOptOut } from '@/lib/usage';
+import { LEARN_SETTINGS_GROUP } from '@/lib/reviewBreak';
 
 // 設定（英語レベル / 利用サービス / テーマ / 単語階層 / 復習リマインダー）。
 // 旧 SettingsModal をモーダル→screen='settings' のページに置き換え。
@@ -263,7 +264,7 @@ export default function SettingsScreen() {
 
           </section>
           <section className="settings-group">
-            <h2 className="settings-group-title">単語を学ぶ・復習</h2>
+            <h2 className="settings-group-title">{LEARN_SETTINGS_GROUP}</h2>
             {/* 音声の自動再生（オン／オフ・初期はオフ・2026-11-13 オーナー決定）。カードの画面の隅のスイッチと同じ1つの値（lib/cardAutoplay.js）。プロフィールの設定＝同期する */}
             <div className="settings-section">
               <div className="settings-section-title">音声の自動再生</div>

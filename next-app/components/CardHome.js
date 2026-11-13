@@ -1,5 +1,6 @@
 'use client';
 
+import { tomorrowSubLine } from '@/lib/tomorrowPreview';
 import { LEARNED_LABEL, MASTERED_LABEL, LEARNING_LABEL, MASTERED_OF_LEARNED_LABEL } from '@/lib/learnedTerms';
 import { IconOpenBook, IconTarget, IconFilm, IconClose, IconSparkle } from './icons/LineIcons';
 // 下の札の絵＝線の絵（components/icons/LineIcons.js・2026-11-12 オーナー決定）
@@ -154,7 +155,7 @@ export function CardHome({
   );
 }
 
-export function CardDone({ count, tomorrow, canMore, onMore, onWatch, onList, onClose, onDoneToday }) {
+export function CardDone({ count, tomorrow, tomorrowWord = null, canMore, onMore, onWatch, onList, onClose, onDoneToday }) {
   return (
     <div className="ch-wrap ch-done">
       <div className="ch-done-head">
@@ -172,7 +173,7 @@ export function CardDone({ count, tomorrow, canMore, onMore, onWatch, onList, on
         {tomorrow > 0 && (
           <div className="ch-tom">
             <b>明日 復習できる単語 {tomorrow}個</b>
-            <div>1日あけて思い出すと、覚えやすくなります</div>
+            <div>{tomorrowSubLine(tomorrowWord, tomorrow)}</div>
           </div>
         )}
       </div>

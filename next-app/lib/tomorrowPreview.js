@@ -20,6 +20,28 @@ export function tomorrowStr(now = new Date()) {
 
 const isMastered = (e) => !!e && !e.skipped && e.repetitions >= 3 && e.interval >= 21 && e.easeFactor >= 2.0;
 
+function isDueBy(e, tomorrow) {
+  if (!e || e.skipped || isMastered(e)) return false;
+  return !e.dueDate || e.dueDate <= tomorrow;
+}
+
+// 明日の予告の下の文（外の AI の感想・オーナー OK 2026-11-13）: この回の語を1つ入れる＝「明日、leverage などをもう一度思い出してみましょう」。
+//   効果の言い切り（定着・覚えやすくなる・忘れにくい）と急がせる言い方（忘れる前に・あと○語）は使わない。語は英語の見出しのまま。
+//   語が取れない時は null（呼び出し側は今までの文 TOMORROW_FALLBACK のまま）。
+export const TOMORROW_FALLBACK = '1日あけて思い出すと、覚えやすくなります';
+export function pickDueTomorrowWord(words, srs, now = new Date()) {
+  const tomorrow = tomorrowStr(now);
+  for (const w of words || []) {
+    const word = String(w?.word || '').trim();
+    if (word && isDueBy(srs?.[word.toLowerCase()], tomorrow)) return word;
+  }
+  return null;
+}
+export function tomorrowSubLine(word, count) {
+  if (!word) return TOMORROW_FALLBACK;
+  return count > 1 ? `明日、${word} などをもう一度思い出してみましょう` : `明日、${word} をもう一度思い出してみましょう`;
+}
+
 // words: この回で答えた語（{word} の配列・重複可）。srs: loadSrs() の値。
 export function countDueTomorrow(words, srs, now = new Date()) {
   const tomorrow = tomorrowStr(now);
@@ -29,9 +51,7 @@ export function countDueTomorrow(words, srs, now = new Date()) {
     const k = String(w?.word || '').toLowerCase();
     if (!k || seen.has(k)) continue;
     seen.add(k);
-    const e = srs?.[k];
-    if (!e || e.skipped || isMastered(e)) continue;
-    if (!e.dueDate || e.dueDate <= tomorrow) n++;
+    if (isDueBy(srs?.[k], tomorrow)) n++;
   }
   return n;
 }

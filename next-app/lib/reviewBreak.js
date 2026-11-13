@@ -10,3 +10,6 @@ export function shouldShowBreak(answered, total, on, shown = null) {
   if (shown && shown.has(answered)) return false;
   return true;
 }
+
+// 設定の画面のまとまりの名前（区切りの「設定の『…』から戻せます」と同じ文字・2026-11-13）
+export const LEARN_SETTINGS_GROUP = '単語を学ぶ・復習・クイズ';

@@ -31,3 +31,14 @@ test('練習扱いで日程が動かなかった語は、残っている期日�
   assert.equal(countDueTomorrow([{ word: 'practiced_tomorrow' }, { word: 'overdue' }, { word: 'practiced_later' }], srs, now), 2);
   assert.equal(countDueTomorrow([], srs, now), 0);
 });
+
+test('明日の予告の下の文: この回の語を1つ入れる・語が取れない時は今までの文', async () => {
+  const { pickDueTomorrowWord, tomorrowSubLine, TOMORROW_FALLBACK } = await import('../lib/tomorrowPreview.js');
+  const srs = { later: { dueDate: '2026-11-18', repetitions: 2, interval: 6, easeFactor: 2.6 }, leverage: { dueDate: '2026-11-13', repetitions: 0, interval: 1, easeFactor: 2.3 } };
+  assert.equal(pickDueTomorrowWord([{ word: 'later' }, { word: 'Leverage' }], srs, now), 'Leverage');
+  assert.equal(pickDueTomorrowWord([{ word: 'later' }], srs, now), null);
+  assert.equal(tomorrowSubLine('leverage', 3), '明日、leverage などをもう一度思い出してみましょう');
+  assert.equal(tomorrowSubLine('leverage', 1), '明日、leverage をもう一度思い出してみましょう');
+  assert.equal(tomorrowSubLine(null, 3), TOMORROW_FALLBACK);
+  for (const bad of ['定着', '覚えやすく', '忘れにくい', '忘れる前に', 'あと']) assert.ok(!tomorrowSubLine('x', 2).includes(bad));
+});

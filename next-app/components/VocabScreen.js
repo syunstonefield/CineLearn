@@ -9,7 +9,7 @@ import { cefrHintOf } from '@/lib/cefrHint';
 import GenLoading from './GenLoading';
 import { CardHome, CardDone } from './CardHome';
 import { cardCandidates, cardCount, takeCards, seenCount, CARDS_FIRST_DONE_KEY } from '@/lib/cardDeck';
-import { countDueTomorrow } from '@/lib/tomorrowPreview';
+import { countDueTomorrow, pickDueTomorrowWord } from '@/lib/tomorrowPreview';
 import {
   loadSrs,
   loadHistory,
@@ -2143,6 +2143,7 @@ export default function VocabScreen() {
               <CardDone
                 count={cardDone.answered.length}
                 tomorrow={countDueTomorrow(cardDone.answered, srs)}
+                tomorrowWord={pickDueTomorrowWord(cardDone.answered, srs)}
                 canMore={cardCandidates(sortedVocab, srs, todayStr()).length > 0}
                 onMore={() => startCards({ rest: true, fromDone: true })}
                 onWatch={startPrepWatch}
