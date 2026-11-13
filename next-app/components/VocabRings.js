@@ -134,7 +134,7 @@ function WordCard({ w, poster }) {
           // eslint-disable-next-line @next/next/no-img-element
           <img src={src} alt="" loading="lazy" />
         ) : (
-          <span className="vr-poster-initial">{(workTitle.replace(/^The /, '')[0] || '🎬').toUpperCase()}</span>
+          <span className="vr-poster-initial">{(workTitle.replace(/^The /, '')[0] || '·').toUpperCase()}</span>
         )}
         {ep && <span className="vr-poster-ep">{ep}</span>}
       </div>

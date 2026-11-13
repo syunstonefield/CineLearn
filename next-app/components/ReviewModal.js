@@ -1,6 +1,6 @@
 'use client';
 
-import { IconClose, MarkText } from './icons/LineIcons';
+import { IconClose, MarkText, IconSpeaker, IconLaptop, IconPhone, IconCircleQuestion, IconCircleWave, IconCircleCheck } from './icons/LineIcons';
 import { useCardAutoplay } from '@/lib/useCardAutoplay';
 import { AutoplaySwitch } from './AutoplaySwitch';
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -60,8 +60,8 @@ const KEYS_SLIDES = [
     title: '答え合わせ',
     desc: '答え合わせの前は採点できません（見ずに答えないため）。PCは右手だけで Shift → 矢印 と回せます。',
     rows: [
-      { dev: '📱', gesture: 'カードをタップ', label: '答え合わせ' },
-      { dev: '💻', keys: ['Shift', 'Space', 'Enter'], label: '答え合わせ' },
+      { dev: 'sp', gesture: 'カードをタップ', label: '答え合わせ' },
+      { dev: 'pc', keys: ['Shift', 'Space', 'Enter'], label: '答え合わせ' },
     ],
   },
   {
@@ -73,12 +73,12 @@ const KEYS_SLIDES = [
     title: '採点する',
     desc: '右＝知ってた、左＝知らなかった。スワイプも矢印キーも同じ向きです。',
     rows: [
-      { dev: '📱', gesture: '右にスワイプ', label: '知ってた' },
-      { dev: '📱', gesture: '左にスワイプ', label: '知らなかった' },
-      { dev: '📱', gesture: 'ボタンをタップ', label: 'うろ覚え' },
-      { dev: '💻', keys: ['→', '3'], label: '知ってた' },
-      { dev: '💻', keys: ['↓', '2'], label: 'うろ覚え' },
-      { dev: '💻', keys: ['←', '1'], label: '知らなかった' },
+      { dev: 'sp', gesture: '右にスワイプ', label: '知ってた' },
+      { dev: 'sp', gesture: '左にスワイプ', label: '知らなかった' },
+      { dev: 'sp', gesture: 'ボタンをタップ', label: 'うろ覚え' },
+      { dev: 'pc', keys: ['→', '3'], label: '知ってた' },
+      { dev: 'pc', keys: ['↓', '2'], label: 'うろ覚え' },
+      { dev: 'pc', keys: ['←', '1'], label: '知らなかった' },
     ],
   },
   {
@@ -90,8 +90,8 @@ const KEYS_SLIDES = [
     title: '押し間違えたら戻る',
     desc: '前のカードに戻って、採点を取り消してやり直せます。',
     rows: [
-      { dev: '📱', gesture: '左上の「↩ 前のカードに戻る」', label: '1枚戻る' },
-      { dev: '💻', keys: ['↑', 'Backspace'], label: '1枚戻る' },
+      { dev: 'sp', gesture: '左上の「↩ 前のカードに戻る」', label: '1枚戻る' },
+      { dev: 'pc', keys: ['↑', 'Backspace'], label: '1枚戻る' },
     ],
   },
   {
@@ -166,8 +166,8 @@ function KeysHelp({ onClose }) {
               <table className="review-keys-table">
                 <tbody>
                   {slide.rows.map((r, i) => (
-                    <tr key={i} className={r.dev === '💻' ? 'is-pc' : 'is-mobile'}>
-                      <td className="review-keys-dev" aria-label={r.dev === '💻' ? 'PC' : 'スマホ'}>{r.dev}</td>
+                    <tr key={i} className={r.dev === 'pc' ? 'is-pc' : 'is-mobile'}>
+                      <td className="review-keys-dev" aria-label={r.dev === 'pc' ? 'PC' : 'スマホ'}>{r.dev === 'pc' ? <IconLaptop /> : <IconPhone />}</td>
                       <td>{r.keys ? renderKeys(r.keys) : <span className="review-keys-gesture">{r.gesture}</span>}</td>
                       <td>{r.label}</td>
                     </tr>
@@ -820,7 +820,7 @@ function ReviewCard({ word: w, marks, idx, total, flipped, retryMode, onFlip, on
                   speak(label);
                 }}
               >
-                🔊
+                <IconSpeaker />
               </button>
             </div>
           );
@@ -847,7 +847,7 @@ function ReviewCard({ word: w, marks, idx, total, flipped, retryMode, onFlip, on
                     aria-label="例文を聞く"
                     onClick={() => speak(w.example)}
                   >
-                    🔊
+                    <IconSpeaker />
                   </button>
                 </div>
                 {w.example_ja && <div className="review-example-ja">{w.example_ja}</div>}
@@ -867,7 +867,7 @@ function ReviewCard({ word: w, marks, idx, total, flipped, retryMode, onFlip, on
                     aria-label="例文を聞く"
                     onClick={() => speak(aiExampleOf(w).en)}
                   >
-                    🔊
+                    <IconSpeaker />
                   </button>
                 </div>
                 {aiExampleOf(w).ja && <div className="review-example-ja">{aiExampleOf(w).ja}</div>}
@@ -903,17 +903,17 @@ function ReviewCard({ word: w, marks, idx, total, flipped, retryMode, onFlip, on
           <>
             <div className="review-rate-btns">
               <button className="btn-rate btn-rate-fail" onClick={() => onRate(0)}>
-                <span className="btn-rate-emoji">😟</span>
+                <span className="btn-rate-emoji" aria-hidden="true"><IconCircleQuestion /></span>
                 <span className="btn-rate-label">知らなかった</span>
                 <span className="btn-rate-sub">覚え直す</span>
               </button>
               <button className="btn-rate btn-rate-hard" onClick={() => onRate(3)}>
-                <span className="btn-rate-emoji">🙂</span>
+                <span className="btn-rate-emoji" aria-hidden="true"><IconCircleWave /></span>
                 <span className="btn-rate-label">うろ覚え</span>
                 <span className="btn-rate-sub">あとで復習</span>
               </button>
               <button className="btn-rate btn-rate-easy" onClick={() => onRate(5)}>
-                <span className="btn-rate-emoji">🔥</span>
+                <span className="btn-rate-emoji" aria-hidden="true"><IconCircleCheck /></span>
                 <span className="btn-rate-label">知ってた！</span>
                 <span className="btn-rate-sub">次へ進む</span>
               </button>

@@ -5,7 +5,7 @@
 // 初めてダッシュボードに来たときに自動表示する。いつでもヘッダーの「?」から再表示できる。
 // 役割は「機能紹介＋CineLearnでの学習の流れ」の説明（プロフィール初期設定の Onboarding とは別物）。
 
-import { IconClose } from './icons/LineIcons';
+import { IconClose, MarkText } from './icons/LineIcons';
 import { useEffect, useState } from 'react';
 import { useApp } from './AppProvider';
 import { isMobileDevice } from '@/lib/device';
@@ -123,7 +123,7 @@ export default function WelcomeTutorial() {
   const isLast = step === SLIDES.length - 1;
   const slide = SLIDES[step];
   // オンボーディング流入時は閉じると作品追加へ進むので、CTA文言を分ける。
-  const ctaLabel = tutorial === 'onboarding' ? '作品を選んで始める 🎬' : '閉じる';
+  const ctaLabel = tutorial === 'onboarding' ? '作品を選んで始める' : '閉じる';
 
   return (
     <div className="modal-overlay tutorial-overlay">
@@ -146,7 +146,7 @@ export default function WelcomeTutorial() {
             {slide.cta && (
               // PC手順への導線は残す。モバイルでは「PC向け」と分かるラベルに変える。
               <button className="tutorial-cta" onClick={openGuide}>
-                {isMobile ? 'PCへの導入手順はこちら →' : slide.cta}
+                {isMobile ? 'PCへの導入手順はこちら →' : <MarkText text={slide.cta} />}
               </button>
             )}
           </div>

@@ -29,6 +29,7 @@ import PlusNote from './PlusNote';
 import { trackUsage } from '@/lib/usage';
 import { rememberHubScroll, takeHubScroll } from '@/lib/hubScroll';
 import { workRecency, byRecency } from '@/lib/workRecency';
+import { IconRepeat, IconOpenBook, IconCheck, IconStar } from './icons/LineIcons';
 
 // 復習一覧の一番上の「覚えた・マスター」全体バー。2026-10-31 オーナー判断で一旦非表示（true で復活）。
 const SHOW_HUB_OVERALL = false;
@@ -379,7 +380,7 @@ export default function ReviewHubScreen() {
     <div className="screen active" id="screen-review-hub">
       <div className="rh-screen">
         <div className="rh-head">
-          <h1 className="rh-h1">🔁 復習</h1>
+          <h1 className="rh-h1"><IconRepeat className="rh-h1-ic" /> 復習</h1>
           <p className="rh-sub">今日の分・エピソード別から選べます</p>
         </div>
 
@@ -406,7 +407,7 @@ export default function ReviewHubScreen() {
           </div>
           {todayCount > 0 && (
             <button className="rh-hero-btn" onClick={startToday}>
-              今日の復習をはじめる →
+              今日の復習をはじめる
             </button>
           )}
         </div>
@@ -440,7 +441,7 @@ export default function ReviewHubScreen() {
         {nearMastery.total > 0 && (
           <div className="rh-near">
             <span className="rh-near-icon" aria-hidden="true">
-              ⭐
+              <IconStar />
               <span className="rh-near-twinkle" />
               <span className="rh-near-twinkle" />
               <span className="rh-near-twinkle" />
@@ -495,7 +496,7 @@ export default function ReviewHubScreen() {
             {(myWords || []).length > 0 && (
               <div className="rh-group">
                 <div className="rh-group-head">
-                  <span className="rh-group-title">📖 マイ単語帳</span>
+                  <span className="rh-group-title"><IconOpenBook /> マイ単語帳</span>
                   <span className="rh-group-meta">{myWords.length}語</span>
                 </div>
                 <div className="rh-ep-row">
@@ -506,7 +507,7 @@ export default function ReviewHubScreen() {
                       {myDue > 0 ? (
                         <span className="rh-due-badge">復習 {myDue}</span>
                       ) : (
-                        <span className="rh-ep-done">✅ <span className="rh-ep-done-long">今日の分は</span>完了</span>
+                        <span className="rh-ep-done"><IconCheck /> <span className="rh-ep-done-long">今日の分は</span>完了</span>
                       )}
                     </span>
                   </button>
@@ -552,7 +553,7 @@ export default function ReviewHubScreen() {
                         {ep.due > 0 ? (
                           <span className="rh-due-badge">復習 {ep.due}</span>
                         ) : (
-                          <span className="rh-ep-done">✅ <span className="rh-ep-done-long">今日の分は</span>完了</span>
+                          <span className="rh-ep-done"><IconCheck /> <span className="rh-ep-done-long">今日の分は</span>完了</span>
                         )}
                       </span>
                     </button>

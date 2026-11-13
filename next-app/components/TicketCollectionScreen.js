@@ -574,7 +574,7 @@ export default function TicketCollectionScreen() {
                     aria-pressed={view === k}
                     onClick={() => changeView(k)}
                   >
-                    {label}
+                    <MarkText text={label} />
                   </button>
                 ))}
               </div>

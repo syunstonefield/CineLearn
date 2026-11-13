@@ -78,7 +78,7 @@ export function HomeTodayCard({ studied, todayCount, weekStats, onStart, again, 
           </div>
         </div>
         <button type="button" className="btn-primary hm-today-btn" onClick={onStart} aria-label={`今日の復習 ${todayCount}語をはじめる`}>
-          復習をはじめる →
+          復習をはじめる
         </button>
         <AgainRow again={again} onAgain={onAgain} />
       </section>

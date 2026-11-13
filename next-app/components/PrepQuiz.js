@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useApp } from './AppProvider';
 import { speak } from '@/lib/speak';
+import { IconSpeaker, IconHeadphones, MarkText } from './icons/LineIcons';
 
 // 予習エンジン「今夜のリハーサル」＝3問固定の recognition クイズ。
 // 各問: 実セリフ（drama由来 example）の対象語を空欄にして提示し、
@@ -29,7 +30,7 @@ export default function PrepQuiz() {
       <div className="modal-overlay prep-overlay" style={{ display: 'flex' }} onClick={closePrepQuiz}>
         <div className="modal-panel prep-panel" onClick={(e) => e.stopPropagation()}>
           <div className="modal-header">
-            <span className="modal-title">🎧 今夜のリハーサル</span>
+            <span className="modal-title"><IconHeadphones /> 今夜のリハーサル</span>
             <button className="modal-close" onClick={closePrepQuiz}>✕</button>
           </div>
           <div className="prep-content">
@@ -96,7 +97,7 @@ export default function PrepQuiz() {
     <div className="modal-overlay prep-overlay" style={{ display: 'flex' }} onClick={closePrepQuiz}>
       <div className="modal-panel prep-panel" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <span className="modal-title">{meta?.trial ? meta.stage.title : '🎧 今夜のリハーサル'}</span>
+          <span className="modal-title"><MarkText text={meta?.trial ? meta.stage.title : '🎧 今夜のリハーサル'} /></span>
           <button className="modal-close" onClick={closePrepQuiz}>✕</button>
         </div>
 
@@ -134,7 +135,7 @@ export default function PrepQuiz() {
                 onClick={() => speak(q.example)}
                 aria-label="例文を聞く"
               >
-                🔊
+                <IconSpeaker />
               </button>
             )}
           </div>

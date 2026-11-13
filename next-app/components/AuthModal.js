@@ -1,6 +1,6 @@
 'use client';
 
-import { IconClose } from './icons/LineIcons';
+import { IconClose, IconClapper } from './icons/LineIcons';
 import { useEffect, useState } from 'react';
 import { useApp } from './AppProvider';
 import { supaSignIn, supaSignUp, pullFromCloud, migrateLocalToCloudAfterLogin, getSession } from '@/lib/supabase';
@@ -87,7 +87,7 @@ export default function AuthModal() {
       <div className="modal-panel auth-modal-panel">
         <div className="modal-header" style={{ borderBottom: 'none', paddingBottom: 8 }}>
           <span className="modal-title" style={{ fontSize: 22 }}>
-            🎬 CineLearn
+            <IconClapper /> CineLearn
           </span>
           <button className="modal-close" onClick={closeAuth} aria-label="閉じる">
             <IconClose />

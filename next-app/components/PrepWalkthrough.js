@@ -13,6 +13,7 @@ import WordMarks from './WordMarks';
 import { getActiveWords, starWord, unstarWord } from '@/lib/words';
 import { entryFromCard } from '@/lib/wordMarks';
 import { exitEventName, toDecile } from '@/lib/usageEvents';
+import { IconSpeaker, MarkText, IconPin } from './icons/LineIcons';
 
 // 「1枚ずつめくって見る」ウォークスルー。生成直後の予習（「予習する →」）と、あとから見直す
 // 「勉強する」（全語・上限なし）の両方がこの1画面。
@@ -236,7 +237,7 @@ export default function PrepWalkthrough() {
     <div className="pw-overlay">
       <div className="pw-panel">
         <div className="pw-head">
-          <span className="pw-title">{single ? '✏️ 追加した単語' : trial ? meta.stage.title : '🎬 今夜の予習'}</span>
+          <span className="pw-title"><MarkText text={single ? '✏️ 追加した単語' : trial ? meta.stage.title : '🎬 今夜の予習'} /></span>
           <button className="pw-close" onClick={() => leave('x')} aria-label="閉じる">
             ✕
           </button>
@@ -283,7 +284,7 @@ export default function PrepWalkthrough() {
                     )}
                   </span>
                   <button className="pw-speak" onClick={() => speak(label)} aria-label="発音を聞く">
-                    🔊
+                    <IconSpeaker />
                   </button>
                 </div>
               );
@@ -344,14 +345,14 @@ export default function PrepWalkthrough() {
                     onClick={() => speak(w.example)}
                     aria-label="例文を聞く"
                   >
-                    🔊
+                    <IconSpeaker />
                   </button>
                 </div>
                 {w.example_ja && <div className="pw-ex-ja">{w.example_ja}</div>}
                 {showCredit && <div className="pw-ex-src">{meta.credit}</div>}
               </div>
             )}
-            {w._tsLabel && <div className="pw-ts">📍 {w._tsLabel}</div>}
+            {w._tsLabel && <div className="pw-ts"><IconPin /> {w._tsLabel}</div>}
           </div>
         </div>
 

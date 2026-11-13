@@ -167,7 +167,7 @@ export default function HomeTour() {
           key={current.key}
         >
           <div className="ht-tip-head">
-            <b className="ht-tip-title">{current.title}</b>
+            <b className="ht-tip-title"><MarkText text={current.title} /></b>
             <span className="ht-tip-count">
               {idx + 1} / {steps.length}
             </span>

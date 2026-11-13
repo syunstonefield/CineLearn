@@ -1,6 +1,6 @@
 'use client';
 
-import { IconStar, IconHeart, IconOpenBook, MarkText } from './icons/LineIcons';
+import { IconStar, IconHeart, IconOpenBook, MarkText, IconRepeat } from './icons/LineIcons';
 import { useEffect, useMemo, useState } from 'react';
 import { useApp } from './AppProvider';
 import VocabItem from './VocabItem';
@@ -541,7 +541,7 @@ export default function WordbookScreen() {
               <span className="wb-actions">
                 {loggedIn && (
                   <button className="btn-secondary wb-sync" disabled={syncing} onClick={onSync}>
-                    {syncing ? '同期中...' : '🔄 再読込'}
+                    {syncing ? '同期中...' : <><IconRepeat /> 再読込</>}
                   </button>
                 )}
                 <button className="btn-clear-all" onClick={onClear}>

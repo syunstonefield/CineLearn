@@ -17,6 +17,7 @@ import { chunkParts } from '@/lib/chunk';
 import { subtitleCredit } from '@/lib/storage';
 import WordMarks from './WordMarks';
 import { fitLongestWord, fitPhraseLines, PHRASE_MIN_PX } from '@/lib/fitWord';
+import { IconCircleQuestion, IconCircleWave, IconCircleCheck } from './icons/LineIcons';
 
 const FILM_FRAMES = 10; // 進み具合のフィルム＝1コマ1枚・10枚で次の10コマへ
 
@@ -364,17 +365,17 @@ export default function ReviewCinemaCard({ word: w, marks, flipped, retryMode, o
           <>
             <div className="rc-rates">
               <button type="button" className="rc-rate rc-rate-fail" onClick={() => onRate(0)}>
-                <span className="rc-rate-emoji" aria-hidden="true">😟</span>
+                <span className="rc-rate-emoji" aria-hidden="true"><IconCircleQuestion /></span>
                 <span className="rc-rate-label">知らなかった</span>
                 <span className="rc-rate-sub">覚え直す</span>
               </button>
               <button type="button" className="rc-rate rc-rate-hard" onClick={() => onRate(3)}>
-                <span className="rc-rate-emoji" aria-hidden="true">🙂</span>
+                <span className="rc-rate-emoji" aria-hidden="true"><IconCircleWave /></span>
                 <span className="rc-rate-label">うろ覚え</span>
                 <span className="rc-rate-sub">あとで復習</span>
               </button>
               <button type="button" className="rc-rate rc-rate-easy" onClick={() => onRate(5)}>
-                <span className="rc-rate-emoji" aria-hidden="true">🔥</span>
+                <span className="rc-rate-emoji" aria-hidden="true"><IconCircleCheck /></span>
                 <span className="rc-rate-label">知ってた！</span>
                 <span className="rc-rate-sub">次へ進む</span>
               </button>

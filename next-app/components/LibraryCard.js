@@ -1,6 +1,6 @@
 'use client';
 
-import { IconClose } from './icons/LineIcons';
+import { IconClose, IconCheck, IconStar } from './icons/LineIcons';
 import { useState } from 'react';
 import { platformColor } from '@/lib/storage';
 
@@ -70,10 +70,10 @@ export default function LibraryCard({ entry, onSelect, onArchive, stats }) {
       {stats && stats.total > 0 && (
         <div className="library-card-caption">
           <span className="lc-stat lc-learned" title="覚えた（全エピソード合計）">
-            ✅ 覚えた {stats.learned}/{stats.total}
+            <IconCheck /> 覚えた {stats.learned}/{stats.total}
           </span>
           <span className="lc-stat lc-mastered" title="マスター（全エピソード合計）">
-            ⭐ マスター {stats.mastered}/{stats.total}
+            <IconStar /> マスター {stats.mastered}/{stats.total}
           </span>
         </div>
       )}

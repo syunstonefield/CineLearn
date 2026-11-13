@@ -26,6 +26,7 @@ import {
   trialDrama,
 } from '@/lib/trial';
 import { CURATION_ON, SAVE_STAR_SENTENCE } from '@/lib/curation';
+import { IconClapper } from './icons/LineIcons';
 
 // 初回体験（登録前に試す流れ・docs/design-first-run-trial-2026-11-05.md）。
 //   ようこそ → レベル → チュートリアルの案内 → 作品 → 5語 → 予習5枚 → クイズ3問 → 完了（登録／あとで）→ 次の一歩。
@@ -359,7 +360,7 @@ export default function TrialFlow() {
               </div>
               <div className="srs-heading-sub">
                 {session.meta.isMovie ? (
-                  <span className="srs-media-chip">🎬 映画</span>
+                  <span className="srs-media-chip"><IconClapper /> 映画</span>
                 ) : (
                   <span className="ep-inline-badge">
                     S{title.season}E{title.episode}

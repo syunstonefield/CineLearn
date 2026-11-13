@@ -1,5 +1,6 @@
 'use client';
 import { SPELL_MIN_INPUT } from '@/lib/spellSuggest';
+import { IconPin } from './icons/LineIcons';
 
 // 綴りミスの候補シート（2026-10-30 オーナー決定＝案B・法務「条件付きOK」）。単語リストの「単語を追加」の下に出す。
 //   inList … リストにある語の綴り違い（画面の中だけで判定・サーバには聞いていない）。「見る」でその行へ飛ぶ。
@@ -51,7 +52,7 @@ export default function SpellSuggestSheet({ input, inList, notFound, items, cred
         <div key={it.word} className="spell-cand">
           <div className="spell-top">
             <span className="spell-word">{it.word}</span>
-            {it.sentence ? it.tsLabel && <span className="spell-ts">📍 {it.tsLabel}</span> : <span className="spell-hint">ほかの候補</span>}
+            {it.sentence ? it.tsLabel && <span className="spell-ts"><IconPin /> {it.tsLabel}</span> : <span className="spell-hint">ほかの候補</span>}
           </div>
           {it.sentence && (
             <>

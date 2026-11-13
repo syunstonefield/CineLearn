@@ -7,7 +7,7 @@
 // 初回体験の中（screen === 'trial'）だけ、導入文を出さず手順を短くして1画面に収める（オーナー決定 2026-11-05）。
 //   スマホではストアから入れられないので、ストアのボタンも出さない。閉じると「次の一歩」の画面に戻る。
 
-import { IconClose, IconCheck } from './icons/LineIcons';
+import { IconClose, IconCheck, IconPuzzle, IconLaptop } from './icons/LineIcons';
 import { useApp } from './AppProvider';
 import { isMobileDevice } from '@/lib/device';
 import { CURATION_ON } from '@/lib/curation';
@@ -74,7 +74,7 @@ export default function ExtensionGuide() {
     <div className={'modal-overlay' + (inTrial ? ' ext-guide-overlay-trial' : '')} style={{ display: 'flex' }} onClick={overlayClick}>
       <div className="modal-panel ext-guide-panel" role="dialog" aria-modal="true" aria-label="拡張機能の入れ方">
         <div className="modal-header">
-          <span className="modal-title">🧩 拡張機能の入れ方</span>
+          <span className="modal-title"><IconPuzzle /> 拡張機能の入れ方</span>
           <button className="modal-close" onClick={closeGuide} aria-label="閉じる">
             <IconClose />
           </button>
@@ -88,7 +88,7 @@ export default function ExtensionGuide() {
             </p>
           )}
           <p className="ext-guide-note" style={{ marginTop: 0, marginBottom: 14 }}>
-            💻 この手順は<b>PC（Chrome / Edge）専用</b>です。スマホでは拡張機能を入れられないため、お使いのPCで開いて進めてください（スマホは予習・復習・テストに使えます）。
+            <IconLaptop /> この手順は<b>PC（Chrome / Edge）専用</b>です。スマホでは拡張機能を入れられないため、お使いのPCで開いて進めてください（スマホは予習・復習・テストに使えます）。
           </p>
 
           <ol className="ext-guide-steps">
@@ -100,7 +100,7 @@ export default function ExtensionGuide() {
                   <p>{inTrial ? s.short : s.body}</p>
                   {i === 0 && !(inTrial && isMobileDevice()) && (
                     <a className="btn-primary ext-guide-dl" href={STORE_URL} target="_blank" rel="noopener noreferrer">
-                      🧩 Chrome Web Store で追加
+                      <IconPuzzle /> Chrome Web Store で追加
                     </a>
                   )}
                   {i === 1 &&

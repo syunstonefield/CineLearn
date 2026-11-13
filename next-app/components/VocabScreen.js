@@ -1,6 +1,6 @@
 'use client';
 
-import { IconCheck, IconStar, IconPencil, IconRepeat, IconTarget, IconOpenBook, IconClapper, IconTv, IconCalendar, IconWarning, IconClose } from './icons/LineIcons';
+import { IconCheck, IconStar, IconPencil, IconRepeat, IconTarget, IconOpenBook, IconClapper, IconTv, IconCalendar, IconWarning, IconClose, MarkText } from './icons/LineIcons';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
 import VocabItem from './VocabItem';
@@ -2081,7 +2081,7 @@ export default function VocabScreen() {
               </button>
             )}
           </div>
-          <div className="episode-selected">{statusText}</div>
+          <div className="episode-selected">{typeof statusText === 'string' ? <MarkText text={statusText} /> : statusText}</div>
           {!genBtn.hidden && <p className="ch-small ch-small-sel">学ばなくても、いつでも観られます</p>}
           {bulkListCount >= 2 && (
             <button type="button" className="bulkdel-link" onClick={openBulkDelete}>
@@ -2249,7 +2249,7 @@ export default function VocabScreen() {
                 )}
                 {episodeMismatch && (
                   <div className="srs-episode-note">
-                    この回の字幕が見つからなかったため、同じ作品の別の回の字幕から作った単語リストです（📍時刻は出しません）
+                    この回の字幕が見つからなかったため、同じ作品の別の回の字幕から作った単語リストです（場面の時刻は出しません）
                   </div>
                 )}
               </div>

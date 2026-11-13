@@ -229,6 +229,123 @@ export function IconSparkle(p) {
 }
 
 
+// ── 第2便（#p5・2026-11-14）: 画面に残っていた絵文字の置き換え用（自作・24×24・線 1.8）──
+// 半券（観たあとに・コレクションの半券）
+export function IconTicket(p) {
+  return (
+    <Svg {...p}>
+      <path d="M4 7.5A1.5 1.5 0 0 1 5.5 6h13A1.5 1.5 0 0 1 20 7.5V10a2 2 0 0 0 0 4v2.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 16.5V14a2 2 0 0 0 0-4z" />
+      <path d="M14.5 6.5v2M14.5 11v2M14.5 15.5v2" />
+    </Svg>
+  );
+}
+// パズルの1片（拡張機能）
+export function IconPuzzle(p) {
+  return (
+    <Svg {...p}>
+      <path d="M5 8.5h3.2a2 2 0 1 1 3.6 0H15v3.3a2 2 0 1 1 0 3.6V19H5z" />
+    </Svg>
+  );
+}
+// ヘッドホン（リハーサル＝聞く練習）
+export function IconHeadphones(p) {
+  return (
+    <Svg {...p}>
+      <path d="M4.5 15v-2.5a7.5 7.5 0 0 1 15 0V15" />
+      <rect x="4" y="14" width="4" height="6" rx="1.5" />
+      <rect x="16" y="14" width="4" height="6" rx="1.5" />
+    </Svg>
+  );
+}
+// しおり（保存した語）
+export function IconBookmark(p) {
+  return (
+    <Svg {...p}>
+      <path d="M7 4h10v16l-5-3.6L7 20z" />
+    </Svg>
+  );
+}
+// 額の絵（ポスター）
+export function IconImage(p) {
+  return (
+    <Svg {...p}>
+      <rect x="4" y="5" width="16" height="14" rx="2" />
+      <circle cx="9" cy="10" r="1.5" />
+      <path d="M5 17l4.5-4 3 2.5L16 12l3.5 3.5" />
+    </Svg>
+  );
+}
+// 歯車（設定）
+export function IconGear(p) {
+  return (
+    <Svg {...p}>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4L18 18M6 18l1.6-1.6M16.4 7.6L18 6" />
+    </Svg>
+  );
+}
+// 飛行機（旅行）
+export function IconPlane(p) {
+  return (
+    <Svg {...p}>
+      <path d="M3.5 13.5l7-1.5 5-6.5a1.6 1.6 0 0 1 2.4 2.1L13.5 13l1 7-2 .5-2.5-6-5 1z" />
+    </Svg>
+  );
+}
+// かばん（仕事）
+export function IconBriefcase(p) {
+  return (
+    <Svg {...p}>
+      <rect x="3.5" y="7.5" width="17" height="12" rx="2" />
+      <path d="M9 7.5V6a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 6v1.5M3.5 12.5h17" />
+    </Svg>
+  );
+}
+// スマホ（使い方の表）
+export function IconPhone(p) {
+  return (
+    <Svg {...p}>
+      <rect x="7" y="3.5" width="10" height="17" rx="2" />
+      <path d="M11 17.6h2" />
+    </Svg>
+  );
+}
+// ノートPC（使い方の表・PC 専用の案内）
+export function IconLaptop(p) {
+  return (
+    <Svg {...p}>
+      <rect x="5" y="5.5" width="14" height="10" rx="1.5" />
+      <path d="M3 18.5h18" />
+    </Svg>
+  );
+}
+// 丸に「？」「波」「✓」（採点の3つ・顔の絵は使わない・形で見分ける）
+export function IconCircleQuestion(p) {
+  return (
+    <Svg {...p}>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M9.6 9.6a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.1-2.4 3.6" />
+      <circle cx="12" cy="16.9" r="0.6" fill="currentColor" />
+    </Svg>
+  );
+}
+export function IconCircleWave(p) {
+  return (
+    <Svg {...p}>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M7.5 12.4c1.1-1.3 2.2-1.3 3 0s1.9 1.3 3 0 2.2-1.3 3 0" />
+    </Svg>
+  );
+}
+export function IconCircleCheck(p) {
+  return (
+    <Svg {...p}>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M8.2 12.3l2.7 2.7 5-5.2" />
+    </Svg>
+  );
+}
+
 // 文の中の記号（★ ♡ ♥ 📺）を、文の高さに合わせた線の絵に置き換えて出す（2026-11-13 受付経由・外の AI の指摘「文字の★が浮く」）。
 //   色は文と同じ（currentColor）。読み上げは絵ごとに名前を付ける（「星 覚えたい」のように文が通る）。
 //   Chrome 拡張のボタン名を説明する文（拡張の画面は本当に文字の★）には使わない。
@@ -237,9 +354,35 @@ const MARKS = {
   '♡': { label: 'ハート', el: () => <IconHeart /> },
   '♥': { label: 'ハート', el: () => <IconHeart filled /> },
   '📺': { label: '作品', el: () => <IconFilm /> },
+  // 第2便（#p5・2026-11-14）: 文の中に残っていた絵文字も同じ仕組みで線の絵に
+  '📍': { label: '時刻', el: () => <IconPin /> },
+  '⚠': { label: '注意', el: () => <IconWarning /> },
+  '🔊': { label: '音', el: () => <IconSpeaker /> },
+  '🎬': { label: '映画', el: () => <IconClapper /> },
+  '✅': { label: '済み', el: () => <IconCheck /> },
+  '⭐': { label: '星', el: () => <IconStar /> },
+  '🔁': { label: '復習', el: () => <IconRepeat /> },
+  '🔄': { label: 'くり返し', el: () => <IconRepeat /> },
+  '📖': { label: '本', el: () => <IconOpenBook /> },
+  '🗑': { label: '削除', el: () => <IconTrash /> },
+  '📱': { label: 'スマホ', el: () => <IconPhone /> },
+  '💻': { label: 'PC', el: () => <IconLaptop /> },
+  '✏': { label: '追加', el: () => <IconPencil /> },
+  '📝': { label: 'メモ', el: () => <IconPencil /> },
+  '🎟': { label: '半券', el: () => <IconTicket /> },
+  '🧩': { label: '拡張機能', el: () => <IconPuzzle /> },
+  '🎧': { label: '聞く', el: () => <IconHeadphones /> },
+  '🔖': { label: '保存', el: () => <IconBookmark /> },
+  '🖼': { label: 'ポスター', el: () => <IconImage /> },
+  '⚙': { label: '設定', el: () => <IconGear /> },
+  '✈': { label: '旅行', el: () => <IconPlane /> },
+  '💼': { label: '仕事', el: () => <IconBriefcase /> },
+  '🎉': { label: '楽しく', el: () => <IconSparkle /> },
 };
+const MARK_RE = new RegExp('(' + Object.keys(MARKS).join('|') + ')', 'u');
+// 絵文字の見た目の指定（U+FE0F・U+FE0E）は落としてから分ける
 export function MarkText({ text }) {
-  const parts = String(text ?? '').split(/(★|♡|♥|📺)/u);
+  const parts = String(text ?? '').replace(/[\uFE0E\uFE0F]/g, '').split(MARK_RE);
   return parts.map((p, i) =>
     MARKS[p] ? (
       <span key={i} className="li-mark" role="img" aria-label={MARKS[p].label}>

@@ -1,6 +1,6 @@
 'use client';
 
-import { IconCheck } from './icons/LineIcons';
+import { IconCheck, MarkText, IconClapper } from './icons/LineIcons';
 import { useEffect, useState } from 'react';
 import { useApp } from './AppProvider';
 import { getToeicLevel, getVocabCount } from '@/lib/vocab';
@@ -144,7 +144,7 @@ export default function Onboarding() {
       <div className="screen active ob-screen" id="screen-onboarding">
         <div className="ob-content">
           <div className="ob-plan">
-            <div className="ob-plan-badge">🎬 あなたの予習プラン</div>
+            <div className="ob-plan-badge"><IconClapper /> あなたの予習プラン</div>
             <h2 className="ob-plan-title">準備ができました</h2>
             <div className="ob-plan-rows">
               <div className="ob-plan-row">
@@ -294,7 +294,7 @@ export default function Onboarding() {
                   className={'ob-row' + (goals.includes(p.v) ? ' selected' : '')}
                   onClick={() => toggleGoal(p.v)}
                 >
-                  <span className="ob-row-icon" aria-hidden="true">{p.icon}</span>
+                  <span className="ob-row-icon" aria-hidden="true"><MarkText text={p.icon} /></span>
                   <span className="ob-row-label">{p.label}</span>
                   <span className="ob-row-check" aria-hidden="true" />
                 </button>

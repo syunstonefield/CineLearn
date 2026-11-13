@@ -1,6 +1,6 @@
 'use client';
 
-import { IconHeart, IconOpenBook, MarkText } from './icons/LineIcons';
+import { IconHeart, IconOpenBook, MarkText, IconSpeaker, IconClapper, IconBookmark, IconTicket } from './icons/LineIcons';
 import { pickYesterdayWord } from '@/lib/yesterdayWord';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
@@ -673,13 +673,13 @@ export default function Dashboard() {
       {showWatchAsk && (
         <div className="reunion-card">
           <div className="reunion-head">
-            <span aria-hidden="true">🎬</span> 観たあとに
+            <IconClapper /> 観たあとに
           </div>
           <div className="reunion-lead">
             『{watchMeta.dramaTitle}』{watchSeLabel}、観終わりましたか？
           </div>
           <span className="recap-ask-chip">
-            <span aria-hidden="true">🔖</span> 保存した語 {watchMeta.words.length}
+            <IconBookmark /> 保存した語 {watchMeta.words.length}
           </span>
           <div className="recap-ask-actions">
             <button className="reunion-review-btn recap-btn-done" onClick={handleWatchDone}>
@@ -710,7 +710,7 @@ export default function Dashboard() {
       {showWatchCelebrate && justConfirmed === watchMeta.epKey && (
         <div className="reunion-card recap-celebrate">
           <div className="reunion-head">
-            <span aria-hidden="true">🎟</span> 観たあとに
+            <IconTicket /> 観たあとに
           </div>
           <div className="reunion-lead">
             『{watchMeta.dramaTitle}』{watchSeLabel} を観終わりました。今回出会った語彙です
@@ -722,7 +722,7 @@ export default function Dashboard() {
                 <span className="recap-wordline">
                   <span className="recap-word">{c.word}</span>
                   <button className="recap-speak" onClick={() => speak(c.word)} aria-label={`${c.word} を発音`}>
-                    🔊
+                    <IconSpeaker />
                   </button>
                 </span>
                 {c.ja && <span className="recap-ja">{c.ja}</span>}
@@ -764,7 +764,7 @@ export default function Dashboard() {
       {showWatchCelebrateLight && (
         <div className="reunion-card">
           <div className="reunion-head">
-            <span aria-hidden="true">🎟</span> 観たあとに
+            <IconTicket /> 観たあとに
           </div>
           <div className="reunion-lead">
             『{watchMeta.dramaTitle}』{watchSeLabel} を観終わりました。
