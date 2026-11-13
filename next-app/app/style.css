@@ -8288,4 +8288,4 @@ html[data-theme="dark"] .review-list-link { color: var(--accent); }
 .soon-emoji .li-ic { width: 40px; height: 40px; }
 html[data-theme="dark"] .media-type-icon,
 html[data-theme="dark"] .soon-emoji { color: var(--accent); }
-
+.word-example-source .li-ic { margin-right: 1px; }

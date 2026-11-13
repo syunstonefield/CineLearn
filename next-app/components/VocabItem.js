@@ -1,5 +1,5 @@
 'use client';
-import { IconSpeaker, IconPin, IconPencil } from './icons/LineIcons';
+import { IconSpeaker, IconPin, IconPencil, IconFilm } from './icons/LineIcons';
 import { surfaceFormInExample } from '@/lib/subtitles';
 
 import { useState } from 'react';
@@ -17,6 +17,9 @@ import { cefrHintOf, cefrHintTitle } from '@/lib/cefrHint';
 // defaultExpanded: 最初から開いておく（スマホの初回体験の1語目・PC は CSS で常に開いている）。
 // readOnly: 初回体験の5語（components/TrialFlow.js）。SRS を持たない人に状態の印と Skip を出さない＝書き込む操作なし。
 // showCefr: 各語に CEFR の目安（段階だけ）を出すか（単語リストだけ true・2026-10-30）。値は lib/cefrHint.js（複数語は出さない）。
+// 出所の文字の頭の 📺（lib/storage.js episodeCredit が付ける）を外す。絵は IconFilm で前に置く。
+const stripCreditMark = (s) => String(s || '').replace(/^📺\s*/, '');
+
 export default function VocabItem({ word, srs, testTiers, ts, exampleSource, added, starred, liked, showCefr, readOnly, defaultExpanded, onSpeak, onSkip, onCopyTime, onDelete, onStar, onLike }) {
   const [expanded, setExpanded] = useState(!!defaultExpanded);
   const w = word;
@@ -161,7 +164,12 @@ export default function VocabItem({ word, srs, testTiers, ts, exampleSource, add
             </span>
             {w.example_ja && <span className="word-example-ja">{w.example_ja}</span>}
             {/* 出所明示（著作権法48条）：例文を引いた作品・話・字幕元 */}
-            {exampleSource && <span className="word-example-source">{exampleSource}</span>}
+            {/* 出所の行（48条）: 文字はそのまま・頭の絵文字だけ線のフィルムの絵（飾り・aria-hidden）に（法務 可 2026-11-13） */}
+            {exampleSource && (
+              <span className="word-example-source">
+                <IconFilm /> {stripCreditMark(exampleSource)}
+              </span>
+            )}
             {/* 保存した場面では見つからず、この回の別の場面の台詞を引いた（2026-10-31）。📍は保存した場面のまま。 */}
             {isOtherSceneExample(w) && <span className="word-example-source">この回の別の場面のセリフです</span>}
             {/* ♡ お気に入りの例文の印（2026-11-07）: 字幕由来の例文（出所あり）にだけ。おすすめ語（plus）の作例には付けない */}
@@ -189,7 +197,7 @@ export default function VocabItem({ word, srs, testTiers, ts, exampleSource, add
             {/* 引用が無い＝48条の出所明示は不要なので「（字幕：…）」は落とし、作品名だけ残す */}
             {exampleSource && (
               <span className="word-example-source">
-                {exampleSource.replace(/（字幕：[^）]*）\s*$/, '')}
+                <IconFilm /> {stripCreditMark(exampleSource).replace(/（字幕：[^）]*）\s*$/, '')}
               </span>
             )}
             {/* 例文が取れなかった理由を明示する（③）。無言で欠けていると、ユーザーからも
