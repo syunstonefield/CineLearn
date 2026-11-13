@@ -1,6 +1,6 @@
 'use client';
 
-import { LEARNED_LABEL, MASTERED_LABEL } from '@/lib/learnedTerms';
+import { LEARNED_LABEL, MASTERED_LABEL, LEARNING_LABEL, MASTERED_OF_LEARNED_LABEL } from '@/lib/learnedTerms';
 import { IconOpenBook, IconTarget, IconFilm } from './icons/LineIcons';
 // 下の札の絵＝線の絵（components/icons/LineIcons.js・2026-11-12 オーナー決定）
 
@@ -16,7 +16,7 @@ function Poster({ src, title }) {
 }
 
 // 作品の画面（2026-11-12 オーナー決定・見直しの見本 reports/card-home-redesign-2026-11-12/mock.html）。
-//   上の札＝ポスター＋題名・話数・この話の語の数＋記録の小さな札3つ（見ておいた／覚えた／マスター）＋進み具合の線（覚えた・見ておいた）。
+//   上の札＝ポスター＋題名・話数・この話の語の数＋記録の小さな札3つ（学習中／覚えた／うち マスター）＋進み具合の線（マスター・覚えた・学習中）。
 //   「次に出てくる単語」＝次に出るカードの見出し語を3つ（和訳・例文は出さない）＋「ほか」。「単語を学ぶ」の下に枚数。
 //   次につながる1行（今日の復習にこの話から N語／明日 復習できる単語 N個・0 は出さない）。下は札3つ（単語リスト・クイズ・ほかの話）。
 //   残りの数・「あと○語」・赤は使わない。時間の目安は測れていないので出さない（枚数だけ・受付 2026-11-12）。
@@ -41,13 +41,17 @@ export function CardHome({
   onOtherEpisode,
   onQuiz,
 }) {
+  // 札と線（2026-11-13 オーナー決定）: 学習中＝答えたことがあり、まだ覚えたになっていない語（覚えたとは重ならない）／
+  //   覚えた／うち マスター（覚えたの内側）。線は左から マスター（濃い茶）→ 覚えた（茶）→ 学習中（淡い金）。説明の文は出さない。
   const pct = (n) => (total > 0 ? Math.max(0, Math.min(100, (n / total) * 100)) : 0);
-  const learnedW = pct(learned);
-  const seenW = Math.max(0, pct(seen) - learnedW); // 見ておいた（覚えたの分を除く）
+  const learning = Math.max(0, seen - learned);
+  const masteredW = pct(Math.min(mastered, learned));
+  const learnedW = Math.max(0, pct(learned) - masteredW);
+  const learningW = Math.min(100 - masteredW - learnedW, pct(learning));
   const nextLine =
     todayDue > 0 ? (
       <>
-        今日の復習に、この話から <b>{todayDue}語</b>
+        今日の復習に、{isMovie ? 'この映画' : 'この話'}から <b>{todayDue}語</b>
       </>
     ) : tomorrow > 0 ? (
       <>
@@ -67,7 +71,8 @@ export function CardHome({
           </p>
           <div className="ch-stats">
             <div className="ch-stat">
-              <b>{seen}</b>見ておいた
+              <b>{learning}</b>
+              {LEARNING_LABEL}
             </div>
             <div className="ch-stat">
               <b>{learned}</b>
@@ -75,16 +80,18 @@ export function CardHome({
             </div>
             <div className="ch-stat">
               <b>{mastered}</b>
-              {MASTERED_LABEL}
+              {MASTERED_OF_LEARNED_LABEL}
             </div>
           </div>
           <div className="ch-bar" aria-hidden="true">
+            <i className="ch-bar-m" style={{ width: `${masteredW}%` }} />
             <i className="ch-bar-a" style={{ width: `${learnedW}%` }} />
-            <i className="ch-bar-b" style={{ width: `${seenW}%` }} />
+            <i className="ch-bar-b" style={{ width: `${learningW}%` }} />
           </div>
           <div className="ch-legend" aria-hidden="true">
+            <span className="ch-lg-m">{MASTERED_LABEL}</span>
             <span className="ch-lg-a">{LEARNED_LABEL}</span>
-            <span className="ch-lg-b">見ておいた</span>
+            <span className="ch-lg-b">{LEARNING_LABEL}</span>
           </div>
         </div>
       </div>

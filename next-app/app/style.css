@@ -8206,12 +8206,15 @@ html[data-theme="dark"] .hm-row-pb { background: rgba(255,255,255,.08); }
 .ch-stat b { display: block; font-size: 16px; color: var(--text); font-family: 'Playfair Display', Georgia, serif; font-variant-numeric: lining-nums; }
 .ch-bar { height: 6px; border-radius: 4px; background: var(--surface2); margin-top: 9px; overflow: hidden; display: flex; }
 .ch-bar i { display: block; height: 100%; }
-.ch-bar-a { background: #7a4a2a; }
-.ch-bar-b { background: var(--gold); }
-.ch-legend { font-size: 11px; color: var(--text-muted); margin-top: 4px; display: flex; gap: 10px; }
-.ch-legend span::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
-.ch-lg-a::before { background: #7a4a2a; }
-.ch-lg-b::before { background: var(--gold); }
+.ch-bar-m { background: #8a5a26; }
+.ch-bar-a { background: #b8762c; }
+.ch-bar-b { background: #ecd9b4; }
+.ch-legend { font-size: 11px; color: var(--text-muted); margin-top: 4px; display: flex; gap: 9px; flex-wrap: wrap; }
+.ch-legend span { white-space: nowrap; }
+.ch-legend span::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 3px; vertical-align: middle; }
+.ch-lg-m::before { background: #8a5a26; }
+.ch-lg-a::before { background: #b8762c; }
+.ch-lg-b::before { background: #ecd9b4; }
 .ch-learn { background: var(--surface); border-radius: 18px; padding: 12px 14px; box-shadow: 0 2px 8px rgba(80, 50, 20, 0.08); }
 .ch-peek-t { font-size: 12.5px; color: var(--text-muted); margin-bottom: 6px; }
 .ch-peek { display: flex; gap: 6px; flex-wrap: nowrap; overflow: hidden; margin-bottom: 10px; }
@@ -8254,8 +8257,13 @@ html[data-theme="dark"] .hm-row-pb { background: rgba(255,255,255,.08); }
 .ch-back { min-height: 44px; border: 0; background: none; font: inherit; font-size: 14px; color: #7a4a2a; cursor: pointer; padding: 0 4px; }
 .review-list-link { min-height: 36px; border: 0; background: none; font: inherit; font-size: 13px; color: #7a4a2a; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; padding: 0 8px; }
 html[data-theme="dark"] .ch-btn1 { background: var(--accent); color: var(--on-accent); }
+/* ダーク: あゆみの円（.vr-wrap のダーク）と同じ系統＝マスターが一番明るい金・学習中はくすんだ金 */
+html[data-theme="dark"] .ch-bar-m,
+html[data-theme="dark"] .ch-lg-m::before { background: #f0b64e; }
 html[data-theme="dark"] .ch-bar-a,
-html[data-theme="dark"] .ch-lg-a::before { background: #b0703f; }
+html[data-theme="dark"] .ch-lg-a::before { background: #c98a2e; }
+html[data-theme="dark"] .ch-bar-b,
+html[data-theme="dark"] .ch-lg-b::before { background: #6e5a36; }
 html[data-theme="dark"] .ch-poster-empty,
 html[data-theme="dark"] .ch-peek span,
 html[data-theme="dark"] .ch-tile-i,

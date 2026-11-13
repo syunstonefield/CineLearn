@@ -5,6 +5,10 @@
 //   「思い出せた」は「知ってた」「うろ覚え」の両方。同じ日の2回目と「もう一度」は数えない。「知らなかった」で数え直し。
 export const LEARNED_LABEL = '覚えた';
 export const MASTERED_LABEL = 'マスター';
+// 作品の画面の札と線（2026-11-13 オーナー決定）: 学習中＝答えたことがあり、まだ覚えたになっていない語（覚えたとは重ならない）。
+//   うち マスター＝覚えたの内側の数。意味の文は画面に出さない（オーナー決定）ので、ここも名前だけ。
+export const LEARNING_LABEL = '学習中';
+export const MASTERED_OF_LEARNED_LABEL = 'うち マスター';
 export const LEARNED_MEANING = '日をあけた復習で、2回つづけて思い出せた語';
 export const MASTERED_MEANING = 'すっと思い出せて、次の復習が3週間以上先になった語';
 // 「覚えた＝…」の形の1行（画面にそのまま出す用）
