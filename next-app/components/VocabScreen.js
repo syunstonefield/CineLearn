@@ -2238,7 +2238,7 @@ export default function VocabScreen() {
                   </span>
                 </div>
                 <div className="srs-stats">
-                  復習対象：{stats.due}単語 / スキップ：{stats.skipped}単語
+                  復習対象：{stats.due}単語 / 出さない語：{stats.skipped}単語
                   {stats.reviewedToday > 0 ? ` / 今日復習済み：${stats.reviewedToday}単語` : ''}
                 </div>
                 {/* 達成の1行: 全部「覚えた」＝緑（線と同じ）・全部マスター＝マスターの金（2026-11-13） */}

@@ -143,7 +143,8 @@ test('5語は本番の VocabItem を読み取り専用で使う（SRS・単語�
   for (const ng of ['onSkip', 'onStar', 'onDelete', 'added', 'starred']) assert.ok(!item.includes(ng), `${ng} を渡さない`);
   assert.match(flow, /<CefrNote \/>/, 'CEFR 目安の一行を同じ画面に');
   const vi = source('VocabItem.js');
-  assert.match(vi, /\{!readOnly && \(\s*<button\s+className=\{'btn-srs-skip'/, 'readOnly では Skip を出さない');
+  // 「この語は出さない」は「…」の中のリンク（2026-11-14 案6）。readOnly では出さない
+  assert.match(vi, /\{!readOnly && \(\s*<button type="button" className="vocab-more-link"/, 'readOnly では「この語は出さない」を出さない');
   assert.match(vi, /badge && !readOnly/, 'readOnly では状態の印を出さない');
   // 「覚えた語の割合で変わります。」は枠の基準の説明（法務確定の文言）。語の状態としては出さない
   const noFrameNote = flow.replace(/^\s*\/\/.*$/gm, '').replace('覚えた語の割合で変わります。', '');
