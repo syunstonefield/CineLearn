@@ -133,7 +133,7 @@ export const USAGE_EVENTS = [
   'learn_first', // 初めての5枚を見た（端末ごとに1回・人数としては読まない）
   'home_learn', // ホームの「学ぶ」を押した
   'home_quiz', // ホームの「クイズ」を押した
-  // 入口の印（上の FROM_SOURCES）。紹介ページでも /app でも、?from= 付きで来た時にタブごとに1回。
+  // 入口の印（上の FROM_SOURCES）。?from= 付きで来た人が /app に入った時に1回（紹介ページでは送らない）。
   ...FROM_EVENTS,
 ];
 

@@ -188,7 +188,7 @@ const LEFT_EDGES = [
   [Infinity, '101-'],
 ];
 
-// 紹介ページで ?from= の印だけを数えた行（アプリはまだ開いていない）。今までの表（開いた人・新規の人など）には入れない。
+// 入口の印だけの行（念のため）。印は /app に入った時に「開いた」と一緒に数えるので通常は出ない。今までの表には入れない。
 export function isLandingOnlyRow(r) {
   const keys = Object.entries(r?.c || {}).filter(([, n]) => n > 0).map(([k]) => k);
   return keys.length > 0 && keys.every((k) => FROM_EVENTS.includes(k)) && !(r.r && r.r.n + r.r.c > 0);
@@ -244,7 +244,7 @@ function weekRows(rows, win) {
 export function buildUsageReport(rawRows, { today, weeks = 8, excludePersons = [], excludeDevices = [], includeStaff = false } = {}) {
   const staff = includeStaff ? { rows: rawRows, excluded: null } : excludeStaff(rawRows, { persons: excludePersons, devices: excludeDevices });
   const allRows = joinGuestRows(staff.rows); // ゲスト→登録を同じ人に（⑦の「2人に数える」誤差の解消）
-  const rows = allRows.filter((r) => !isLandingOnlyRow(r)); // 紹介ページだけの行は今までの表に入れない（⑬だけが使う）
+  const rows = allRows.filter((r) => !isLandingOnlyRow(r)); // 印だけの行は今までの表に入れない（⑬だけが使う）
   const wins = weekWindows(today, weeks);
   const plus = [];
   const funnel = [];

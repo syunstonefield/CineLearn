@@ -170,34 +170,42 @@ function noteEntryParam() {
   trackUsage('ext_install_open');
 }
 
-// 入口の印 ?from=<決まった値>（lib/usageEvents.js FROM_SOURCES・2026-11-13）。紹介ページ（/）でも /app でも読む。
-//   決まった値の時だけ from_<値> を1回数えて URL から消す（再読み込み・共有・ブックマークで二重に数えない）。
-//   決まっていない値（ext_install など）はさわらない。どの人がどこから来たかは集計側で、その端末の行と
-//   ログインの前後をつなぐ（lib/usageReport.js joinGuestRows）＝端末に別の印を残さない。
+// 入口の印 ?from=<決まった値>（lib/usageEvents.js FROM_SOURCES・2026-11-13）。紹介ページ（/）でも /app でも URL から読む。
+//   決まった値の時だけ端末の中に一時的に覚えて URL から消す（再読み込み・共有・ブックマークで二重に数えない）。
+//   ★紹介ページでは何も送らない（法務 2026-11-13 案A: アプリを使わない人に端末の番号を作らない）。
+//   数えるのはアプリ（/app）に入った時だけ（initUsage → takePendingFrom で from_<値> を1回）。
+//   決まっていない値（ext_install など）はさわらない。どの人がどこから来たかは集計側で、ログインの前後を
+//   同じ端末でつなぐ（lib/usageReport.js joinGuestRows）。
+const FROM_PENDING_KEY = 'cl_usage_from_pending';
+const FROM_PENDING_DAYS = 7; // これより前に覚えた印は数えない（一時的に覚えるだけ）
 export function noteFromParam() {
   if (typeof window === 'undefined') return null;
-  let ev = null;
   try {
     const url = new URL(window.location.href);
-    ev = fromEvent(url.searchParams.get('from'));
+    const ev = fromEvent(url.searchParams.get('from'));
     if (!ev) return null;
     url.searchParams.delete('from');
     window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+    localStorage.setItem(FROM_PENDING_KEY, JSON.stringify({ ev, at: Date.now() }));
+    return ev;
   } catch {
     return null;
   }
-  trackUsage(ev);
-  return ev;
 }
-
-// 紹介ページ（/）で1回。?from= の印があった時だけ数えてすぐ送る（紹介ページでは「開いた」は数えない）。
-export function initLandingUsage() {
-  if (typeof window === 'undefined') return () => {};
-  if (!noteFromParam()) return () => {};
-  flushUsage();
-  const onHide = () => flushUsage({ keepalive: true });
-  window.addEventListener('pagehide', onHide);
-  return () => window.removeEventListener('pagehide', onHide);
+// アプリに入った時に1回。覚えていた印を数えて消す（数えるのは trackUsage＝「利用統計を送らない」設定なら数えない）。
+export function takePendingFrom() {
+  if (typeof window === 'undefined') return null;
+  let p = null;
+  try {
+    p = JSON.parse(localStorage.getItem(FROM_PENDING_KEY) || 'null');
+    localStorage.removeItem(FROM_PENDING_KEY);
+  } catch {
+    return null;
+  }
+  if (!p || !fromEvent(String(p.ev || '').replace(/^from_/, ''))) return null;
+  if (!(Date.now() - Number(p.at) < FROM_PENDING_DAYS * 86400000)) return null;
+  trackUsage(p.ev);
+  return p.ev;
 }
 
 // アプリの起動時に1回（AppProvider）。開いた回数を数え、送るきっかけを仕掛ける。戻り値＝後片付け。
@@ -207,6 +215,7 @@ export function initUsage() {
   trackUsage('open');
   noteEntryParam();
   noteFromParam();
+  takePendingFrom();
   const onVis = () => {
     if (document.visibilityState === 'hidden') flushUsage({ keepalive: true });
   };
