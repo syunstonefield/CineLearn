@@ -21,7 +21,7 @@ import { usePlan, featureAccess } from '@/lib/plan';
 import { REVIEW_COUNT_OPTIONS, reviewCountLabel, normalizeReviewCount, DAILY_REVIEW_CAP } from '@/lib/reviewCount';
 import { NEW_WORDS_DAILY_FREE } from '@/lib/storage';
 import PlusNote from './PlusNote';
-import { IconWarning } from './icons/LineIcons';
+import { IconWarning, IconCheck } from './icons/LineIcons';
 import { getSession } from '@/lib/supabase';
 
 // 予習カードで最初に見せる語数の選択肢（0＝全部）。
@@ -421,7 +421,9 @@ export default function SettingsScreen() {
                     onClick={() => toggleService(name)}
                   >
                     <div className="service-name">{name}</div>
-                    <div className="service-check">✓</div>
+                    <div className="service-check">
+                      <IconCheck />
+                    </div>
                   </div>
                 ))}
               </div>

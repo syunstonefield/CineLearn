@@ -1,5 +1,6 @@
 'use client';
 
+import { IconClose } from './icons/LineIcons';
 import { useEffect, useState } from 'react';
 import { useApp } from './AppProvider';
 import { supaSignIn, supaSignUp, pullFromCloud, migrateLocalToCloudAfterLogin, getSession } from '@/lib/supabase';
@@ -89,7 +90,7 @@ export default function AuthModal() {
             🎬 CineLearn
           </span>
           <button className="modal-close" onClick={closeAuth}>
-            ✕
+            <IconClose />
           </button>
         </div>
         <div className="auth-body">

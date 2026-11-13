@@ -5,6 +5,7 @@
 // 初めてダッシュボードに来たときに自動表示する。いつでもヘッダーの「?」から再表示できる。
 // 役割は「機能紹介＋CineLearnでの学習の流れ」の説明（プロフィール初期設定の Onboarding とは別物）。
 
+import { IconClose } from './icons/LineIcons';
 import { useEffect, useState } from 'react';
 import { useApp } from './AppProvider';
 import { isMobileDevice } from '@/lib/device';
@@ -128,7 +129,7 @@ export default function WelcomeTutorial() {
     <div className="modal-overlay tutorial-overlay">
       <div className="modal-panel tutorial-panel" role="dialog" aria-modal="true" aria-label="使い方ガイド">
         <button className="modal-close tutorial-skip-x" onClick={closeTutorial} aria-label="閉じる">
-          ✕
+          <IconClose />
         </button>
 
         <div className="tutorial-body">

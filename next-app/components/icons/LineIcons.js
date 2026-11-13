@@ -12,7 +12,8 @@ const LINE = {
   strokeLinejoin: 'round',
 };
 
-function Svg({ size = '1em', className = '', children }) {
+//   filled: 付けた時（覚えたい★・例文の♡・お気に入り★）は塗る＝線と同じ色で中を埋める。
+function Svg({ size = '1em', className = '', filled = false, children }) {
   return (
     <svg
       className={'li-ic' + (className ? ' ' + className : '')}
@@ -20,6 +21,7 @@ function Svg({ size = '1em', className = '', children }) {
       height={size}
       viewBox="0 0 24 24"
       {...LINE}
+      fill={filled ? 'currentColor' : 'none'}
       aria-hidden="true"
       focusable="false"
     >
@@ -195,6 +197,33 @@ export function IconWarning(p) {
       <path d="M10.6 4.6a1.6 1.6 0 0 1 2.8 0l7.2 12.8a1.6 1.6 0 0 1-1.4 2.4H4.8a1.6 1.6 0 0 1-1.4-2.4z" />
       <path d="M12 9.5v4.2" />
       <circle cx="12" cy="16.6" r="0.6" fill="currentColor" />
+    </Svg>
+  );
+}
+
+// 閉じる（各画面の右上の ✕・押す所の大きさはボタンの側で保つ）
+export function IconClose(p) {
+  return (
+    <Svg {...p}>
+      <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />
+    </Svg>
+  );
+}
+
+// ハート（語に付いた例文の保存・付けた時は塗り）
+export function IconHeart(p) {
+  return (
+    <Svg {...p}>
+      <path d="M12 20s-7.5-4.6-7.5-10.1C4.5 7.1 6.6 5 9.1 5c1.3 0 2.3.6 2.9 1.5.6-.9 1.6-1.5 2.9-1.5 2.5 0 4.6 2.1 4.6 4.9C19.5 15.4 12 20 12 20z" />
+    </Svg>
+  );
+}
+
+// きらめき（終わりの画面・あゆみの今日の札の飾り）
+export function IconSparkle(p) {
+  return (
+    <Svg {...p}>
+      <path d="M12 3.5c.6 4.3 2.4 6.6 7 8.5-4.6 1.9-6.4 4.2-7 8.5-.6-4.3-2.4-6.6-7-8.5 4.6-1.9 6.4-4.2 7-8.5z" />
     </Svg>
   );
 }

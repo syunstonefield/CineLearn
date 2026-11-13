@@ -125,7 +125,11 @@ export default function GenLoading({ status, drama, season, episode, ready = fal
                 'gen-step' + (ready || i < step ? ' gen-step-done' : i === step ? ' gen-step-active' : '')
               }
             >
-              {ready || i < step ? '✓ ' : ''}
+              {ready || i < step ? (
+                <>
+                  <IconCheck />{' '}
+                </>
+              ) : null}
               {s}
             </span>
           ))}

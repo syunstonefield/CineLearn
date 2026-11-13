@@ -1,5 +1,6 @@
 'use client';
 
+import { IconClose } from './icons/LineIcons';
 import { useState } from 'react';
 import { useApp } from './AppProvider';
 import { loadProfiles } from '@/lib/storage';
@@ -55,7 +56,7 @@ export default function ProfileSelect() {
                   setDelTarget(p);
                 }}
               >
-                ✕
+                <IconClose />
               </button>
             </div>
           ))}
@@ -94,7 +95,7 @@ export default function ProfileSelect() {
             <div className="modal-header">
               <span className="modal-title">プロフィールを追加</span>
               <button className="modal-close" onClick={() => setAddOpen(false)}>
-                ✕
+                <IconClose />
               </button>
             </div>
             <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -127,7 +128,7 @@ export default function ProfileSelect() {
             <div className="modal-header">
               <span className="modal-title">プロフィールを削除</span>
               <button className="modal-close" onClick={() => setDelTarget(null)}>
-                ✕
+                <IconClose />
               </button>
             </div>
             <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>

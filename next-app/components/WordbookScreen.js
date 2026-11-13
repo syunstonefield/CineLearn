@@ -1,5 +1,6 @@
 'use client';
 
+import { IconStar, IconHeart } from './icons/LineIcons';
 import { useEffect, useMemo, useState } from 'react';
 import { useApp } from './AppProvider';
 import VocabItem from './VocabItem';
@@ -259,7 +260,7 @@ export default function WordbookScreen() {
     const w = (words || []).find((x) => String(x.word).toLowerCase() === String(word).toLowerCase());
     if (!w) return;
     if (!liked && !canLikeMore(words, { dramaTitle: w.dramaTitle, season: w.season ?? null, episode: w.episode ?? null }, sameWorkTitle)) {
-      alert(`この話の例文の ♡ は ${LIKE_CAP_PER_EPISODE} 件までです`);
+      alert(`この話で保存できる例文は ${LIKE_CAP_PER_EPISODE} 件までです`);
       return;
     }
     await likeWord(pid, w, !liked);
@@ -351,7 +352,13 @@ export default function WordbookScreen() {
                     このまま残す
                   </button>
                   <button type="button" className="btn-secondary" disabled={choiceBusy} onClick={starredOnly}>
-                    {choiceBusy ? '整理中...' : '★の語だけにする'}
+                    {choiceBusy ? (
+                      '整理中...'
+                    ) : (
+                      <>
+                        <IconStar filled /> の語だけにする
+                      </>
+                    )}
                   </button>
                   <button type="button" className="wb-choice-later" disabled={choiceBusy} onClick={() => setChoiceClosed(true)}>
                     あとで
@@ -367,7 +374,9 @@ export default function WordbookScreen() {
                 aria-pressed={view === 'star'}
                 onClick={() => openView(view === 'star' ? 'home' : 'star')}
               >
-                <span className="wb-tile-ic" aria-hidden="true">★</span>
+                <span className="wb-tile-ic" aria-hidden="true">
+                  <IconStar filled />
+                </span>
                 <span className="wb-tile-t">{starTile.title}</span>
                 <span className="wb-tile-d">{starTile.desc}</span>
                 {/* 語数だけ戻す（オーナー 2026-11-07）。「今日 +N」と★一覧の集計タイルは外したまま */}
@@ -381,7 +390,9 @@ export default function WordbookScreen() {
                 aria-pressed={view === 'liked'}
                 onClick={() => openView(view === 'liked' ? 'home' : 'liked')}
               >
-                <span className="wb-tile-ic" aria-hidden="true">♡</span>
+                <span className="wb-tile-ic" aria-hidden="true">
+                  <IconHeart />
+                </span>
                 <span className="wb-tile-t">例文つきの語</span>
                 <span className="wb-tile-d">気に入った例文を、語といっしょに残す</span>
                 <span className="wb-tile-n">
@@ -395,7 +406,9 @@ export default function WordbookScreen() {
                 {/* ♡ 今日の語（ホームと同じ・語が見出し・例文は “ ” と出所付きの従）。♡ が無ければ出さない */}
                 {todayWord && (
                   <button type="button" className="home-today-word wb-today" onClick={() => openView('liked', todayWord.word)}>
-                    <span className="htw-label">♡ 今日の語</span>
+                    <span className="htw-label">
+                      <IconHeart /> 今日の語
+                    </span>
                     <span className="htw-word">{todayWord.word}</span>
                     {(wordJa[todayWord.word.toLowerCase()] || todayWord.ja || todayWord.definition) && (
                       <span className="htw-def">{wordJa[todayWord.word.toLowerCase()] || todayWord.ja || todayWord.definition}</span>
@@ -425,7 +438,7 @@ export default function WordbookScreen() {
                             onClick={() => openView(w.liked ? 'liked' : 'star', w.word)}
                           >
                             <span className={'wb-recent-ic' + (w.liked ? ' is-heart' : ' is-star')} aria-hidden="true">
-                              {w.liked ? '♥' : '★'}
+                              {w.liked ? <IconHeart filled /> : <IconStar filled />}
                             </span>
                             <span className="wb-recent-body">
                               <span className="wb-recent-w">{w.word}</span>
@@ -468,7 +481,9 @@ export default function WordbookScreen() {
             )}
             {view === 'liked' && likedList.length > 0 && (
               <section className="wb-section">
-                <h2 className="wb-section-h">♡ 例文つきの語</h2>
+                <h2 className="wb-section-h">
+                  <IconHeart /> 例文つきの語
+                </h2>
                 <div className="vocab-list">
                   {likedList.map((w) => (
                     <div key={'liked-' + w.word} id={'wb-w-' + w.word.toLowerCase()}>
@@ -498,7 +513,11 @@ export default function WordbookScreen() {
                 </div>
               </section>
             )}
-            {view === 'star' && <h2 className="wb-section-h">★ {starTile.title}</h2>}
+            {view === 'star' && (
+              <h2 className="wb-section-h">
+                <IconStar filled /> {starTile.title}
+              </h2>
+            )}
             {view !== 'star' ? null : starList.length === 0 ? (
               <div className="wb-note">単語リストや復習カードで「★ 覚えたい」を付けた語がここに集まります。</div>
             ) : (

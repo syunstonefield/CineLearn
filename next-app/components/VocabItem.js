@@ -1,5 +1,5 @@
 'use client';
-import { IconSpeaker, IconPin, IconPencil, IconFilm, IconStar, IconCheck, IconRepeat, IconCalendar, IconTrash } from './icons/LineIcons';
+import { IconSpeaker, IconPin, IconPencil, IconFilm, IconStar, IconCheck, IconRepeat, IconCalendar, IconTrash, IconHeart } from './icons/LineIcons';
 
 const BADGE_ICON = { star: IconStar, check: IconCheck, repeat: IconRepeat };
 import { surfaceFormInExample } from '@/lib/subtitles';
@@ -197,7 +197,7 @@ export default function VocabItem({ word, srs, testTiers, ts, exampleSource, add
                 title={liked ? 'お気に入りの印を外す' : 'この例文を保存'}
                 onClick={() => onLike(w.word, !!liked)}
               >
-                {liked ? '♥ 保存した例文' : '♡ この例文を保存'}
+                <IconHeart filled={!!liked} /> {liked ? '保存した例文' : 'この例文を保存'}
               </button>
             )}
           </div>
@@ -268,7 +268,7 @@ export default function VocabItem({ word, srs, testTiers, ts, exampleSource, add
               aria-pressed={!!starred}
               onClick={() => onStar(w.word, !!starred)}
             >
-              {starred ? '★ 覚えたい' : '☆ 覚えたい'}
+              <IconStar filled={!!starred} /> 覚えたい
             </button>
           )}
           {/* 🗑完全削除＝視聴中に拾った語の誤保存/タイポ救済（単語帳から外すだけなら★） */}

@@ -1,5 +1,6 @@
 'use client';
 
+import { IconClose } from './icons/LineIcons';
 import { useEffect } from 'react';
 import { serviceLabel } from '@/lib/serviceEntry';
 
@@ -24,7 +25,7 @@ export default function ServiceSheet({ open, names, current, onPick, onClose, ti
         <div className="svc-sheet-head">
           <h3>{title}</h3>
           <button type="button" className="svc-sheet-x" onClick={onClose} aria-label="閉じる">
-            ✕
+            <IconClose />
           </button>
         </div>
         {note && <p className="svc-sheet-note">{note}</p>}

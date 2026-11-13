@@ -1,5 +1,6 @@
 'use client';
 
+import { IconClose } from './icons/LineIcons';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
 import { watchSearchUrl } from '@/lib/prep';
@@ -117,7 +118,7 @@ export default function PrepLaunch() {
         <div className="pl-head">
           <span className="pl-kicker">{head}</span>
           <button type="button" className="pl-x" onClick={closePrepLaunch} aria-label="閉じる">
-            ✕
+            <IconClose />
           </button>
         </div>
         <p className="pl-lead">{lead}</p>

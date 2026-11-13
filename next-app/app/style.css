@@ -5076,7 +5076,7 @@ html.cl-sheet-lock body { overflow: hidden; overscroll-behavior: none; }
   display: flex; align-items: center; justify-content: center; transition: background .15s, border-color .15s;
 }
 .ob-row.selected .ob-row-check { background: var(--accent); border-color: var(--accent); }
-.ob-row.selected .ob-row-check::after { content: '✓'; color: var(--on-accent); font-size: 13px; font-weight: 700; line-height: 1; }
+.ob-row.selected .ob-row-check::after { content: ''; display: block; width: 13px; height: 13px; background: var(--on-accent); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.6l4.4 4.4L19 7.4'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.6l4.4 4.4L19 7.4'/%3E%3C/svg%3E") center / contain no-repeat; } /* ✓ を線のチェックの形に（2026-11-13） */
 .onboarding-step.done { background: color-mix(in srgb, var(--accent) 55%, var(--border)); }
 
 /* 単一選択の選択肢（目的） */
@@ -7831,7 +7831,7 @@ html.cl-intro-lock .modal-overlay { z-index: 1160; }
 .intro-quiz .quiz-blank { padding: 1px 16px; }
 .intro-quiz .choice-btn { cursor: default; }
 .intro-quiz .choice-btn.intro-ok { position: relative; font-weight: 700; padding-right: 34px; }
-.intro-quiz .choice-btn.intro-ok::after { content: '✓'; position: absolute; right: 14px; top: 50%; transform: translateY(-50%); font-size: 15px; }
+.intro-quiz .choice-btn.intro-ok::after { content: ''; position: absolute; right: 14px; top: 50%; transform: translateY(-50%); width: 15px; height: 15px; background: currentColor; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.6l4.4 4.4L19 7.4'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.6l4.4 4.4L19 7.4'/%3E%3C/svg%3E") center / contain no-repeat; } /* ✓ を線のチェックの形に（2026-11-13） */
 
 /* 5 コレクション：額縁の見本（.tcp-item.frame-* と同じ・中は無地） */
 .intro-frames-wrap { display: flex; flex-direction: column; align-items: center; }
@@ -8319,4 +8319,11 @@ html[data-theme="dark"] .bulkdel-icon { color: var(--accent); }
 .autoplay-switch .li-ic { width: 17px; height: 17px; }
 .autoplay-switch.is-on { color: #7a4a2a; border-color: #dcb98f; background: #fbf1e2; }
 html[data-theme="dark"] .autoplay-switch.is-on { color: var(--accent); border-color: rgba(214,170,100,.4); background: rgba(214,170,100,.1); }
+/* 記号を線の絵に（2026-11-13）: 星・ハート・チェック・閉じるの大きさをまわりの文字にそろえる */
+.ch-stars { display: flex; justify-content: center; gap: 10px; letter-spacing: 0; }
+.ch-stars .li-ic { width: 22px; height: 22px; }
+.wb-tile-ic .li-ic { width: 20px; height: 20px; }
+.wb-recent-ic .li-ic, .htw-label .li-ic, .cl-chip .li-ic { width: 1.05em; height: 1.05em; }
+.service-check { display: inline-flex; align-items: center; justify-content: center; }
+.btn-wordbook-star .li-ic, .btn-like-example .li-ic { width: 1.1em; height: 1.1em; }
 

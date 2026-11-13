@@ -1,5 +1,6 @@
 'use client';
 
+import { IconHeart } from './icons/LineIcons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
 import { HomeBand, HomeTodayCard, HomeRecord, HomeStart } from './HomeParts';
@@ -942,7 +943,9 @@ export default function Dashboard() {
         {/* ♡今日の語（2026-11-07・法務の条件＝語が見出し・例文は “ ”＋出所の従）。ほかの札と同じ幅・同じ札に */}
         {todayWord && (
           <button type="button" className="hm-card home-today-word" onClick={openWordbook} title="単語帳で見る">
-            <span className="htw-label">♡ 今日の語</span>
+            <span className="htw-label">
+              <IconHeart /> 今日の語
+            </span>
             <span className="htw-word">{todayWord.word}</span>
             {(todayWord.ja || todayWord.definition) && <span className="htw-def">{todayWord.ja || todayWord.definition}</span>}
             <span className="htw-ex">“{todayWord.sentence || todayWord.example}”</span>

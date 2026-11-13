@@ -1,5 +1,6 @@
 'use client';
 
+import { IconClose } from './icons/LineIcons';
 import { useCardAutoplay } from '@/lib/useCardAutoplay';
 import { AutoplaySwitch } from './AutoplaySwitch';
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -149,7 +150,7 @@ function KeysHelp({ onClose }) {
     <div className="modal-overlay tutorial-overlay">
       <div className="modal-panel tutorial-panel" role="dialog" aria-modal="true" aria-label="復習の操作ガイド">
         <button className="modal-close tutorial-skip-x" onClick={onClose} aria-label="閉じる">
-          ✕
+          <IconClose />
         </button>
         <div className="tutorial-body">
           <div className="onboarding-steps">
@@ -261,7 +262,7 @@ export default function ReviewModal({ asPage = false }) {
       onLike: async (liked) => {
         const lower = String(w.word).toLowerCase();
         if (!liked && !canLikeMore([...marks.values()], sceneOf(w))) {
-          alert(`この話の例文の ♡ は ${LIKE_CAP_PER_EPISODE} 件までです`);
+          alert(`この話で保存できる例文は ${LIKE_CAP_PER_EPISODE} 件までです`);
           return;
         }
         const r = await likeWord(profile?.id, entryFromCard(w), !liked);
@@ -649,7 +650,7 @@ export default function ReviewModal({ asPage = false }) {
               ?
             </button>
             <button className="modal-close" onClick={requestClose}>
-            ✕
+            <IconClose />
           </button>
           </span>
         </div>

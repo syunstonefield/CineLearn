@@ -1,6 +1,6 @@
 'use client';
 
-import { IconCheck, IconStar, IconPencil, IconRepeat, IconTarget, IconOpenBook, IconClapper, IconTv, IconCalendar, IconWarning } from './icons/LineIcons';
+import { IconCheck, IconStar, IconPencil, IconRepeat, IconTarget, IconOpenBook, IconClapper, IconTv, IconCalendar, IconWarning, IconClose } from './icons/LineIcons';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
 import VocabItem from './VocabItem';
@@ -482,8 +482,8 @@ export default function VocabScreen() {
         setGenBtn((b) => ({ ...b, hidden: true }));
         setStatusText(
           drama.type === 'movie'
-            ? '✓ 保存済み'
-            : `Season ${se} Episode ${ep} ✓ 保存済み`
+            ? '保存済み'
+            : `Season ${se} Episode ${ep} 保存済み`
         );
         // 📍タイムスタンプは各語の保存済み tsSec から表示する（timestamps useMemo）。
         // example_ja が無い単語をバックグラウンドで翻訳補完（共有キャッシュ経由・行の空欄も埋める）
@@ -613,7 +613,7 @@ export default function VocabScreen() {
         });
         if (myReq !== reqId.current) return;
         if (r.found) {
-          setStatusText(label('✓ 字幕あり'));
+          setStatusText(label('字幕あり'));
           setPhase('ready');
           setMessage('「単語を学ぶ」を押してください');
           setGenBtn({ text: '単語を学ぶ →', disabled: false, hidden: false });
@@ -1439,7 +1439,7 @@ export default function VocabScreen() {
     setAddWordText('');
     // 例文が付かなかった理由を正直に添える（A4・文言は lib/exampleNote.js に一本化・2026-10-20 /decide E）。
     const note = hit ? null : manualExampleNote(reason);
-    setAddMsg(hit ? `「${w}」を追加しました ✓` : `「${w}」を追加しました（${note.text}）`);
+    setAddMsg(hit ? `「${w}」を追加しました` : `「${w}」を追加しました（${note.text}）`);
     loadExtWords(season, episode, vocab); // ✏️セクションへ即反映
     // 追加直後にその語だけのカードを1枚出す（2026-10-20 オーナー要望）。動画を観ながら追加する前提で、
     // 意味・例文・発音（🔊）をその場で確かめられるように。予習の記録には触れない（PrepWalkthrough の single）。
@@ -1576,7 +1576,7 @@ export default function VocabScreen() {
     if (!liked) {
       const scene = { dramaTitle: drama.title, season: isMovie ? null : season, episode: isMovie ? null : episode };
       if (!canLikeMore([...wordbookMap.values()], scene)) {
-        alert(`この話の例文の ♡ は ${LIKE_CAP_PER_EPISODE} 件までです`);
+        alert(`この話で保存できる例文は ${LIKE_CAP_PER_EPISODE} 件までです`);
         return;
       }
     }
@@ -1947,7 +1947,15 @@ export default function VocabScreen() {
               <span className="ep-card-body">
                 <span className="ep-card-title">Episode {ep}</span>
                 <span className="ep-card-state">
-                  {done ? '✓ 学習済み' : active ? 'NEXT' : '未学習'}
+                  {done ? (
+                    <>
+                      <IconCheck /> 学習済み
+                    </>
+                  ) : active ? (
+                    'NEXT'
+                  ) : (
+                    '未学習'
+                  )}
                 </span>
               </span>
             </button>
@@ -2418,7 +2426,11 @@ export default function VocabScreen() {
                 onClick={sendCatalogRequest}
               >
                 {catReq.requested
-                  ? '✓ リクエストを受け付けました'
+                  ? (
+                      <>
+                        <IconCheck /> リクエストを受け付けました
+                      </>
+                    )
                   : catReq.sending
                     ? '送信中...'
                     : 'この作品をリクエストする'}
@@ -2528,7 +2540,7 @@ export default function VocabScreen() {
                 aria-label="操作バーを閉じる（このリストを開いている間だけ）"
                 title="閉じる"
               >
-                ✕
+                <IconClose />
               </button>
               <button
                 type="button"
@@ -2607,7 +2619,7 @@ export default function VocabScreen() {
             <div className="modal-header">
               <div className="modal-title" id="ep-sheet-title">エピソードを選ぶ</div>
               <button type="button" className="modal-close" onClick={() => setEpSheet(false)} aria-label="閉じる">
-                ✕
+                <IconClose />
               </button>
             </div>
             <div className="modal-body ep-sheet-body">{epPicker}</div>

@@ -1,5 +1,6 @@
 'use client';
 
+import { IconClose } from './icons/LineIcons';
 import { useState } from 'react';
 import { platformColor } from '@/lib/storage';
 
@@ -55,7 +56,7 @@ export default function LibraryCard({ entry, onSelect, onArchive, stats }) {
             onArchive(drama.title);
           }}
         >
-          ✕
+          <IconClose />
         </button>
         {/* 進捗バー：背表紙の下端に重ねる（現在シーズンの話数が分かる作品のみ） */}
         {curTotal > 0 && (

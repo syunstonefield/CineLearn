@@ -1,5 +1,6 @@
 'use client';
 
+import { IconClose, IconStar } from './icons/LineIcons';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
 import { loadHistory, learningStatsByTitle, buildLibraryEntries } from '@/lib/storage';
@@ -18,7 +19,7 @@ import { FRAME_TIERS, frameTierOf, raiseFrameBest, loadFrameBest, saveFrameBest 
 // 映画は1回で完了・総話数が取れない作品は永遠に視聴中、と学習の実感と噛み合わなかった。
 const FILTERS = [
   ['all', 'すべて'],
-  ['fav', '★ お気に入り'],
+  ['fav', 'お気に入り'], // 頭に星の線の絵（下の描画）
 ];
 
 // 表示の切り替え（半券／ポスター壁）。端末ごとの好みなので localStorage に置く（同期しない）。
@@ -498,7 +499,7 @@ export default function TicketCollectionScreen() {
       aria-label={e.isFav ? `『${e.enTitle}』をお気に入りから外す` : `『${e.enTitle}』をお気に入りに入れる`}
       aria-pressed={e.isFav}
     >
-      {e.isFav ? '★' : '☆'}
+      <IconStar filled={!!e.isFav} />
     </button>
   );
 
@@ -560,7 +561,7 @@ export default function TicketCollectionScreen() {
                     aria-pressed={filter === k}
                     onClick={() => setFilter(k)}
                   >
-                    {label}
+                    {k === 'fav' && <IconStar filled />} {label}
                   </button>
                 ))}
               </div>
@@ -661,7 +662,7 @@ export default function TicketCollectionScreen() {
             <div className="cl-sheet-head">
               <h2 id="cl-frames-title">額縁について</h2>
               <button type="button" className="cl-sheet-x" onClick={() => setFramesOpen(false)} aria-label="閉じる">
-                ✕
+                <IconClose />
               </button>
             </div>
             <div className="cl-frames">

@@ -1,5 +1,6 @@
 'use client';
 
+import { IconStar } from './icons/LineIcons';
 import { useEffect, useMemo, useState } from 'react';
 import { loadHistory } from '@/lib/storage';
 import { FRAME_TIERS } from '@/lib/ticketFrame';
@@ -84,7 +85,7 @@ export default function TicketDetailView({ entry, onBack, onFav, onStudy, onRemo
             onClick={() => onFav(entry.title)}
             aria-pressed={entry.isFav}
           >
-            {entry.isFav ? '★ お気に入り' : '☆ お気に入りに入れる'}
+            <IconStar filled={!!entry.isFav} /> {entry.isFav ? 'お気に入り' : 'お気に入りに入れる'}
           </button>
           {entry.tmdbId && (
             <a

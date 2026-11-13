@@ -1,5 +1,6 @@
 'use client';
 
+import { IconClose } from './icons/LineIcons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
 import { searchTitlesTMDB, aiSearchTitles, candidateToDrama } from '@/lib/titleSearch';
@@ -246,7 +247,7 @@ export default function SearchScreen() {
             />
             {query && (
               <button type="button" className="srch-clear" onClick={clearQuery} aria-label="検索語を消す">
-                ✕
+                <IconClose />
               </button>
             )}
           </label>

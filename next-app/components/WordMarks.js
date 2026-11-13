@@ -1,5 +1,6 @@
 'use client';
 
+import { IconStar, IconHeart } from './icons/LineIcons';
 import { useState } from 'react';
 
 // ★ 覚えたい と ♡ お気に入りの例文の印（2026-11-07 オーナー決定・法務 条件付きOK）。
@@ -39,7 +40,13 @@ export default function WordMarks({ starred, liked, canLike = true, onStar, onLi
             run(onStar, !!starred);
           }}
         >
-          {icon ? <StarIcon on={!!starred} /> : starred ? '★ 覚えたい' : '☆ 覚えたい'}
+          {icon ? (
+            <IconStar filled={!!starred} size={22} />
+          ) : (
+            <>
+              <IconStar filled={!!starred} /> 覚えたい
+            </>
+          )}
         </button>
       )}
       {onLike && canLike && (
@@ -56,13 +63,12 @@ export default function WordMarks({ starred, liked, canLike = true, onStar, onLi
           }}
         >
           {icon ? (
-            <HeartIcon on={!!liked} />
-          ) : short ? (
-            liked ? '♥ 保存済み' : '♡ 保存'
-          ) : liked ? (
-            '♥ 保存した例文'
+            <IconHeart filled={!!liked} size={22} />
           ) : (
-            '♡ この例文を保存'
+            <>
+              <IconHeart filled={!!liked} />{' '}
+              {short ? (liked ? '保存済み' : '保存') : liked ? '保存した例文' : 'この例文を保存'}
+            </>
           )}
         </button>
       )}
@@ -70,18 +76,3 @@ export default function WordMarks({ starred, liked, canLike = true, onStar, onLi
   );
 }
 
-// icon 用（付けた時は塗り・付けていない時は線。色は .is-on の文字色＝コントラスト確認済みの値を currentColor で使う）
-function StarIcon({ on }) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" fill={on ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round">
-      <path d="M12 3.2l2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 17l-5.4 2.9 1.1-6.1-4.5-4.2 6.1-.8z" />
-    </svg>
-  );
-}
-function HeartIcon({ on }) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" fill={on ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round">
-      <path d="M12 20s-7.5-4.6-7.5-10.1C4.5 7.1 6.6 5 9.1 5c1.3 0 2.3.6 2.9 1.5.6-.9 1.6-1.5 2.9-1.5 2.5 0 4.6 2.1 4.6 4.9C19.5 15.4 12 20 12 20z" />
-    </svg>
-  );
-}

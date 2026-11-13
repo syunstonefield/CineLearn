@@ -1,7 +1,7 @@
 'use client';
 
 import { LEARNED_LABEL, MASTERED_LABEL, LEARNING_LABEL, MASTERED_OF_LEARNED_LABEL } from '@/lib/learnedTerms';
-import { IconOpenBook, IconTarget, IconFilm } from './icons/LineIcons';
+import { IconOpenBook, IconTarget, IconFilm, IconClose, IconSparkle } from './icons/LineIcons';
 // 下の札の絵＝線の絵（components/icons/LineIcons.js・2026-11-12 オーナー決定）
 
 // 作品を選んだあと＝カード中心（2026-11-12 オーナー決定・見本 reports/prep-card-first-2026-11-12/mock.html）。
@@ -159,11 +159,15 @@ export function CardDone({ count, tomorrow, canMore, onMore, onWatch, onList, on
     <div className="ch-wrap ch-done">
       <div className="ch-done-head">
         <button type="button" className="ch-close" onClick={onClose} aria-label="閉じる">
-          ✕
+          <IconClose />
         </button>
       </div>
       <div className="ch-done-body">
-        <div className="ch-stars" aria-hidden="true">✦✦✦</div>
+        <div className="ch-stars" aria-hidden="true">
+          <IconSparkle />
+          <IconSparkle />
+          <IconSparkle />
+        </div>
         <h2 className="ch-done-title">{count}語 見ておきました</h2>
         {tomorrow > 0 && (
           <div className="ch-tom">

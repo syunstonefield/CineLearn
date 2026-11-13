@@ -1,5 +1,6 @@
 'use client';
 
+import { IconCheck } from './icons/LineIcons';
 import { useEffect, useState } from 'react';
 import { useApp } from './AppProvider';
 import { getToeicLevel, getVocabCount } from '@/lib/vocab';
@@ -252,7 +253,9 @@ export default function Onboarding() {
                   onClick={() => toggleService(name)}
                 >
                   <div className="service-name">{name}</div>
-                  <div className="service-check">✓</div>
+                  <div className="service-check">
+                    <IconCheck />
+                  </div>
                 </div>
               ))}
             </div>

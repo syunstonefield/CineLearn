@@ -10,7 +10,7 @@ import { tmdb } from '@/lib/api';
 import { GENRE_LABELS, levelMark } from '@/lib/recommended';
 import { WEEKDAYS } from '@/lib/journey';
 import { studiedLine } from '@/lib/studiedDays';
-import { IconSprout } from './icons/LineIcons';
+import { IconSprout, IconClose, IconCheck } from './icons/LineIcons';
 
 const HOME_WEEKS = 8; // ホームの学習した日に出す直近の週の数（スマホ 390 の半分の札に収まる数）。記録が短い人は列をその週の数にし、マスの大きさは8週の時のまま（表の幅を CSS で週の数に合わせ、札の真ん中に置く・2026-11-13）
 
@@ -26,7 +26,7 @@ export function HomeBand({ text, linkLabel, onLink, onClose }) {
       )}
       {onClose && (
         <button type="button" className="hm-band-x" onClick={onClose} aria-label="閉じる">
-          ✕
+          <IconClose />
         </button>
       )}
     </div>
@@ -88,7 +88,7 @@ export function HomeTodayCard({ studied, todayCount, weekStats, onStart, again, 
   return (
     <section className="hm-card hm-today" aria-label="今日の復習">
       <div className="hm-done">
-        今日の復習は完了 ✓
+        今日の復習は完了 <IconCheck />
         <small>
           {daysNode}
           {daysNode && week > 0 ? '　' : ''}

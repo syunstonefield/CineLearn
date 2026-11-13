@@ -7,6 +7,7 @@
 // 初回体験の中（screen === 'trial'）だけ、導入文を出さず手順を短くして1画面に収める（オーナー決定 2026-11-05）。
 //   スマホではストアから入れられないので、ストアのボタンも出さない。閉じると「次の一歩」の画面に戻る。
 
+import { IconClose, IconCheck } from './icons/LineIcons';
 import { useApp } from './AppProvider';
 import { isMobileDevice } from '@/lib/device';
 import { CURATION_ON } from '@/lib/curation';
@@ -75,7 +76,7 @@ export default function ExtensionGuide() {
         <div className="modal-header">
           <span className="modal-title">🧩 拡張機能の入れ方</span>
           <button className="modal-close" onClick={closeGuide} aria-label="閉じる">
-            ✕
+            <IconClose />
           </button>
         </div>
 
@@ -104,7 +105,9 @@ export default function ExtensionGuide() {
                   )}
                   {i === 1 &&
                     (loggedIn ? (
-                      <p style={{ marginTop: 8, fontSize: 12, color: 'var(--text-muted)' }}>✓ ログイン済みです</p>
+                      <p style={{ marginTop: 8, fontSize: 12, color: 'var(--text-muted)' }}>
+                        <IconCheck /> ログイン済みです
+                      </p>
                     ) : (
                       <button className="btn-secondary ext-guide-dl" onClick={goLogin}>
                         ログインする

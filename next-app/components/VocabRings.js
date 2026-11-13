@@ -9,6 +9,7 @@
 // values はすでに最高値（lib/rings.js settleRingValues）。縮むのは「出会った」を、利用者がコレクションから
 // 作品を消去した時だけ（2026-11-07）。開くたびに 0 から伸ばすので、縮んだ値でも動きは同じ。
 // 枠（values.tier）は台帳の最高値から決まり下がらない＝from / glowFrom の弧も同じ枠で描く（覚えた・マスターの弧は動かない）。
+import { IconSparkle } from './icons/LineIcons';
 import { useEffect, useRef, useState } from 'react';
 import { ringFractions, ringTier } from '@/lib/rings';
 import { subtitleCredit, loadRemovedWorks } from '@/lib/storage';
@@ -245,7 +246,7 @@ export default function VocabRings({ values, from = null, glowFrom = null, gain 
 
         <Today {...(canJump ? { type: 'button', onClick: onOpen } : {})} className="vr-today">
           <span className="vr-spark" aria-hidden="true">
-            ✦
+            <IconSparkle />
           </span>
           <span className="vr-t">
             {gain > 0 ? (
