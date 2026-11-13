@@ -97,8 +97,8 @@ const MARKUP = `
         <div class="shot-work">
           <div class="shot-poster">S</div>
           <div>
-            <div class="shot-title">Suits</div>
-            <div class="shot-ep">シーズン3 第4話・この話の語 12</div>
+            <div class="shot-title">Sample Drama</div>
+            <div class="shot-ep">シーズン1 第2話・この話の語 12</div>
           </div>
         </div>
         <div class="shot-peek-t">次に出てくる単語</div>
@@ -583,7 +583,7 @@ const MARKUP = `
       <div class="forwho-card">
         <div class="forwho-icon">${lineIcon('target')}</div>
         <h3>自分のレベルに合う単語から始めたい方</h3>
-        <p>英語のレベルは A2（初級）から C1（上級）まで選べます。選んだレベルに合わせて、単語リストの語が変わります。</p>
+        <p>英語のレベルは、A2（初級）から C1（上級）までの目安から選べます。選んだレベルに合わせて、単語リストの語が変わります。</p>
       </div>
     </div>
   </div>
@@ -613,7 +613,7 @@ const MARKUP = `
       </details>
       <details class="faq-item">
         <summary>英語が得意でなくても使えますか？</summary>
-        <p>英語のレベルは、設定で A2（初級）から C1（上級）まで選べます。選んだレベルに合わせて、単語リストに入る語が変わります。</p>
+        <p>英語のレベルは、設定で A2（初級）から C1（上級）までの目安から選べます。選んだレベルに合わせて、単語リストに入る語が変わります。</p>
       </details>
       <details class="faq-item">
         <summary>単語を学ばないと、観られませんか？</summary>
