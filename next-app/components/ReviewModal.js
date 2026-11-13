@@ -448,9 +448,10 @@ export default function ReviewModal({ asPage = false }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deckDone]);
 
-  // 音声の自動再生（「単語を学ぶ」のカードだけ・作品・予習 2026-11-13・設定 cardAutoplay）。読む文字はカードの🔊と同じ（連語があれば連語）。
-  //   復習のカードは復習・クイズ部門が同じ部品（lib/useCardAutoplay.js・components/AutoplaySwitch.js）でつける。
-  const autoW = cardDeck && reviewWords ? queue[idx] : null;
+  // 音声の自動再生（「単語を学ぶ」のカード＝作品・予習 2026-11-13／復習のカード＝復習・クイズ 2026-11-13・設定 cardAutoplay）。
+  //   読む文字はカードの🔊と同じ（連語があれば連語）。鳴らすのはカードが出た時だけ（めくる・答え合わせ・3つの答えでは鳴らさない）。
+  //   区切り・完了・途中でやめた画面では鳴らさない。予習の重ね表示（旧カード・look でない時）にはつけない。
+  const autoW = look && reviewWords && !partial ? queue[idx] : null;
   const autoCp = autoW ? chunkParts(autoW.chunk, autoW.word, autoW.pos) : null;
   useCardAutoplay({
     text: autoW ? (autoCp ? autoW.chunk : autoW.word) : '',
@@ -637,7 +638,7 @@ export default function ReviewModal({ asPage = false }) {
                 単語リスト
               </button>
             )}
-            {cardDeck && <AutoplaySwitch />}
+            {look && <AutoplaySwitch />}
             <button
               type="button"
               className="modal-close review-keys-btn"
