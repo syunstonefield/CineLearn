@@ -58,3 +58,82 @@ export async function enablePushSubscription() {
     return { ok: false, reason: 'error' };
   }
 }
+
+// ── 通知を切る・朝／夕方を選ぶ（2026-11-13）。/api/push-subscribe の GET／PATCH／DELETE。 ──
+const authJson = () => ({
+  'Content-Type': 'application/json',
+  Authorization: `Bearer ${getSession()?.access_token || ''}`,
+});
+async function currentSubscription() {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) return null;
+  try {
+    const reg = await navigator.serviceWorker.getRegistration('/sw.js');
+    return (await reg?.pushManager.getSubscription()) || null;
+  } catch {
+    return null;
+  }
+}
+
+// この端末の状態。{ supported, subscribed, morning, evening, prefsReady }
+//   prefsReady=false: 朝／夕方を選ぶ列がまだ無い（SQL 前）か、読めなかった＝選ぶ所を出さない。
+export async function getPushState() {
+  const supported =
+    typeof window !== 'undefined' && 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window;
+  if (!supported) return { supported: false, subscribed: false };
+  const sub = await currentSubscription();
+  if (!sub || Notification.permission !== 'granted') return { supported, subscribed: false };
+  if (!isLoggedIn()) return { supported, subscribed: true, morning: true, evening: true, prefsReady: false };
+  try {
+    const r = await fetch(`/api/push-subscribe?endpoint=${encodeURIComponent(sub.endpoint)}`, { headers: authJson(), cache: 'no-store' });
+    if (!r.ok) return { supported, subscribed: true, morning: true, evening: true, prefsReady: false };
+    const d = await r.json();
+    // ブラウザには購読があるがサーバーに無い（別アカウントで登録・古い鍵など）＝受け取っていない扱い
+    if (!d.subscribed) return { supported, subscribed: false };
+    return { supported, subscribed: true, morning: d.morning, evening: d.evening, prefsReady: true };
+  } catch {
+    return { supported, subscribed: true, morning: true, evening: true, prefsReady: false };
+  }
+}
+
+// 朝／夕方を選ぶ。戻り値 { ok, morning, evening } か { ok:false, reason }
+export async function setPushPrefs(prefs) {
+  const sub = await currentSubscription();
+  if (!sub) return { ok: false, reason: 'not_subscribed' };
+  try {
+    const r = await fetch('/api/push-subscribe', {
+      method: 'PATCH',
+      headers: authJson(),
+      body: JSON.stringify({ endpoint: sub.endpoint, ...prefs }),
+    });
+    if (!r.ok) return { ok: false, reason: r.status === 409 ? 'not_ready' : 'error' };
+    const d = await r.json();
+    return { ok: true, morning: d.morning, evening: d.evening };
+  } catch {
+    return { ok: false, reason: 'error' };
+  }
+}
+
+// この端末の通知を切る: サーバーの購読を消す → ブラウザの購読を解除。サーバーで消せなくても解除は行う
+//   （解除した購読は送っても 410 になり、送信側が消す＝届かない）。戻り値 { ok }
+export async function disablePushSubscription() {
+  const sub = await currentSubscription();
+  if (!sub) return { ok: true };
+  let serverOk = false;
+  try {
+    const r = await fetch('/api/push-subscribe', {
+      method: 'DELETE',
+      headers: authJson(),
+      body: JSON.stringify({ endpoint: sub.endpoint }),
+    });
+    serverOk = r.ok;
+  } catch {
+    /* 通信できない時も、ブラウザ側は解除する */
+  }
+  let localOk = false;
+  try {
+    localOk = await sub.unsubscribe();
+  } catch {
+    localOk = false;
+  }
+  return { ok: localOk || serverOk, serverOk, localOk };
+}

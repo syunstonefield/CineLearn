@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { useApp } from './AppProvider';
 import { getToeicLevel, getVocabCount } from '@/lib/vocab';
 import { getThemePref, setThemePref } from '@/lib/theme';
-import { enablePushSubscription } from '@/lib/push';
+import { enablePushSubscription, disablePushSubscription, getPushState, setPushPrefs } from '@/lib/push';
 import { NON_AFFILIATION } from '@/lib/legal';
 import { loadHistory, loadSrs } from '@/lib/storage';
 import { getActiveWords } from '@/lib/words';
@@ -81,6 +81,18 @@ export default function SettingsScreen() {
 
   const [notifyMsg, setNotifyMsg] = useState('');
   const [notifyBtn, setNotifyBtn] = useState(null); // null=通常, それ以外はラベル上書き
+  // この端末の通知の状態（2026-11-13: アプリから切れる・朝／夕方を選べる）。null＝読み込み中
+  const [push, setPush] = useState(null);
+  const [pushBusy, setPushBusy] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    getPushState()
+      .then((st) => alive && setPush(st))
+      .catch(() => alive && setPush({ supported: true, subscribed: false }));
+    return () => {
+      alive = false;
+    };
+  }, []);
   // テーマ（ライト/ダーク/システム）。SSR一致のため初期は 'system'、マウント後に実値へ。
   const [theme, setTheme] = useState('system');
   useEffect(() => setTheme(getThemePref()), []);
@@ -139,17 +151,39 @@ export default function SettingsScreen() {
   // 復習リマインダー：通知許可 → SW購読 → サーバー保存（lib/push.js）。
   const enableNotify = async () => {
     setNotifyBtn('設定中...');
+    setNotifyMsg('');
     const r = await enablePushSubscription();
+    setNotifyBtn(null);
     if (r.ok) {
-      setNotifyBtn('通知は有効です');
-      setNotifyMsg('朝7時（復習する語がある日）と夕方17:30にお知らせします');
+      setPush(await getPushState().catch(() => ({ supported: true, subscribed: true, morning: true, evening: true, prefsReady: false })));
       return;
     }
-    setNotifyBtn(null);
     if (r.reason === 'unsupported') setNotifyMsg('このブラウザは通知非対応です');
     else if (r.reason === 'not_logged_in') setNotifyMsg('通知を使うにはログインしてください');
     else if (r.reason === 'denied') setNotifyMsg('ブラウザの設定から通知を許可してください');
     else setNotifyMsg('通知の設定に失敗しました');
+  };
+  const disableNotify = async () => {
+    setPushBusy(true);
+    setNotifyMsg('');
+    const r = await disablePushSubscription();
+    setPushBusy(false);
+    if (r.ok) {
+      setPush((p) => ({ ...(p || {}), supported: true, subscribed: false }));
+      setNotifyMsg('この端末の通知をオフにしました');
+    } else setNotifyMsg('オフにできませんでした。通信を確かめて、もう一度お試しください');
+  };
+  // 朝／夕方の切り替え。両方オフになる時は、この端末の通知ごとオフにする。
+  const toggleNotifyKind = async (kind) => {
+    if (!push?.subscribed) return;
+    const next = { morning: push.morning !== false, evening: push.evening !== false, [kind]: !(push[kind] !== false) };
+    if (!next.morning && !next.evening) return disableNotify();
+    setPushBusy(true);
+    setNotifyMsg('');
+    const r = await setPushPrefs({ [kind]: next[kind] });
+    setPushBusy(false);
+    if (r.ok) setPush((p) => ({ ...p, morning: r.morning, evening: r.evening }));
+    else setNotifyMsg('切り替えられませんでした。通信を確かめて、もう一度お試しください');
   };
 
   // 単語の書き出し（無料・端末内のデータだけで作る＝送信なし）。lib/export.js
@@ -437,31 +471,75 @@ export default function SettingsScreen() {
             <div className="settings-section">
               <div className="settings-section-title">復習の通知</div>
               <div className="push-notify-desc" style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 6 }}>
-                朝7時（復習する語がある日）と夕方17:30に、この端末へ通知が届きます。
+                朝7時（復習する語がある日）と夕方17:30（直近3日に学習した日だけ）に、この端末へ通知が届きます。いつでもここでオフにできます。
               </div>
-              <div
-                style={{
-                  fontSize: 12,
-                  background: 'rgba(255,149,0,0.1)',
-                  color: 'var(--accent)',
-                  borderRadius: 8,
-                  padding: '8px 10px',
-                  marginBottom: 10,
-                  lineHeight: 1.6,
-                }}
-              >
-                <IconWarning /> スマホとPCで<strong>それぞれ個別に</strong>設定が必要です。
-                <br />
-                iPhoneの場合はホーム画面に追加してから設定してください。
-              </div>
-              <button
-                className="btn-secondary"
-                style={{ width: '100%' }}
-                disabled={notifyBtn === '設定中...' || notifyBtn === '通知は有効です'}
-                onClick={enableNotify}
-              >
-                {notifyBtn || 'この端末で通知を受け取る'}
-              </button>
+              {push?.subscribed ? (
+                <>
+                  {push.prefsReady && (
+                    <div className="tier-toggle-list" style={{ marginBottom: 10 }}>
+                      <label className="tier-toggle-row">
+                        <div className="tier-toggle-left">
+                          <div>
+                            <div className="tier-toggle-name">朝 7:00</div>
+                            <div className="tier-toggle-desc">復習する語がある日に、その語数をお知らせします。</div>
+                          </div>
+                        </div>
+                        <input
+                          type="checkbox"
+                          className="tier-checkbox"
+                          checked={push.morning !== false}
+                          disabled={pushBusy}
+                          onChange={() => toggleNotifyKind('morning')}
+                        />
+                      </label>
+                      <label className="tier-toggle-row">
+                        <div className="tier-toggle-left">
+                          <div>
+                            <div className="tier-toggle-name">夕方 17:30</div>
+                            <div className="tier-toggle-desc">直近3日に学習した日だけ、観る前の見返しをお知らせします。</div>
+                          </div>
+                        </div>
+                        <input
+                          type="checkbox"
+                          className="tier-checkbox"
+                          checked={push.evening !== false}
+                          disabled={pushBusy}
+                          onChange={() => toggleNotifyKind('evening')}
+                        />
+                      </label>
+                    </div>
+                  )}
+                  <button className="btn-secondary" style={{ width: '100%' }} disabled={pushBusy} onClick={disableNotify}>
+                    {pushBusy ? '設定中...' : 'この端末の通知をオフにする'}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      background: 'rgba(255,149,0,0.1)',
+                      color: 'var(--accent)',
+                      borderRadius: 8,
+                      padding: '8px 10px',
+                      marginBottom: 10,
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    <IconWarning /> スマホとPCで<strong>それぞれ個別に</strong>設定が必要です。
+                    <br />
+                    iPhoneの場合はホーム画面に追加してから設定してください。
+                  </div>
+                  <button
+                    className="btn-secondary"
+                    style={{ width: '100%' }}
+                    disabled={notifyBtn === '設定中...' || push === null || push?.supported === false}
+                    onClick={enableNotify}
+                  >
+                    {notifyBtn || (push?.supported === false ? 'このブラウザは通知非対応です' : 'この端末で通知を受け取る')}
+                  </button>
+                </>
+              )}
               {notifyMsg && (
                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6, textAlign: 'center' }}>
                   {notifyMsg}
