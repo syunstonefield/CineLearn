@@ -8314,4 +8314,9 @@ html[data-theme="dark"] .srs-complete.is-mastered { color: var(--gold); }
 .bulkdel-icon { color: #b8762c; }
 .bulkdel-icon .li-ic { width: 36px; height: 36px; }
 html[data-theme="dark"] .bulkdel-icon { color: var(--accent); }
+/* 音声の自動再生のスイッチ（カードの画面の隅・components/AutoplaySwitch.js・2026-11-13） */
+.autoplay-switch { display: inline-flex; align-items: center; gap: 3px; min-height: 36px; padding: 0 8px; border: 1px solid var(--border); border-radius: 999px; background: none; font: inherit; font-size: 12px; color: var(--text-muted); cursor: pointer; margin-right: 4px; }
+.autoplay-switch .li-ic { width: 17px; height: 17px; }
+.autoplay-switch.is-on { color: #7a4a2a; border-color: #dcb98f; background: #fbf1e2; }
+html[data-theme="dark"] .autoplay-switch.is-on { color: var(--accent); border-color: rgba(214,170,100,.4); background: rgba(214,170,100,.1); }
 

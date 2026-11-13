@@ -71,6 +71,16 @@ export function IconSpeaker(p) {
   );
 }
 
+// スピーカー・音なし（音声の自動再生がオフ）
+export function IconSpeakerOff(p) {
+  return (
+    <Svg {...p}>
+      <path d="M4 9.5h3.2L11.5 6v12l-4.3-3.5H4z" />
+      <path d="M15.5 9.5l5 5M20.5 9.5l-5 5" />
+    </Svg>
+  );
+}
+
 // ピン（場面の時刻）
 export function IconPin(p) {
   return (

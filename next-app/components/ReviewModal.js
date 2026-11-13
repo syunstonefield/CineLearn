@@ -1,5 +1,7 @@
 'use client';
 
+import { useCardAutoplay } from '@/lib/useCardAutoplay';
+import { AutoplaySwitch } from './AutoplaySwitch';
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { aiExampleOf, isOtherSceneExample } from '@/lib/exampleBackfill';
 import { useApp } from './AppProvider';
@@ -446,6 +448,16 @@ export default function ReviewModal({ asPage = false }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deckDone]);
 
+  // 音声の自動再生（「単語を学ぶ」のカードだけ・作品・予習 2026-11-13・設定 cardAutoplay）。読む文字はカードの🔊と同じ（連語があれば連語）。
+  //   復習のカードは復習・クイズ部門が同じ部品（lib/useCardAutoplay.js・components/AutoplaySwitch.js）でつける。
+  const autoW = cardDeck && reviewWords ? queue[idx] : null;
+  const autoCp = autoW ? chunkParts(autoW.chunk, autoW.word, autoW.pos) : null;
+  useCardAutoplay({
+    text: autoW ? (autoCp ? autoW.chunk : autoW.word) : '',
+    index: idx,
+    active: !!autoW && breakAt == null && !deckDone,
+  });
+
   if (!reviewWords) return null;
 
   const done = idx >= queue.length;
@@ -625,6 +637,7 @@ export default function ReviewModal({ asPage = false }) {
                 単語リスト
               </button>
             )}
+            {cardDeck && <AutoplaySwitch />}
             <button
               type="button"
               className="modal-close review-keys-btn"

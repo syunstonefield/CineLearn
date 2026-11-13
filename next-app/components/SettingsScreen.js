@@ -1,5 +1,6 @@
 'use client';
 
+import { AutoplaySettingRow } from './AutoplaySwitch';
 import { useEffect, useState } from 'react';
 import { useApp } from './AppProvider';
 import { getToeicLevel, getVocabCount } from '@/lib/vocab';
@@ -263,7 +264,13 @@ export default function SettingsScreen() {
           </section>
           <section className="settings-group">
             <h2 className="settings-group-title">単語を学ぶ・復習</h2>
-            {/* ★ 音声の自動再生（オン／オフ）の置き場所＝このまとまりの先頭（オーナー未決: どのカードにつけるか・初期値。2026-11-13 受付）。決まるまで何も出さない */}
+            {/* 音声の自動再生（オン／オフ・初期はオフ・2026-11-13 オーナー決定）。カードの画面の隅のスイッチと同じ1つの値（lib/cardAutoplay.js）。プロフィールの設定＝同期する */}
+            <div className="settings-section">
+              <div className="settings-section-title">音声の自動再生</div>
+              <div className="tier-toggle-list">
+                <AutoplaySettingRow />
+              </div>
+            </div>
             {/* 「単語を学ぶ」のカードの枚数（無料・端末設定・lib/cardDeck.js）。その端末で初めては5枚・2回目からこの枚数（2026-11-12 言葉を「単語を学ぶ」にそろえた）。 */}
             <div className="settings-section">
               <div className="settings-section-title">「単語を学ぶ」のカードの枚数</div>
