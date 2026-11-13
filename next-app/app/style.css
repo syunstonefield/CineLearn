@@ -7522,6 +7522,8 @@ html[data-theme="dark"] .btn-like-example.is-on {
   background: rgba(244, 143, 177, 0.12);
 }
 html[data-theme="dark"] .htw-label { color: #f48fb1; }
+/* 昨日の語（2026-11-13）: ♡ の札と見分けるため、見出しの色はアプリの茶色（ピンクは ♡ の語だけ） */
+.home-today-word.is-yday .htw-label { color: var(--accent); }
 /* 夕焼けシネマの裏: ★ 覚えたい／♡ この例文を保存＝カードの右上（「↩ 戻る」の反対側）にアイコンだけで（オーナー 2026-11-07）。
    押せる領域は 44×44・間 8px。上段の高さ（40px）は変えない＝上下 4px ずつはみ出させる（余白をためない）。
    付けた色は .btn-wordbook-star.is-on／.btn-like-example.is-on の値（コントラスト確認済み）をそのまま使う */
