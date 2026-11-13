@@ -1,6 +1,6 @@
 'use client';
 
-import { IconHeart, IconOpenBook } from './icons/LineIcons';
+import { IconHeart, IconOpenBook, MarkText } from './icons/LineIcons';
 import { pickYesterdayWord } from '@/lib/yesterdayWord';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
@@ -961,7 +961,7 @@ export default function Dashboard() {
             <span className="htw-ex">“{todayWord.sentence || todayWord.example}”</span>
             {todayWord.dramaTitle && (
               <span className="htw-src">
-                📺 {todayWord.dramaTitle}
+                <MarkText text="📺" /> {todayWord.dramaTitle}
                 {todayWord.season != null && todayWord.episode != null ? ` S${todayWord.season}E${todayWord.episode}` : ''}（字幕：OpenSubtitles）
               </span>
             )}
@@ -979,12 +979,14 @@ export default function Dashboard() {
             <span className="htw-ex">“{yesterdayWord.example}”</span>
             {yesterdayWord.drama?.title && (
               <span className="htw-src">
-                {episodeCredit(
-                  yesterdayWord.drama.title,
-                  yesterdayWord.season,
-                  yesterdayWord.episode,
-                  isMovieWork(yesterdayWord.drama.title, yesterdayWord.drama.type)
-                )}
+                <MarkText
+                  text={episodeCredit(
+                    yesterdayWord.drama.title,
+                    yesterdayWord.season,
+                    yesterdayWord.episode,
+                    isMovieWork(yesterdayWord.drama.title, yesterdayWord.drama.type)
+                  )}
+                />
               </span>
             )}
           </button>
