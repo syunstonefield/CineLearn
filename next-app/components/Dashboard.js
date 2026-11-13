@@ -6,6 +6,7 @@ import { HomeBand, HomeTodayCard, HomeRecord, HomeStart } from './HomeParts';
 import { CURATION_ON, SAVE_STAR_SENTENCE } from '@/lib/curation';
 import { buildGrass, statsStart } from '@/lib/journey';
 import { loadExpLedger } from '@/lib/exp';
+import { studiedSummary } from '@/lib/studiedDays';
 import LibraryCard from './LibraryCard';
 import ContinueCard from './ContinueCard';
 import RecommendGrid from './RecommendGrid';
@@ -39,7 +40,6 @@ import {
   buildLibraryEntries,
   getAllVocabWords,
   getDueReviewWords,
-  getStreak,
   getWeekStats,
   isLearned,
   learningStatsByTitle,
@@ -319,7 +319,7 @@ export default function Dashboard() {
   // SSR/初回レンダーは空で統一してハイドレーション不一致を防ぐ。
   const data = useMemo(() => {
     if (!mounted) {
-      return { history: [], entries: [], learnStats: new Map(), totalLearned: 0, totalMastered: 0, totalWords: 0, streak: 0, hasAnyWord: false, dueCount: 0, weekStats: { reviewedThisWeek: 0, mastered: 0 } };
+      return { history: [], entries: [], learnStats: new Map(), totalLearned: 0, totalMastered: 0, totalWords: 0, studied: { days: 0, today: false }, hasAnyWord: false, dueCount: 0, weekStats: { reviewedThisWeek: 0, mastered: 0 } };
     }
     const history = loadHistory();
     const archived = new Set(loadArchived()); // 「棚から外した」作品は一覧から隠す（履歴は残す）
@@ -342,7 +342,8 @@ export default function Dashboard() {
       totalLearned: overall.learned,
       totalMastered: overall.mastered,
       totalWords: overall.total,
-      streak: getStreak(),
+      // 今日の復習の札の「学習した日」（累計・あゆみと同じ数え方・オーナー決定 2026-11-13＝連続日数はやめた）
+      studied: studiedSummary(loadExpLedger(), todayStr()),
       hasAnyWord: overall.total > 0,
       dueCount: getDueReviewWords(history, loadSrs(), myWords, activeKeys).length,
       weekStats: getWeekStats(),
@@ -865,7 +866,7 @@ export default function Dashboard() {
 
         {data.hasAnyWord && (
           <HomeTodayCard
-            streak={data.streak}
+            studied={data.studied}
             todayCount={Math.min(data.dueCount, todayCap)}
             weekStats={data.weekStats}
             onStart={startToday}

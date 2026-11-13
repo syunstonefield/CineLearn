@@ -90,6 +90,19 @@ export function IconCheck(p) {
   );
 }
 
+// 芽（学習した日・累計・オーナー決定 2026-11-13）。地面の線から茎が1本、左右に葉が2枚（自作）。
+//   ホームの今日の復習の札で使う（薄い緑・.hm-days-line）。単語リストの「未学習」とは別の意味＝そちらでは使わない。
+export function IconSprout(p) {
+  return (
+    <Svg {...p}>
+      <path d="M12 20.5v-8.5" />
+      <path d="M12 13.5c0-3.6-2.4-6-6.5-6 0 3.6 2.4 6 6.5 6z" />
+      <path d="M12 11.5c0-3.4 2.2-5.6 6-5.6 0 3.4-2.2 5.6-6 5.6z" />
+      <path d="M7 20.5h10" />
+    </Svg>
+  );
+}
+
 // 星（マスター）
 export function IconStar(p) {
   return (

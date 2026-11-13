@@ -3,12 +3,14 @@
 // ホームの部品（2026-11-12 見直し・受付の見本 reports/home-ui-2026-11-12/mock.html・オーナー了承「いい。実装進めて」）。
 //   並び（Dashboard）: 帯 → 今日の復習 → 記録（2枚） → 続きから学習 → 今日の語 → マイリスト → おすすめ → TMDB の表示。
 //   札は単語リストと同じ白地・細い枠・角 12px（画面どうしのコントラストを出しすぎない）。
-//   決まり（変えない）: 帯の順番と回数／今日の復習の上限／連続記録は今の大きさ以下（強調しない）／タイルの分母＝出会った語／
+//   決まり（変えない）: 帯の順番と回数／今日の復習の上限／連続日数は出さない（累計の学習した日・強調しない・2026-11-13）／タイルの分母＝出会った語／
 //   学習した日はプラス・押すとあゆみ／続きから学習は最近触った順・2枚＋すべて見る・✕の確認文／今日の語の法務条件／おすすめの理由は事実だけ。
 import { useEffect, useState } from 'react';
 import { tmdb } from '@/lib/api';
 import { GENRE_LABELS, levelMark } from '@/lib/recommended';
 import { WEEKDAYS } from '@/lib/journey';
+import { studiedLine } from '@/lib/studiedDays';
+import { IconSprout } from './icons/LineIcons';
 
 const HOME_WEEKS = 8; // ホームの学習した日に出す直近の週の数（スマホ 390 の半分の札に収まる数）。記録が短い人も列の数は8のまま（マスが大きくならないように）
 
@@ -50,9 +52,18 @@ function AgainRow({ again, onAgain }) {
   );
 }
 
-// 今日の復習の札（白い札・数の円・題・連続記録の小さな表示・主ボタン）。終えた後も同じ場所に「もう一度」を残す。
-export function HomeTodayCard({ streak, todayCount, weekStats, onStart, again, onAgain }) {
-  const streakText = streak > 0 ? `🔥 ${streak}日連続` : '予習した語を、復習で覚えていきましょう';
+// 今日の復習の札（白い札・数の円・題・学習した日の小さな表示・主ボタン）。終えた後も同じ場所に「もう一度」を残す。
+//   学習した日（累計・オーナー決定 2026-11-13）: 連続日数（🔥 N日連続）はやめた＝責める・急がせる表示にしない。
+//   薄い緑の芽の線の絵＋「学習した日 N日」（1日目が今日の時だけ「今日が1日目」）。0日は今の文のまま。数え方は lib/studiedDays.js。
+export function HomeTodayCard({ studied, todayCount, weekStats, onStart, again, onAgain }) {
+  const line = studiedLine(studied);
+  const daysNode = line ? (
+    <span className="hm-days-line">
+      <IconSprout />
+      {line}
+    </span>
+  ) : null;
+  const leadText = daysNode || '予習した語を、復習で覚えていきましょう';
   if (todayCount > 0) {
     return (
       <section className="hm-card hm-today" aria-labelledby="hm-today-h">
@@ -63,7 +74,7 @@ export function HomeTodayCard({ streak, todayCount, weekStats, onStart, again, o
           </div>
           <div className="hm-today-tx">
             <h2 id="hm-today-h">今日の復習</h2>
-            <p>{streakText}</p>
+            <p>{leadText}</p>
           </div>
         </div>
         <button type="button" className="btn-primary hm-today-btn" onClick={onStart} aria-label={`今日の復習 ${todayCount}語をはじめる`}>
@@ -79,8 +90,8 @@ export function HomeTodayCard({ streak, todayCount, weekStats, onStart, again, o
       <div className="hm-done">
         今日の復習は完了 ✓
         <small>
-          {streak > 0 ? `🔥 ${streak}日連続` : ''}
-          {streak > 0 && week > 0 ? '　' : ''}
+          {daysNode}
+          {daysNode && week > 0 ? '　' : ''}
           {week > 0 ? `今週 ${week}語 復習` : ''}
         </small>
       </div>

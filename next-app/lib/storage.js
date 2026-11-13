@@ -137,23 +137,8 @@ export function isNearMastery(e) {
 
 // ── ダッシュボード集計 ──────────────────────────────────────
 
-// 連続学習日数（今日 or 昨日を起点に遡る。今日未実施でも昨日まで連続なら維持）
-export function getStreak(activityDates = loadActivityDates()) {
-  const set = new Set(activityDates);
-  if (!set.size) return 0;
-  const iso = (x) => localDateStr(x);
-  let d = new Date();
-  if (!set.has(iso(d))) {
-    d.setDate(d.getDate() - 1);
-    if (!set.has(iso(d))) return 0;
-  }
-  let n = 0;
-  while (set.has(iso(d))) {
-    n++;
-    d.setDate(d.getDate() - 1);
-  }
-  return n;
-}
+// 連続学習日数（getStreak）は 2026-11-13 にやめた（ホームは累計の学習した日＝lib/studiedDays.js・責める表示にしない）。
+//   学習した日の記録 cl_activity_dates（markActivityToday）は残す（同期も今のまま・今は読む所なし）。
 
 // ── 映画かどうか（出典の S/E 表示用・2026-10-08）──────────────────────
 // 予習の記録（cl_history の drama）は長く type を持たず、映画にも season=1/episode=1 が入っていた

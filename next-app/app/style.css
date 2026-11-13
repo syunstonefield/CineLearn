@@ -2930,20 +2930,6 @@ header {
 }
 .today-panel:empty { display: none; }
 
-.today-streak {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--text);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.today-streak b { font-size: 20px; color: var(--accent); }
-.today-streak-zero {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-muted);
-}
 
 .today-review-card {
   /* 全幅(1040px)だと見出しとボタンが両端に離れて間延びするため、
@@ -3840,8 +3826,6 @@ header {
 .today-hero .today-hero-sub { color: rgba(243, 236, 224, 0.72); }
 .today-hero .today-hero-week { color: rgba(243, 236, 224, 0.66); }
 .today-hero .today-hero-week b { color: #fdf8ef; }
-.today-hero .today-streak-chip { color: #f0c264; background: rgba(232, 183, 102, 0.16); }
-.today-hero .today-streak-chip.is-zero { color: rgba(243, 236, 224, 0.6); background: rgba(255, 255, 255, 0.08); }
 .today-hero .today-hero-check { background: rgba(46, 168, 122, 0.22); }
 
 /* ── ライトテーマ時のヒーロー＝アクセント色の淡い面 ─────────────
@@ -3868,8 +3852,6 @@ html[data-theme="light"] .today-hero .today-hero-sub { color: var(--text-muted);
 html[data-theme="light"] .today-hero .today-hero-week { color: var(--text-muted); }
 html[data-theme="light"] .today-hero .today-hero-week b { color: var(--text); }
 /* チップは淡いアクセント面に埋もれるので、白の錠剤で浮かせる。 */
-html[data-theme="light"] .today-hero .today-streak-chip { color: var(--accent); background: rgba(255, 255, 255, 0.72); }
-html[data-theme="light"] .today-hero .today-streak-chip.is-zero { color: var(--text-muted); background: rgba(255, 255, 255, 0.72); }
 html[data-theme="light"] .today-hero .today-hero-check { background: rgba(46, 168, 122, 0.16); }
 html[data-theme="light"] .today-hero .today-week-chip { color: var(--text-muted); }
 html[data-theme="light"] .rh-hero:not(.is-done) .rh-hero-sub { color: var(--text-muted); }
@@ -3929,18 +3911,6 @@ html[data-theme="light"] .rh-hero:not(.is-done) .rh-hero-sub { color: var(--text
 .today-hero-sub { font-size: 13px; color: var(--text-muted); line-height: 1.5; }
 .today-hero-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
 
-.today-streak-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--accent);
-  background: rgba(193, 127, 59, 0.10);
-  border-radius: 999px;
-  padding: 3px 10px;
-}
-.today-streak-chip.is-zero { color: var(--text-muted); background: var(--surface2); font-weight: 500; }
 
 /* 「今日の復習は完了！」の週次サマリ（ストリークチップの隣・主張は控えめ） */
 .today-week-chip {
@@ -8069,6 +8039,11 @@ html[data-theme="dark"] .hm-today-num b { color: #f0c878; }
 .hm-today-tx { min-width: 0; }
 .hm-today-tx h2 { margin: 0; font-size: 17px; font-weight: 600; }
 .hm-today-tx p { margin: 3px 0 0; font-size: 12px; color: var(--text-muted); }
+/* 学習した日（累計・オーナー決定 2026-11-13）: 薄い緑の芽の線の絵＋文字（文字の色はまわりのまま・強調しない）。
+   芽の緑は白い札の上で 3.1:1（#5f9f78）・ダークの札の上で 7.4:1（#6dbb8c）＝飾りでも見分けられる濃さ。 */
+.hm-days-line { display: inline-flex; align-items: center; gap: 4px; }
+.hm-days-line .li-ic { flex: none; width: 15px; height: 15px; color: #5f9f78; }
+html[data-theme="dark"] .hm-days-line .li-ic { color: #6dbb8c; }
 .hm-today-btn { display: block; margin-top: 14px; }
 .hm-done { text-align: center; padding: 6px 0 2px; font-size: 15px; font-weight: 600; }
 .hm-done small { display: block; margin-top: 4px; font-size: 12px; font-weight: 400; color: var(--text-muted); min-height: 1em; }
