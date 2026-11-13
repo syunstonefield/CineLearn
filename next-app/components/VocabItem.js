@@ -1,4 +1,5 @@
 'use client';
+import { IconSpeaker, IconPin, IconPencil } from './icons/LineIcons';
 import { surfaceFormInExample } from '@/lib/subtitles';
 
 import { useState } from 'react';
@@ -86,12 +87,12 @@ export default function VocabItem({ word, srs, testTiers, ts, exampleSource, add
             onSpeak(w.word);
           }}
         >
-          🔊
+          <IconSpeaker />
         </span>
         {/* 本編の語と混ぜて時刻順に並べる時、どれが自分で足した語かを示す（セクション見出しの代わり） */}
         {added && (
           <span className="vocab-added-chip" title="自分で追加した単語">
-            ✏️ 追加
+            <IconPencil /> 追加
           </span>
         )}
         <span className="vocab-meaning">{w.definition || ''}</span>
@@ -104,7 +105,7 @@ export default function VocabItem({ word, srs, testTiers, ts, exampleSource, add
               onCopyTime(tsLabel);
             }}
           >
-            📍 {tsLabel}
+            <IconPin /> {tsLabel}
           </span>
         )}
         <span className="vocab-chevron" aria-hidden="true">
@@ -155,7 +156,7 @@ export default function VocabItem({ word, srs, testTiers, ts, exampleSource, add
                   onSpeak(w.example);
                 }}
               >
-                🔊
+                <IconSpeaker />
               </button>
             </span>
             {w.example_ja && <span className="word-example-ja">{w.example_ja}</span>}
@@ -214,7 +215,7 @@ export default function VocabItem({ word, srs, testTiers, ts, exampleSource, add
                   onSpeak(aiExampleOf(w).en);
                 }}
               >
-                🔊
+                <IconSpeaker />
               </button>
             </span>
             {aiExampleOf(w).ja && <span className="word-example-ja">{aiExampleOf(w).ja}</span>}
@@ -224,7 +225,7 @@ export default function VocabItem({ word, srs, testTiers, ts, exampleSource, add
 
         <div className="vocab-detail-actions">
           <button className="btn-speak" title="発音を聞く" onClick={() => onSpeak(w.word)}>
-            🔊 発音
+            <IconSpeaker /> 発音
           </button>
           {!readOnly && (
             <button

@@ -8264,3 +8264,28 @@ html[data-theme="dark"] .review-list-link { color: var(--accent); }
 /* 作品を選んだあとのカード（ReviewModal の cardDeck）: 今の復習のカード（.review-cinema）を単語リストの画面の上に全面で重ねる */
 .screen.review-screen.review-cinema.review-deck { position: fixed; inset: 0; z-index: 1150; height: 100dvh; min-height: 0; margin: 0; max-width: none; }
 .review-deck .review-panel { max-width: 560px; width: 100%; margin: 0 auto; }
+
+/* ── 線の絵（components/icons/LineIcons.js・2026-11-12 オーナー決定＝絵文字を線の絵に）──
+   既定は 1em＝まわりの文字の大きさ・文字の中心にそろえる。色は親の文字色。 */
+.li-ic { display: inline-block; flex: none; vertical-align: -0.16em; }
+.vab-main { display: inline-flex; align-items: center; gap: 4px; }
+.vab-main .li-ic { width: 15px; height: 15px; }
+.srs-count-learned .li-ic,
+.srs-count-mastered .li-ic { width: 1.05em; height: 1.05em; }
+.vocab-word-speak { display: inline-flex; align-items: center; color: var(--text-muted); }
+.vocab-word-speak .li-ic { width: 16px; height: 16px; }
+.word-ex-speak { color: var(--text-muted); }
+.word-ex-speak .li-ic { width: 15px; height: 15px; }
+.btn-speak { display: inline-flex; align-items: center; gap: 4px; color: var(--text); }
+.word-timestamp { display: inline-flex; align-items: center; gap: 2px; }
+.word-timestamp .li-ic { width: 12px; height: 12px; }
+.vocab-added-chip { display: inline-flex; align-items: center; gap: 2px; }
+.review-completed-today .li-ic { width: 1.1em; height: 1.1em; }
+.srs-media-chip { display: inline-flex; align-items: center; gap: 4px; }
+.media-type-icon { display: inline-flex; color: #7a4a2a; }
+.media-type-icon .li-ic { width: 28px; height: 28px; }
+.soon-emoji { color: #7a4a2a; }
+.soon-emoji .li-ic { width: 40px; height: 40px; }
+html[data-theme="dark"] .media-type-icon,
+html[data-theme="dark"] .soon-emoji { color: var(--accent); }
+

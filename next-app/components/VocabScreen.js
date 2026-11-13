@@ -1,5 +1,6 @@
 'use client';
 
+import { IconCheck, IconStar, IconPencil, IconRepeat, IconTarget, IconOpenBook, IconClapper, IconTv } from './icons/LineIcons';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './AppProvider';
 import VocabItem from './VocabItem';
@@ -503,7 +504,7 @@ export default function VocabScreen() {
       const ext = await getMyWordsForEpisode(drama, se, ep, pid);
       if (myReq !== reqId.current) return true;
       if (ext.length) {
-        setStatusText(drama.type === 'movie' ? '🎬 映画' : `Season ${se} Episode ${ep}`);
+        setStatusText(drama.type === 'movie' ? '映画' : `Season ${se} Episode ${ep}`);
         setVocab([]);
         setPhase('empty');
         setMessage('「単語を学ぶ」でAIが単語リストをつくります');
@@ -1693,7 +1694,7 @@ export default function VocabScreen() {
     return (
       <div id="ext-words-section">
         <div className="source-label" style={{ marginTop: 14 }}>
-          {label}
+          <IconPencil /> {label}
         </div>
         <div className="vocab-list">
           {extWords.map((w) => (
@@ -2024,7 +2025,9 @@ export default function VocabScreen() {
         {selectorReady && phase !== 'generating' && !hasList && (
         <div className="episode-selector">
           {isMovie ? (
-            <div className="episode-label">🎬 映画（字幕から単語を学ぶ）</div>
+            <div className="episode-label">
+              <IconClapper /> 映画（字幕から単語を学ぶ）
+            </div>
           ) : (
             <button
               type="button"
@@ -2076,7 +2079,9 @@ export default function VocabScreen() {
               </div>
               <div className="media-type-options">
                 <button className="media-type-btn" onClick={() => pickMedia(mediaChoice.tv)}>
-                  <span className="media-type-icon">📺</span>
+                  <span className="media-type-icon">
+                    <IconTv />
+                  </span>
                   <span className="media-type-label">ドラマ</span>
                   <span className="media-type-name">
                     {mediaChoice.tv.englishTitle}
@@ -2084,7 +2089,9 @@ export default function VocabScreen() {
                   </span>
                 </button>
                 <button className="media-type-btn" onClick={() => pickMedia(mediaChoice.mv)}>
-                  <span className="media-type-icon">🎬</span>
+                  <span className="media-type-icon">
+                    <IconClapper />
+                  </span>
                   <span className="media-type-label">映画</span>
                   <span className="media-type-name">
                     {mediaChoice.mv.englishTitle}
@@ -2166,7 +2173,9 @@ export default function VocabScreen() {
                     <WorkTitle className="srs-work-title" title={drama.title} />
                     <div className="srs-heading-sub">
                       {isMovie ? (
-                        <span className="srs-media-chip">🎬 映画</span>
+                        <span className="srs-media-chip">
+                          <IconClapper /> 映画
+                        </span>
                       ) : (
                         <button
                           type="button"
@@ -2193,10 +2202,10 @@ export default function VocabScreen() {
                 </div>
                 <div className="srs-counts">
                   <span className="srs-count-learned">
-                    ✅ 覚えた: <b>{stats.learned}</b>/{stats.total}
+                    <IconCheck /> 覚えた: <b>{stats.learned}</b>/{stats.total}
                   </span>
                   <span className="srs-count-mastered">
-                    ⭐ マスター: <b>{stats.mastered}</b>/{stats.total}
+                    <IconStar /> マスター: <b>{stats.mastered}</b>/{stats.total}
                   </span>
                 </div>
                 <div className="srs-stats">
@@ -2353,11 +2362,13 @@ export default function VocabScreen() {
 
               {/* 追加した単語（拡張クリック保存＋手動追加・今日の復習・テストボタンの上に配置）。
                   設定で「時刻順にまぜる」がオンの時は上のリストに統合済みなのでここは出さない。 */}
-              {!mergeAdded && renderAddedWords('✏️ 追加した単語')}
+              {!mergeAdded && renderAddedWords('追加した単語')}
 
               {/* 「今日の復習」の起動は下部固定の操作バー（vocab-action-bar）へ移動（2026-10-18）。ここは完了の印だけ。 */}
               {stats.due === 0 && doneToday > 0 && (
-                <div className="review-completed-today">✅ 今日の復習完了（{doneToday}回）</div>
+                <div className="review-completed-today">
+                  <IconCheck /> 今日の復習完了（{doneToday}回）
+                </div>
               )}
 
               {/* 一覧の末尾の注記（オーナー＋法務 2026-11-11）: CEFR の目安と出典の一行（文は変えない・画面に1か所・
@@ -2374,7 +2385,9 @@ export default function VocabScreen() {
             /* カタログ外＝リクエスト受付。突き放さず巻き込む（design-curated-catalog §2-3）。
                クリック保存は全作品で使えることを必ず添える（D0救済・改善4）。 */
             <div className="soon-panel">
-              <div className="soon-emoji" aria-hidden="true">🎬</div>
+              <div className="soon-emoji" aria-hidden="true">
+                <IconClapper />
+              </div>
               <div className="soon-title">この作品はログインすると単語を学べます</div>
               <div className="soon-sub">ログインなしで使えるのは対応作品のみです。ログインすれば、どの作品でも1日30話まで単語リストを作れます</div>
               {/* カタログゲートは未ログインだけに掛かる（2026-09-21 オーナー判断）。ログインが最短の解決なので最上段に置く */}
@@ -2421,7 +2434,7 @@ export default function VocabScreen() {
               )}
               {/* AI単語リストがまだ無い（未生成・字幕なし・エラー）作品でも、視聴中に保存した語は
                   ここに出す。映画で字幕が見つからない作品では、これが唯一の受け皿になる。 */}
-              {renderAddedWords('✏️ この作品で保存した単語')}
+              {renderAddedWords('この作品で保存した単語')}
             </>
           )}
         </div>
@@ -2523,7 +2536,9 @@ export default function VocabScreen() {
                   )
                 }
               >
-                <span className="vab-main">🔁 復習</span>
+                <span className="vab-main">
+                  <IconRepeat /> 復習
+                </span>
                 <span className="vab-sub">{stats.due > 0 ? `${stats.due}語` : doneToday > 0 ? `今日${doneToday}回済み` : '0語'}</span>
               </button>
               <button
@@ -2531,18 +2546,24 @@ export default function VocabScreen() {
                 className={'vab-btn' + (!walkPrimary && stats.due === 0 ? ' is-primary' : '')}
                 onClick={() => goToQuiz({ from: 'list', base: startViewRef.current })}
               >
-                <span className="vab-main">🎯 クイズ</span>
+                <span className="vab-main">
+                  <IconTarget /> クイズ
+                </span>
                 <span className="vab-sub">腕試し</span>
               </button>
               {/* 見るだけのカードの入口（既定は隠す・NEXT_PUBLIC_PREP_WALK=on で戻る・2026-11-12） */}
               {!PREP_WALK_ON ? null : prepNeeded ? (
                 <button type="button" className="vab-btn is-primary" onClick={openWalkthrough}>
-                  <span className="vab-main">📖 予習する</span>
+                  <span className="vab-main">
+                    <IconOpenBook /> 予習する
+                  </span>
                   <span className="vab-sub">重要語から</span>
                 </button>
               ) : (
                 <button type="button" className="vab-btn" onClick={openStudyAll}>
-                  <span className="vab-main">📖 カード</span>
+                  <span className="vab-main">
+                    <IconOpenBook /> カード
+                  </span>
                   <span className="vab-sub">全{sortedVocab.length}語</span>
                 </button>
               )}

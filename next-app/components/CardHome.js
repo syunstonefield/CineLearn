@@ -1,42 +1,14 @@
 'use client';
 
 import { LEARNED_LABEL, MASTERED_LABEL } from '@/lib/learnedTerms';
+import { IconOpenBook, IconTarget, IconFilm } from './icons/LineIcons';
+// 下の札の絵＝線の絵（components/icons/LineIcons.js・2026-11-12 オーナー決定）
 
 // 作品を選んだあと＝カード中心（2026-11-12 オーナー決定・見本 reports/prep-card-first-2026-11-12/mock.html）。
 //   CardHome: 単語リストができた作品を開いた時の最初の画面（大きい「単語を学ぶ」＋下に「単語リストを見る」）。
 //   CardDone: カードを終えた時の画面（明日 復習できる単語 N個 → 残りの単語も見る／観に行く・今日はここまで／単語リストを見る）。
 // 決まり: ポスターは縦のまま小さく・何も重ねない（TMDB の表示は画面の下の共通の行）／残りの数や「あと○語」は出さない／
 //   観ることは止めない（「観に行く」はいつでも押せる・← で抜けられる）。
-
-// 下の札の絵（2026-11-12 オーナー感想「AI 感が拭えない」→ 絵文字をやめ、下のタブ（BottomNav）と同じ流儀の細い線の絵に）。
-//   24×24・線の太さ 1.8・角は丸く・色は文字色（茶色）。外のアイコン集は写さず自作。
-const LINE = { strokeWidth: 1.8, fill: 'none', stroke: 'currentColor', strokeLinecap: 'round', strokeLinejoin: 'round' };
-function IconOpenBook() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" {...LINE} aria-hidden="true">
-      <path d="M12 6.5C10.2 5.2 7.6 4.6 4 4.8v13c3.6-.2 6.2.4 8 1.7 1.8-1.3 4.4-1.9 8-1.7v-13c-3.6-.2-6.2.4-8 1.7z" />
-      <path d="M12 6.5v13" />
-    </svg>
-  );
-}
-function IconTarget() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" {...LINE} aria-hidden="true">
-      <circle cx="12" cy="12" r="8.5" />
-      <circle cx="12" cy="12" r="4.5" />
-      <circle cx="12" cy="12" r="0.9" fill="currentColor" />
-    </svg>
-  );
-}
-function IconFilm() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" {...LINE} aria-hidden="true">
-      <rect x="4" y="3.5" width="16" height="17" rx="2" />
-      <path d="M8 3.5v17M16 3.5v17M8 12h8" />
-      <path d="M4 7.5h4M4 12h4M4 16.5h4M16 7.5h4M16 12h4M16 16.5h4" />
-    </svg>
-  );
-}
 
 function Poster({ src, title }) {
   if (!src) return <div className="ch-poster ch-poster-empty" aria-hidden="true">{String(title || '').slice(0, 1)}</div>;
