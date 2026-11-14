@@ -47,7 +47,7 @@ function clDualSetState(s, note) {
   if (clDualBtn) {
     clDualBtn.dataset.mode = clDualMode;
     clDualBtn.dataset.state = s;
-    clDualBtn.title = CL_DUAL_LABEL[clDualMode] + (note ? `\n${note}` : '') + '\n（Chrome の翻訳機能による機械訳です。字幕の行と訳は、この端末の外に送らず、保存しません）';
+    clDualBtn.title = CL_DUAL_LABEL[clDualMode] + (note ? `\n${note}` : '') + '\n（Chrome の翻訳機能による機械訳です。この機能では、字幕の行と訳を、この端末の外に送らず、保存もしません）';
   }
 }
 
