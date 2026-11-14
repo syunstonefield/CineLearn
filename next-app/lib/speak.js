@@ -53,6 +53,10 @@ const PREFERRED = [
 //   費用: どれもブラウザ・OS の機能で当社の費用は0。Natural と Google の声はブラウザが文を提供元へ送って音にする。
 const NATURAL_ORDER = ['Ava', 'Andrew', 'Emma', 'Brian', 'Jenny', 'Aria', 'Guy', 'Ana', 'Christopher', 'Eric', 'Michelle', 'Roger', 'Steffan'];
 const isUS = (v) => /^en[-_]us$/i.test(v.lang || '');
+function premiumVoice(en) {
+  const premium = en.filter((v) => /\b(Premium|Enhanced)\b|\.(premium|enhanced)\./i.test(`${v.name || ''} ${v.voiceURI || ''}`) && !isOdd(v));
+  return premium.find(isUS) || premium[0] || null;
+}
 function bestVoice(en) {
   const natural = en.filter((v) => isUS(v) && /Online \(Natural\)/i.test(v.name || ''));
   if (natural.length) {
@@ -63,8 +67,8 @@ function bestVoice(en) {
     };
     return [...natural].sort((a, b) => rank(a) - rank(b))[0];
   }
-  const premium = en.filter((v) => /\b(Premium|Enhanced)\b|\.(premium|enhanced)\./i.test(`${v.name || ''} ${v.voiceURI || ''}`) && !isOdd(v));
-  if (premium.length) return premium.find(isUS) || premium[0];
+  const premium = premiumVoice(en);
+  if (premium) return premium;
   return en.find((v) => isUS(v) && baseName(v) === 'Google US English') || null;
 }
 
@@ -79,11 +83,11 @@ export function pickVoiceFrom(list, { chromium = true } = {}) {
   if (!list || !list.length) return null; // ④空でも既定音声で鳴る＝待たない
   const en = list.filter((v) => /^en([-_]|$)/i.test(v.lang || ''));
   if (!en.length) return null;
-  // ⑦きれいな声があれば最優先（Chrome 系だけ）
-  if (chromium) {
-    const best = bestVoice(en);
-    if (best) return best;
-  }
+  // ⑦きれいな声があれば最優先。Chrome 系は Natural→Premium/Enhanced→Google、
+  //   Safari（Mac・iPhone の全ブラウザ）は端末に入っている Premium/Enhanced の声だけ（2026-11-14 オーナー「試して」）。
+  //   iPhone で明示指定すると鳴らない例があった（⑤）ので、鳴らない時は voice 未指定で1回言い直す（保険2）のまま。
+  const best = chromium ? bestVoice(en) : premiumVoice(en);
+  if (best) return best;
   // ⑤既定の英語音声があればそれだけを明示指定（今までどおり）
   const def = en.find((v) => v.default);
   if (def) return def;

@@ -82,3 +82,18 @@ test('声が0件・英語の声なしは未指定（待たない）', () => {
   assert.equal(pickVoiceFrom([]), null);
   assert.equal(pickVoiceFrom([V('Kyoko', 'ja-JP', { default: true })]), null);
 });
+
+test('Safari・iPhone: Premium／Enhanced の声が入っていればそれを選ぶ', () => {
+  const ios = [V('Samantha', 'en-US', { default: true }), V('Ava', 'en-US', { voiceURI: 'com.apple.voice.premium.en-US.Ava' }), V('Daniel', 'en-GB')];
+  assert.equal(pickVoiceFrom(ios, { chromium: false }).name, 'Ava');
+});
+
+test('Safari・iPhone: Premium が無ければ今までどおり（既定の英語・無ければ未指定）', () => {
+  assert.equal(pickVoiceFrom([V('Samantha', 'en-US', { default: true })], { chromium: false }).name, 'Samantha');
+  assert.equal(pickVoiceFrom([V('Kyoko', 'ja-JP', { default: true }), V('Samantha', 'en-US')], { chromium: false }), null);
+});
+
+test('Safari では Google・Natural の名前があっても選ばない', () => {
+  const list = [V('Google US English', 'en-US', { localService: false }), V('Samantha', 'en-US')];
+  assert.equal(pickVoiceFrom(list, { chromium: false }), null);
+});
