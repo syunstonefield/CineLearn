@@ -11,7 +11,7 @@
 import { NON_AFFILIATION } from '@/lib/legal';
 
 const CONTACT_EMAIL = 'cinelearn.202606@gmail.com';
-const UPDATED = '2026年11月14日'; // ★復習を抜けた理由の記録（終えた時のカードの種類・時間の幅・始めた時の語の内訳）と同じ便で出す（2026-11-14 法務）。本番に出る日がずれたらその日に直す
+const UPDATED = '2026年11月14日'; // ★読み上げの声（Google・Microsoft のオンラインの声）の項目を §3 に追加（2026-11-14・法務・声の選び方の変更と同じ便）。その前に同日、復習を抜けた理由の記録の追記
 
 export const metadata = {
   title: 'プライバシーポリシー — CineLearn',
@@ -171,6 +171,11 @@ export default function PrivacyPage() {
         </li>
         <li style={li}>
           <strong>Google Fonts</strong>：表示用フォント。お使いのブラウザが Google のサーバーから直接読み込みます。
+        </li>
+        <li style={li}>
+          <strong>Google・Microsoft（読み上げの声）</strong>：単語と例文の読み上げには、お使いのブラウザの音声合成の機能を使います。
+          Chrome・Edge では、本サービスが各社のオンラインの声を選ぶことがあり、その場合は読み上げる単語・例文がブラウザから
+          各社のサーバーへ送られて音声になります（当社のサーバーは通りません）。送られた情報の扱いは、各社のプライバシーポリシーによります。
         </li>
         <li style={li}>
           <strong>プッシュ通知サービス（Google / Mozilla / Apple）</strong>：復習リマインダーの配信。
