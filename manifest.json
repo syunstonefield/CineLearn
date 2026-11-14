@@ -36,7 +36,7 @@
         "https://www.amazon.co.jp/*/dp/*",
         "https://www.disneyplus.com/*"
       ],
-      "js": ["extension/common-words.js", "extension/content.js"],
+      "js": ["extension/common-words.js", "extension/content.js", "extension/dualsub.js"],
       "css": ["extension/content.css"],
       "run_at": "document_start"
     },
