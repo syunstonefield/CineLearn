@@ -37,6 +37,8 @@ let clDualBlurStyle = 'soft';
 const clDualStats = { n: 0, cached: 0, last: 0, max: 0, sum: 0, via: '' }; // 遅れの計測（試し作り用・ms）
 
 const clDualHasApi = () => typeof Translator !== 'undefined';
+// 英語の字幕か（英字が文字の半分以上）。日本語字幕などの時は訳さない・案内も出さない
+const clDualLooksEnglish = (t) => { const c = String(t || '').replace(/\s+/g, ''); return c.length > 0 && (c.match(/[A-Za-z]/g) || []).length / c.length >= 0.5; };
 
 function clDualSetState(s, note) {
   clDualState = s;
@@ -191,7 +193,7 @@ async function clDualTick() {
   const text = (getOnScreenCaption() || '').replace(/\s+/g, ' ').trim();
   if (text === clDualShown) { clDualPosition(); return; }
   clDualShown = text;
-  if (!text) { clDualRender('', false); return; }
+  if (!text || !clDualLooksEnglish(text)) { clDualRender('', false); return; }
   const seq = ++clDualSeq;
   const t0 = performance.now();
   let ja = '';
@@ -254,7 +256,8 @@ function clDualHintDone() {
 // 80ms ごとに出す条件と位置を見る（出ている間だけ動く）
 function clDualHintTick() {
   if (clDualHintSeen || !clDualBtn) return;
-  const ready = clEnabled && clControls && clControls.style.display !== 'none' && !(clHint && clHint.style.display !== 'none');
+  const ready = clEnabled && clControls && clControls.style.display !== 'none' && !(clHint && clHint.style.display !== 'none') &&
+    clDualLooksEnglish(getOnScreenCaption());
   clDualHintEnsure();
   const host = document.fullscreenElement || document.webkitFullscreenElement || document.body;
   if (clDualHint.parentElement !== host) host.appendChild(clDualHint);
