@@ -8189,6 +8189,7 @@ html[data-theme="dark"] .hm-row-pb { background: rgba(255,255,255,.08); }
 .rd-break .rd-body { justify-content: center; align-items: center; }
 /* 「今後は表示しない」の戻し方（2026-11-12）: リンクの下に小さく・押した直後は進み具合の行の上に短い知らせ（4秒・押せる所をふさがない） */
 .rd-break-note { margin: -6px 0 0; font-size: 12px; color: var(--rd-muted); text-align: center; }
+.rd-break-left { margin: 0 0 2px; font-size: 13px; font-weight: 600; color: var(--rd-muted); text-align: center; } /* 「単語を学ぶ」の区切りの残りの語数（続けるの上・事実の数だけ・2026-11-14） */
 .rc-break-toast-wrap { position: relative; height: 0; z-index: 5; }
 .rc-break-toast {
   position: absolute; left: 50%; top: 2px; transform: translateX(-50%); width: max-content; max-width: calc(100% - 24px);

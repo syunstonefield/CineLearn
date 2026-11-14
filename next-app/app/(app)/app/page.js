@@ -46,6 +46,7 @@ function AppShell() {
     mounted,
     reviewWords,
     reviewAsPage,
+    cardDeck,
     prepQuiz,
     prepLaunch,
     prepWalk,
@@ -97,8 +98,12 @@ function AppShell() {
   // プロフィール選択・オンボーディング中は出さない。
   // 復習（ページ表示）の間も出さない＝全画面で広く使い、途中で下のバーを誤って押して結果を見ずに離れるのを防ぐ
   //   （オーナー 2026-11-07）。抜けるのは復習の上の ✕（途中なら「ここまでで N語」の画面）。reviewPage は下で定義。
+  // 「単語を学ぶ」のカード（cardDeck・画面いっぱいの重ね表示・2026-11-12〜）の間も出さない（2026-11-14 オーナー報告の再発）。
+  //   カードの間はページ全体のスクロールを止める（html.cl-review-lock・ReviewModal）。タブバーを残したまま止めを付け外しすると、
+  //   iPhone の WebKit で固定のタブバーがページと一緒にスクロールして途中に浮く（2026-11-09 と同じ筋）。隠しておけば、
+  //   閉じた時に「止めを外す」と「タブバーを差し込む」が同じ描画の中で起きる（復習のページ表示と同じ順）。カードに隠れて見えないので見た目は変わらない。
   const showBottomNav =
-    !!profile && screen !== 'profile-select' && screen !== 'onboarding' && screen !== 'trial' && screen !== 'intro' && !(reviewWords && reviewAsPage);
+    !!profile && screen !== 'profile-select' && screen !== 'onboarding' && screen !== 'trial' && screen !== 'intro' && !(reviewWords && (reviewAsPage || cardDeck));
   // プロフィール選択画面ではヘッダーのプロフィールチップを隠す（既存挙動）
   const headerProfile = screen === 'profile-select' ? null : profile;
 

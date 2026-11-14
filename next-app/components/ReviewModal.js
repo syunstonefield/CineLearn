@@ -678,7 +678,7 @@ export default function ReviewModal({ asPage = false }) {
         )}
         <div className={'review-content' + (showDone || showBreak ? ' is-done' : '')}>
           {showBreak ? (
-            <ReviewBreak count={breakAt} prep={!!cardDeck} onContinue={continueAfterBreak} onStop={stopAtBreak} onHide={hideBreaks} />
+            <ReviewBreak count={breakAt} left={cardDeck ? queue.length - breakAt : 0} prep={!!cardDeck} onContinue={continueAfterBreak} onStop={stopAtBreak} onHide={hideBreaks} />
           ) : showDone ? (
             <ReviewDone
               showTomorrow={cinema}
@@ -933,7 +933,8 @@ function ReviewCard({ word: w, marks, idx, total, flipped, retryMode, onFlip, on
 
 // 10枚でひと区切りの画面（オーナー決定 2026-11-12・見本 reports/review-card-ui-2026-11-12/mock.html）。
 //   残りの数・「あと○語」は出さない（罪悪感UI禁止）。答えた分は reviewWord で記録済み＝「記録されています」は事実。
-function ReviewBreak({ count, prep = false, onContinue, onStop, onHide }) {
+// left＝このあとに残っている語の数（「単語を学ぶ」のカードだけ・2026-11-14 オーナー）。事実の数だけ（「あと○語も」のような急がせる言い方はしない）・0 は出さない。
+function ReviewBreak({ count, left = 0, prep = false, onContinue, onStop, onHide }) {
   return (
     <div className="rd rd-break">
       <div className="rd-body">
@@ -945,6 +946,7 @@ function ReviewBreak({ count, prep = false, onContinue, onStop, onHide }) {
         <p className="rd-break-note">設定の『{LEARN_SETTINGS_GROUP}』から戻せます</p>
       </div>
       <div className="rd-actions">
+        {left > 0 && <p className="rd-break-left">残り {left}語</p>}
         <button type="button" className="rd-btn1" onClick={onContinue}>
           続ける
         </button>
