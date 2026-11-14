@@ -171,7 +171,8 @@ html.cl-disabled .cl-word {
 }
 html.cl-disabled #cl-controls { display: none !important; }
 
-#cl-hint {
+#cl-hint,
+#cl-nocap-hint {
   position: fixed !important;
   left: 2.5% !important;
   bottom: calc(26% + 52px) !important;
@@ -262,3 +263,8 @@ html.cl-disabled #cl-controls { display: none !important; }
   background: rgba(193, 127, 59, 0.65) !important;
   border-bottom-color: #c17f3b !important;
 }
+
+/* 英語の字幕が見つからない時の案内（1回だけ・バッジの上） */
+#cl-nocap-hint { display: none; }
+#cl-nocap-hint .cl-hint-body { margin: 0 0 10px !important; }
+html.cl-disabled #cl-nocap-hint { display: none !important; }

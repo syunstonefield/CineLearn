@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "CineLearn – 海外ドラマ・映画で英語学習｜字幕の英単語を場面つき単語帳に",
-  "version": "1.2.12",
+  "version": "1.2.13",
   "description": "Netflix・Disney+・Prime Videoの英語字幕の単語をクリックで保存。観た場面のセリフが例文になり、★を付けた語は単語帳へ。観る前の予習・忘れる前の復習まで、海外ドラマや映画を観る時間がそのまま英語学習になります。",
 
   "icons": {

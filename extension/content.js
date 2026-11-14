@@ -988,8 +988,11 @@ function closePopupAndResume() {
 // トースト通知
 // ─────────────────────────────────────────────────────────────────
 let toastTimer;
-function showToast(msg) {
+function showToast(msg, ms = 2500, atTop = false) {
   if (!toast) return;
+  // 長く出す知らせは字幕（画面の下）に重ねないよう、画面の上に出す
+  toast.style.bottom = atTop ? 'auto' : '130px';
+  toast.style.top = atTop ? '9%' : 'auto';
   toast.textContent = msg;
   toast.style.display = 'block';
   toast.style.opacity = '1';
@@ -997,7 +1000,7 @@ function showToast(msg) {
   toastTimer = setTimeout(() => {
     toast.style.opacity = '0';
     setTimeout(() => { toast.style.display = 'none'; }, 300);
-  }, 2500);
+  }, ms);
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -1928,7 +1931,15 @@ async function showWordPopup(word, sentence, rect) {
     }
     closePopupAndResume();
     const epInfo = entry.season != null ? ` S${entry.season}E${entry.episode}` : '';
-    showToast(star ? `「${word}」を単語帳に入れました${epInfo} ★` : `「${word}」を保存しました${epInfo} ✓`);
+    const okMsg = star ? `「${word}」を単語帳に入れました${epInfo} ★` : `「${word}」を保存しました${epInfo} ✓`;
+    // ログインしていない時は、語はこの端末の送信待ちに入るだけでアプリに届かない（ログインすると届く）。
+    //   同じ「保存しました」だと、アプリを開いても語が無く「保存できていない」と感じる（案内の洗い出し #1・2026-11-14）。
+    try {
+      chrome.storage.local.get(['cl_sb_session'], (r) => {
+        if (chrome.runtime.lastError || r?.cl_sb_session?.access_token) { showToast(okMsg); return; }
+        showToast(`「${word}」をこの端末に保存しました。アプリにログインすると${star ? '単語帳' : '単語リスト'}に届きます`, 5000, true);
+      });
+    } catch { showToast(okMsg); }
   };
   document.getElementById('cl-save-btn').addEventListener('click', onSave(false));
   document.getElementById('cl-star-btn').addEventListener('click', onSave(true));
@@ -2535,6 +2546,7 @@ function relocateControlsForFullscreen() {
   if (clMiniToast && clMiniToast.parentElement !== host) host.appendChild(clMiniToast);
   if (clBadge && clBadge.parentElement !== host) host.appendChild(clBadge);
   if (clHint && clHint.parentElement !== host) host.appendChild(clHint);
+  if (clNocap && clNocap.parentElement !== host) host.appendChild(clNocap);
   if (clHoverTip && clHoverTip.parentElement !== host) host.appendChild(clHoverTip);
   if (popup && popup.parentElement !== host) host.appendChild(popup);          // 保存ポップアップ
   if (clOverlay && clOverlay.parentElement !== host) host.appendChild(clOverlay); // Amazon/Disney 字幕オーバーレイ
@@ -2620,8 +2632,8 @@ function createStatusBadge() {
   clHint.style.display = 'none';
   clHint.innerHTML =
     '<div class="cl-hint-title">CineLearn 起動中</div>' +
-    '<div class="cl-hint-body">字幕の単語をクリックして「✓ 保存」を押すと、その話の単語リストに残ります。' +
-    '「★ 覚えたい」を押すと単語帳にも入ります。' +
+    '<div class="cl-hint-body">英語の字幕をオンにして再生すると、字幕の単語をクリックできます。' +
+    '「✓ 保存」でその話の単語リストに、「★ 覚えたい」で単語帳にも入ります。' +
     'バッジをクリックすると ON / OFF を切り替えられます。</div>' +
     '<button type="button" class="cl-hint-ok">OK</button>';
 
@@ -2656,13 +2668,87 @@ function createStatusBadge() {
   chrome.storage.local.get([CL_ENABLED_KEY, CL_HINT_SEEN_KEY], (r) => {
     if (chrome.runtime.lastError) return;
     setEnabled(r[CL_ENABLED_KEY] !== false, false); // 未設定（undefined）は ON
-    if (!r[CL_HINT_SEEN_KEY]) showHint();
+    // 初回の案内は、動画の英語字幕が初めて見えた時に出す（動画のない一覧の画面では試せないため・案内の洗い出し #3）
+    clHintPending = !r[CL_HINT_SEEN_KEY];
   });
+  initFirstHints();
 }
 
 // ON/OFF を切り替える。OFF 時は下線・クリック・ホバー一時停止・◀📋▶ を休止する。
 //   下線とコントロールの非表示は html.cl-disabled クラスの CSS で行い、DOM は触らない
 //   （再 ON で即復帰できる）。クリック等の挙動は clEnabled フラグで各ハンドラがゲートする。
+// ── 初めての人向けの案内（2026-11-14・案内の洗い出し #2・#3）──
+//   どれも1回だけ・閉じたら出さない・再生は止めない・字幕に重ねない（バッジの上に出す）。
+//   「本編」＝10分以上の動画（一覧の画面で自動再生される予告は数分なので対象外）。
+const CL_EN_SEEN_KEY = 'cl_en_caption_seen';      // 英語の字幕を一度でも見た（見たら #2 は出さない）
+const CL_NOCAP_HINT_KEY = 'cl_nocap_hint_seen';   // #2 を出した
+const CL_MAIN_VIDEO_SEC = 600;
+let clHintPending = false;
+let clFirstFlags = null;    // { enSeen, nocapSeen }
+let clNocap = null;         // #2 の吹き出し
+let clNoEnPlayMs = 0;       // 英語の字幕が無いまま本編を再生した時間
+let clNonEnLines = new Set();
+let clFirstLastAt = 0;
+const looksEnglishCaption = (t) => { const c = String(t || '').replace(/\s+/g, ''); return c.length > 0 && (c.match(/[A-Za-z]/g) || []).length / c.length >= 0.5; };
+
+function initFirstHints() {
+  if (!chrome.runtime?.id) return;
+  chrome.storage.local.get([CL_EN_SEEN_KEY, CL_NOCAP_HINT_KEY], (r) => {
+    if (chrome.runtime.lastError) return;
+    clFirstFlags = { enSeen: !!r[CL_EN_SEEN_KEY], nocapSeen: !!r[CL_NOCAP_HINT_KEY] };
+    setInterval(tickFirstHints, 500);
+  });
+}
+
+function hideNocapHint() {
+  if (clNocap) clNocap.style.display = 'none';
+}
+
+function showNocapHint() {
+  // 出した時点で「出した」と残す（閉じずにタブを閉じても、次の回にまた出さない）
+  clFirstFlags.nocapSeen = true;
+  try { chrome.storage.local.set({ [CL_NOCAP_HINT_KEY]: true }); } catch { /* 接続切れ */ }
+  if (!clNocap) {
+    clNocap = document.createElement('div');
+    clNocap.id = 'cl-nocap-hint';
+    clNocap.innerHTML =
+      '<div class="cl-hint-body">英語の字幕をオンにすると、字幕の単語をクリックして保存できます。</div>' +
+      '<button type="button" class="cl-hint-ok">閉じる</button>';
+    ['pointerdown', 'mousedown', 'mouseup', 'pointerup', 'click', 'dblclick'].forEach((ev) =>
+      clNocap.addEventListener(ev, (e) => e.stopPropagation(), false));
+    clNocap.querySelector('.cl-hint-ok').addEventListener('click', hideNocapHint);
+    document.body.appendChild(clNocap);
+  }
+  clNocap.style.display = 'block';
+  relocateControlsForFullscreen();
+}
+
+function tickFirstHints() {
+  if (!clFirstFlags || !clEnabled) { clFirstLastAt = 0; return; }
+  const now = Date.now();
+  const dt = clFirstLastAt ? Math.min(now - clFirstLastAt, 2000) : 0;
+  clFirstLastAt = now;
+  const v = getActiveVideo();
+  const isMain = !!v && isFinite(v.duration) && v.duration >= CL_MAIN_VIDEO_SEC;
+  if (!isMain) return;
+  const cap = (getOnScreenCaption() || '').trim();
+  if (looksEnglishCaption(cap)) {
+    if (!clFirstFlags.enSeen) {
+      clFirstFlags.enSeen = true;
+      try { chrome.storage.local.set({ [CL_EN_SEEN_KEY]: true }); } catch { /* 接続切れ */ }
+    }
+    if (clNocap && clNocap.style.display !== 'none') hideNocapHint(); // 字幕をオンにした＝役目を終えた
+    if (clHintPending) { clHintPending = false; showHint(); }
+    return;
+  }
+  // #2: 英語の字幕をまだ一度も見ていない人だけ。英語でない字幕が3つ出たか、字幕なしで45秒再生したら
+  if (clFirstFlags.enSeen || clFirstFlags.nocapSeen || (clNocap && clNocap.style.display !== 'none')) return;
+  if (v.paused) return;
+  if (cap) clNonEnLines.add(cap);
+  else clNoEnPlayMs += dt;
+  if (clNonEnLines.size >= 3 || clNoEnPlayMs >= 45000) showNocapHint();
+}
+
 function setEnabled(on, persist = true) {
   clEnabled = !!on;
   if (persist && chrome.runtime?.id) chrome.storage.local.set({ [CL_ENABLED_KEY]: clEnabled });
