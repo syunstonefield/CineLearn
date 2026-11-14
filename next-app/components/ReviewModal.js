@@ -34,7 +34,7 @@ import { getActiveWords, starWord, unstarWord, likeWord, sameWorkTitle } from '@
 import { entryFromCard, sceneOf } from '@/lib/wordMarks';
 import { canLikeMore, LIKE_CAP_PER_EPISODE } from '@/lib/liked';
 import { trackUsage } from '@/lib/usage';
-import { exitEventName, toDecile, reviewTimeEvent } from '@/lib/usageEvents';
+import { exitEventName, toDecile, reviewTimeEvent, reviewMixEvents, reviewExitDetailEvents, reviewNavTargetOf } from '@/lib/usageEvents';
 
 const KEYS_SEEN_KEY = 'cl_review_keys_seen';
 
@@ -380,7 +380,7 @@ export default function ReviewModal({ asPage = false }) {
     setBuiltKey(initKey);
   }
 
-  latestRef.current = { queue, idx, ratings, promo, retryMode, again, currentHistoryId };
+  latestRef.current = { queue, idx, ratings, promo, retryMode, again, currentHistoryId, flipped };
 
   // 利用データ（復習の流れ・lib/usage.js・法務 2026-11-07）: 始めた／終えた／何割で・どう抜けたか／答えの内訳／
   //   1枚の時間の幅。固定の名前と回数だけ（語・作品・カード番号は送らない）。知らなかった語のもう一度は数えない。
@@ -391,15 +391,35 @@ export default function ReviewModal({ asPage = false }) {
     u.ended = true;
     const st = latestRef.current;
     trackUsage(exitEventName('review', toDecile(st.idx, st.queue.length), how));
+    // 抜けた理由の見分け（2026-11-14・lib/usageEvents.js REVIEW_EXIT_EVENTS）: めくる前／後・はじめての語／期限の語・
+    //   そのカードが出てからの時間の幅・別の画面への行き先（押してから2秒以内の時だけ）。語やカード番号は送らない。
+    const card = st.queue[st.idx];
+    if (card) {
+      const nav = navTargetRef.current;
+      const target = nav && Date.now() - nav.at < 2000 ? nav.tab : null;
+      reviewExitDetailEvents({
+        flipped: !!st.flipped,
+        isNew: !!u.newWords?.has(String(card.word || '').toLowerCase()),
+        sec: (Date.now() - u.shownAt) / 1000,
+        how,
+        target,
+      }).forEach((n) => trackUsage(n));
+    }
   };
+  const navTargetRef = useRef(null);
   const exitRef = useRef(recordReviewExit);
   exitRef.current = recordReviewExit;
   useEffect(() => {
     if (!cinema || !builtKey || retryMode || !queue.length) return;
     if (usageRef.current.key === builtKey) return; // 開発時の二重実行でも1回
-    usageRef.current = { key: builtKey, ended: false, shownAt: Date.now(), again: !!again };
+    // はじめての語＝回を始めた時に SRS に無い語（抜けた時のカードの見分けと、始めた時の内訳の幅に使う）
+    const srsNow = again ? {} : loadSrs();
+    const newWords = new Set(again ? [] : queue.map((w) => String(w.word || '').toLowerCase()).filter((k) => !srsNow[k]));
+    usageRef.current = { key: builtKey, ended: false, shownAt: Date.now(), again: !!again, newWords };
     // もう一度は今日の復習の流れ（review_*）と混ぜない＝別の名前で始めた回数だけ
     trackUsage(again ? (again === 'unknown' ? 'again_unknown_start' : 'again_shaky_start') : 'review_start');
+    if (!again) reviewMixEvents(newWords.size, queue.length - newWords.size).forEach((n) => trackUsage(n));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cinema, builtKey, retryMode, queue.length, again]);
   useEffect(() => {
     usageRef.current.shownAt = Date.now(); // 1枚の時間＝カードが出てから答えるまで
@@ -416,9 +436,16 @@ export default function ReviewModal({ asPage = false }) {
     aliveRef.current = true;
     const onHide = () => exitRef.current('close');
     window.addEventListener('pagehide', onHide);
+    // 別の画面へ抜けた時の行き先（ヘッダーのロゴ・＋ 作品・… の中ほか・lib/usageEvents.js reviewNavTargetOf）。押した物の固定名を覚えるだけ
+    const onNavClick = (e) => {
+      const tab = reviewNavTargetOf(e.target);
+      if (tab) navTargetRef.current = { tab, at: Date.now() };
+    };
+    document.addEventListener('click', onNavClick, true);
     return () => {
       aliveRef.current = false;
       window.removeEventListener('pagehide', onHide);
+      document.removeEventListener('click', onNavClick, true);
       // ボトムナビ等で画面ごと離れた。開発時の二重実行（外して→付け直す）では数えない（予習カードと同じ作法）
       setTimeout(() => !aliveRef.current && exitRef.current('nav'), 0);
     };

@@ -2,7 +2,7 @@
 //   入力 rows＝/api/stats の usageRows（1人＋端末×1日の行 { day, p, d, L, c, r }）。人の数は p（人の番号）で数える。
 //   週＝today（端末の日付・JST）から7日ずつさかのぼる。新しい週が先。
 
-import { parseExitEvent, FROM_SOURCES, FROM_EVENTS } from './usageEvents.js';
+import { parseExitEvent, FROM_SOURCES, FROM_EVENTS, REVIEW_MIX_BUCKETS } from './usageEvents.js';
 
 export const PLUS_FEATURES = [
   ['work_review', '作品・話の復習'],
@@ -97,6 +97,25 @@ export const REVIEW_TIMES = [
   ['review_t_10_20', '10〜20秒'],
   ['review_t_20p', '20秒〜'],
 ];
+
+// ⑩の下: 抜けた理由の見分け（2026-11-14〜）。人数が少ないうちは割合より回数（法務の確認中）。
+export const REVIEW_EXIT_PARTS = [
+  ['review_exit_front', 'めくる前'],
+  ['review_exit_back', 'めくった後'],
+  ['review_exit_new', 'はじめての語'],
+  ['review_exit_due', '期限の語'],
+  ['review_exit_t_0_5', '〜5秒'],
+  ['review_exit_t_5_15', '5〜15秒'],
+  ['review_exit_t_15_60', '15〜60秒'],
+  ['review_exit_t_60p', '60秒〜'],
+  ['review_nav_home', '→ホーム'],
+  ['review_nav_add', '→＋作品'],
+  ['review_nav_wordbook', '→単語帳'],
+  ['review_nav_settings', '→設定'],
+  ['review_nav_help', '→使い方'],
+  ['review_nav_account', '→ログイン等'],
+];
+const MIX_LABEL = { 0: '0', '1_5': '1-5', '6_10': '6-10', '11_20': '11-20', '21p': '21〜' };
 
 // 運営の端末・アカウントを外す（2026-11-07・オーナー依頼）。
 //   起点＝印（S）が付いた行の端末と、seed から渡す運営の利用者の番号（excludePersons）。そこから
@@ -254,6 +273,8 @@ export function buildUsageReport(rawRows, { today, weeks = 8, excludePersons = [
   const trial = [];
   const intro = [];
   const reviewFlow = [];
+  const reviewExit = [];
+  const reviewMix = [];
   const learn = [];
   for (const win of wins) {
     const rs = weekRows(rows, win);
@@ -337,6 +358,14 @@ export function buildUsageReport(rawRows, { today, weeks = 8, excludePersons = [
     const tms = REVIEW_TIMES.reduce((n, [k]) => n + timesOf(k), 0);
     for (const [k, name] of REVIEW_TIMES) rf[name] = pct(timesOf(k), tms);
     reviewFlow.push(rf);
+    // ⑩の下: 抜けた時の内訳（回数）と、回を始めた時の語の内訳（回数）
+    const re = { 週: label, 抜けた回: exitsN };
+    for (const [k, name] of REVIEW_EXIT_PARTS) re[name] = timesOf(k);
+    reviewExit.push(re);
+    const mx = { 週: label, 始めた回: started };
+    for (const [b] of REVIEW_MIX_BUCKETS) mx[`はじめて${MIX_LABEL[b]}`] = timesOf(`review_mix_new_${b}`);
+    for (const [b] of REVIEW_MIX_BUCKETS) mx[`期限${MIX_LABEL[b]}`] = timesOf(`review_mix_due_${b}`);
+    reviewMix.push(mx);
 
     // ⑫ 単語を学ぶの流れ（人数（始めた人に対する%）／回数・作品を選んだ人に対する始めた人の割合・初めての5枚は端末）
     const l0 = usersOf('learn_start').size;
@@ -377,7 +406,7 @@ export function buildUsageReport(rawRows, { today, weeks = 8, excludePersons = [
     }
   }
   const joined = rows.filter((r) => r.joined).length;
-  return { plus, funnel, exits, review, onboarding, entry, trial, intro, reviewFlow, learn, newUsers: buildNewUsers(rows, wins, today), from: buildFromTable(allRows, wins), joinedRows: joined, staffExcluded: staff.excluded };
+  return { plus, funnel, exits, review, onboarding, entry, trial, intro, reviewFlow, reviewExit, reviewMix, learn, newUsers: buildNewUsers(rows, wins, today), from: buildFromTable(allRows, wins), joinedRows: joined, staffExcluded: staff.excluded };
 }
 
 // ⑦ 新規の人（初めて開いた週ごと）。rows の中で最初に現れた日＝初めて開いた日。

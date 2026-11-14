@@ -19,6 +19,76 @@ export function reviewTimeEvent(sec) {
   return REVIEW_TIME_BUCKETS.find(([, max]) => s < max)[0];
 }
 
+// 復習を0〜1枚で抜ける理由を見分ける記録（2026-11-14 オーナー OK・受付経由・★法務の確認中）。固定の名前と回数だけ
+//   （語・作品・カード番号・生の秒数は入れない）。今日の復習・作品の復習（復習タブのページ表示）だけ・もう一度は数えない。
+//   抜けた時に1回ずつ: めくる前／めくった後・そのカードがはじめての語（回を始めた時に SRS に無い）／期限の語・
+//   そのカードが出てから抜けるまでの時間の幅・下のタブで抜けた時の行き先。回を始めた時に1回: はじめての語と期限の語の数の幅。
+export const REVIEW_EXIT_TIME_BUCKETS = [
+  ['review_exit_t_0_5', 5],
+  ['review_exit_t_5_15', 15],
+  ['review_exit_t_15_60', 60],
+  ['review_exit_t_60p', Infinity],
+];
+export const REVIEW_MIX_BUCKETS = [
+  ['0', 0],
+  ['1_5', 5],
+  ['6_10', 10],
+  ['11_20', 20],
+  ['21p', Infinity],
+];
+// 行き先: 復習のページ表示の間は下のタブが出ない（app/(app)/app/page.js showBottomNav・2026-11-07）ので、
+//   抜け道はヘッダー＝ロゴ（home）・「＋ 作品」（add）・単語帳（wordbook・PC の幅）・設定（settings）・使い方（help）・
+//   ログイン／ログアウト／プロフィール（account）。下のタブが出る画面に変わった時のため、タブの home/wordbook も同じ名前で受ける。
+export const REVIEW_NAV_TARGETS = ['home', 'add', 'wordbook', 'settings', 'help', 'account'];
+// 押した物（ヘッダー・下のタブ）から行き先の固定名へ。DOM の要素を受ける（node のテストでは似た形の物を渡す）。
+export function reviewNavTargetOf(el) {
+  if (!el?.closest) return null;
+  const tab = el.closest('.bottom-nav-tab')?.getAttribute('data-tour');
+  if (tab) return REVIEW_NAV_TARGETS.includes(tab) ? tab : null;
+  if (el.closest('.logo')) return 'home';
+  const b = el.closest('button');
+  if (!b || !b.closest('header, .header, .app-header, .header-right, .hdr-menu')) return null;
+  const tour = b.getAttribute('data-tour');
+  if (tour === 'add') return 'add';
+  if (tour === 'settings') return 'settings';
+  if (tour === 'help') return 'help';
+  if (tour === 'login' || b.classList?.contains('btn-profile-switch')) return 'account';
+  const label = `${b.getAttribute('title') || ''} ${b.textContent || ''}`;
+  if (/単語帳/.test(label)) return 'wordbook';
+  if (/設定/.test(label)) return 'settings';
+  if (/使い方/.test(label)) return 'help';
+  if (/ログイン|ログアウト/.test(label)) return 'account';
+  return null;
+}
+export const REVIEW_EXIT_EVENTS = [
+  'review_exit_front', // めくる前（答え合わせの前）に抜けた
+  'review_exit_back', // めくった後（答える前）に抜けた
+  'review_exit_new', // 抜けた時のカードが、はじめての語（回を始めた時に SRS に無い語）
+  'review_exit_due', // 抜けた時のカードが、期限の語（SRS にある語）
+  ...REVIEW_EXIT_TIME_BUCKETS.map(([n]) => n),
+  ...REVIEW_NAV_TARGETS.map((t) => `review_nav_${t}`), // 別の画面へ抜けた時の行き先（ヘッダーで押した物）
+  ...['new', 'due'].flatMap((k) => REVIEW_MIX_BUCKETS.map(([b]) => `review_mix_${k}_${b}`)), // 回を始めた時の内訳の幅
+];
+const bucketOf = (list, v) => list.find(([, max]) => v <= max)?.[0];
+export function reviewMixEvents(newCount, dueCount) {
+  const n = Math.max(0, Math.floor(Number(newCount) || 0));
+  const d = Math.max(0, Math.floor(Number(dueCount) || 0));
+  return [`review_mix_new_${bucketOf(REVIEW_MIX_BUCKETS, n)}`, `review_mix_due_${bucketOf(REVIEW_MIX_BUCKETS, d)}`];
+}
+export function reviewExitTimeEvent(sec) {
+  const s = Number(sec);
+  if (!Number.isFinite(s) || s < 0) return null;
+  return REVIEW_EXIT_TIME_BUCKETS.find(([, max]) => s < max)[0];
+}
+// 抜けた時の名前の組（how: x / nav / close。nav の時だけ行き先 target を足す・一覧に無い行き先は足さない）。
+export function reviewExitDetailEvents({ flipped, isNew, sec, how, target }) {
+  const out = [flipped ? 'review_exit_back' : 'review_exit_front', isNew ? 'review_exit_new' : 'review_exit_due'];
+  const t = reviewExitTimeEvent(sec);
+  if (t) out.push(t);
+  if (how === 'nav' && REVIEW_NAV_TARGETS.includes(target)) out.push(`review_nav_${target}`);
+  return out;
+}
+
 // 入口の印（?from=<値>・2026-11-13・宣伝の動画のプロフィールのリンクと「PC で開くリンク」・instagram はオーナーのストーリーでの告知）。決まった値だけ受け付ける。
 //   値ごとに固定名 from_<値> を「来た回数」として数える（だれが・どの動画から・時刻は入れない）。
 //   ext_install は lib/extEntry.js の別の印（ext_install_open）なのでここには入れない。
@@ -118,6 +188,7 @@ export const USAGE_EVENTS = [
   'review_ans_hard', // 「うろ覚え」を選んだ
   'review_ans_easy', // 「知ってた！」を選んだ
   ...REVIEW_TIME_BUCKETS.map(([name]) => name), // 1枚あたりの時間（カードが出てから答えるまで）の幅
+  ...REVIEW_EXIT_EVENTS, // 抜けた理由の見分け（上の REVIEW_EXIT_EVENTS・2026-11-14・法務の確認中）
   // 「知らなかった／うろ覚えの語をもう一度」（復習タブのカード・2026-11-12）。固定の名前と回数だけ（語・語数は入れない）。
   //   ★法務の確認待ち（受付経由）。上の review_* には数えない（今日の復習の流れと混ぜない）。
   'again_unknown_start', // 「知らなかった語をもう一度」を始めた

@@ -52,3 +52,43 @@ test('週次の⑩: 完了の割合・抜けた回数・答えと時間の割合
   assert.equal(ex['2-4割'], 1);
   assert.equal(ex['✕'], 1);
 });
+
+// 2026-11-14 抜けた理由の見分け（めくる前/後・はじめての語/期限の語・時間の幅・下のタブの行き先・始めた時の内訳の幅）
+test('抜けた理由の名前は固定の一覧だけ・行き先は決まった6つだけ', async () => {
+  const { reviewExitDetailEvents, reviewMixEvents, reviewExitTimeEvent, REVIEW_EXIT_EVENTS } = await import('../lib/usageEvents.js');
+  for (const k of REVIEW_EXIT_EVENTS) assert.ok(isUsageEvent(k), k);
+  assert.deepEqual(reviewExitDetailEvents({ flipped: false, isNew: true, sec: 3, how: 'nav', target: 'home' }), ['review_exit_front', 'review_exit_new', 'review_exit_t_0_5', 'review_nav_home']);
+  assert.deepEqual(reviewExitDetailEvents({ flipped: true, isNew: false, sec: 70, how: 'x', target: 'home' }), ['review_exit_back', 'review_exit_due', 'review_exit_t_60p']);
+  assert.deepEqual(reviewExitDetailEvents({ flipped: false, isNew: false, sec: 20, how: 'nav', target: 'profile' }), ['review_exit_front', 'review_exit_due', 'review_exit_t_15_60']);
+  assert.equal(reviewExitTimeEvent(5), 'review_exit_t_5_15');
+  assert.equal(reviewExitTimeEvent(14.9), 'review_exit_t_5_15');
+  assert.equal(reviewExitTimeEvent(-1), null);
+  assert.deepEqual(reviewMixEvents(0, 20), ['review_mix_new_0', 'review_mix_due_11_20']);
+  assert.deepEqual(reviewMixEvents(5, 6), ['review_mix_new_1_5', 'review_mix_due_6_10']);
+  assert.deepEqual(reviewMixEvents(21, 1), ['review_mix_new_21p', 'review_mix_due_1_5']);
+  assert.ok(!isUsageEvent('review_nav_journey'));
+  assert.ok(isUsageEvent('review_nav_settings'));
+  assert.ok(!isUsageEvent('review_mix_new_3'));
+});
+
+test('週次の⑩の下: 抜けた時の内訳と始めた時の内訳は回数で出る', () => {
+  const row = (p, c) => ({ day: '2026-11-14', p, d: p, L: 1, c, r: null });
+  const rows = [
+    row('a', { review_start: 2, exit_review_0_nav: 1, exit_review_1_x: 1, review_exit_front: 2, review_exit_new: 2, review_exit_t_0_5: 1, review_exit_t_5_15: 1, review_nav_home: 1, review_mix_new_11_20: 2, review_mix_due_0: 2 }),
+    row('b', { review_start: 1, review_mix_new_0: 1, review_mix_due_1_5: 1 }),
+  ];
+  const rep = buildUsageReport(rows, { today: '2026-11-14', weeks: 1 });
+  const [e] = rep.reviewExit;
+  assert.equal(e.抜けた回, 2);
+  assert.equal(e.めくる前, 2);
+  assert.equal(e.めくった後, 0);
+  assert.equal(e.はじめての語, 2);
+  assert.equal(e['→ホーム'], 1);
+  assert.equal(e['〜5秒'], 1);
+  const [m] = rep.reviewMix;
+  assert.equal(m.始めた回, 3);
+  assert.equal(m['はじめて11-20'], 2);
+  assert.equal(m['はじめて0'], 1);
+  assert.equal(m['期限0'], 2);
+  assert.equal(m['期限1-5'], 1);
+});
