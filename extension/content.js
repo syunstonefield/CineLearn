@@ -2508,6 +2508,10 @@ function positionControls() {
     return;
   }
   clControls.style.display = 'flex';
+  // content.css の #cl-controls は bottom: 26% !important。ここで top も決めると、上下の両方が決まって
+  //   列の高さが top しだいで伸び縮みし、次の回はその高さで top を出し直す＝0.5秒ごとに十数px 上下する
+  //   （動画が画面より少し大きい時・2026-11-14 オーナーが本物の配信で発見）。下の決めを外して高さを中身に固定する。
+  clControls.style.setProperty('bottom', 'auto', 'important');
 
   const h = clControls.offsetHeight || 40;
   // 動画下端から26%上に配置。16%だと Netflix の下部コントロールバー帯（タイムライン等・
@@ -2518,9 +2522,8 @@ function positionControls() {
   const margin = Math.max(16, r.width * 0.025);
   let right = Math.max(8, window.innerWidth - r.right + margin);
 
-  clControls.style.top    = `${top}px`;
+  clControls.style.top    = `${Math.round(top)}px`;
   clControls.style.right  = `${right}px`;
-  clControls.style.bottom = 'auto';
   clControls.style.left   = 'auto';
 }
 

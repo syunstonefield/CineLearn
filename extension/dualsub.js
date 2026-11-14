@@ -254,14 +254,18 @@ function clDualHintDone() {
 }
 
 // 80ms ごとに出す条件と位置を見る（出ている間だけ動く）
+//   出すきっかけは英語の字幕が見えた時。一度出したら、閉じる／「日」を押すまで出したまま
+//   （字幕の切れ目・行の差し替えで消すと、付いたり消えたりを繰り返す・2026-11-14 オーナー指摘）。
+//   隠すのは、ボタン列そのものが無い時（OFF・動画を離れた）と初回の案内が出ている間だけ。
+let clDualHintOn = false;
 function clDualHintTick() {
   if (clDualHintSeen || !clDualBtn) return;
-  const ready = clEnabled && clControls && clControls.style.display !== 'none' && !(clHint && clHint.style.display !== 'none') &&
-    clDualLooksEnglish(getOnScreenCaption());
+  const canShow = clEnabled && clControls && clControls.style.display !== 'none' && !(clHint && clHint.style.display !== 'none');
+  if (canShow && !clDualHintOn && clDualLooksEnglish(getOnScreenCaption())) clDualHintOn = true;
   clDualHintEnsure();
   const host = document.fullscreenElement || document.webkitFullscreenElement || document.body;
   if (clDualHint.parentElement !== host) host.appendChild(clDualHint);
-  if (!ready) { clDualHint.style.display = 'none'; return; }
+  if (!canShow || !clDualHintOn) { clDualHint.style.display = 'none'; return; }
   clDualHint.style.display = 'block';
   const b = clDualBtn.getBoundingClientRect();
   const w = clDualHint.offsetWidth, h = clDualHint.offsetHeight;
