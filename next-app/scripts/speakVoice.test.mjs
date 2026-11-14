@@ -14,12 +14,19 @@ const macOwner = [
   V('Flo (英語（イギリス）)', 'en-GB'), V('Fred', 'en-US'), V('Samantha', 'en-US'), V('Google US English', 'en-US', { localService: false }),
 ];
 
-test('Mac Chrome・英語の既定なし・先頭が Albert → Samantha を明示指定', () => {
-  assert.equal(pickVoiceFrom(macOwner).name, 'Samantha');
+// ⑦ 2026-11-14: Google US English があれば、それが Samantha より先（きれいな声を最優先）
+const macNoGoogle = macOwner.filter((v) => v.name !== 'Google US English');
+
+test('Mac Chrome・Google US English あり → Google US English', () => {
+  assert.equal(pickVoiceFrom(macOwner).name, 'Google US English');
 });
 
-test('Samantha が無ければ Daniel（en-GB）', () => {
-  assert.equal(pickVoiceFrom(macOwner.filter((v) => v.name !== 'Samantha')).name, 'Daniel');
+test('Mac Chrome・英語の既定なし・先頭が Albert・Google なし → Samantha を明示指定', () => {
+  assert.equal(pickVoiceFrom(macNoGoogle).name, 'Samantha');
+});
+
+test('Samantha も無ければ Daniel（en-GB）', () => {
+  assert.equal(pickVoiceFrom(macNoGoogle.filter((v) => v.name !== 'Samantha')).name, 'Daniel');
 });
 
 test('優先リストが無くても、おもしろ音声・Eloquence 系は選ばない（端末内の声を先に）', () => {
@@ -33,9 +40,38 @@ test('既定の英語音声があれば今までどおりそれだけ', () => {
   assert.equal(pickVoiceFrom(list).name, 'Aaron');
 });
 
-test('ブラウザ任せの声がふつうの声なら未指定のまま（日本語 Windows の Chrome 等は挙動を変えない）', () => {
-  const win = [V('Microsoft Haruka - Japanese (Japan)', 'ja-JP', { default: true }), V('Microsoft David - English (United States)', 'en-US'), V('Google US English', 'en-US', { localService: false })];
-  assert.equal(pickVoiceFrom(win), null);
+const win = [V('Microsoft Haruka - Japanese (Japan)', 'ja-JP', { default: true }), V('Microsoft David - English (United States)', 'en-US'), V('Google US English', 'en-US', { localService: false })];
+
+test('Windows の Chrome: Google US English を David より先に', () => {
+  assert.equal(pickVoiceFrom(win).name, 'Google US English');
+});
+
+test('きれいな声が無く、ブラウザ任せの声がふつうの声なら未指定のまま', () => {
+  assert.equal(pickVoiceFrom(win.filter((v) => v.name !== 'Google US English')), null);
+});
+
+test('Edge: Online (Natural) の Ava を最優先（既定の声や Google より先）', () => {
+  const edge = [
+    V('Microsoft David - English (United States)', 'en-US', { default: true }),
+    V('Microsoft Guy Online (Natural) - English (United States)', 'en-US', { localService: false }),
+    V('Microsoft AvaMultilingual Online (Natural) - English (United States)', 'en-US', { localService: false }),
+    V('Microsoft Ava Online (Natural) - English (United States)', 'en-US', { localService: false }),
+    V('Microsoft Libby Online (Natural) - English (United Kingdom)', 'en-GB', { localService: false }),
+    V('Google US English', 'en-US', { localService: false }),
+  ];
+  assert.equal(pickVoiceFrom(edge).name, 'Microsoft Ava Online (Natural) - English (United States)');
+});
+
+test('ダウンロードした Premium の声は Google US English より先', () => {
+  const list = [...macOwner, V('Zoe (Premium)', 'en-US')];
+  assert.equal(pickVoiceFrom(list).name, 'Zoe (Premium)');
+  const uri = [...macOwner, V('Ava', 'en-US', { voiceURI: 'com.apple.voice.enhanced.en-US.Ava' })];
+  assert.equal(pickVoiceFrom(uri).name, 'Ava');
+});
+
+test('Android の Chrome（きれいな声の候補なし・既定の英語あり）は今までどおり既定', () => {
+  const android = [V('English United States', 'en-US', { default: true }), V('English United Kingdom', 'en-GB')];
+  assert.equal(pickVoiceFrom(android).name, 'English United States');
 });
 
 test('Chrome 系以外（Safari・iPhone）は英語の既定が無くても未指定のまま', () => {

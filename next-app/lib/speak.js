@@ -45,6 +45,29 @@ const PREFERRED = [
   'Google US English', 'Google UK English Female', 'Google UK English Male',
 ];
 
+// ⑦ ★2026-11-14 オーナー決定「使える中でいちばんきれいな声を自動で選ぶ」（Chrome 系だけ・Safari は端末の設定の声のまま）:
+//   1. Edge の Microsoft「Online (Natural)」の声（AI の声・en-US）
+//   2. Mac 等で利用者がダウンロードした「Premium／Enhanced」の声（端末の中・すぐ鳴る）
+//   3. Chrome の「Google US English」
+//   どれも無ければ今までどおり（⑤⑥）。明示指定なので、鳴らない時は voice 未指定で1回言い直す（保険2）。
+//   費用: どれもブラウザ・OS の機能で当社の費用は0。Natural と Google の声はブラウザが文を提供元へ送って音にする。
+const NATURAL_ORDER = ['Ava', 'Andrew', 'Emma', 'Brian', 'Jenny', 'Aria', 'Guy', 'Ana', 'Christopher', 'Eric', 'Michelle', 'Roger', 'Steffan'];
+const isUS = (v) => /^en[-_]us$/i.test(v.lang || '');
+function bestVoice(en) {
+  const natural = en.filter((v) => isUS(v) && /Online \(Natural\)/i.test(v.name || ''));
+  if (natural.length) {
+    const rank = (v) => {
+      const n = String(v.name || '');
+      const i = NATURAL_ORDER.findIndex((x) => new RegExp(`Microsoft ${x}(?:Multilingual)? Online`).test(n));
+      return (i < 0 ? 99 : i) + (/Multilingual/.test(n) ? 0.5 : 0);
+    };
+    return [...natural].sort((a, b) => rank(a) - rank(b))[0];
+  }
+  const premium = en.filter((v) => /\b(Premium|Enhanced)\b|\.(premium|enhanced)\./i.test(`${v.name || ''} ${v.voiceURI || ''}`) && !isOdd(v));
+  if (premium.length) return premium.find(isUS) || premium[0];
+  return en.find((v) => isUS(v) && baseName(v) === 'Google US English') || null;
+}
+
 const baseName = (v) => String(v?.name || '').replace(/\s*\(.*$/, '').trim();
 const inList = (v, list) => list.includes(baseName(v));
 const isOdd = (v) => inList(v, NOVELTY) || inList(v, ELOQUENCE);
@@ -56,6 +79,11 @@ export function pickVoiceFrom(list, { chromium = true } = {}) {
   if (!list || !list.length) return null; // ④空でも既定音声で鳴る＝待たない
   const en = list.filter((v) => /^en([-_]|$)/i.test(v.lang || ''));
   if (!en.length) return null;
+  // ⑦きれいな声があれば最優先（Chrome 系だけ）
+  if (chromium) {
+    const best = bestVoice(en);
+    if (best) return best;
+  }
   // ⑤既定の英語音声があればそれだけを明示指定（今までどおり）
   const def = en.find((v) => v.default);
   if (def) return def;
