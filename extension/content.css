@@ -325,3 +325,26 @@ html.cl-disabled #cl-dualsub { display: none !important; }
 .cl-dualsub-btn[data-mode="blur"] { outline: 2px dashed rgba(207, 230, 255, 0.9) !important; outline-offset: -3px !important; }
 .cl-dualsub-btn[data-mode="always"] { outline: 2px solid rgba(207, 230, 255, 0.95) !important; outline-offset: -3px !important; }
 .cl-dualsub-btn[data-state="unavailable"], .cl-dualsub-btn[data-state="failed"] { opacity: 0.3 !important; }
+
+/* 同時字幕の初めての案内（「日」ボタンの上の小さな吹き出し・1回だけ） */
+#cl-dualhint {
+  position: fixed !important;
+  width: 250px !important;
+  padding: 12px 14px !important;
+  background: #fff !important;
+  color: #1a1a1a !important;
+  border-radius: 12px !important;
+  font-family: system-ui, sans-serif !important;
+  z-index: 2147483647 !important;
+  pointer-events: auto !important;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
+#cl-dualhint .cl-hint-body { margin: 0 0 6px !important; }
+.cl-dualhint-note {
+  font-size: 12px !important;
+  line-height: 1.45 !important;
+  color: #5f5950 !important;
+  margin: 0 0 10px !important;
+}
+html.cl-disabled #cl-dualhint { display: none !important; }

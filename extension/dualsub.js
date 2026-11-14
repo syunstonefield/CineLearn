@@ -222,6 +222,52 @@ function clDualSetMode(mode, fromClick) {
   }
 }
 
+// ── 初めての案内（1回だけ・閉じたら二度と出さない・再生は止めない・字幕に重ねない）──
+//   「日」ボタンの上に小さな吹き出し。先に出る「CineLearn 起動中」の案内が閉じられてから出す（重ねない）。
+const CL_DUAL_HINT_KEY = 'cl_dualsub_hint_seen';
+let clDualHint = null;
+let clDualHintSeen = true; // 読み込むまでは出さない
+
+function clDualHintEnsure() {
+  if (clDualHint) return;
+  clDualHint = document.createElement('div');
+  clDualHint.id = 'cl-dualhint';
+  clDualHint.style.display = 'none';
+  clDualHint.innerHTML =
+    '<div class="cl-hint-title">日本語の同時表示</div>' +
+    '<div class="cl-hint-body">「日」を押すと、英語字幕の下に日本語の機械訳を出せます。押すたびに ぼかし → いつも → オフ と切り替わります。' +
+    '初回だけ、準備に少し時間がかかります。</div>' +
+    '<div class="cl-dualhint-note">日本語は Chrome の翻訳機能による機械訳です。誤りを含むことがあります。</div>' +
+    '<button type="button" class="cl-hint-ok">閉じる</button>';
+  ['pointerdown', 'mousedown', 'mouseup', 'pointerup', 'click', 'dblclick'].forEach((ev) =>
+    clDualHint.addEventListener(ev, (e) => e.stopPropagation(), false));
+  clDualHint.querySelector('.cl-hint-ok').addEventListener('click', clDualHintDone);
+  document.body.appendChild(clDualHint);
+}
+
+function clDualHintDone() {
+  clDualHintSeen = true;
+  if (clDualHint) clDualHint.style.display = 'none';
+  try { chrome.storage.local.set({ [CL_DUAL_HINT_KEY]: true }); } catch { /* 接続切れ */ }
+}
+
+// 80ms ごとに出す条件と位置を見る（出ている間だけ動く）
+function clDualHintTick() {
+  if (clDualHintSeen || !clDualBtn) return;
+  const ready = clEnabled && clControls && clControls.style.display !== 'none' && !(clHint && clHint.style.display !== 'none');
+  clDualHintEnsure();
+  const host = document.fullscreenElement || document.webkitFullscreenElement || document.body;
+  if (clDualHint.parentElement !== host) host.appendChild(clDualHint);
+  if (!ready) { clDualHint.style.display = 'none'; return; }
+  clDualHint.style.display = 'block';
+  const b = clDualBtn.getBoundingClientRect();
+  const w = clDualHint.offsetWidth, h = clDualHint.offsetHeight;
+  const left = Math.max(8, Math.min(b.right - w, window.innerWidth - w - 8));
+  const top = Math.max(8, b.top - h - 12); // ボタン列の上＝字幕より上の高さ
+  clDualHint.style.left = `${Math.round(left)}px`;
+  clDualHint.style.top = `${Math.round(top)}px`;
+}
+
 function clDualInit() {
   if (!clControls) { setTimeout(clDualInit, 500); return; }
   if (!clDualHasApi()) return; // 古い Chrome・Edge など＝ボタンを出さない
@@ -239,12 +285,14 @@ function clDualInit() {
       try { showMiniToast(`ぼかしの見え方: ${CL_DUAL_BLUR_LABEL[clDualBlurStyle]}`); } catch { /* 古い版 */ }
       return;
     }
+    if (!clDualHintSeen) clDualHintDone();
     clDualSetMode(CL_DUAL_MODES[(CL_DUAL_MODES.indexOf(clDualMode) + 1) % CL_DUAL_MODES.length], true);
   }, true);
   clControls.appendChild(clDualBtn);
   clDualSetState('idle');
   try {
-    chrome.storage.local.get([CL_DUAL_MODE_KEY, CL_DUAL_BLUR_KEY], (r) => {
+    chrome.storage.local.get([CL_DUAL_MODE_KEY, CL_DUAL_BLUR_KEY, CL_DUAL_HINT_KEY], (r) => {
+      clDualHintSeen = !!r[CL_DUAL_HINT_KEY];
       clDualSetBlurStyle(r[CL_DUAL_BLUR_KEY] || 'soft', false);
       clDualSetMode(r[CL_DUAL_MODE_KEY] || 'off', false);
     });
@@ -252,7 +300,7 @@ function clDualInit() {
       if (area === 'local' && ch[CL_DUAL_BLUR_KEY]) clDualSetBlurStyle(ch[CL_DUAL_BLUR_KEY].newValue, false);
     });
   } catch { /* 接続切れ */ }
-  setInterval(() => { clDualTick().catch(() => {}); }, 80);
+  setInterval(() => { clDualTick().catch(() => {}); clDualHintTick(); }, 80);
   window.addEventListener('resize', clDualPosition);
 }
 
