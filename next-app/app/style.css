@@ -8416,7 +8416,7 @@ html .vab-btn.is-primary .vab-sub { color: color-mix(in srgb, var(--btn-main-ink
    上の帯だけ濃い茶（ポスターは縦のまま・切り抜かない・何も重ねない・幅92＝上限スマホ110 の内）／記録は1行＋細い線（あれば）／
    「単語を学ぶ」の箱が帯の下の余白に少し重なる（ポスターには重ならない）／下は行の形。 */
 .ch-b { gap: 0; }
-.ch-b .ch-hero { display: flex; gap: 14px; align-items: flex-end; background: linear-gradient(180deg, #33241a, #4a3526); color: #f6efe2; border-radius: 18px; padding: 16px 16px 30px; }
+.ch-b .ch-hero { display: flex; gap: 14px; align-items: flex-end; background: linear-gradient(180deg, #33241a, #4a3526); color: #f6efe2; border-radius: 18px; padding: 14px 16px 28px; }
 .ch-b .ch-hero .ch-poster { width: 92px; height: 138px; box-shadow: 0 10px 22px rgba(0, 0, 0, 0.45); background: rgba(255, 255, 255, 0.08); }
 .ch-b .ch-hero .ch-poster-empty { color: #e7d6b8; }
 .ch-hero-text { flex: 1; min-width: 0; }
@@ -8433,14 +8433,14 @@ html .vab-btn.is-primary .vab-sub { color: color-mix(in srgb, var(--btn-main-ink
 .ch-b .ch-bar-m { background: #f1d48d; }
 .ch-b .ch-bar-a { background: #b98a3e; }
 .ch-b .ch-bar-b { background: #7d6a4f; }
-.ch-b .ch-learn { position: relative; margin: -16px 12px 0; border: 1px solid var(--border); box-shadow: 0 10px 24px rgba(50, 30, 10, 0.12); padding: 16px 14px 14px; }
+.ch-b .ch-learn { position: relative; margin: -16px 12px 0; border: 1px solid var(--border); box-shadow: 0 10px 24px rgba(50, 30, 10, 0.12); padding: 14px 14px 12px; }
 .ch-b .ch-btn1 { background: var(--btn-main-bg); }
-.ch-rows-b { margin: 12px 4px 0; }
-.ch-rowb { display: flex; justify-content: space-between; align-items: center; width: 100%; min-height: 48px; padding: 0 2px; border: 0; border-bottom: 1px solid var(--border); background: none; font: inherit; font-size: 14px; color: var(--text); cursor: pointer; text-align: left; }
+.ch-rows-b { margin: 8px 4px 0; }
+.ch-rowb { display: flex; justify-content: space-between; align-items: center; width: 100%; min-height: 44px; padding: 0 2px; border: 0; border-bottom: 1px solid var(--border); background: none; font: inherit; font-size: 14px; color: var(--text); cursor: pointer; text-align: left; }
 .ch-rowb:active { background: var(--surface2); }
 .ch-rowb-r { display: inline-flex; align-items: center; gap: 8px; }
 .ch-rowb-r small { font-size: 12px; color: var(--text-muted); }
 .ch-rowb-r i { font-style: normal; font-size: 16px; color: var(--text-muted); }
-.ch-b .ch-small { margin-top: 12px; }
+.ch-b .ch-small { margin-top: 10px; }
 html[data-theme="dark"] .ch-b .ch-hero { background: linear-gradient(180deg, #241a12, #36281c); }
 
