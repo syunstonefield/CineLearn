@@ -264,24 +264,25 @@ html.cl-disabled #cl-controls { display: none !important; }
 }
 
 /* ── 同時字幕（試し作り 2026-11-14）: 英語字幕の下の機械訳の1行 ──
-   配信の字幕と見分けがつく見た目にする（法務）: 丸ゴシック系の書体・淡い水色の文字・濃い紺の地・「機械訳」の札。
+   配信の字幕と見分けがつく見た目にする（法務）: 丸ゴシック系の書体・淡い水色の文字・「機械訳」の札。
+   字幕の上に浮いた四角に見えないよう、地の箱は付けない（2026-11-14 オーナー指摘）。読みやすさは文字の縁取りで出す。
    行は選択できない（コピーの機能は付けない）。 */
 #cl-dualsub {
   position: fixed !important;
   z-index: 2147483641 !important;
   transform: translateX(-50%) !important;
   display: none;
-  align-items: center !important;
-  gap: 0.6em !important;
-  padding: 0.22em 0.7em !important;
-  border-radius: 0.5em !important;
-  background: rgba(18, 26, 44, 0.78) !important;
+  align-items: baseline !important;
+  justify-content: center !important;
+  gap: 0.5em !important;
+  padding: 0 0.3em !important;
+  background: transparent !important;
   color: #cfe6ff !important;
   font-family: "Hiragino Maru Gothic ProN", "Yu Gothic UI", "Meiryo", system-ui, sans-serif !important;
   font-weight: 500 !important;
   line-height: 1.35 !important;
   letter-spacing: 0.02em !important;
-  text-shadow: none !important;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.95), 0 1px 3px rgba(0, 0, 0, 0.8) !important;
   white-space: normal !important;
   text-align: center !important;
   user-select: none !important;
@@ -289,26 +290,33 @@ html.cl-disabled #cl-controls { display: none !important; }
   pointer-events: auto !important;
   cursor: default !important;
 }
-#cl-dualsub .cl-dualsub-text {
-  filter: blur(0.34em) !important;
-  transition: filter 0.12s ease !important;
-}
-/* ぼかし: マウスを乗せた時と一時停止の時だけ読める／いつも: 常に読める */
-#cl-dualsub:hover .cl-dualsub-text,
-#cl-dualsub.cl-dualsub-reveal .cl-dualsub-text,
-#cl-dualsub.cl-dualsub-note .cl-dualsub-text {
-  filter: none !important;
-}
+#cl-dualsub .cl-dualsub-text { transition: filter 0.15s ease, opacity 0.15s ease, color 0.15s ease !important; }
 #cl-dualsub .cl-dualsub-tag {
   flex: none !important;
-  font-size: 0.55em !important;
-  padding: 0.1em 0.5em !important;
-  border: 1px solid rgba(207, 230, 255, 0.5) !important;
+  font-size: 0.5em !important;
+  padding: 0.05em 0.45em !important;
+  border: 1px solid rgba(207, 230, 255, 0.45) !important;
   border-radius: 0.4em !important;
-  color: rgba(207, 230, 255, 0.85) !important;
+  color: rgba(207, 230, 255, 0.8) !important;
   letter-spacing: 0.05em !important;
+  text-shadow: none !important;
+  transition: opacity 0.15s ease !important;
 }
 #cl-dualsub.cl-dualsub-note .cl-dualsub-tag { display: none !important; }
+
+/* ぼかし（隠れている時）の見え方。マウスを乗せた時・一時停止の時（reveal）はふつうに読める。
+   A 薄く: 弱いぼかし＋薄い文字／B 輪郭だけ: 中を抜いて細い輪郭だけ */
+#cl-dualsub[data-mode="blur"]:not(.cl-dualsub-reveal):not(:hover):not(.cl-dualsub-note)[data-blurstyle="soft"] .cl-dualsub-text {
+  filter: blur(0.09em) !important;
+  opacity: 0.32 !important;
+}
+#cl-dualsub[data-mode="blur"]:not(.cl-dualsub-reveal):not(:hover):not(.cl-dualsub-note)[data-blurstyle="ghost"] .cl-dualsub-text {
+  color: transparent !important;
+  -webkit-text-stroke: 0.6px rgba(207, 230, 255, 0.4) !important;
+  text-shadow: none !important;
+  filter: blur(0.03em) !important;
+}
+#cl-dualsub[data-mode="blur"]:not(.cl-dualsub-reveal):not(:hover):not(.cl-dualsub-note) .cl-dualsub-tag { opacity: 0.45 !important; }
 html.cl-disabled #cl-dualsub { display: none !important; }
 
 /* 切り替えボタン（オフ＝淡い／ぼかし＝点線の輪／いつも＝水色の輪） */

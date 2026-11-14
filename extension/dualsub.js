@@ -24,6 +24,16 @@ let clDualCache = new Map(); // 英語の行 → 訳（話の間だけ・メモ�
 let clDualShown = '';       // いま訳を出している英語の行
 let clDualUrl = location.href;
 let clDualSeq = 0;
+// 置く側（2026-11-14 オーナー指摘「字幕の長さで日本語が英語の上下を行き来する」）:
+//   原則は英語の下。下に入らない行が一度でも出たら、その話（と全画面の出入り）の間は上に固定する。
+//   旧実装は行ごとに判定していたため、2行の字幕など下端に近づいた行だけ上へ移っていた。
+let clDualSide = 'below';
+let clDualSideKey = '';
+let clDualLastTop = null;    // 字幕が一瞬消えた時に、仮の位置へ飛ばないための控え
+const CL_DUAL_BLUR_KEY = 'cl_dualsub_blurstyle'; // ぼかしの見え方 'soft'（薄く）| 'ghost'（輪郭だけ）。好みだけを保存
+const CL_DUAL_BLUR_STYLES = ['soft', 'ghost'];
+const CL_DUAL_BLUR_LABEL = { soft: 'A 薄く', ghost: 'B 輪郭だけ' };
+let clDualBlurStyle = 'soft';
 const clDualStats = { n: 0, cached: 0, last: 0, max: 0, sum: 0, via: '' }; // 遅れの計測（試し作り用・ms）
 
 const clDualHasApi = () => typeof Translator !== 'undefined';
@@ -149,12 +159,16 @@ function clDualPosition() {
   clDualLine.style.fontSize = `${Math.max(14, Math.min(30, Math.round(base * 0.028)))}px`;
   const h = clDualLine.offsetHeight || 30;
   const cx = cap ? (cap.left + cap.right) / 2 : vr ? vr.left + vr.width / 2 : window.innerWidth / 2;
-  let top = cap ? cap.bottom + 6 : (vr ? vr.bottom - vr.height * 0.1 : window.innerHeight * 0.88);
   const limit = Math.min(window.innerHeight, vr ? vr.bottom : window.innerHeight) - h - 6;
-  // 下に入りきらない時（字幕が画面の下端にある）は、英語字幕に重ねず上に置く（英語字幕は隠さない）
-  const above = !!cap && top > limit;
-  clDualLine.dataset.place = above ? 'above' : 'below';
-  top = above ? cap.top - h - 6 : Math.max(6, Math.min(top, limit));
+  const key = `${location.href}|${document.fullscreenElement || document.webkitFullscreenElement ? 'fs' : 'win'}`;
+  if (key !== clDualSideKey) { clDualSideKey = key; clDualSide = 'below'; clDualLastTop = null; }
+  if (cap && clDualSide === 'below' && cap.bottom + 6 > limit) clDualSide = 'above'; // 一度上にしたら、この話の間は戻さない
+  clDualLine.dataset.place = clDualSide;
+  let top;
+  if (cap) top = clDualSide === 'above' ? cap.top - h - 6 : cap.bottom + 6;
+  else top = clDualLastTop ?? (vr ? vr.bottom - vr.height * 0.1 : window.innerHeight * 0.88);
+  top = Math.max(6, Math.min(top, limit));
+  clDualLastTop = top;
   clDualLine.style.top = `${Math.round(top)}px`;
   clDualLine.style.left = `${Math.round(cx)}px`;
   clDualLine.style.maxWidth = `${Math.round((vr ? vr.width : window.innerWidth) * 0.86)}px`;
@@ -170,7 +184,10 @@ async function clDualTick() {
   if (clDualMode === 'off' || !clEnabled) { if (clDualLine) clDualLine.style.display = 'none'; clDualShown = ''; return; }
   if (clDualState !== 'ready') { clDualPosition(); return; }
   const v = getActiveVideo();
-  if (clDualLine) clDualLine.classList.toggle('cl-dualsub-reveal', clDualMode === 'always' || !!(v && v.paused));
+  if (clDualLine) {
+    clDualLine.classList.toggle('cl-dualsub-reveal', clDualMode === 'always' || !!(v && v.paused));
+    clDualLine.dataset.mode = clDualMode;
+  }
   const text = (getOnScreenCaption() || '').replace(/\s+/g, ' ').trim();
   if (text === clDualShown) { clDualPosition(); return; }
   clDualShown = text;
@@ -183,6 +200,13 @@ async function clDualTick() {
   const ms = Math.round(performance.now() - t0);
   clDualStats.n++; clDualStats.last = ms; clDualStats.sum += ms; clDualStats.max = Math.max(clDualStats.max, ms);
   clDualRender(ja, false);
+}
+
+function clDualSetBlurStyle(style, persist = true) {
+  clDualBlurStyle = CL_DUAL_BLUR_STYLES.includes(style) ? style : 'soft';
+  clDualEnsureLine();
+  clDualLine.dataset.blurstyle = clDualBlurStyle;
+  if (persist) { try { chrome.storage.local.set({ [CL_DUAL_BLUR_KEY]: clDualBlurStyle }); } catch { /* 接続切れ */ } }
 }
 
 function clDualSetMode(mode, fromClick) {
@@ -210,12 +234,23 @@ function clDualInit() {
   clDualBtn.addEventListener('click', (e) => {
     e.stopImmediatePropagation();
     e.preventDefault();
+    if (e.shiftKey) { // Shift＋クリック＝ぼかしの見え方を A／B で切り替え（比べる用）
+      clDualSetBlurStyle(CL_DUAL_BLUR_STYLES[(CL_DUAL_BLUR_STYLES.indexOf(clDualBlurStyle) + 1) % CL_DUAL_BLUR_STYLES.length]);
+      try { showMiniToast(`ぼかしの見え方: ${CL_DUAL_BLUR_LABEL[clDualBlurStyle]}`); } catch { /* 古い版 */ }
+      return;
+    }
     clDualSetMode(CL_DUAL_MODES[(CL_DUAL_MODES.indexOf(clDualMode) + 1) % CL_DUAL_MODES.length], true);
   }, true);
   clControls.appendChild(clDualBtn);
   clDualSetState('idle');
   try {
-    chrome.storage.local.get([CL_DUAL_MODE_KEY], (r) => clDualSetMode(r[CL_DUAL_MODE_KEY] || 'off', false));
+    chrome.storage.local.get([CL_DUAL_MODE_KEY, CL_DUAL_BLUR_KEY], (r) => {
+      clDualSetBlurStyle(r[CL_DUAL_BLUR_KEY] || 'soft', false);
+      clDualSetMode(r[CL_DUAL_MODE_KEY] || 'off', false);
+    });
+    chrome.storage.onChanged.addListener((ch, area) => { // 設定画面で変えた時も反映
+      if (area === 'local' && ch[CL_DUAL_BLUR_KEY]) clDualSetBlurStyle(ch[CL_DUAL_BLUR_KEY].newValue, false);
+    });
   } catch { /* 接続切れ */ }
   setInterval(() => { clDualTick().catch(() => {}); }, 80);
   window.addEventListener('resize', clDualPosition);

@@ -54,3 +54,10 @@ document.getElementById('vidlog-copy').addEventListener('click', () => {
 document.getElementById('vidlog-clear').addEventListener('click', () => {
   chrome.storage.local.remove('cl_vid_log', () => { vidlogTa.value = ''; vidlogNote.textContent = '消去しました'; });
 });
+
+// 同時字幕（試し作り）: ぼかしの見え方（好みだけを保存）
+const dualBlurSel = document.getElementById('dualsub-blurstyle');
+if (dualBlurSel) {
+  chrome.storage.local.get(['cl_dualsub_blurstyle'], (r) => { dualBlurSel.value = r.cl_dualsub_blurstyle || 'soft'; });
+  dualBlurSel.addEventListener('change', () => chrome.storage.local.set({ cl_dualsub_blurstyle: dualBlurSel.value }));
+}
