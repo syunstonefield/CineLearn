@@ -1,8 +1,8 @@
 'use client';
 
 import { tomorrowSubLine } from '@/lib/tomorrowPreview';
-import { LEARNED_LABEL, MASTERED_LABEL, LEARNING_LABEL, MASTERED_OF_LEARNED_LABEL } from '@/lib/learnedTerms';
-import { IconOpenBook, IconTarget, IconFilm, IconClose, IconSparkle } from './icons/LineIcons';
+import { LEARNED_LABEL, LEARNING_LABEL, MASTERED_OF_LEARNED_LABEL } from '@/lib/learnedTerms';
+import { IconClose, IconSparkle } from './icons/LineIcons';
 // 下の札の絵＝線の絵（components/icons/LineIcons.js・2026-11-12 オーナー決定）
 
 // 作品を選んだあと＝カード中心（2026-11-12 オーナー決定・見本 reports/prep-card-first-2026-11-12/mock.html）。
@@ -41,6 +41,7 @@ export function CardHome({
   onList,
   onOtherEpisode,
   onQuiz,
+  first = false,
 }) {
   // 札と線（2026-11-13 オーナー決定）: 学習中＝答えたことがあり、まだ覚えたになっていない語（覚えたとは重ならない）／
   //   覚えた／うち マスター（覚えたの内側）。線は左から マスター（濃い茶）→ 覚えた（茶）→ 学習中（淡い金）。説明の文は出さない。
@@ -60,40 +61,42 @@ export function CardHome({
       </>
     ) : null;
   const showOther = !isMovie && !!onOtherEpisode;
-  const tiles = 1 + (onQuiz ? 1 : 0) + (showOther ? 1 : 0);
+  // 案B（2026-11-14 オーナー決定・見本 reports/cardhome-polish-2026-11-14/index.html）:
+  //   上の帯だけ濃い茶（ポスター＝縦のまま・切り抜かない・何も重ねない／ドラマ・映画の札／作品名を大きく／話数・語数）。
+  //   記録（学習中／覚えた／うち マスター）は1つでもある時だけ、作品名の下に1行＋細い線（全部 0 なら出さない）。
+  //   「単語を学ぶ」の箱が主役（帯の下の余白に少し重ねる・ポスターには重ならない）。下は行の形（線で区切る・右に小さな数と ›）。
+  const hasRecord = learning + learned > 0;
+  const peekTitle = first && cardN > 0 ? `最初の${cardN}枚に出てくる単語` : '次に出てくる単語';
+  const rows = [
+    { key: 'list', label: '単語リスト', sub: `${total}語`, onClick: onList },
+    onQuiz ? { key: 'quiz', label: 'クイズ', sub: quizPct != null ? `前回 ${quizPct}%` : '', onClick: onQuiz } : null,
+    showOther ? { key: 'other', label: 'ほかの話', sub: `S${season}E${episode}`, onClick: onOtherEpisode } : null,
+  ].filter(Boolean);
   return (
-    <div className="ch-wrap">
-      <div className="ch-work">
+    <div className="ch-wrap ch-b">
+      <div className="ch-hero">
         <Poster src={drama?.posterPath} title={drama?.title} />
-        <div className="ch-work-text">
+        <div className="ch-hero-text">
+          <div className="ch-kind">{isMovie ? '映画' : 'ドラマ'}</div>
           <h2 className="ch-work-title">{drama?.title}</h2>
-          <p className="ch-work-ep">
-            {isMovie ? '映画・この映画の語' : `シーズン${season} 第${episode}話・この話の語`} {total}
-          </p>
-          <div className="ch-stats">
-            <div className="ch-stat">
-              <b>{learning}</b>
-              {LEARNING_LABEL}
-            </div>
-            <div className="ch-stat">
-              <b>{learned}</b>
-              {LEARNED_LABEL}
-            </div>
-            <div className="ch-stat">
-              <b>{mastered}</b>
-              {MASTERED_OF_LEARNED_LABEL}
-            </div>
-          </div>
-          <div className="ch-bar" aria-hidden="true">
-            <i className="ch-bar-m" style={{ width: `${masteredW}%` }} />
-            <i className="ch-bar-a" style={{ width: `${learnedW}%` }} />
-            <i className="ch-bar-b" style={{ width: `${learningW}%` }} />
-          </div>
-          <div className="ch-legend" aria-hidden="true">
-            <span className="ch-lg-m">{MASTERED_LABEL}</span>
-            <span className="ch-lg-a">{LEARNED_LABEL}</span>
-            <span className="ch-lg-b">{LEARNING_LABEL}</span>
-          </div>
+          <p className="ch-work-ep">{isMovie ? `${total}語` : `シーズン${season} 第${episode}話・${total}語`}</p>
+          {hasRecord && (
+            <>
+              <p className="ch-rec">
+                <span className="ch-rec-b">{LEARNING_LABEL}</span>
+                <b>{learning}</b>
+                <span className="ch-rec-a">{LEARNED_LABEL}</span>
+                <b>{learned}</b>
+                <span className="ch-rec-m">{MASTERED_OF_LEARNED_LABEL}</span>
+                <b>{mastered}</b>
+              </p>
+              <div className="ch-bar" aria-hidden="true">
+                <i className="ch-bar-m" style={{ width: `${masteredW}%` }} />
+                <i className="ch-bar-a" style={{ width: `${learnedW}%` }} />
+                <i className="ch-bar-b" style={{ width: `${learningW}%` }} />
+              </div>
+            </>
+          )}
         </div>
       </div>
       <div className="ch-learn">
@@ -101,8 +104,8 @@ export function CardHome({
           <>
             {peek.length > 0 && (
               <>
-                <div className="ch-peek-t">次に出てくる単語</div>
-                {/* 押せない文字だと分かる見た目（丸い背景の札はやめた・2026-11-13 外の AI の指摘）。語は「・」で区切る */}
+                <div className="ch-peek-t">{peekTitle}</div>
+                {/* 押せない文字だと分かる見た目（2026-11-13）。語は「・」で区切る */}
                 <p className="ch-peek">
                   <span lang="en">{peek.join('・')}</span>
                   {peekMore && <em> ほか</em>}
@@ -123,32 +126,17 @@ export function CardHome({
         )}
         {nextLine && <div className="ch-next">{nextLine}</div>}
       </div>
-      <div className={`ch-tiles ch-tiles-${tiles}`}>
-        <button type="button" className="ch-tile" onClick={onList}>
-          <span className="ch-tile-i"><IconOpenBook /></span>
-          <b>単語リスト</b>
-          <small>{total}語</small>
-          <span className="ch-tile-go" aria-hidden="true">›</span>
-          </button>
+      <div className="ch-rows-b">
         {/* クイズ（問題が作れる時だけ onQuiz が来る・ホームの続きから学習の「クイズ」と同じ行き先・2026-11-12） */}
-        {onQuiz && (
-          <button type="button" className="ch-tile" onClick={onQuiz}>
-            <span className="ch-tile-i"><IconTarget /></span>
-            <b>クイズ</b>
-            {quizPct != null ? <small>前回 {quizPct}%</small> : <small>&nbsp;</small>}
-            <span className="ch-tile-go" aria-hidden="true">›</span>
+        {rows.map((r) => (
+          <button key={r.key} type="button" className="ch-rowb" onClick={r.onClick}>
+            <span className="ch-rowb-l">{r.label}</span>
+            <span className="ch-rowb-r">
+              {r.sub && <small>{r.sub}</small>}
+              <i aria-hidden="true">›</i>
+            </span>
           </button>
-        )}
-        {showOther && (
-          <button type="button" className="ch-tile" onClick={onOtherEpisode}>
-            <span className="ch-tile-i"><IconFilm /></span>
-            <b>ほかの話</b>
-            <small>
-              S{season}E{episode}
-            </small>
-            <span className="ch-tile-go" aria-hidden="true">›</span>
-          </button>
-        )}
+        ))}
       </div>
       <p className="ch-small">学ばなくても、いつでも観られます</p>
     </div>

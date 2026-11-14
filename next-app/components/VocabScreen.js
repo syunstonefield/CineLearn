@@ -386,8 +386,10 @@ export default function VocabScreen() {
   useLayoutEffect(() => {
     if (!justGenerated) return;
     if (!drama || phase !== 'vocab' || !sortedVocab.length) return;
-    // 「単語を学ぶ →」（待ち画面の最後）＝この話のカードを答える形で開く（2026-11-12 カード中心・一覧は自動で出さない）
-    startCards();
+    // リストができた直後は、カードを自動で始めず作品の画面（CardHome）を出す（2026-11-14 オーナー決定 案B）。
+    //   「単語を学ぶ」を押して始める＝初めての時と2回目からで同じ流れ（初めては5枚＝今の数え方のまま）。
+    setCardDone(null);
+    setView('cards');
     setJustGenerated(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [justGenerated, phase, sortedVocab]);
@@ -1235,6 +1237,7 @@ export default function VocabScreen() {
       peek,
       peekMore: cands.length > peek.length,
       cardN: n == null ? cands.length : Math.min(n, cands.length),
+      first,
       canStart: cands.length > 0,
       todayDue,
       tomorrow: todayDue > 0 ? 0 : countDueTomorrow(sortedVocab, srs),
