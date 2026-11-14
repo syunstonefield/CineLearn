@@ -30,6 +30,24 @@ function save() {
 modeSel.addEventListener('change', save);
 hardChk.addEventListener('change', save);
 
+// ── 日本語の機械訳の同時表示（v1.2.14）: 好み（オフ／ぼかし／いつも）だけを保存。行・訳は保存しない ──
+//   使えるのは PC 版の Google Chrome（Translator API がある）だけ。ほかでは選べなくする（dualsub.js と同じ判定）。
+const dualSel = document.getElementById('dualsub-mode');
+const dualSupported = typeof Translator !== 'undefined' &&
+  (navigator.userAgentData?.brands ? navigator.userAgentData.brands.some((b) => b.brand === 'Google Chrome') : !/Edg\/|OPR\//.test(navigator.userAgent));
+if (!dualSupported) {
+  dualSel.disabled = true;
+  document.getElementById('dualsub-unsupported').style.display = 'block';
+}
+chrome.storage.local.get(['cl_dualsub_mode'], (r) => { dualSel.value = r.cl_dualsub_mode || 'off'; });
+dualSel.addEventListener('change', () => {
+  chrome.storage.local.set({ cl_dualsub_mode: dualSel.value }, () => {
+    savedNote.style.visibility = 'visible';
+    clearTimeout(savedTimer);
+    savedTimer = setTimeout(() => (savedNote.style.visibility = 'hidden'), 1500);
+  });
+});
+
 // ── 再生ログ（content.js の vidLog が chrome.storage.local 'cl_vid_log' に溜める直近600行）──
 const vidlogTa = document.getElementById('vidlog');
 const vidlogNote = document.getElementById('vidlog-note');

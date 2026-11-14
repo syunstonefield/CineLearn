@@ -48,6 +48,22 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       .catch(() => sendResponse({ found: false, reason: 'network' }));
     return true; // 非同期レスポンス
   }
+  // 同時字幕（v1.2.14）: content script から Translator API を呼べない時の控え。
+  //   行は拡張の中で受け渡すだけ＝端末の外に送らない・保存しない（変数にも残さない）。
+  //   データを入れる操作（利用者のクリック）は content script 側で済ませる前提（ここでは入れられない）。
+  if (msg.type === 'CL_DUALSUB') {
+    (async () => {
+      if (typeof Translator === 'undefined') return { ok: false, reason: 'no_api' };
+      const pair = { sourceLanguage: 'en', targetLanguage: 'ja' };
+      if ((await Translator.availability(pair)) !== 'available') return { ok: false, reason: 'not_ready' };
+      if (!self.__clDualTr) self.__clDualTr = await Translator.create(pair);
+      if (msg.op === 'prepare') return { ok: true };
+      return { ok: true, ja: await self.__clDualTr.translate(String(msg.text || '').slice(0, 500)) };
+    })()
+      .then((data) => sendResponse(data))
+      .catch((e) => sendResponse({ ok: false, reason: e?.name || 'error' }));
+    return true; // 非同期レスポンス
+  }
   // 他の作品で出会った語（v1.2.9・視聴中の再会）: ログイン済みならクラウドの
   //   ①単語帳（my_words・in_wordbook=true）②復習で「覚えた」以上（srs_data・repetitions>=2・skipped=false）
   //   を取り、content.js が字幕の中で印＋ホバー/ポップアップに出所を出す。語・意味・品詞・出所だけ

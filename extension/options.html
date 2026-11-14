@@ -44,6 +44,18 @@
     <div class="hint">よく使われる4,000語に入らない単語（B2以上の目安）に控えめな印を付けます。判定は端末内で行い、外部送信はありません。</div>
   </div>
 
+  <div class="row">
+    <div class="label">日本語の機械訳を同時に表示</div>
+    <select id="dualsub-mode">
+      <option value="off">オフ</option>
+      <option value="blur">ぼかし（マウスを乗せた時・一時停止の時だけ読める）</option>
+      <option value="always">いつも表示</option>
+    </select>
+    <div class="hint">英語字幕の下に、日本語の機械訳を1行出します。動画の画面の「日」ボタンでも オフ → ぼかし → いつも表示 と切り替えられます。初めて使う時は「日」ボタンを押してください（訳のデータを Chrome に入れるため、少し時間がかかります）。</div>
+    <div class="hint">日本語は Chrome の翻訳機能による機械訳です。誤りを含むことがあります。字幕の行と訳は、この端末の外に送らず、保存しません。</div>
+    <div class="hint" id="dualsub-unsupported" style="display:none">この機能は PC 版の Google Chrome（138 以上）で使えます。</div>
+  </div>
+
   <div class="saved" id="saved-note">✓ 保存しました</div>
 
   <div class="row" style="margin-top:22px;border-top:1px solid #e6dfd3;padding-top:14px">

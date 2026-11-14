@@ -268,3 +268,83 @@ html.cl-disabled #cl-controls { display: none !important; }
 #cl-nocap-hint { display: none; }
 #cl-nocap-hint .cl-hint-body { margin: 0 0 10px !important; }
 html.cl-disabled #cl-nocap-hint { display: none !important; }
+
+/* ── 同時字幕（v1.2.14）: 英語字幕の下の機械訳の1行 ──
+   配信の字幕と見分けがつく見た目にする（法務）: 丸ゴシック系の書体・淡い水色の文字・「機械訳」の札。
+   字幕の上に浮いた四角に見えないよう、地の箱は付けない（2026-11-14 オーナー指摘）。読みやすさは文字の縁取りで出す。
+   行は選択できない（コピーの機能は付けない）。 */
+#cl-dualsub {
+  position: fixed !important;
+  z-index: 2147483641 !important;
+  transform: translateX(-50%) !important;
+  display: none;
+  align-items: baseline !important;
+  justify-content: center !important;
+  gap: 0.5em !important;
+  padding: 0 0.3em !important;
+  background: transparent !important;
+  color: #cfe6ff !important;
+  font-family: "Hiragino Maru Gothic ProN", "Yu Gothic UI", "Meiryo", system-ui, sans-serif !important;
+  font-weight: 500 !important;
+  line-height: 1.35 !important;
+  letter-spacing: 0.02em !important;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.95), 0 1px 3px rgba(0, 0, 0, 0.8) !important;
+  white-space: normal !important;
+  text-align: center !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  pointer-events: auto !important;
+  cursor: default !important;
+}
+#cl-dualsub .cl-dualsub-text { transition: filter 0.15s ease, opacity 0.15s ease, color 0.15s ease !important; }
+#cl-dualsub .cl-dualsub-tag {
+  flex: none !important;
+  font-size: 0.5em !important;
+  padding: 0.05em 0.45em !important;
+  border: 1px solid rgba(207, 230, 255, 0.45) !important;
+  border-radius: 0.4em !important;
+  color: rgba(207, 230, 255, 0.8) !important;
+  letter-spacing: 0.05em !important;
+  text-shadow: none !important;
+  transition: opacity 0.15s ease !important;
+}
+#cl-dualsub.cl-dualsub-note .cl-dualsub-tag { display: none !important; }
+
+/* ぼかし（隠れている時）の見え方＝弱いぼかし＋薄い文字（2026-11-14 オーナー決定 A）。
+   マウスを乗せた時・一時停止の時（reveal）はふつうに読める。 */
+#cl-dualsub[data-mode="blur"]:not(.cl-dualsub-reveal):not(:hover):not(.cl-dualsub-note) .cl-dualsub-text {
+  filter: blur(0.09em) !important;
+  opacity: 0.32 !important;
+}
+#cl-dualsub[data-mode="blur"]:not(.cl-dualsub-reveal):not(:hover):not(.cl-dualsub-note) .cl-dualsub-tag { opacity: 0.45 !important; }
+html.cl-disabled #cl-dualsub { display: none !important; }
+
+/* 切り替えボタン（オフ＝淡い／ぼかし＝点線の輪／いつも＝水色の輪） */
+.cl-dualsub-btn { font-size: 14px !important; font-weight: 600 !important; }
+.cl-dualsub-btn[data-mode="off"] { opacity: 0.55 !important; }
+.cl-dualsub-btn[data-mode="blur"] { outline: 2px dashed rgba(207, 230, 255, 0.9) !important; outline-offset: -3px !important; }
+.cl-dualsub-btn[data-mode="always"] { outline: 2px solid rgba(207, 230, 255, 0.95) !important; outline-offset: -3px !important; }
+.cl-dualsub-btn[data-state="unavailable"], .cl-dualsub-btn[data-state="failed"] { opacity: 0.3 !important; }
+
+/* 同時字幕の初めての案内（「日」ボタンの上の小さな吹き出し・1回だけ） */
+#cl-dualhint {
+  position: fixed !important;
+  width: 250px !important;
+  padding: 12px 14px !important;
+  background: #fff !important;
+  color: #1a1a1a !important;
+  border-radius: 12px !important;
+  font-family: system-ui, sans-serif !important;
+  z-index: 2147483647 !important;
+  pointer-events: auto !important;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
+#cl-dualhint .cl-hint-body { margin: 0 0 6px !important; }
+.cl-dualhint-note {
+  font-size: 12px !important;
+  line-height: 1.45 !important;
+  color: #5f5950 !important;
+  margin: 0 0 10px !important;
+}
+html.cl-disabled #cl-dualhint { display: none !important; }
