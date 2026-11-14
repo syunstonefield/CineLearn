@@ -89,8 +89,18 @@ export function pickVoiceFrom(list, { chromium = true } = {}) {
   const best = chromium ? bestVoice(en) : premiumVoice(en);
   if (best) return best;
   // ⑤既定の英語音声があればそれだけを明示指定（今までどおり）
-  const def = en.find((v) => v.default);
-  if (def) return def;
+  //   ★2026-11-14 オーナーの iPhone（iOS 18・Safari）の実データ: 英語25個の声が全部「既定」で、先頭は Daniel（en-GB）・
+  //   おもしろ音声（Albert 等）まで既定。→ 既定がいくつもある時は印を当てにせず、おもしろ音声を外して en-US
+  //   （Samantha 等）を先に選ぶ。iPhone の Safari はダウンロードした Premium／Enhanced の声を見せない（super-compact だけ）。
+  const defs = en.filter((v) => v.default && !isOdd(v));
+  if (defs.length === 1) return defs[0];
+  if (defs.length > 1) {
+    for (const name of PREFERRED) {
+      const hit = defs.find((v) => isUS(v) && baseName(v) === name);
+      if (hit) return hit;
+    }
+    return defs.find(isUS) || defs[0];
+  }
   if (!chromium) return null;
   // ⑥英語の既定が無い時: ブラウザ任せで選ばれそうな声（u.lang='en-US' に合う先頭）がふつうの声なら未指定のまま
   const us = (v) => /^en[-_]us$/i.test(v.lang || '');

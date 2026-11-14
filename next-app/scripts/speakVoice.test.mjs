@@ -97,3 +97,19 @@ test('Safari では Google・Natural の名前があっても選ばない', () =
   const list = [V('Google US English', 'en-US', { localService: false }), V('Samantha', 'en-US')];
   assert.equal(pickVoiceFrom(list, { chromium: false }), null);
 });
+
+// 2026-11-14 オーナーの iPhone の実データ（全部が既定・先頭が Daniel en-GB・おもしろ音声も既定）
+const iphone = [
+  V('Daniel', 'en-GB', { default: true, voiceURI: 'com.apple.voice.super-compact.en-GB.Daniel' }),
+  V('Karen', 'en-AU', { default: true }), V('Moira', 'en-IE', { default: true }), V('Rishi', 'en-IN', { default: true }),
+  V('Samantha', 'en-US', { default: true, voiceURI: 'com.apple.voice.super-compact.en-US.Samantha' }),
+  V('Tessa', 'en-ZA', { default: true }), V('Albert', 'en-US', { default: true }), V('Fred', 'en-US', { default: true }),
+];
+
+test('iPhone: 既定がいくつもある時は en-US の Samantha（Daniel・おもしろ音声は選ばない）', () => {
+  assert.equal(pickVoiceFrom(iphone, { chromium: false }).name, 'Samantha');
+});
+
+test('iPhone: Samantha が無ければ、おもしろ音声以外の en-US の既定→無ければ先頭の既定', () => {
+  assert.equal(pickVoiceFrom(iphone.filter((v) => v.name !== 'Samantha'), { chromium: false }).name, 'Daniel');
+});
