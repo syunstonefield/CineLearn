@@ -8442,5 +8442,5 @@ html .vab-btn.is-primary .vab-sub { color: color-mix(in srgb, var(--btn-main-ink
 .ch-rowb-r small { font-size: 12px; color: var(--text-muted); }
 .ch-rowb-r i { font-style: normal; font-size: 16px; color: var(--text-muted); }
 .ch-b .ch-small { margin-top: 10px; }
-html[data-theme="dark"] .ch-b .ch-hero { background: linear-gradient(180deg, #241a12, #36281c); }
+/* 帯の色はアプリの決まった色だけ（#33241a→#4a3526・ダークでも同じ・ポスターから色を取らない・法務 2026-11-14） */
 
