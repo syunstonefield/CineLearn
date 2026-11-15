@@ -8135,7 +8135,10 @@ html[data-theme="dark"] .hm-days { --g0: rgba(255,255,255,.07); --g1: #5c4a2c; -
 .hm-days-mo { display: grid; grid-template-columns: repeat(var(--hm-weeks, 8), minmax(0, 1fr)); gap: 2px; font-size: 12px; line-height: 12px; height: 12px; color: var(--text-muted); text-align: left; }
 .hm-days-mo span { white-space: nowrap; overflow: visible; }
 .hm-days-wd { display: grid; grid-template-rows: repeat(7, minmax(0, 1fr)); gap: 2px; font-size: 12px; color: var(--text-muted); text-align: left; align-items: center; }
-.hm-days-g { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, minmax(0, 1fr)); grid-template-columns: repeat(var(--hm-weeks, 8), minmax(0, 1fr)); gap: 2px; }
+/* 曜日の文字（12px）がマス（スマホで 10〜15px）より高いと、行が文字の高さに引き伸ばされて行の間だけ広く見えた（2026-11-15 オーナー指摘）。
+   文字は高さを持たせず行の真ん中に重ねて描く＝行の高さはマスで決まり、縦のすき間も横と同じ 2px になる。 */
+.hm-days-wd > span { height: 0; line-height: 0; overflow: visible; white-space: nowrap; }
+.hm-days-g { display: grid; align-content: start; grid-auto-flow: column; grid-template-rows: repeat(7, minmax(0, 1fr)); grid-template-columns: repeat(var(--hm-weeks, 8), minmax(0, 1fr)); gap: 2px; }
 .hm-days-g i { aspect-ratio: 1; border-radius: 2.5px; background: var(--g0); }
 .hm-days-g i.l1 { background: var(--g1); } .hm-days-g i.l2 { background: var(--g2); } .hm-days-g i.l3 { background: var(--g3); } .hm-days-g i.l4 { background: var(--g4); }
 .hm-days-g i.is-out { background: transparent; }
