@@ -4,6 +4,8 @@ import { IconCheck } from './icons/LineIcons';
 import { MASTERED_LABEL, MASTERED_MEANING } from '@/lib/learnedTerms';
 import { useEffect, useRef, useState } from 'react';
 import { useScreenFit } from '@/lib/screenFit';
+import { useApp } from '@/components/AppProvider';
+import { cardCount, CARDS_FIRST_DONE_KEY } from '@/lib/cardDeck';
 import { etaText, ETA_SHOW_AFTER_SEC } from '@/lib/genEta';
 
 // 生成中のリッチローディング（案B・2026-11-15: 1ページに収める）。
@@ -76,6 +78,19 @@ export default function GenLoading({ status, drama, season, episode, ready = fal
 
   // 1ページに収める（ヘッダーと下のタブのあいだに固定・中身が収まる時は動かない・入り切らない時は中だけスクロール）
   useScreenFit();
+
+  // 「このあとの流れ」の②の下の枚数（作品の画面のカードと同じ数え方・lib/cardDeck）。
+  //   その端末で初めて＝まず5枚／2回目から＝設定の枚数（全部の時と分からない時は出さない）。
+  const { settings } = useApp();
+  const [firstCards] = useState(() => {
+    try {
+      return localStorage.getItem(CARDS_FIRST_DONE_KEY) !== '1';
+    } catch {
+      return false;
+    }
+  });
+  const flowN = cardCount({ first: firstCards, setting: settings?.prepCoreCount });
+  const flowCards = firstCards ? `まず${flowN}枚` : flowN ? `${flowN}枚` : null;
 
   // 現在の工程を status 文言から判定（字幕→分析→仕上げ）
   const step = status.includes('字幕') ? 0 : status.includes('仕上げ') ? 2 : 1;
@@ -151,6 +166,31 @@ export default function GenLoading({ status, drama, season, episode, ready = fal
             <div className="gen-b-ep">{epLabel}</div>
           </div>
         </div>
+      </div>
+
+      {/* このあとの流れ（2026-11-15 オーナー決定）: ① リストができる → ② 単語を学ぶ → ③ 好きな時に観る。押せる所はない（飾りの説明）。
+          いまの段階だけ金色。リストができたら①に印・②を金色に。進み具合の箱（字幕取得・単語分析・仕上げ）とかぶらないよう、
+          丸に数字・ヒントと同じ薄い面で軽く。高さは決まっている＝出ても何も動かない。SE で入り切らない時はこの箱だけ出さない（CSS）。
+          文の決まり: 急がせない・時間や効果を言わない・絵文字を足さない。 */}
+      <div className="gen-flow">
+        <div className="gen-flow-t">このあとの流れ</div>
+        <ol className="gen-flow-steps">
+          <li className={ready ? 'is-done' : 'is-on'}>
+            <span className="gen-flow-n">1</span>
+            <span className="gen-flow-l">
+              リストができる{ready ? <IconCheck /> : null}
+            </span>
+          </li>
+          <li className={ready ? 'is-on' : ''}>
+            <span className="gen-flow-n">2</span>
+            <span className="gen-flow-l">単語を学ぶ</span>
+            {flowCards && <small className="gen-flow-s">{flowCards}</small>}
+          </li>
+          <li>
+            <span className="gen-flow-n">3</span>
+            <span className="gen-flow-l">好きな時に観る</span>
+          </li>
+        </ol>
       </div>
 
       {/* 学習Tips：ラベル＋帯＋ローテーションのドット表示。key 再マウントで tipFade を再トリガー。高さは2行分で決まっている */}
