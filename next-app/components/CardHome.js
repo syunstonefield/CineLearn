@@ -87,12 +87,19 @@ export function CardHome({
           {hasRecord && (
             <>
               <p className="ch-rec">
-                <span className="ch-rec-b">{LEARNING_LABEL}</span>
-                <b>{learning}</b>
-                <span className="ch-rec-a">{LEARNED_LABEL}</span>
-                <b>{learned}</b>
-                <span className="ch-rec-m">{MASTERED_OF_LEARNED_LABEL}</span>
-                <b>{mastered}</b>
+                {/* 札と数は組にして、数の前で折り返さない */}
+                <span className="ch-rec-g">
+                  <span className="ch-rec-b">{LEARNING_LABEL}</span>
+                  <b>{learning}</b>
+                </span>
+                <span className="ch-rec-g">
+                  <span className="ch-rec-a">{LEARNED_LABEL}</span>
+                  <b>{learned}</b>
+                </span>
+                <span className="ch-rec-g">
+                  <span className="ch-rec-m">{MASTERED_OF_LEARNED_LABEL}</span>
+                  <b>{mastered}</b>
+                </span>
               </p>
               <div className="ch-bar" aria-hidden="true">
                 <i className="ch-bar-m" style={{ width: `${masteredW}%` }} />
