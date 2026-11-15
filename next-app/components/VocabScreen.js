@@ -2283,7 +2283,6 @@ export default function VocabScreen() {
                 {...cardHomeData()}
                 onStart={() => startCards()}
                 onList={() => setView('list')}
-                onOtherEpisode={() => setEpSheet(true)}
                 onQuiz={canQuiz({ words: sortedVocab }, srs) ? () => goToQuiz({ from: 'cards' }) : null}
               />
             )

@@ -21,7 +21,7 @@ export function CardPoster({ src, title }) {
 // 作品の画面（2026-11-12 オーナー決定・見直しの見本 reports/card-home-redesign-2026-11-12/mock.html）。
 //   上の札＝ポスター＋題名・話数・この話の語の数＋記録の小さな札3つ（学習中／覚えた／うち マスター）＋進み具合の線（マスター・覚えた・学習中）。
 //   「次に出てくる単語」＝次に出るカードの見出し語を3つ（和訳・例文は出さない）＋「ほか」。「単語を学ぶ」の下に枚数。
-//   次につながる1行（今日の復習にこの話から N語／明日 復習できる単語 N個・0 は出さない）。下は札3つ（単語リスト・クイズ・ほかの話）。
+//   次につながる1行（今日の復習にこの話から N語／明日 復習できる単語 N個・0 は出さない）。下は行（単語リスト・クイズ）。「ほかの話」は外した（2026-11-15 オーナー決定: 学ぶ話は前の画面で選んでいるため）。
 //   残りの数・「あと○語」・赤は使わない。時間の目安は測れていないので出さない（枚数だけ・受付 2026-11-12）。
 export function CardHome({
   drama,
@@ -41,7 +41,6 @@ export function CardHome({
   quizPct = null,
   onStart,
   onList,
-  onOtherEpisode,
   onQuiz,
   first = false,
 }) {
@@ -62,7 +61,6 @@ export function CardHome({
         明日 復習できる単語 <b>{tomorrow}個</b>
       </>
     ) : null;
-  const showOther = !isMovie && !!onOtherEpisode;
   // 案B（2026-11-14 オーナー決定・見本 reports/cardhome-polish-2026-11-14/index.html）:
   //   上の帯だけ濃い茶（ポスター＝縦のまま・切り抜かない・何も重ねない／ドラマ・映画の札／作品名を大きく／話数・語数）。
   //   記録（学習中／覚えた／うち マスター）は1つでもある時だけ、作品名の下に1行＋細い線（全部 0 なら出さない）。
@@ -75,7 +73,6 @@ export function CardHome({
   const rows = [
     { key: 'list', label: '単語リスト', sub: `${total}語`, onClick: onList },
     onQuiz ? { key: 'quiz', label: 'クイズ', sub: quizPct != null ? `前回 ${quizPct}%` : '', onClick: onQuiz } : null,
-    showOther ? { key: 'other', label: 'ほかの話', sub: `S${season}E${episode}`, onClick: onOtherEpisode } : null,
   ].filter(Boolean);
   return (
     <div className="ch-wrap ch-b">

@@ -8671,7 +8671,7 @@ html.cl-screen-fit .ch-b .ch-btn1-2l { min-height: clamp(56px, calc(56px + (100c
 /* 下の行はふつうの高さ（44px）。余った高さは「学ぶの箱と行のあいだ」と「行と TMDB の1行のあいだ」に分ける（箱をふくらませない） */
 html.cl-screen-fit .ch-rows-b { margin-top: auto; }
 html.cl-screen-fit .ch-rowb { font-size: clamp(14px, calc(14px + (100cqh - 480px) * 0.0077), 16px); }
-html.cl-screen-fit .ch-b .ch-small { margin-top: 10px; }
+html.cl-screen-fit .ch-b .ch-small { margin-top: 6px; }
 html.cl-screen-fit .ch-tmdb { margin-top: auto; }
 /* 記録の「うち マスター 1」などが数字の前で折り返さない（札と数の組） */
 .ch-rec-g { white-space: nowrap; display: inline-flex; align-items: baseline; gap: 4px; }
