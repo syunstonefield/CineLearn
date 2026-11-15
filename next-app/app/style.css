@@ -8567,8 +8567,7 @@ html.cl-screen-fit #vocabSection { flex: 1 0 auto; display: flex; flex-direction
 /* TMDB の1行（いちばん下）: 英語の全文・12px・読める濃さ。画面が低くてスクロールする時も下に貼りついて押し出されない（法務 2026-11-15） */
 .gen-b .gen-tmdb-note { margin-top: 0; flex: none; position: sticky; bottom: 0; z-index: 1; background: var(--bg); color: var(--text-soft); padding: 4px 0 2px; }
 .gen-b .gen-tmdb-note a { color: var(--text-soft); }
-/* 並び（2026-11-15）: 進み具合 → 作品のカード → ヒント → TMDB の1行。ヒントと TMDB の1行は画面の下に置いて動かさない */
-.gen-b-fit .gen-tipbar { margin-top: auto; }
+/* 並び（2026-11-15）: 進み具合 → 作品の小さなカード → ヒント → TMDB の1行。あらすじを出さないので高さは最初から決まっている＝上から詰めて並べる */
 
 /* 下の段：進み具合（高さは決まっている） */
 .gen-b-prog {

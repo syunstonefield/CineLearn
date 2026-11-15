@@ -181,35 +181,6 @@ export async function fetchTitleInfoFromTMDb(title, mediaTypeHint = null, onAskM
   return null;
 }
 
-// あらすじ＋エピソードスチル画像をTMDBから取得（日本語優先はサーバー側で処理）。
-// 戻り値: { overview, still } | null。still はエピソードの場面写真（横長）の
-// フルURL。バックエンドが still_path 未対応（旧デプロイ）の間は null になり、
-// 呼び出し側が作品ポスターへフォールバックする。
-const _synopsisCache = {}; // tmdbId+S/E → 結果（再取得を防ぐ）
-export async function fetchEpisodeSynopsis(drama, season, episode) {
-  if (!drama?.tmdbId) return null;
-  const isMovie = drama.type === 'movie';
-  const key = `${drama.tmdbId}_${isMovie ? 'movie' : 's' + season + 'e' + episode}`;
-  if (key in _synopsisCache) return _synopsisCache[key];
-  try {
-    const d = await tmdb(
-      isMovie
-        ? { action: 'episode_overview', movieId: drama.tmdbId }
-        : { action: 'episode_overview', tvId: drama.tmdbId, season, episode }
-    );
-    _synopsisCache[key] =
-      d && (d.overview || d.still_path)
-        ? {
-            overview: d.overview || '',
-            still: d.still_path ? `https://image.tmdb.org/t/p/w500${d.still_path}` : null,
-          }
-        : null;
-  } catch {
-    _synopsisCache[key] = null;
-  }
-  return _synopsisCache[key];
-}
-
 // TMDb の provider_id → CineLearnサービス名（JP向け）
 // 見放題（定額）の ID だけを載せる。レンタル/購入ストア（10=Amazon Video, 2=Apple TV Store,
 // 3=Google Play Movies）は「サブスクで観られる」の誤判定になるので載せない（2026-10-08・実データで確認：

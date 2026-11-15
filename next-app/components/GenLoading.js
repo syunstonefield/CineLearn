@@ -4,11 +4,10 @@ import { IconCheck } from './icons/LineIcons';
 import { MASTERED_LABEL, MASTERED_MEANING } from '@/lib/learnedTerms';
 import { useEffect, useRef, useState } from 'react';
 import { useScreenFit } from '@/lib/screenFit';
-import { fetchEpisodeSynopsis } from '@/lib/tmdb';
 import { etaText, ETA_SHOW_AFTER_SEC } from '@/lib/genEta';
 
 // 生成中のリッチローディング（案B・2026-11-15: 1ページに収める）。
-// 上に作品とあらすじ、下に「字幕取得 → 単語分析 → 仕上げ」の進み具合＋学習Tips。
+// 「字幕取得 → 単語分析 → 仕上げ」の進み具合＋作品の小さなカード＋学習Tips。
 // スタイルは next-app/app/style.css 末尾の「next-app 独自オーバーライド」ブロック。
 // 豆知識（2026-11-13 オーナー決定）: 効果の言い切りはしない（事実だけ・紹介ページの法務の線と同じ）／
 //   ボタンの言葉は今の画面どおり（知らなかった）／文の中に絵文字を入れない。マスターの意味は lib/learnedTerms.js の文。
@@ -39,16 +38,14 @@ function genPhaseFloorOf(status) {
 
 // ready=true でスピナーを完了表示に替え、線の場所に「リストを見る →」ボタンを出す（自動遷移しない）。
 // あらすじ/Tipsを読み終わってから本人のタップで進む＝強制の待ちを増やさずロビー滞在を本人の選択にする。
-// 案B（オーナー決定 2026-11-15）。並びは上から 進み具合 → 作品（写真・作品名・話数・あらすじ）→ ヒント → TMDB の1行（2026-11-15 オーナー依頼）。
+// 案B（オーナー決定 2026-11-15）。並びは上から 進み具合 → 作品（ポスター・作品名・話数の小さなカード）→ ヒント → TMDB の1行。
+//   あらすじは出さない（2026-11-15 オーナー決定・観る前のネタバレを避ける）＝TMDB へあらすじを聞きに行かない。
 //   1ページに収める＝ヘッダーと下のタブのあいだに固定（lib/screenFit.js・html.cl-screen-fit）。低い窓（420px 未満）では中だけスクロールし、TMDB の1行は下に貼りつく。
-//   進み具合はいちばん上＝あらすじが届いても動かない。ヒントと TMDB の1行は画面の下に置いて動かさない（空きはカードとヒントの間）。
-//   あらすじが長い時はカードの中だけがスクロールする。
+//   中身の高さは最初から決まっている＝何も動かない。上から詰めて並べ、進み具合とヒントを主役にする。
 //   目安の文・経過の場所は最初から空けておく（出た時に何も押し下げない）。できたらボタンは線と同じ場所に出る。
 export default function GenLoading({ status, drama, season, episode, ready = false, onReveal, revealLabel = 'リストを見る →' }) {
   // Tips：ランダム開始で4秒ごとにローテーション
   const [tipIdx, setTipIdx] = useState(() => Math.floor(Math.random() * LEARNING_TIPS.length));
-  const [synopsis, setSynopsis] = useState(null);
-  const [synDone, setSynDone] = useState(false); // あらすじの取得が終わったか（無かった時に読み込みの線を出し続けない）
 
   // 進捗バー：実際の進捗は取得できない（AIの1リクエスト待ち）ため、
   // 経過時間で95%まで漸近させる。フェーズ変化で下限を引き上げて段階感を出す。
@@ -80,22 +77,6 @@ export default function GenLoading({ status, drama, season, episode, ready = fal
   // 1ページに収める（ヘッダーと下のタブのあいだに固定・中身が収まる時は動かない・入り切らない時は中だけスクロール）
   useScreenFit();
 
-  // あらすじ＋エピソードスチルをAI生成と並行取得して即表示（取得失敗しても生成は止めない）
-  useEffect(() => {
-    let cancelled = false;
-    fetchEpisodeSynopsis(drama, season, episode)
-      .then((r) => {
-        if (!cancelled && r) setSynopsis(r);
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setSynDone(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [drama, season, episode]);
-
   // 現在の工程を status 文言から判定（字幕→分析→仕上げ）
   const step = status.includes('字幕') ? 0 : status.includes('仕上げ') ? 2 : 1;
 
@@ -104,8 +85,8 @@ export default function GenLoading({ status, drama, season, episode, ready = fal
   const dotOn = tipIdx % LEARNING_TIPS.length;
   const showEta = !ready && elapsed >= ETA_SHOW_AFTER_SEC;
   // TMDB の画像・あらすじを出している時だけ TMDB の1行を出す（法務 2026-11-12）
-  //   いちばん下に置くので、TMDB で作品を引いた時は最初から出しておく（あらすじが届いた時に下が動かない）
-  const usesTmdb = !!(synopsis || drama?.posterPath || drama?.tmdbId);
+  // TMDB の画像（ポスター）を出している時だけ TMDB の1行を出す（法務 2026-11-12）。ポスターの有無は最初から分かる＝途中で出たり消えたりしない
+  const usesTmdb = !!drama?.posterPath;
 
   return (
     <div className="gen-loading gen-b gen-b-fit">
@@ -157,37 +138,17 @@ export default function GenLoading({ status, drama, season, episode, ready = fal
         </div>
       </div>
 
-      <div className="gen-b-top">
-        {/* 作品のカード：写真＋作品名＋話数、その下にあらすじ。
-            ・エピソードスチル／映画のバックドロップ（横長）は 16:9 の枠に（同じ比率＝切り抜きなし）。
-            ・それが無くポスター（縦長）しか無い時は、縦の比率のまま小さく出す（16:9 に入れて上下を切らない・法務 2026-11-12）。
-            ・どちらも無い時は文字だけ。画像に文字・印・ぼかしを重ねない。大きさは PC 200px／スマホ 110px が上限。
-            ・あらすじは TMDB の文をそのまま出す（長い時はカードの中だけスクロール＝全文がそのまま読める）。 */}
-        <div className="gen-b-work">
-          <div className="gen-b-head">
-            {synopsis?.still ? (
-              <img className="gen-cover-thumb" src={synopsis.still} alt="" />
-            ) : drama?.posterPath ? (
-              <img className="gen-cover-poster" src={drama.posterPath} alt="" />
-            ) : null}
-            <div className="gen-b-headtext">
-              <h2 className="gen-b-title">{drama?.title || ''}</h2>
-              <div className="gen-b-ep">{epLabel}</div>
-            </div>
+      {/* 作品の小さなカード：ポスター＋作品名＋話数（2026-11-15 オーナー決定: あらすじは出さない＝観る前のネタバレを避ける）。
+          画像は作品のポスターだけ（その話の場面の写真もネタバレになり得るので使わない）。縦のまま・切り抜かない・何も重ねない・
+          スマホ56px／PC72px（上限 110／200 より小さく）。ポスターが無い作品は文字だけ。 */}
+      <div className="gen-b-work">
+        <div className="gen-b-head">
+          {drama?.posterPath ? <img className="gen-cover-poster" src={drama.posterPath} alt="" /> : null}
+          <div className="gen-b-headtext">
+            <h2 className="gen-b-title">{drama?.title || ''}</h2>
+            <div className="gen-b-ep">{epLabel}</div>
           </div>
-          {synopsis?.overview ? (
-            <div className="gen-b-syn" tabIndex={0} aria-label="あらすじ">
-              {synopsis.overview}
-            </div>
-          ) : !synDone && drama?.tmdbId ? (
-            <div className="gen-b-syn gen-skeleton" aria-hidden="true">
-              <span></span>
-              <span></span>
-              <span></span>
-            </div>
-          ) : null}
         </div>
-
       </div>
 
       {/* 学習Tips：ラベル＋帯＋ローテーションのドット表示。key 再マウントで tipFade を再トリガー。高さは2行分で決まっている */}
