@@ -5,13 +5,15 @@ import { fromEvent, isUsageEvent, FROM_SOURCES } from '../lib/usageEvents.js';
 import { buildUsageReport, buildFromTable, isLandingOnlyRow, weekWindows } from '../lib/usageReport.js';
 
 test('決まった値だけを from_<値> にする', () => {
-  assert.deepEqual(FROM_SOURCES, ['tiktok', 'youtube', 'share', 'instagram']);
+  assert.deepEqual(FROM_SOURCES, ['tiktok', 'youtube', 'share', 'instagram', 'ext_popup', 'ext_options']);
+  assert.equal(fromEvent('ext_popup'), 'from_ext_popup');
+  assert.equal(fromEvent('ext_options'), 'from_ext_options');
   assert.equal(fromEvent('instagram'), 'from_instagram');
   assert.equal(fromEvent('tiktok'), 'from_tiktok');
   assert.equal(fromEvent(' YouTube '), 'from_youtube');
   assert.equal(fromEvent('share'), 'from_share');
-  for (const v of ['ext_install', 'x', '', null, 'tiktok123', 'tik tok']) assert.equal(fromEvent(v), null, String(v));
-  for (const k of ['from_tiktok', 'from_youtube', 'from_share', 'from_instagram']) assert.ok(isUsageEvent(k), k);
+  for (const v of ['ext_install', 'x', '', null, 'tiktok123', 'tik tok', 'ext_popup2', 'ext']) assert.equal(fromEvent(v), null, String(v));
+  for (const k of ['from_tiktok', 'from_youtube', 'from_share', 'from_instagram', 'from_ext_popup', 'from_ext_options']) assert.ok(isUsageEvent(k), k);
   for (const k of ['from_ext_install', 'from_x', 'from_']) assert.ok(!isUsageEvent(k), k);
 });
 
@@ -72,4 +74,17 @@ test('まだ誰も来ていない時は1行だけ', () => {
   const t = buildFromTable([row('2026-11-12', 'd1', 'd1', { open: 1 })], weekWindows('2026-11-13', 2));
   assert.equal(t.length, 1);
   assert.equal(t[0]['入口'], '（まだ無し）');
+});
+
+test('入口別: 拡張のポップアップ・設定画面から来た回数も出る（2026-11-15）', () => {
+  const rows = [
+    row('2026-11-12', 'e1', 'e1', { open: 1, from_ext_popup: 2 }),
+    row('2026-11-12', 'e2', 'e2', { open: 1, from_ext_options: 1 }),
+  ];
+  const t = buildFromTable(rows, weekWindows('2026-11-13', 1));
+  const pop = t.find((o) => o['入口'] === 'ext_popup');
+  const opt = t.find((o) => o['入口'] === 'ext_options');
+  assert.equal(pop['来た回数'], 2);
+  assert.equal(pop['初めて来た人'], 1);
+  assert.equal(opt['来た回数'], 1);
 });

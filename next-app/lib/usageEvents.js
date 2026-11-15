@@ -92,7 +92,8 @@ export function reviewExitDetailEvents({ flipped, isNew, sec, how, target }) {
 // 入口の印（?from=<値>・2026-11-13・宣伝の動画のプロフィールのリンクと「PC で開くリンク」・instagram はオーナーのストーリーでの告知）。決まった値だけ受け付ける。
 //   値ごとに固定名 from_<値> を「来た回数」として数える（だれが・どの動画から・時刻は入れない）。
 //   ext_install は lib/extEntry.js の別の印（ext_install_open）なのでここには入れない。
-export const FROM_SOURCES = ['tiktok', 'youtube', 'share', 'instagram'];
+//   ext_popup＝拡張の単語のポップアップのリンク・ext_options＝拡張の設定画面のボタン（次の拡張の版から・オーナー決定 2026-11-15）。
+export const FROM_SOURCES = ['tiktok', 'youtube', 'share', 'instagram', 'ext_popup', 'ext_options'];
 export const FROM_EVENTS = FROM_SOURCES.map((s) => `from_${s}`);
 export function fromEvent(value) {
   const v = String(value || '').trim().toLowerCase();
