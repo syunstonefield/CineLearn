@@ -8498,3 +8498,79 @@ html .vab-btn.is-primary .vab-sub { color: color-mix(in srgb, var(--btn-main-ink
 .ch-b .ch-small { margin-top: 10px; }
 /* 帯の色はアプリの決まった色だけ（#33241a→#4a3526・ダークでも同じ・ポスターから色を取らない・法務 2026-11-14） */
 
+
+/* ════════════════════════════════════════════════════════════════
+   生成中の待ち画面 案B（オーナー決定 2026-11-15・components/GenLoading.js）
+   上に作品とあらすじ、下に進み具合とヒント。1ページに収める（.gen-b-fit＝高さは GenLoading が画面に合わせる）。
+   法務（2026-11-12）: ポスターは縦のまま小さく・16:9 の枠はスチル／バックドロップだけ・画像に何も重ねない・
+   大きさは スマホ110／PC200 まで・あらすじはそのまま（長い時はカードの中だけスクロール）・TMDB の1行を出す。
+   ════════════════════════════════════════════════════════════════ */
+/* 待ち画面の間はページを動かさない。下の TMDB の帯は画面の中の1行（gen-tmdb-note）で出すので隠す。
+   配信の出典の文（vocab-foot-notes）は、それが説明する配信の1行が待ち画面の間は出ないので一緒に隠す。 */
+html.cl-gen-lock,
+html.cl-gen-lock body { overflow: hidden; overscroll-behavior: none; }
+html.cl-gen-lock .app-tmdb-footer,
+html.cl-gen-lock .vocab-foot-notes { display: none; }
+
+.gen-loading.gen-b { gap: 10px; padding: 0; }
+.gen-b.gen-b-fit { min-height: 0; overflow: hidden; }
+/* 上の段：作品のカードは中身の高さだけ（空きを作らない）。足りない時だけ縮んで、あらすじが中でスクロール */
+.gen-b-top { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+.gen-b-fit .gen-b-top { flex: 1 1 auto; }
+.gen-b-work {
+  display: flex; flex-direction: column; gap: 10px; min-height: 0;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+  padding: 12px 14px; animation: synopsisIn 0.4s ease;
+}
+.gen-b-head { display: flex; align-items: center; gap: 12px; flex: none; }
+.gen-b-headtext { min-width: 0; }
+.gen-b-title {
+  margin: 0; font-size: 17px; font-weight: 700; line-height: 1.35; color: var(--text);
+  overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.gen-b-ep { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+.gen-b .gen-cover-thumb { width: 200px; }
+.gen-b .gen-cover-poster { width: 72px; }
+.gen-b-syn {
+  flex: 0 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  border-top: 1px solid var(--border); padding-top: 10px;
+  font-size: 14px; line-height: 1.8; color: var(--text); opacity: 0.88;
+}
+.gen-b-syn.gen-skeleton { opacity: 1; flex: none; }
+.gen-b .gen-tmdb-note { margin-top: 0; flex: none; }
+
+/* 下の段：進み具合（高さは決まっている） */
+.gen-b-prog {
+  flex: none; display: flex; flex-direction: column; gap: 9px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px;
+}
+.gen-b-steps { list-style: none; margin: 0; padding: 0; display: flex; align-items: center; font-size: 12px; color: var(--text-muted); }
+.gen-b-step { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+.gen-b-step + .gen-b-step { flex: 1; }
+.gen-b-line { flex: 1; height: 1.5px; min-width: 12px; margin: 0 8px; background: var(--border); }
+.gen-b-line.is-done { background: var(--green); }
+.gen-b-dot { width: 9px; height: 9px; border-radius: 50%; border: 1.6px solid var(--border); background: var(--surface); flex: none; }
+.gen-b-step.is-done { color: var(--green); }
+.gen-b-step.is-done .gen-b-dot { background: var(--green); border-color: var(--green); }
+.gen-b-step.is-on { color: var(--accent); font-weight: 600; }
+.gen-b-step.is-on .gen-b-dot { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+/* 文と線の場所＝できたらボタンが同じ高さで入る（何も動かない） */
+.gen-b-slot { height: 48px; display: flex; flex-direction: column; justify-content: center; gap: 9px; }
+.gen-b-slot .gen-reveal-btn { height: 48px; padding: 0 12px; flex: none; background: var(--btn-main-bg); color: var(--btn-main-ink); }
+.gen-b-status { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text); min-width: 0; }
+.gen-b-status .spinner { flex: none; width: 16px; height: 16px; margin: 0; }
+.gen-b-status-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gen-b-status .gen-eta-time { flex: none; font-size: 12px; color: var(--text-muted); }
+.gen-b .gen-eta { min-height: 1.5em; font-size: 12px; line-height: 1.5; text-align: left; }
+.gen-b-ready { display: inline-flex; align-items: center; gap: 4px; color: var(--green); }
+.gen-b-ready .li-ic { width: 14px; height: 14px; }
+/* ヒント：2行分の高さで決める（1行の文と2行の文が入れ替わっても動かない） */
+.gen-b .gen-tipbar { flex: none; padding: 10px 14px; }
+.gen-b .gen-tipbar-label { margin-bottom: 2px; }
+.gen-b .gen-tipbar-text { line-height: 1.6; height: 3.2em; overflow: hidden; }
+
+@media (max-width: 560px) {
+  .gen-b .gen-cover-thumb { width: 110px; }
+  .gen-b .gen-cover-poster { width: 56px; }
+  .gen-b-syn { font-size: 13px; line-height: 1.75; }
+}
