@@ -1174,9 +1174,13 @@ function ReviewDone({ showTomorrow = false, queue, partial = false, awardedRef, 
             1画面に収める（2026-11-15 オーナー採用 案A）: 開く・閉じるをやめ、3つの数・Exp（1行）・この回の語（2行まで）を
             1枚のカードに。全部の語・意味の説明・今日の記録は「すべて見る」のシートの中だけ（シートの中だけスクロール）。
             足りない数（あと○）は出さない。 */}
-        <DoneHero title={headline} sub={`今日 ${sessionNum}回目 ・ ${queue.length}単語を復習しました`} long={headline.length > 10} />
-        {extraPromo && <p className="rd-promo-extra">{extraPromo}</p>}
-        <TomorrowNote count={dueTomorrow} word={dueTomorrowWord} />
+        {/* 並べ方（2026-11-15 オーナー依頼）: 札から下は画面の下にそろえ、上の部分（絵・見出し・明日の予告）は余った高さの真ん中に。
+            箱の余白はふくらませない（余りは上の部分の上下に均等に入るだけ・CSS .rd-top の margin: auto） */}
+        <div className="rd-top">
+          <DoneHero title={headline} sub={`今日 ${sessionNum}回目 ・ ${queue.length}単語を復習しました`} long={headline.length > 10} />
+          {extraPromo && <p className="rd-promo-extra">{extraPromo}</p>}
+          <TomorrowNote count={dueTomorrow} word={dueTomorrowWord} />
+        </div>
         <section className="rd-sum" aria-label="この回のまとめ">
           {/* 並びはカードの3択と同じ（左から 知らなかった・うろ覚え・知ってた・2026-11-12 オーナー指摘） */}
           {/* 札を押すと、その答えの語の所でシートが開く（0語の札は押せない・2026-11-15 オーナー依頼） */}

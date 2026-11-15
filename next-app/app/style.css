@@ -8394,6 +8394,7 @@ html[data-theme="dark"] .autoplay-switch.is-on { color: var(--accent); border-co
 .rd.is-sum { --rd-sheet: #fbf6ee; --rd-chip-fail: #c98a96; --rd-chip-hard: #d9a93c; --rd-chip-easy: #5fae86; }
 html[data-theme="dark"] .rd.is-sum { --rd-sheet: #33281c; --rd-chip-fail: #d79aa6; --rd-chip-hard: #e2bd6b; --rd-chip-easy: #7cc3a0; }
 .rd.is-sum .rd-body { gap: 8px; padding-top: 0; padding-bottom: 6px; }
+.rd.is-sum .rd-top { margin: auto 0; display: flex; flex-direction: column; gap: 8px; } /* 余りの真ん中・札から下は下寄せ（2026-11-15） */
 .rd.is-sum .rd-hero { padding-top: 2px; }
 .rd.is-sum .rd-clap { width: 40px; height: 36px; margin-bottom: 2px; }
 .rd.is-sum .rd-title { font-size: 25px; }
