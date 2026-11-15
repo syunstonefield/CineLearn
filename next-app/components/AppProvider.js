@@ -12,7 +12,9 @@ import {
   loadArchivedMap,
   loadRemovedWorksMap,
   cleanupLegacySubtitleCache,
+  getDueReviewWords,
 } from '@/lib/storage';
+import { takePushOpenParam, notePushOpen, takePendingPushOpen, hasPendingPushOpen, pushOpenDecision } from '@/lib/pushOpen';
 import { reapplyWorkRemovals } from '@/lib/workRemovalStore';
 import { titlesToReopen, titlesReopenedBySaves, touchDramas, REOPEN_REMOVED_BY_SAVES } from '@/lib/workRemoval';
 import { sameWorkTitle, sameWorkTitleStrict } from '@/lib/words';
@@ -202,7 +204,11 @@ export default function AppProvider({ children }) {
   }, [mounted]);
 
   // ベータの利用データ（lib/usage.js・設定で止められる）。開いた回数を数え、送るきっかけを仕掛ける。
-  useEffect(() => initUsage(), []);
+  useEffect(() => {
+    const stop = initUsage();
+    takePushOpenParam(); // 通知から開いた（?open=review）＝今日の復習を開きたい印（lib/pushOpen.js）
+    return stop;
+  }, []);
   // 拡張で保存した語がこの端末に初めて届いたか（クラウド取込＝cloudVersion が進むたびに単語帳を見る・1回だけ数える）。
   useEffect(() => {
     if (cloudVersion > 0) noteExtWordsOnce();
@@ -804,6 +810,36 @@ export default function AppProvider({ children }) {
     forgetHubScroll(); // 下タブから入り直した時は最上部から（位置を戻すのは 復習／クイズ／リスト からの戻りだけ）
     setScreen('review-hub');
   }, []);
+
+  // 通知を押した時の行き先（2026-11-15・lib/pushOpen.js）。アプリがもう開いている時は service worker の知らせで、
+  //   読み込み直さずにここへ来る。ふつうの画面でカード・案内が重なっていない時に1回だけ、今日の復習（復習タブ）へ。
+  //   復習する語が無ければホームへ。カード・クイズ・案内の途中や初めての人の流れでは動かさない（前に出すだけ）。
+  const [pushOpenTick, setPushOpenTick] = useState(0);
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !navigator.serviceWorker) return undefined;
+    const onMsg = (e) => {
+      if (e?.data?.type !== 'cl-open' || e.data.open !== 'review') return;
+      notePushOpen(e.data.n);
+      setPushOpenTick((t) => t + 1);
+    };
+    navigator.serviceWorker.addEventListener('message', onMsg);
+    return () => navigator.serviceWorker.removeEventListener('message', onMsg);
+  }, []);
+  const pushBusy = !!(reviewWords || prepQuiz || prepLaunch || prepWalk || authOpen || tutorial || tour || guideOpen);
+  useEffect(() => {
+    if (!profile || bootstrapping || !hasPendingPushOpen()) return; // ログイン中はクラウドの取り込みを待ってから数える
+    let hasDue = false;
+    try {
+      hasDue = getDueReviewWords().length > 0;
+    } catch {
+      hasDue = false;
+    }
+    const d = pushOpenDecision({ screen, busy: pushBusy, hasDue });
+    if (d === 'wait') return; // 起動の途中＝画面が決まったらもう一度
+    takePendingPushOpen();
+    if (d === 'go') openReviewHub();
+    else if (d === 'home') setScreen('main');
+  }, [profile, bootstrapping, screen, pushBusy, pushOpenTick, cloudVersion, openReviewHub]);
 
   // テスト画面へ（VocabScreen の「テストを受ける」）
   //   opts.from: 'list'＝単語リストの帯の「クイズ」から→戻ると単語リスト（「← 単語リストに戻る」）／

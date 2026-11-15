@@ -29,15 +29,28 @@ self.addEventListener('push', (e) => {
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
   const url = e.notification.data?.url || '/app';
+  // 2026-11-15: アプリがもう開いている時は、その窓を前に出して「今日の復習を開きたい」を知らせる（読み込み直さない＝
+  //   カードの途中が消えない・アプリ側 lib/pushOpen.js）。開いていない時は新しく開く（URL の印 ?open=review で同じ所へ）。
+  let msg = null;
+  try {
+    const u = new URL(url, self.location.origin);
+    if (u.searchParams.get('open') === 'review') msg = { type: 'cl-open', open: 'review', n: u.searchParams.get('n') || 'morning' };
+  } catch {
+    msg = null;
+  }
   e.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
-      const existing = list.find((c) => c.url.includes(self.location.origin));
+      const app = list.find((c) => c.url.startsWith(self.location.origin + '/app'));
+      if (app && msg) {
+        app.postMessage(msg);
+        return app.focus();
+      }
+      const existing = app || list.find((c) => c.url.startsWith(self.location.origin));
       if (existing) {
         existing.focus();
-        existing.navigate(url);
-      } else {
-        clients.openWindow(url);
+        return existing.navigate(url);
       }
+      return clients.openWindow(url);
     })
   );
 });

@@ -206,6 +206,9 @@ export const USAGE_EVENTS = [
   'home_quiz', // ホームの「クイズ」を押した
   // 入口の印（上の FROM_SOURCES）。?from= 付きで来た人が /app に入った時に1回（紹介ページでは送らない）。
   ...FROM_EVENTS,
+  // 通知を押して開いた（2026-11-15・lib/pushOpen.js）。どちらの通知かだけ（語数・時刻・端末の情報は入れない）。
+  'push_open_morning',
+  'push_open_evening',
 ];
 
 // 拡張で保存した語か。拡張は source に配信サイトの画面タイトル（Netflix 等）を入れ、アプリの保存は
