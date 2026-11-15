@@ -87,6 +87,8 @@ export default function GenLoading({ status, drama, season, episode, ready = fal
   // TMDB の画像・あらすじを出している時だけ TMDB の1行を出す（法務 2026-11-12）
   // TMDB の画像（ポスター）を出している時だけ TMDB の1行を出す（法務 2026-11-12）。ポスターの有無は最初から分かる＝途中で出たり消えたりしない
   const usesTmdb = !!drama?.posterPath;
+  // ポスターは小さいサイズで取る（法務 2026-11-15: w92〜w185・w342 より大きいものを縮めて入れない）。56／72px の枠なので w185
+  const posterSrc = drama?.posterPath ? String(drama.posterPath).replace(/\/t\/p\/(w\d+|original)\//, '/t/p/w185/') : null;
 
   return (
     <div className="gen-loading gen-b gen-b-fit">
@@ -143,7 +145,7 @@ export default function GenLoading({ status, drama, season, episode, ready = fal
           スマホ56px／PC72px（上限 110／200 より小さく）。ポスターが無い作品は文字だけ。 */}
       <div className="gen-b-work">
         <div className="gen-b-head">
-          {drama?.posterPath ? <img className="gen-cover-poster" src={drama.posterPath} alt="" /> : null}
+          {posterSrc ? <img className="gen-cover-poster" src={posterSrc} alt="" /> : null}
           <div className="gen-b-headtext">
             <h2 className="gen-b-title">{drama?.title || ''}</h2>
             <div className="gen-b-ep">{epLabel}</div>
