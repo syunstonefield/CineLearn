@@ -2512,8 +2512,9 @@ export default function VocabScreen() {
         {/* リストがまだ無い話：配信状況の出典の文は、画面の一番下に（配信の1行が出る時だけ） */}
         {!hasList && availSrc && <div className="vocab-foot-notes">{availSrc}</div>}
 
-        {/* 映画はエピソードが無いので、削除だけをリスト末尾の控えめなリンクに置く（2026-10-18 案1） */}
-        {hasList && isMovie && (
+        {/* 映画はエピソードが無いので、削除だけをリスト末尾の控えめなリンクに置く（2026-10-18 案1）。
+            作品の画面（カード）には出さず、単語リストの画面だけに出す（2026-11-15 オーナー依頼・SE で作品の画面を1画面に収める） */}
+        {hasList && isMovie && view !== 'cards' && (
           <button type="button" className="bulkdel-link" onClick={onDelete}>
             この映画の単語リストを削除
           </button>

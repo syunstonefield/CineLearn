@@ -8614,3 +8614,65 @@ html.cl-screen-fit .ch-wrap.ch-b { flex: 1 0 auto; }
   color: var(--text-soft); position: sticky; bottom: 0; background: var(--bg);
 }
 .ch-tmdb a { color: var(--text-soft); }
+
+/* ════════════════════════════════════════════════════════════════
+   1ページに収めた画面で、空きを残さない（オーナー依頼 2026-11-15・待ち画面と作品の画面）
+   #vocabSection（戻るの行の下から下のタブの上まで）を高さの基準にして（コンテナクエリ・cqh）、
+   中身の大きさ・余白・間隔を画面の高さに合わせて伸び縮みさせる。それでも余る分は、箱のあいだに均等に配る。
+   ポスターは縦のまま・重ねない・スマホ110px／PC200px が上限（法務）。TMDB の1行は 12px のまま・いちばん下。
+   シート（ほかの話など）は #vocabSection の外に置かれているので、コンテナの影響を受けない。
+   ════════════════════════════════════════════════════════════════ */
+html.cl-screen-fit #vocabSection { container-type: size; container-name: fit; }
+/* 大きさは「SE の高さ（約480px）で小さい値、大きい iPhone（約740px）で大きい値、そのあいだは高さに比例」（clamp＋cqh） */
+
+/* ── 待ち画面 ── */
+html.cl-screen-fit .gen-b.gen-b-fit { flex: 1 1 auto; min-height: 420px; justify-content: space-between; gap: 10px; }
+html.cl-screen-fit .gen-b-prog { padding: clamp(12px, calc(12px + (100cqh - 480px) * 0.0692), 30px) clamp(14px, calc(14px + (100cqh - 480px) * 0.0385), 24px); gap: clamp(9px, calc(9px + (100cqh - 480px) * 0.0269), 16px); }
+html.cl-screen-fit .gen-b-steps { font-size: clamp(12px, calc(12px + (100cqh - 480px) * 0.0115), 15px); }
+html.cl-screen-fit .gen-b-slot { height: clamp(48px, calc(48px + (100cqh - 480px) * 0.1077), 76px); gap: clamp(9px, calc(9px + (100cqh - 480px) * 0.0269), 16px); }
+html.cl-screen-fit .gen-b-slot .gen-reveal-btn { height: 100%; font-size: clamp(15px, calc(15px + (100cqh - 480px) * 0.0115), 18px); }
+html.cl-screen-fit .gen-b-status { font-size: clamp(14px, calc(14px + (100cqh - 480px) * 0.0192), 19px); }
+html.cl-screen-fit .gen-b-status .gen-eta-time { font-size: clamp(12px, calc(12px + (100cqh - 480px) * 0.0115), 15px); }
+html.cl-screen-fit .gen-b .gen-progress { height: clamp(6px, calc(6px + (100cqh - 480px) * 0.0115), 9px); }
+/* 目安の文は2行ぶんの高さを最初から取る（幅によって2行になっても、出た時に箱が伸びない） */
+html.cl-screen-fit .gen-b .gen-eta { font-size: clamp(12px, calc(12px + (100cqh - 480px) * 0.0077), 14px); height: 3em; min-height: 0; }
+html.cl-screen-fit .gen-b-work { padding: clamp(12px, calc(12px + (100cqh - 480px) * 0.0692), 30px) clamp(14px, calc(14px + (100cqh - 480px) * 0.0385), 24px); }
+html.cl-screen-fit .gen-b-head { gap: clamp(12px, calc(12px + (100cqh - 480px) * 0.0231), 18px); }
+html.cl-screen-fit .gen-b .gen-cover-poster { width: clamp(64px, calc(64px + (100cqh - 480px) * 0.1769), 110px); }
+html.cl-screen-fit .gen-b-title { font-size: clamp(17px, calc(17px + (100cqh - 480px) * 0.0423), 28px); }
+html.cl-screen-fit .gen-b-ep { font-size: clamp(13px, calc(13px + (100cqh - 480px) * 0.0115), 16px); margin-top: clamp(2px, calc(2px + (100cqh - 480px) * 0.0154), 6px); }
+/* ヒント：点（何番目か）は文の下に */
+.gen-b .gen-tipbar { flex-direction: column; align-items: stretch; gap: 8px; }
+.gen-b .gen-tipbar-main { width: 100%; }
+.gen-b .gen-tip-dots { align-self: flex-start; }
+html.cl-screen-fit .gen-b .gen-tipbar { padding: clamp(10px, calc(10px + (100cqh - 480px) * 0.0692), 28px) clamp(14px, calc(14px + (100cqh - 480px) * 0.0385), 24px); gap: clamp(6px, calc(6px + (100cqh - 480px) * 0.0308), 14px); }
+html.cl-screen-fit .gen-b .gen-tipbar-label { font-size: clamp(12px, calc(12px + (100cqh - 480px) * 0.0077), 14px); }
+html.cl-screen-fit .gen-b .gen-tipbar-text { font-size: clamp(14px, calc(14px + (100cqh - 480px) * 0.0192), 19px); }
+@media (min-width: 561px) {
+  /* PC: ポスターは 200px が上限（ここでは 140px まで） */
+  html.cl-screen-fit .gen-b .gen-cover-poster { width: clamp(72px, calc(72px + (100cqh - 480px) * 0.2615), 140px); }
+}
+
+/* ── 作品の画面 ── */
+html.cl-screen-fit .ch-wrap.ch-b { flex: 1 0 auto; margin-top: 0; }
+html.cl-screen-fit .ch-b .ch-hero { padding: clamp(10px, calc(10px + (100cqh - 480px) * 0.0923), 34px) clamp(16px, calc(16px + (100cqh - 480px) * 0.0231), 22px) clamp(24px, calc(24px + (100cqh - 480px) * 0.1077), 52px); gap: clamp(14px, calc(14px + (100cqh - 480px) * 0.0231), 20px); }
+html.cl-screen-fit .ch-b .ch-hero .ch-poster { width: clamp(80px, calc(80px + (100cqh - 480px) * 0.1154), 110px); height: auto; aspect-ratio: 2 / 3; }
+html.cl-screen-fit .ch-b .ch-work-title { font-size: clamp(22px, calc(22px + (100cqh - 480px) * 0.0308), 30px); }
+html.cl-screen-fit .ch-b .ch-work-ep { font-size: clamp(12.5px, calc(12.5px + (100cqh - 480px) * 0.0096), 15px); }
+html.cl-screen-fit .ch-b .ch-learn { padding: clamp(10px, calc(10px + (100cqh - 480px) * 0.0846), 32px) clamp(14px, calc(14px + (100cqh - 480px) * 0.0385), 24px) clamp(8px, calc(8px + (100cqh - 480px) * 0.0692), 26px); }
+html.cl-screen-fit .ch-b .ch-peek { margin-bottom: clamp(8px, calc(8px + (100cqh - 480px) * 0.0308), 16px); }
+html.cl-screen-fit .ch-b .ch-peek-t { font-size: clamp(12.5px, calc(12.5px + (100cqh - 480px) * 0.0058), 14px); }
+html.cl-screen-fit .ch-b .ch-peek span { font-size: clamp(15px, calc(15px + (100cqh - 480px) * 0.0115), 18px); }
+html.cl-screen-fit .ch-b .ch-btn1-2l { min-height: clamp(56px, calc(56px + (100cqh - 480px) * 0.1385), 92px); font-size: clamp(16px, calc(16px + (100cqh - 480px) * 0.0154), 20px); }
+/* 下の行（単語リスト・クイズ・ほかの話）が余った高さを分け合う＝行が2つでも3つでも空きが出ず、はみ出さない。
+   1行は 44px（押せる大きさ）〜76px。それでも余る分だけ、学ぶの箱の下と TMDB の1行の上に回す */
+html.cl-screen-fit .ch-rows-b { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; margin-top: clamp(6px, 1.6cqh, 14px); }
+html.cl-screen-fit .ch-rowb { flex: 1 1 0; min-height: 44px; max-height: 76px; font-size: clamp(14px, calc(14px + (100cqh - 480px) * 0.0115), 17px); }
+html.cl-screen-fit .ch-b .ch-small { margin-top: clamp(6px, calc(6px + (100cqh - 480px) * 0.0308), 14px); }
+html.cl-screen-fit .ch-tmdb { margin-top: auto; }
+/* 記録の「うち マスター 1」などが数字の前で折り返さない（札と数の組） */
+.ch-rec-g { white-space: nowrap; display: inline-flex; align-items: baseline; gap: 4px; }
+.ch-rec .ch-rec-g::before { content: none; display: none; }
+/* ダークではヒントの点が見えなかった（黒の薄い色）→ 白の薄い色に */
+html[data-theme="dark"] .gen-tip-dots span { background: rgba(255, 255, 255, 0.22); }
+html[data-theme="dark"] .gen-tip-dots span.on { background: var(--accent); }
