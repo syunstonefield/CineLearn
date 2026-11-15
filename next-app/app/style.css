@@ -8679,3 +8679,42 @@ html.cl-screen-fit .ch-tmdb { margin-top: auto; }
 /* ダークではヒントの点が見えなかった（黒の薄い色）→ 白の薄い色に */
 html[data-theme="dark"] .gen-tip-dots span { background: rgba(255, 255, 255, 0.22); }
 html[data-theme="dark"] .gen-tip-dots span.on { background: var(--accent); }
+
+/* ════════════════════════════════════════════════════════════════
+   話を選ぶ画面 案A（components/EpisodeSelect.js・2026-11-15 オーナー決定）
+   帯・白い箱・行・下の出典は作品の画面（.ch-b）と同じ。ここはこの画面だけの部品。
+   ════════════════════════════════════════════════════════════════ */
+.es-svc { margin-top: 6px; }
+.es-svc-btn { background: none; border: 0; padding: 0; font: inherit; color: #e8c98a; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.es-ep {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px; width: 100%;
+  min-height: 48px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 12px;
+  background: var(--surface); font: inherit; font-size: 16px; font-weight: 700; color: var(--text); cursor: pointer; text-align: left;
+}
+.es-ep:active { background: var(--surface2); }
+.es-ep-chg { flex: none; font-size: 13px; font-weight: 600; color: var(--accent); }
+.es-st { display: flex; align-items: baseline; gap: 6px; margin: 8px 0 10px; font-size: 12.5px; line-height: 1.55; }
+.es-st-ok { color: var(--green); }
+.es-st-ok::before { content: ''; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--green); transform: translateY(-1px); }
+.es-st-warn { color: var(--red); }
+.es-st-muted { color: var(--text-muted); }
+.es-learn .ch-btn1.es-go { width: 100%; min-height: 50px; }
+.es-learn .ch-small { margin-top: 8px; }
+.es-extra { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+/* 下の出典（配信の1行＋長い出典の文＋TMDB の1行）: 小さく静かに・12px・読める濃さ・下に貼りつく */
+.ch-tmdb.es-notes { display: flex; flex-direction: column; gap: 1px; position: static; padding-top: 4px; }
+/* 配信の出典はふつうに並べ、TMDB の1行だけを下に貼りつける（入り切らない時も TMDB の1行はいつも見える） */
+.es-notes .es-tmdb { position: sticky; bottom: 0; background: var(--bg); padding-top: 2px; }
+.es-notes p { margin: 0; font-size: 12px; line-height: 1.35; color: var(--text-soft); }
+.es-notes a { color: var(--text-soft); }
+.es-notes .vocab-avail-cite { color: var(--text-soft); }
+.es-notes .vocab-avail-src { font-size: 12px; color: var(--text-soft); text-align: center; }
+html.cl-screen-fit .es-ep { min-height: clamp(48px, calc(48px + (100cqh - 480px) * 0.0615), 64px); font-size: clamp(16px, calc(16px + (100cqh - 480px) * 0.0115), 19px); }
+html.cl-screen-fit .es-learn .ch-btn1.es-go { min-height: clamp(50px, calc(50px + (100cqh - 480px) * 0.1000), 76px); font-size: clamp(16px, calc(16px + (100cqh - 480px) * 0.0154), 20px); }
+html.cl-screen-fit .es-st { font-size: clamp(12.5px, calc(12.5px + (100cqh - 480px) * 0.0058), 14px); margin: clamp(5px, calc(5px + (100cqh - 480px) * 0.0192), 10px) 0 clamp(7px, calc(7px + (100cqh - 480px) * 0.0192), 12px); }
+/* 話を選ぶ画面は中身が少ない＝残る高さは、帯と白い箱のまとまりの上と下に分ける（1か所に寄せない） */
+.es-top { display: flex; flex-direction: column; }
+html.cl-screen-fit .es-a .es-top { margin-block: auto; }
+html.cl-screen-fit .es-a .ch-tmdb { margin-top: 0; }
+html.cl-screen-fit .es-a .ch-rows-b { flex: 0 0 auto; }
+html.cl-screen-fit .es-a .ch-rowb { flex: none; min-height: clamp(44px, calc(44px + (100cqh - 480px) * 0.0769), 64px); }
