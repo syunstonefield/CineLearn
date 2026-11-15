@@ -2,7 +2,8 @@
 
 import { IconCheck } from './icons/LineIcons';
 import { MASTERED_LABEL, MASTERED_MEANING } from '@/lib/learnedTerms';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useScreenFit } from '@/lib/screenFit';
 import { fetchEpisodeSynopsis } from '@/lib/tmdb';
 import { etaText, ETA_SHOW_AFTER_SEC } from '@/lib/genEta';
 
@@ -36,15 +37,12 @@ function genPhaseFloorOf(status) {
   return 5;
 }
 
-// 1ページに収める時の下限（これより低い窓＝横向きのスマホ・小さな PC の窓では、ふつうにページをスクロールさせる）
-const FIT_MIN_PX = 420;
-
 // ready=true でスピナーを完了表示に替え、線の場所に「リストを見る →」ボタンを出す（自動遷移しない）。
 // あらすじ/Tipsを読み終わってから本人のタップで進む＝強制の待ちを増やさずロビー滞在を本人の選択にする。
-// 案B（オーナー決定 2026-11-15）: 上に作品（写真・作品名・話数）とあらすじ、下に進み具合とヒント。
-//   1ページに収める＝ページの高さを画面の高さに合わせ、ページは動かさない（html.cl-gen-lock）。
-//   進み具合とヒントは作品のカードのすぐ下（2026-11-15 オーナー決定・空きは画面の下に回る）。あらすじが長い時はカードの中だけがスクロールする。
-//   あらすじが届く前は4行ほどの高さを取っておく（届いた時に下が動く量を小さくする・1回だけ動くのは可）。
+// 案B（オーナー決定 2026-11-15）。並びは上から 進み具合 → 作品（写真・作品名・話数・あらすじ）→ ヒント → TMDB の1行（2026-11-15 オーナー依頼）。
+//   1ページに収める＝ヘッダーと下のタブのあいだに固定（lib/screenFit.js・html.cl-screen-fit）。低い窓（420px 未満）では中だけスクロールし、TMDB の1行は下に貼りつく。
+//   進み具合はいちばん上＝あらすじが届いても動かない。ヒントと TMDB の1行は画面の下に置いて動かさない（空きはカードとヒントの間）。
+//   あらすじが長い時はカードの中だけがスクロールする。
 //   目安の文・経過の場所は最初から空けておく（出た時に何も押し下げない）。できたらボタンは線と同じ場所に出る。
 export default function GenLoading({ status, drama, season, episode, ready = false, onReveal, revealLabel = 'リストを見る →' }) {
   // Tips：ランダム開始で4秒ごとにローテーション
@@ -59,9 +57,6 @@ export default function GenLoading({ status, drama, season, episode, ready = fal
   const floorRef = useRef(genPhaseFloorOf(status));
   const startedAtRef = useRef(Date.now());
 
-  // 1ページに収める高さ（px）。null＝収めない（低い窓）
-  const rootRef = useRef(null);
-  const [fitH, setFitH] = useState(null);
 
   useEffect(() => {
     floorRef.current = Math.max(floorRef.current, genPhaseFloorOf(status));
@@ -82,41 +77,8 @@ export default function GenLoading({ status, drama, season, episode, ready = fal
     return () => clearInterval(timer);
   }, []);
 
-  // 画面の高さに合わせる。ページの一番上から始め、ページ全体の高さ（scrollHeight）＝画面の高さになるよう
-  // この画面の高さを決める（下のタブ・余白・ヘッダーの高さは端末ごとに違うので、実際の値で合わせる）。
-  useLayoutEffect(() => {
-    const root = document.documentElement;
-    const fit = () => {
-      const el = rootRef.current;
-      if (!el) return;
-      root.classList.add('cl-gen-lock');
-      window.scrollTo(0, 0);
-      const top = el.getBoundingClientRect().top;
-      const nav = document.querySelector('.bottom-nav');
-      const navH = nav && getComputedStyle(nav).display !== 'none' ? nav.getBoundingClientRect().height : 0;
-      let h = Math.floor(window.innerHeight - top - navH - 12);
-      if (h < FIT_MIN_PX) {
-        root.classList.remove('cl-gen-lock');
-        el.style.height = '';
-        setFitH(null);
-        return;
-      }
-      el.style.height = `${h}px`;
-      // 余白などでまだ画面より高い／低い分を、実際の高さで1回だけ直す
-      const diff = root.scrollHeight - window.innerHeight;
-      if (diff !== 0) {
-        h -= diff;
-        el.style.height = `${h}px`;
-      }
-      setFitH(h);
-    };
-    fit();
-    window.addEventListener('resize', fit);
-    return () => {
-      window.removeEventListener('resize', fit);
-      root.classList.remove('cl-gen-lock');
-    };
-  }, []);
+  // 1ページに収める（ヘッダーと下のタブのあいだに固定・中身が収まる時は動かない・入り切らない時は中だけスクロール）
+  useScreenFit();
 
   // あらすじ＋エピソードスチルをAI生成と並行取得して即表示（取得失敗しても生成は止めない）
   useEffect(() => {
@@ -142,53 +104,11 @@ export default function GenLoading({ status, drama, season, episode, ready = fal
   const dotOn = tipIdx % LEARNING_TIPS.length;
   const showEta = !ready && elapsed >= ETA_SHOW_AFTER_SEC;
   // TMDB の画像・あらすじを出している時だけ TMDB の1行を出す（法務 2026-11-12）
-  const usesTmdb = !!(synopsis || drama?.posterPath);
+  //   いちばん下に置くので、TMDB で作品を引いた時は最初から出しておく（あらすじが届いた時に下が動かない）
+  const usesTmdb = !!(synopsis || drama?.posterPath || drama?.tmdbId);
 
   return (
-    <div className={'gen-loading gen-b' + (fitH ? ' gen-b-fit' : '')} ref={rootRef}>
-      <div className="gen-b-top">
-        {/* 作品のカード：写真＋作品名＋話数、その下にあらすじ。
-            ・エピソードスチル／映画のバックドロップ（横長）は 16:9 の枠に（同じ比率＝切り抜きなし）。
-            ・それが無くポスター（縦長）しか無い時は、縦の比率のまま小さく出す（16:9 に入れて上下を切らない・法務 2026-11-12）。
-            ・どちらも無い時は文字だけ。画像に文字・印・ぼかしを重ねない。大きさは PC 200px／スマホ 110px が上限。
-            ・あらすじは TMDB の文をそのまま出す（長い時はカードの中だけスクロール＝全文がそのまま読める）。 */}
-        <div className="gen-b-work">
-          <div className="gen-b-head">
-            {synopsis?.still ? (
-              <img className="gen-cover-thumb" src={synopsis.still} alt="" />
-            ) : drama?.posterPath ? (
-              <img className="gen-cover-poster" src={drama.posterPath} alt="" />
-            ) : null}
-            <div className="gen-b-headtext">
-              <h2 className="gen-b-title">{drama?.title || ''}</h2>
-              <div className="gen-b-ep">{epLabel}</div>
-            </div>
-          </div>
-          {synopsis?.overview ? (
-            <div className="gen-b-syn" tabIndex={0} aria-label="あらすじ">
-              {synopsis.overview}
-            </div>
-          ) : !synDone && drama?.tmdbId ? (
-            <div className="gen-b-syn gen-skeleton" aria-hidden="true">
-              <span></span>
-              <span></span>
-              <span></span>
-            </div>
-          ) : null}
-        </div>
-
-        {/* TMDB の表示（法務の条件 2026-11-12）。画面下の app-tmdb-footer は待ち画面の間は隠すので、ここに必ず出す */}
-        {usesTmdb && (
-          <div className="gen-tmdb-note">
-            This product uses the TMDB API but is not endorsed or certified by{' '}
-            <a href="https://www.themoviedb.org" target="_blank" rel="noopener">
-              TMDB
-            </a>
-            .
-          </div>
-        )}
-      </div>
-
+    <div className="gen-loading gen-b gen-b-fit">
       {/* 進み具合：3つの段（点と線）・今の文と経過・線（できたらボタン）・目安の文。高さは決まっていて、文が出ても動かない */}
       <div className="gen-b-prog">
         <ol className="gen-b-steps" aria-label="進み具合">
@@ -237,6 +157,39 @@ export default function GenLoading({ status, drama, season, episode, ready = fal
         </div>
       </div>
 
+      <div className="gen-b-top">
+        {/* 作品のカード：写真＋作品名＋話数、その下にあらすじ。
+            ・エピソードスチル／映画のバックドロップ（横長）は 16:9 の枠に（同じ比率＝切り抜きなし）。
+            ・それが無くポスター（縦長）しか無い時は、縦の比率のまま小さく出す（16:9 に入れて上下を切らない・法務 2026-11-12）。
+            ・どちらも無い時は文字だけ。画像に文字・印・ぼかしを重ねない。大きさは PC 200px／スマホ 110px が上限。
+            ・あらすじは TMDB の文をそのまま出す（長い時はカードの中だけスクロール＝全文がそのまま読める）。 */}
+        <div className="gen-b-work">
+          <div className="gen-b-head">
+            {synopsis?.still ? (
+              <img className="gen-cover-thumb" src={synopsis.still} alt="" />
+            ) : drama?.posterPath ? (
+              <img className="gen-cover-poster" src={drama.posterPath} alt="" />
+            ) : null}
+            <div className="gen-b-headtext">
+              <h2 className="gen-b-title">{drama?.title || ''}</h2>
+              <div className="gen-b-ep">{epLabel}</div>
+            </div>
+          </div>
+          {synopsis?.overview ? (
+            <div className="gen-b-syn" tabIndex={0} aria-label="あらすじ">
+              {synopsis.overview}
+            </div>
+          ) : !synDone && drama?.tmdbId ? (
+            <div className="gen-b-syn gen-skeleton" aria-hidden="true">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+          ) : null}
+        </div>
+
+      </div>
+
       {/* 学習Tips：ラベル＋帯＋ローテーションのドット表示。key 再マウントで tipFade を再トリガー。高さは2行分で決まっている */}
       <div className="gen-tipbar">
         <div className="gen-tipbar-main">
@@ -251,6 +204,17 @@ export default function GenLoading({ status, drama, season, episode, ready = fal
           ))}
         </div>
       </div>
+      {/* TMDB の表示（法務の条件 2026-11-12）。画面下の app-tmdb-footer は待ち画面の間は隠すので、ここに必ず出す。
+          いちばん下（ヒントの下）でも、1ページに収めているので必ず画面の中に見える（2026-11-15 並びの変更） */}
+      {usesTmdb && (
+        <div className="gen-tmdb-note">
+          This product uses the TMDB API but is not endorsed or certified by{' '}
+          <a href="https://www.themoviedb.org" target="_blank" rel="noopener">
+            TMDB
+          </a>
+          .
+        </div>
+      )}
     </div>
   );
 }

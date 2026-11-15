@@ -8510,18 +8510,33 @@ html .vab-btn.is-primary .vab-sub { color: color-mix(in srgb, var(--btn-main-ink
    法務（2026-11-12）: ポスターは縦のまま小さく・16:9 の枠はスチル／バックドロップだけ・画像に何も重ねない・
    大きさは スマホ110／PC200 まで・あらすじはそのまま（長い時はカードの中だけスクロール）・TMDB の1行を出す。
    ════════════════════════════════════════════════════════════════ */
-/* 待ち画面の間はページを動かさない。下の TMDB の帯は画面の中の1行（gen-tmdb-note）で出すので隠す。
-   配信の出典の文（vocab-foot-notes）は、それが説明する配信の1行が待ち画面の間は出ないので一緒に隠す。 */
-html.cl-gen-lock,
-html.cl-gen-lock body { overflow: hidden; overscroll-behavior: none; }
-html.cl-gen-lock .app-tmdb-footer,
-html.cl-gen-lock .vocab-foot-notes { display: none; }
-/* 下のタブの裏に空けている余白（タブの高さ分）も、この間はいらない＝ページの高さを画面の高さちょうどにする */
-html.cl-gen-lock .bottom-nav-spacer { display: none; }
-html.cl-gen-lock .screen-inner { padding-bottom: 0; }
+/* 1ページに収める（lib/screenFit.js・待ち画面と作品の画面・2026-11-15）。
+   単語リストの画面（#screen-4）を、ヘッダーの下から下のタブの上までに固定する（高さの計算に頼らない＝ホーム画面に置いた
+   iPhone のアプリで下のセーフエリアぶんずれない・復習の 948bbe7 と同じ考え方）。中身が収まる時はどこも動かない。
+   入り切らない時（とても小さい画面・横向き・記録が多い時）は、この箱の中だけでふつうにスクロールする。
+   z-index は下のタブ（900）より上・お知らせ（950）より下＝この画面から開くシート（ほかの話など）が下のタブの上に出る。
+   TMDB の帯（app-tmdb-footer）は箱の外になるので隠し、画面の中に1行出す（待ち画面・作品の画面とも・法務 2026-11-15）。
+   配信の出典の文（vocab-foot-notes）は、それが説明する配信の1行がこの2つの画面では出ないので一緒に隠す。 */
+html.cl-screen-fit,
+html.cl-screen-fit body { overflow: hidden; overscroll-behavior: none; }
+html.cl-screen-fit .app-tmdb-footer,
+html.cl-screen-fit .vocab-foot-notes,
+html.cl-screen-fit .bottom-nav-spacer { display: none; }
+html.cl-screen-fit #screen-4.screen.active {
+  position: fixed; top: var(--header-h, 60px); left: 0; right: 0; bottom: 0; z-index: 920;
+  display: flex; flex-direction: column;
+  overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain;
+}
+/* 下のタブ（56px＋線・セーフエリア）の上で止める */
+html.cl-screen-fit:has(.bottom-nav) #screen-4.screen.active { bottom: calc(60px + env(safe-area-inset-bottom, 0px)); }
+html.cl-screen-fit #screen-4 > .screen-inner { flex: 1 0 auto; width: 100%; box-sizing: border-box; padding-bottom: 4px; }
+/* 映画の「この映画の単語リストを削除」は TMDB の1行のすぐ下に詰める（SE で1画面に収める） */
+html.cl-screen-fit #screen-4 .bulkdel-link { margin-top: 0; }
+html.cl-screen-fit #vocabSection { flex: 1 0 auto; display: flex; flex-direction: column; }
 
 .gen-loading.gen-b { gap: 10px; padding: 0; }
-.gen-b.gen-b-fit { min-height: 0; overflow: hidden; }
+/* 箱の残りの高さをちょうど使う（低すぎる時は 420px を下限にして箱の中でスクロール）。overflow は clip＝TMDB の1行の sticky が箱に効く */
+.gen-b.gen-b-fit { flex: 1 1 0; min-height: 420px; overflow: clip; }
 /* 上の段：作品のカードは中身の高さだけ（空きを作らない）。足りない時だけ縮んで、あらすじが中でスクロール */
 .gen-b-top { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
 /* 進み具合はカードのすぐ下に寄せる（オーナー決定 2026-11-15）＝上の段は中身の高さだけ。空きは画面の下に回る。
@@ -8549,7 +8564,11 @@ html.cl-gen-lock .screen-inner { padding-bottom: 0; }
 /* あらすじが届く前も、ふつうのあらすじ（4行ほど）の高さを取っておく＝届いた時に下の進み具合が動く量を小さくする。
    SE で入りきらない時は縮む（flex-shrink） */
 .gen-b-syn.gen-skeleton { opacity: 1; flex: 0 1 auto; height: calc(7.2em + 11px); overflow: hidden; }
-.gen-b .gen-tmdb-note { margin-top: 0; flex: none; }
+/* TMDB の1行（いちばん下）: 英語の全文・12px・読める濃さ。画面が低くてスクロールする時も下に貼りついて押し出されない（法務 2026-11-15） */
+.gen-b .gen-tmdb-note { margin-top: 0; flex: none; position: sticky; bottom: 0; z-index: 1; background: var(--bg); color: var(--text-soft); padding: 4px 0 2px; }
+.gen-b .gen-tmdb-note a { color: var(--text-soft); }
+/* 並び（2026-11-15）: 進み具合 → 作品のカード → ヒント → TMDB の1行。ヒントと TMDB の1行は画面の下に置いて動かさない */
+.gen-b-fit .gen-tipbar { margin-top: auto; }
 
 /* 下の段：進み具合（高さは決まっている） */
 .gen-b-prog {
@@ -8587,3 +8606,12 @@ html.cl-gen-lock .screen-inner { padding-bottom: 0; }
   .gen-b-syn { font-size: 13px; line-height: 1.75; }
   .gen-b-syn.gen-skeleton { height: calc(7em + 11px); }
 }
+
+/* 作品の画面を1ページに収める（2026-11-15・lib/screenFit.js）: 中身が少ない時は TMDB の1行を画面の下に。
+   入り切らない時は箱の中でスクロールし、TMDB の1行は下に貼りつく */
+html.cl-screen-fit .ch-wrap.ch-b { flex: 1 0 auto; }
+.ch-tmdb {
+  margin: auto 0 0; padding: 6px 0 0; font-size: 12px; line-height: 1.5; text-align: center;
+  color: var(--text-soft); position: sticky; bottom: 0; background: var(--bg);
+}
+.ch-tmdb a { color: var(--text-soft); }

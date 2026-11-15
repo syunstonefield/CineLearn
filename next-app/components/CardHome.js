@@ -3,6 +3,7 @@
 import { tomorrowSubLine } from '@/lib/tomorrowPreview';
 import { LEARNED_LABEL, LEARNING_LABEL, MASTERED_OF_LEARNED_LABEL } from '@/lib/learnedTerms';
 import { IconClose, IconSparkle } from './icons/LineIcons';
+import { useScreenFit } from '@/lib/screenFit';
 // 下の札の絵＝線の絵（components/icons/LineIcons.js・2026-11-12 オーナー決定）
 
 // 作品を選んだあと＝カード中心（2026-11-12 オーナー決定・見本 reports/prep-card-first-2026-11-12/mock.html）。
@@ -65,6 +66,9 @@ export function CardHome({
   //   上の帯だけ濃い茶（ポスター＝縦のまま・切り抜かない・何も重ねない／ドラマ・映画の札／作品名を大きく／話数・語数）。
   //   記録（学習中／覚えた／うち マスター）は1つでもある時だけ、作品名の下に1行＋細い線（全部 0 なら出さない）。
   //   「単語を学ぶ」の箱が主役（帯の下の余白に少し重ねる・ポスターには重ならない）。下は行の形（線で区切る・右に小さな数と ›）。
+  // 1ページに収める（2026-11-15 オーナー依頼・iPhone 実機）: 中身が収まる時はページが上下に動かない。
+  //   入り切らない時（小さい画面・横向き）は箱の中だけでふつうにスクロールする（lib/screenFit.js）。
+  useScreenFit();
   const hasRecord = learning + learned > 0;
   const peekTitle = first && cardN > 0 ? `最初の${cardN}枚に出てくる単語` : '次に出てくる単語';
   const rows = [
@@ -139,6 +143,14 @@ export function CardHome({
         ))}
       </div>
       <p className="ch-small">学ばなくても、いつでも観られます</p>
+      {/* TMDB の表示: 1ページに収めている間は画面の下の帯が隠れるので、ポスターと同じ画面の中に1行出す（英語の全文・12px） */}
+      <p className="ch-tmdb">
+        This product uses the TMDB API but is not endorsed or certified by{' '}
+        <a href="https://www.themoviedb.org" target="_blank" rel="noopener">
+          TMDB
+        </a>
+        .
+      </p>
     </div>
   );
 }
