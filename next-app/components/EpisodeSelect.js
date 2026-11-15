@@ -1,5 +1,6 @@
 'use client';
 
+import { Children } from 'react';
 import { CardPoster } from './CardHome';
 
 // 話を選ぶ画面（リストを作る前・2026-11-15 オーナー決定 案A・見本 reports/episode-select-2026-11-15/mock.html の左）。
@@ -71,7 +72,8 @@ export function EpisodeSelect({
       </div>
       </div>
 
-      {children ? <div className="es-extra">{children}</div> : null}
+      {/* 中身がある時だけ（空の箱で間があかないように） */}
+      {Children.toArray(children).length > 0 ? <div className="es-extra">{children}</div> : null}
 
       {listCount >= 2 && onOrganize && (
         <div className="ch-rows-b es-rows">

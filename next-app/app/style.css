@@ -8613,7 +8613,7 @@ html.cl-screen-fit #vocabSection { flex: 1 0 auto; display: flex; flex-direction
    入り切らない時は箱の中でスクロールし、TMDB の1行は下に貼りつく */
 html.cl-screen-fit .ch-wrap.ch-b { flex: 1 0 auto; }
 .ch-tmdb {
-  margin: auto 0 0; padding: 6px 0 0; font-size: 12px; line-height: 1.5; text-align: center;
+  margin: auto 0 0; padding: 4px 0 0; font-size: 12px; line-height: 1.5; text-align: center;
   color: var(--text-soft); position: sticky; bottom: 0; background: var(--bg);
 }
 .ch-tmdb a { color: var(--text-soft); }
@@ -8629,7 +8629,9 @@ html.cl-screen-fit #vocabSection { container-type: size; container-name: fit; }
 /* 大きさは「SE の高さ（約480px）で小さい値、大きい iPhone（約740px）で大きい値、そのあいだは高さに比例」（clamp＋cqh） */
 
 /* ── 待ち画面 ── */
-html.cl-screen-fit .gen-b.gen-b-fit { flex: 1 1 auto; min-height: 420px; justify-content: space-between; gap: 6px; }
+/* 箱と箱の間は決まった幅（12px）で上から詰める。余った高さは1か所だけ＝ヒントと TMDB の1行の間（2026-11-15 オーナー指摘） */
+html.cl-screen-fit .gen-b.gen-b-fit { flex: 1 1 auto; min-height: 420px; justify-content: flex-start; gap: 12px; }
+html.cl-screen-fit .gen-b .gen-tmdb-note { margin-top: auto; }
 /* 箱の中の余白はふつうのまま（2026-11-15 オーナー「箱を空気でふくらませない」）。大きくするのは文字・ポスター・ボタンだけ */
 html.cl-screen-fit .gen-b-prog { padding: 12px 14px; gap: 9px; }
 html.cl-screen-fit .gen-b-steps { font-size: clamp(12px, calc(12px + (100cqh - 480px) * 0.0115), 15px); }
@@ -8638,8 +8640,8 @@ html.cl-screen-fit .gen-b-slot .gen-reveal-btn { height: 100%; font-size: clamp(
 html.cl-screen-fit .gen-b-status { font-size: clamp(14px, calc(14px + (100cqh - 480px) * 0.0192), 19px); }
 html.cl-screen-fit .gen-b-status .gen-eta-time { font-size: clamp(12px, calc(12px + (100cqh - 480px) * 0.0115), 15px); }
 html.cl-screen-fit .gen-b .gen-progress { height: clamp(6px, calc(6px + (100cqh - 480px) * 0.0115), 9px); }
-/* 目安の文は2行ぶんの高さを最初から取る（幅によって2行になっても、出た時に箱が伸びない） */
-html.cl-screen-fit .gen-b .gen-eta { font-size: clamp(12px, calc(12px + (100cqh - 480px) * 0.0077), 14px); height: 3em; min-height: 0; }
+/* 目安の文は最初から1行で出す（取り置きはしない・2026-11-15 オーナー指摘） */
+html.cl-screen-fit .gen-b .gen-eta { font-size: clamp(12px, calc(12px + (100cqh - 480px) * 0.0077), 14px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 html.cl-screen-fit .gen-b-work { padding: 12px 14px; }
 html.cl-screen-fit .gen-b-head { gap: 12px; }
 html.cl-screen-fit .gen-b .gen-cover-poster { width: clamp(64px, calc(64px + (100cqh - 480px) * 0.1769), 110px); }
@@ -8663,15 +8665,15 @@ html.cl-screen-fit .ch-b .ch-hero { padding: 14px 16px 24px; gap: 14px; }
 html.cl-screen-fit .ch-b .ch-hero .ch-poster { width: clamp(70px, calc(70px + (100cqh - 480px) * 0.1538), 110px); height: auto; aspect-ratio: 2 / 3; }
 html.cl-screen-fit .ch-b .ch-work-title { font-size: clamp(22px, calc(22px + (100cqh - 480px) * 0.0308), 30px); }
 html.cl-screen-fit .ch-b .ch-work-ep { font-size: clamp(12.5px, calc(12.5px + (100cqh - 480px) * 0.0096), 15px); }
-html.cl-screen-fit .ch-b .ch-learn { padding: 12px 14px 10px; }
+html.cl-screen-fit .ch-b .ch-learn { padding: 12px 14px 8px; }
 html.cl-screen-fit .ch-b .ch-peek { margin-bottom: 7px; }
 html.cl-screen-fit .ch-b .ch-peek-t { font-size: clamp(12.5px, calc(12.5px + (100cqh - 480px) * 0.0058), 14px); }
 html.cl-screen-fit .ch-b .ch-peek span { font-size: clamp(15px, calc(15px + (100cqh - 480px) * 0.0115), 18px); }
 html.cl-screen-fit .ch-b .ch-btn1-2l { min-height: clamp(50px, calc(50px + (100cqh - 480px) * 0.0692), 68px); font-size: clamp(16px, calc(16px + (100cqh - 480px) * 0.0115), 19px); }
-/* 下の行はふつうの高さ（44px）。余った高さは「学ぶの箱と行のあいだ」と「行と TMDB の1行のあいだ」に分ける（箱をふくらませない） */
-html.cl-screen-fit .ch-rows-b { margin-top: auto; }
+/* 下の行はふつうの高さ（44px）・学ぶの箱との間は 12px。余った高さは1か所だけ＝TMDB の1行の上（2026-11-15 オーナー指摘） */
+html.cl-screen-fit .ch-rows-b { margin-top: clamp(4px, calc(4px + (100cqh - 480px) * 0.0889), 12px); } /* SE（ホーム画面のアプリ）だけ少し詰める・390×763 から 12px */
 html.cl-screen-fit .ch-rowb { font-size: clamp(14px, calc(14px + (100cqh - 480px) * 0.0077), 16px); }
-html.cl-screen-fit .ch-b .ch-small { margin-top: 4px; }
+html.cl-screen-fit .ch-b .ch-small { margin-top: 2px; }
 html.cl-screen-fit .ch-tmdb { margin-top: auto; }
 /* 記録の「うち マスター 1」などが数字の前で折り返さない（札と数の組） */
 .ch-rec-g { white-space: nowrap; display: inline-flex; align-items: baseline; gap: 4px; }
@@ -8733,10 +8735,12 @@ html.cl-screen-fit .gen-flow-l { font-size: clamp(13px, calc(13px + (100cqh - 48
 html.cl-screen-fit .es-ep { min-height: clamp(48px, calc(48px + (100cqh - 480px) * 0.0615), 64px); font-size: clamp(16px, calc(16px + (100cqh - 480px) * 0.0115), 19px); }
 html.cl-screen-fit .es-learn .ch-btn1.es-go { min-height: clamp(50px, calc(50px + (100cqh - 480px) * 0.1000), 76px); font-size: clamp(16px, calc(16px + (100cqh - 480px) * 0.0154), 20px); }
 html.cl-screen-fit .es-st { font-size: clamp(12.5px, calc(12.5px + (100cqh - 480px) * 0.0058), 14px); margin: 4px 0 5px; }
-/* 話を選ぶ画面は中身が少ない＝残る高さは、帯と白い箱のまとまりの上と下に分ける（1か所に寄せない） */
+/* 話を選ぶ画面も、間は決まった幅で上から詰め、余った高さは下の出典の上だけ（2026-11-15 オーナー指摘） */
 .es-top { display: flex; flex-direction: column; }
-html.cl-screen-fit .es-a .es-top { margin-block: auto; }
-html.cl-screen-fit .es-a .ch-tmdb { margin-top: 0; }
+html.cl-screen-fit .es-a .es-top { margin-block: 0; }
+html.cl-screen-fit .es-a .ch-tmdb { margin-top: auto; }
+html.cl-screen-fit .es-a .es-rows { margin-top: clamp(4px, calc(4px + (100cqh - 480px) * 0.0889), 12px); }
+html.cl-screen-fit .es-a .es-extra { margin-top: 12px; }
 html.cl-screen-fit .es-a .ch-rows-b { flex: 0 0 auto; }
 html.cl-screen-fit .es-a .ch-rowb { flex: none; min-height: clamp(44px, calc(44px + (100cqh - 480px) * 0.0769), 64px); }
 /* 法務 2026-11-15: 下の3つ（配信の行・出典の文・TMDB の1行）はどの幅でも隠れない＝SE で全部そろう時も1画面に収める */
@@ -8747,5 +8751,5 @@ html.cl-screen-fit .es-a .ch-hero { padding-top: 10px; padding-bottom: 22px; } /
 html.cl-screen-fit .es-a .ch-hero .ch-poster { width: clamp(64px, calc(64px + (100cqh - 480px) * 0.1769), 110px); }
 html.cl-screen-fit .es-a .es-learn .ch-btn1.es-go { min-height: clamp(46px, calc(46px + (100cqh - 480px) * 0.1154), 76px); }
 html.cl-screen-fit .es-a .es-learn .ch-small { margin-top: clamp(4px, calc(4px + (100cqh - 480px) * 0.0231), 10px); }
-html.cl-screen-fit .es-a .es-learn { padding-top: 8px; padding-bottom: 8px; }
+html.cl-screen-fit .es-a .es-learn { padding-top: 8px; padding-bottom: 6px; }
 .es-notes p { line-height: 1.3; }

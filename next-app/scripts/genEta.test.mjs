@@ -10,7 +10,7 @@ test('ドラマ: 最初は30〜40秒・長くかかったら1分', () => {
 });
 
 test('映画: 最初は1分・長くかかったら1分半', () => {
-  assert.match(etaText(true, 6), /映画の単語リストは、1分ほど/);
+  assert.match(etaText(true, 6), /映画は、1分ほど/);
   assert.match(etaText(true, ETA_LONG_MOVIE_SEC - 1), /1分ほど/);
   assert.match(etaText(true, ETA_LONG_MOVIE_SEC), /1分半ほど/);
   assert.doesNotMatch(etaText(true, 6), /1〜2分/);

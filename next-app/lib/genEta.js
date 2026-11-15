@@ -7,13 +7,11 @@
 export const ETA_SHOW_AFTER_SEC = 5;
 export const ETA_LONG_TV_SEC = 45;
 export const ETA_LONG_MOVIE_SEC = 70;
+// 2026-11-15 オーナー指摘: 最初から1行で出す（途中で出たり消えたりしない・SE でも1行に収まる長さ）。
+//   すぐ出る時（共有キャッシュ）にも嘘にならない言い方＝「新しく作る時は…」。
 export function etaText(isMovie, elapsedSec = 0) {
   if (isMovie) {
-    return elapsedSec >= ETA_LONG_MOVIE_SEC
-      ? 'もう少しで仕上がります（長い映画は1分半ほどかかります）'
-      : '新しく作る映画の単語リストは、1分ほどかかります';
+    return elapsedSec >= ETA_LONG_MOVIE_SEC ? '長い映画は、1分半ほどかかります' : '新しく作る映画は、1分ほどかかります';
   }
-  return elapsedSec >= ETA_LONG_TV_SEC
-    ? 'もう少しで仕上がります（この話は1分ほどかかります）'
-    : '新しく作る単語リストは、30〜40秒ほどかかります';
+  return elapsedSec >= ETA_LONG_TV_SEC ? '長めの話は、1分ほどかかります' : '新しく作る時は、30〜40秒ほどかかります';
 }

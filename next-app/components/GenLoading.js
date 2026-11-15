@@ -98,7 +98,8 @@ export default function GenLoading({ status, drama, season, episode, ready = fal
   const isMovie = drama?.type === 'movie';
   const epLabel = isMovie ? '映画' : `シーズン${season} 第${episode}話`;
   const dotOn = tipIdx % LEARNING_TIPS.length;
-  const showEta = !ready && elapsed >= ETA_SHOW_AFTER_SEC;
+  // 経過の時間は少し待ってから右に出す（高さは変わらない）。目安の文は最初から1行で出す（2026-11-15 オーナー指摘）
+  const showElapsed = !ready && elapsed >= ETA_SHOW_AFTER_SEC;
   // TMDB の画像・あらすじを出している時だけ TMDB の1行を出す（法務 2026-11-12）
   // TMDB の画像（ポスター）を出している時だけ TMDB の1行を出す（法務 2026-11-12）。ポスターの有無は最初から分かる＝途中で出たり消えたりしない
   const usesTmdb = !!drama?.posterPath;
@@ -136,7 +137,7 @@ export default function GenLoading({ status, drama, season, episode, ready = fal
               <div className="gen-b-status">
                 <div className="spinner"></div>
                 <span className="gen-b-status-text">{status}</span>
-                {showEta && <span className="gen-eta-time">経過 {elapsedLabel(elapsed)}</span>}
+                {showElapsed && <span className="gen-eta-time">経過 {elapsedLabel(elapsed)}</span>}
               </div>
               <div className="gen-progress">
                 <div className="gen-progress-fill" style={{ width: `${progress.toFixed(1)}%` }}></div>
@@ -149,9 +150,9 @@ export default function GenLoading({ status, drama, season, episode, ready = fal
             <span className="gen-b-ready">
               <IconCheck /> 準備ができました
             </span>
-          ) : showEta ? (
+          ) : (
             etaText(isMovie, elapsed)
-          ) : null}
+          )}
         </div>
       </div>
 
