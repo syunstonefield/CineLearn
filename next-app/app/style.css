@@ -7416,6 +7416,9 @@ html.cl-review-lock .app-tmdb-footer { display: none; }
      ページが下のセーフエリアぶん（約34pt）上にずれ、ヘッダーの下の端がのぞき・画面の下に帯が出ていた。ページの流れに置くと
      高さの計算（100dvh−ヘッダー）とずれに左右されるので、固定して見える画面に直接合わせる。上はノッチのぶんだけ下げる。 */
   html.cl-review-lock .screen.review-screen.review-cinema { position: fixed; inset: 0; z-index: 100; height: auto; padding-top: env(safe-area-inset-top, 0px); }
+  /* 「単語を学ぶ」のカード（review-deck）は、上の行で重なりの順が 100 に下がらないよう 1150 のままにする（2026-11-15 本番の不具合）:
+     作品の画面を固定した箱（cl-screen-fit の #screen-4・920）がカードの上に重なって描かれ、カードが押せなかった。 */
+  html.cl-review-lock .screen.review-screen.review-cinema.review-deck { z-index: 1150; }
   .review-cinema .rc-card { flex: 1; min-height: 0; }
   .review-cinema .rc-deck { min-height: 240px; }
   .review-cinema .rc-swipe-hint { display: block; }
