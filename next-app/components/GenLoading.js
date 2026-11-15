@@ -49,6 +49,7 @@ export default function GenLoading({ status, drama, season, episode, ready = fal
   // Tips：ランダム開始で4秒ごとにローテーション
   const [tipIdx, setTipIdx] = useState(() => Math.floor(Math.random() * LEARNING_TIPS.length));
   const [synopsis, setSynopsis] = useState(null);
+  const [synDone, setSynDone] = useState(false); // あらすじの取得が終わったか（無かった時に読み込みの線を出し続けない）
 
   // 進捗バー：実際の進捗は取得できない（AIの1リクエスト待ち）ため、
   // 経過時間で95%まで漸近させる。フェーズ変化で下限を引き上げて段階感を出す。
@@ -123,7 +124,10 @@ export default function GenLoading({ status, drama, season, episode, ready = fal
       .then((r) => {
         if (!cancelled && r) setSynopsis(r);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setSynDone(true);
+      });
     return () => {
       cancelled = true;
     };
@@ -163,7 +167,7 @@ export default function GenLoading({ status, drama, season, episode, ready = fal
             <div className="gen-b-syn" tabIndex={0} aria-label="あらすじ">
               {synopsis.overview}
             </div>
-          ) : !synopsis && drama?.tmdbId ? (
+          ) : !synDone && drama?.tmdbId ? (
             <div className="gen-b-syn gen-skeleton" aria-hidden="true">
               <span></span>
               <span></span>

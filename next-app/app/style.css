@@ -8511,6 +8511,9 @@ html.cl-gen-lock,
 html.cl-gen-lock body { overflow: hidden; overscroll-behavior: none; }
 html.cl-gen-lock .app-tmdb-footer,
 html.cl-gen-lock .vocab-foot-notes { display: none; }
+/* 下のタブの裏に空けている余白（タブの高さ分）も、この間はいらない＝ページの高さを画面の高さちょうどにする */
+html.cl-gen-lock .bottom-nav-spacer { display: none; }
+html.cl-gen-lock .screen-inner { padding-bottom: 0; }
 
 .gen-loading.gen-b { gap: 10px; padding: 0; }
 .gen-b.gen-b-fit { min-height: 0; overflow: hidden; }
