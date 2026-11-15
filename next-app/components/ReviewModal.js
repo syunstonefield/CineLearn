@@ -27,7 +27,7 @@ import { countDueTomorrow, pickDueTomorrowWord, tomorrowSubLine } from '@/lib/to
 import { LEARNED_LINE, MASTERED_LINE } from '@/lib/learnedTerms';
 import { addExp, levelInfo, expForReviewSession } from '@/lib/exp';
 import { awardReviewSession } from '@/lib/reviewAward';
-import ExpBlock from './ExpBlock';
+import { ExpLine } from './ExpBlock';
 import ReviewCinemaCard, { CinemaProgress } from './ReviewCinemaCard';
 import WordMarks from './WordMarks';
 import { getActiveWords, starWord, unstarWord, likeWord, sameWorkTitle } from '@/lib/words';
@@ -1071,6 +1071,7 @@ function ReviewDone({ showTomorrow = false, queue, partial = false, awardedRef, 
 
   // EXP: カード数×2＋昇格ボーナス。加算後の総EXPからレベルを出す（表示専用の状態）。
   const [expGain, setExpGain] = useState(null); // { earned, level } 記録後にセット
+  const [sheetOpen, setSheetOpen] = useState(false); // 「すべて見る」のシート
   // 明日の予告の数（採点は reviewWord で保存済み＝開いた時点の SRS で数える・見直しは採点しないので出さない）
   const [dueTomorrow] = useState(() => (retryMode || !showTomorrow ? 0 : countDueTomorrow(queue, loadSrs()))); // 予習の重ね表示（従来の見た目）には出さない
   const [dueTomorrowWord] = useState(() => (retryMode || !showTomorrow ? null : pickDueTomorrowWord(queue, loadSrs())));
@@ -1151,52 +1152,6 @@ function ReviewDone({ showTomorrow = false, queue, partial = false, awardedRef, 
     );
   }
 
-  const group = (words, dot, label) =>
-    words.length > 0 && (
-      <details className="rd-group">
-        <summary>
-          <i className={'rd-dot ' + dot} aria-hidden="true" />
-          {label}
-          <span className="rd-cnt">{words.length}</span>
-          <span className="rd-chev" aria-hidden="true">›</span>
-        </summary>
-        <div className="rd-words">
-          {words.map((w) => (
-            <div className="rd-w" key={w.word}>
-              <b>{w.word}</b>
-              <span>{w.definition || ''}</span>
-            </div>
-          ))}
-        </div>
-      </details>
-    );
-
-  const log =
-    sessions.length > 1 ? (
-      <details className="rd-group">
-        <summary>
-          <i className="rd-dot d-log" aria-hidden="true" />
-          今日の復習の記録
-          <span className="rd-cnt">{sessions.length}回</span>
-          <span className="rd-chev" aria-hidden="true">›</span>
-        </summary>
-        <div className="rd-log">
-          <span />
-          <span>知らなかった</span>
-          <span>うろ覚え</span>
-          <span>知ってた</span>
-          {sessions.map((s) => (
-            <Fragment key={s.sessionNum}>
-              <b>{s.sessionNum}回目</b>
-              <span>{s.fail}</span>
-              <span>{s.hard}</span>
-              <span>{s.easy}</span>
-            </Fragment>
-          ))}
-        </div>
-      </details>
-    ) : null;
-
   // いちばん良い知らせ（マスター → 覚えた → 今の題）。ほかの昇格は1行で添える
   const nMaster = promo.mastered.length;
   const nLearned = promo.learned.length;
@@ -1209,51 +1164,51 @@ function ReviewDone({ showTomorrow = false, queue, partial = false, awardedRef, 
         : '復習完了！';
   const extraPromo = gotMaster && gotLearned ? `ほかに ${nLearned}語が「覚えた」に` : null;
 
-  const listRows = allPerfect ? [log] : [group(failed, 'd-fail', '知らなかった語'), group(hard, 'd-hard', 'うろ覚えの語'), group(easy, 'd-easy', '知ってた語'), log];
-  const hasList = listRows.some(Boolean);
+  const ordered = [...failed.map((w) => [w, 'fail']), ...hard.map((w) => [w, 'hard']), ...easy.map((w) => [w, 'easy'])];
 
   return (
-    <div className="rd">
+    <div className="rd is-sum">
       <div className="rd-body">
         {/* 終わりの画面＝1つの言葉にしぼる（2026-11-14 オーナー採用 #p8）: その回でいちばん良い知らせを1つだけ大きく
             （マスター到達 → 「覚えた」に昇格 → どちらも無ければ今の題）。ほかの昇格は1行で添える。その下に明日の予告。
-            3つの数・意味の説明・けいけん値とレベル・語の一覧は「この回をくわしく見る」を開いた時だけ。足りない数（あと○）は出さない。 */}
+            1画面に収める（2026-11-15 オーナー採用 案A）: 開く・閉じるをやめ、3つの数・Exp（1行）・この回の語（2行まで）を
+            1枚のカードに。全部の語・意味の説明・今日の記録は「すべて見る」のシートの中だけ（シートの中だけスクロール）。
+            足りない数（あと○）は出さない。 */}
         <DoneHero title={headline} sub={`今日 ${sessionNum}回目 ・ ${queue.length}単語を復習しました`} long={headline.length > 10} />
         {extraPromo && <p className="rd-promo-extra">{extraPromo}</p>}
         <TomorrowNote count={dueTomorrow} word={dueTomorrowWord} />
-        <details className="rd-more">
-          <summary>
-            この回をくわしく見る
-            <span className="rd-chev" aria-hidden="true">›</span>
-          </summary>
-          <div className="rd-more-body">
-            {/* 並びはカードの3択と同じ（左から 知らなかった・うろ覚え・知ってた・2026-11-12 オーナー指摘） */}
-            <section className="rd-tiles" aria-label="今回の答え">
-              <div className="rd-tile t-fail">
-                <b>{failed.length}</b>
-                <span>知らなかった</span>
-              </div>
-              <div className="rd-tile t-hard">
-                <b>{hard.length}</b>
-                <span>うろ覚え</span>
-              </div>
-              <div className="rd-tile t-easy">
-                <b>{easy.length}</b>
-                <span>知ってた</span>
-              </div>
-            </section>
-            {allPerfect && <div className="rd-perfect">全問正解！すばらしい</div>}
-            {/* 意味の説明（文は lib/learnedTerms.js）は昇格があった回だけ */}
-            {(gotLearned || gotMaster) && (
-              <div className="rd-promo-notes">
-                {gotMaster && <p className="rd-promo-note">{MASTERED_LINE}</p>}
-                {gotLearned && <p className="rd-promo-note">{LEARNED_LINE}</p>}
-              </div>
-            )}
-            {expGain && <ExpBlock earned={expGain.earned} lv={expGain.level} />}
-            {hasList && <section className="rd-list">{listRows.map((el, i) => (el ? <Fragment key={i}>{el}</Fragment> : null))}</section>}
+        <section className="rd-sum" aria-label="この回のまとめ">
+          {/* 並びはカードの3択と同じ（左から 知らなかった・うろ覚え・知ってた・2026-11-12 オーナー指摘） */}
+          <div className="rd-sum-row">
+            <div className="rd-sum-n t-fail">
+              <b>{failed.length}</b>知らなかった
+            </div>
+            <div className="rd-sum-n t-hard">
+              <b>{hard.length}</b>うろ覚え
+            </div>
+            <div className="rd-sum-n t-easy">
+              <b>{easy.length}</b>知ってた
+            </div>
           </div>
-        </details>
+          {expGain && <ExpLine earned={expGain.earned} lv={expGain.level} />}
+          {ordered.length > 0 && (
+            <>
+              <div className="rd-sum-wl">
+                この回の語
+                <button type="button" className="rd-sum-all" onClick={() => setSheetOpen(true)}>
+                  すべて見る（{ordered.length}語）›
+                </button>
+              </div>
+              <button type="button" className="rd-sum-words" onClick={() => setSheetOpen(true)} aria-label={`この回の${ordered.length}語をすべて見る`}>
+                {ordered.map(([w, t]) => (
+                  <span className={'rd-chip t-' + t} key={w.word}>
+                    {w.word}
+                  </span>
+                ))}
+              </button>
+            </>
+          )}
+        </section>
         {/* ★／♡ を付けた時だけ、単語帳への案内を一行（押しつけない・2026-11-07） */}
         {markedRun > 0 && (
           <button
@@ -1270,6 +1225,102 @@ function ReviewDone({ showTomorrow = false, queue, partial = false, awardedRef, 
         {partial && <p className="rd-note">残りの単語は、また復習に出てきます</p>}
       </div>
       {actions(true)}
+      {sheetOpen && (
+        <DoneSheet
+          onClose={() => setSheetOpen(false)}
+          groups={[
+            [failed, 'fail', '知らなかった語'],
+            [hard, 'hard', 'うろ覚えの語'],
+            [easy, 'easy', '知ってた語'],
+          ]}
+          allPerfect={allPerfect}
+          gotMaster={gotMaster}
+          gotLearned={gotLearned}
+          lv={expGain?.level}
+          sessions={sessions}
+        />
+      )}
     </div>
+  );
+}
+
+// 「すべて見る」のシート（下から出る・中だけスクロール・✕／外／Esc で閉じる）。--rd-* の色を使うので .rd の中に置く。
+function DoneSheet({ onClose, groups, allPerfect, gotMaster, gotLearned, lv, sessions }) {
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  return (
+    <>
+      <div className="rd-sheet-back" onClick={onClose} aria-hidden="true" />
+      <div className="rd-sheet" role="dialog" aria-modal="true" aria-label="この回の語">
+        <div className="rd-sheet-head">
+          <h3>この回の語</h3>
+          <button type="button" className="rd-sheet-x" onClick={onClose} aria-label="閉じる">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+              <path d="M6 6l12 12M18 6 6 18" />
+            </svg>
+          </button>
+        </div>
+        <div className="rd-sheet-body">
+          {allPerfect && <div className="rd-perfect">全問正解！すばらしい</div>}
+          {/* 意味の説明（文は lib/learnedTerms.js）は昇格があった回だけ */}
+          {(gotLearned || gotMaster) && (
+            <div className="rd-promo-notes">
+              {gotMaster && <p className="rd-promo-note">{MASTERED_LINE}</p>}
+              {gotLearned && <p className="rd-promo-note">{LEARNED_LINE}</p>}
+            </div>
+          )}
+          {groups.map(([words, t, label]) =>
+            words.length > 0 ? (
+              <section className="rd-sheet-group" key={t}>
+                <h4>
+                  <i className={'rd-dot d-' + t} aria-hidden="true" />
+                  {label}
+                  <span className="rd-cnt">{words.length}</span>
+                </h4>
+                <div className="rd-words">
+                  {words.map((w) => (
+                    <div className="rd-w" key={w.word}>
+                      <b>{w.word}</b>
+                      <span>{w.definition || ''}</span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : null
+          )}
+          {lv && (
+            <p className="rd-sheet-total">
+              レベル {lv.level} ・ これまで {lv.total.toLocaleString()} Exp
+            </p>
+          )}
+          {sessions.length > 1 && (
+            <section className="rd-sheet-group">
+              <h4>
+                <i className="rd-dot d-log" aria-hidden="true" />
+                今日の復習の記録
+                <span className="rd-cnt">{sessions.length}回</span>
+              </h4>
+              <div className="rd-log">
+                <span />
+                <span>知らなかった</span>
+                <span>うろ覚え</span>
+                <span>知ってた</span>
+                {sessions.map((s) => (
+                  <Fragment key={s.sessionNum}>
+                    <b>{s.sessionNum}回目</b>
+                    <span>{s.fail}</span>
+                    <span>{s.hard}</span>
+                    <span>{s.easy}</span>
+                  </Fragment>
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
+      </div>
+    </>
   );
 }

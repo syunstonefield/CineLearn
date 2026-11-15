@@ -8380,6 +8380,53 @@ html[data-theme="dark"] .autoplay-switch.is-on { color: var(--accent); border-co
 .rd-more-body { padding: 0 12px 14px; display: flex; flex-direction: column; gap: 12px; }
 .rd-promo-notes { display: flex; flex-direction: column; gap: 2px; }
 
+/* ── 終わりの画面を1画面に（2026-11-15 オーナー採用 案A）: 開く・閉じるをやめ、まとめを1枚のカードに。全部の語は下から出るシート ── */
+.rd.is-sum { --rd-sheet: #fbf6ee; --rd-chip-fail: #c98a96; --rd-chip-hard: #d9a93c; --rd-chip-easy: #5fae86; }
+html[data-theme="dark"] .rd.is-sum { --rd-sheet: #33281c; --rd-chip-fail: #d79aa6; --rd-chip-hard: #e2bd6b; --rd-chip-easy: #7cc3a0; }
+.rd.is-sum .rd-body { gap: 8px; padding-top: 0; padding-bottom: 6px; }
+.rd.is-sum .rd-hero { padding-top: 2px; }
+.rd.is-sum .rd-clap { width: 40px; height: 36px; margin-bottom: 2px; }
+.rd.is-sum .rd-title { font-size: 25px; }
+.rd.is-sum .rd-title.is-long { font-size: 21px; }
+.rd.is-sum .rd-sub { margin-top: 3px; }
+.rd.is-sum .rd-star { transform: translateY(-10px) scale(0.85); }
+.rd.is-sum .rd-next { padding: 8px 12px; }
+.rd.is-sum .rd-next-main { font-size: 14px; }
+.rd.is-sum .rd-next-main b { font-size: 16px; }
+.rd-sum { background: var(--rd-card); border: 1px solid var(--rd-line); border-radius: 18px; box-shadow: var(--rd-shadow); padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 7px; }
+.rd-sum-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.rd-sum-n { border-radius: 12px; padding: 5px 4px 4px; text-align: center; font-size: 12px; line-height: 1.3; box-shadow: inset 0 0 0 1px var(--rd-tile-line, transparent); }
+.rd-sum-n b { display: block; font-size: 20px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.rd-sum-n.t-fail { --rd-tile-line: var(--rd-fail-line); background: var(--rd-fail-bg); color: var(--rd-fail-sub); } .rd-sum-n.t-fail b { color: var(--rd-fail-ink); }
+.rd-sum-n.t-hard { --rd-tile-line: var(--rd-hard-line); background: var(--rd-hard-bg); color: var(--rd-hard-sub); } .rd-sum-n.t-hard b { color: var(--rd-hard-ink); }
+.rd-sum-n.t-easy { --rd-tile-line: var(--rd-easy-line); background: var(--rd-easy-bg); color: var(--rd-easy-sub); } .rd-sum-n.t-easy b { color: var(--rd-easy-ink); }
+.exp-line { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--rd-muted, var(--text-muted)); }
+.exp-line-gain { white-space: nowrap; font-weight: 700; }
+.exp-line-gain b { font-size: 17px; color: var(--rd-word, var(--accent)); font-variant-numeric: tabular-nums; }
+.exp-line-bar { flex: 1; height: 6px; border-radius: 99px; background: var(--rd-track, var(--surface2)); overflow: hidden; }
+.exp-line-bar i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--rd-gold-a, #c58a3e), var(--rd-gold-b, #e8bf6a)); transition: width 0.8s ease-out; }
+.exp-line-lv { white-space: nowrap; }
+.rd-sum-wl { display: flex; align-items: center; justify-content: space-between; margin: 2px 0 -4px; font-size: 12px; font-weight: 700; color: var(--rd-muted); }
+.rd-sum-all { border: 0; background: none; padding: 4px 0; font: inherit; font-weight: 700; color: var(--rd-word); cursor: pointer; }
+.rd-sum-words { display: flex; flex-wrap: wrap; gap: 6px; max-height: 66px; overflow: hidden; margin: 0 0 -2px; padding: 0; border: 0; background: none; font: inherit; text-align: left; cursor: pointer; }
+.rd-chip { display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 11px 0 9px; border-radius: 99px; font-size: 14px; font-weight: 600; color: var(--rd-ink); background: var(--rd-row); border: 1px solid var(--rd-line); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.rd-chip::before { content: ''; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--c); }
+.rd-chip.t-fail { --c: var(--rd-chip-fail); } .rd-chip.t-hard { --c: var(--rd-chip-hard); } .rd-chip.t-easy { --c: var(--rd-chip-easy); }
+.rd-sheet-back { position: fixed; inset: 0; z-index: 1300; background: rgba(42, 29, 18, 0.38); animation: rd-fade 0.18s ease-out both; }
+.rd-sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 1301; max-width: 560px; margin: 0 auto; max-height: 84vh; max-height: 84dvh; display: flex; flex-direction: column; background: var(--rd-sheet); color: var(--rd-ink); border-radius: 22px 22px 0 0; box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.18); animation: rd-sheet-in 0.22s cubic-bezier(0.2, 0.8, 0.3, 1) both; }
+.rd-sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 8px; }
+.rd-sheet-head h3 { margin: 0; font-size: 17px; font-weight: 800; }
+.rd-sheet-x { width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--rd-row); color: var(--rd-ink); cursor: pointer; }
+.rd-sheet-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding: 4px 16px calc(18px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 14px; }
+.rd-sheet-group h4 { margin: 0 0 8px; display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; }
+.rd-sheet-group .rd-words { padding: 0; }
+.rd-sheet-group .rd-w { background: var(--rd-card); border: 1px solid var(--rd-line); }
+.rd-sheet-group .rd-log { padding: 0 4px; }
+.rd-sheet-total { margin: 0; text-align: center; font-size: 12px; color: var(--rd-muted); }
+@keyframes rd-fade { from { opacity: 0; } }
+@keyframes rd-sheet-in { from { transform: translateY(40px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .rd-sheet, .rd-sheet-back { animation: none; } .exp-line-bar i { transition: none; } }
+
 
 /* ── 第2便（オーナー採用 2026-11-14・画面の改善案 #p3）: 「学習を始める・進める」主のボタンの色を1か所に ──
    ライト＝こげ茶に白い文字（作品の画面の「単語を学ぶ」・カードの「答え合わせ」と同じ）。ダーク＝今の主ボタンと同じ金に濃い文字。
