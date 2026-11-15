@@ -8739,3 +8739,13 @@ html.cl-screen-fit .es-a .es-top { margin-block: auto; }
 html.cl-screen-fit .es-a .ch-tmdb { margin-top: 0; }
 html.cl-screen-fit .es-a .ch-rows-b { flex: 0 0 auto; }
 html.cl-screen-fit .es-a .ch-rowb { flex: none; min-height: clamp(44px, calc(44px + (100cqh - 480px) * 0.0769), 64px); }
+/* 法務 2026-11-15: 下の3つ（配信の行・出典の文・TMDB の1行）はどの幅でも隠れない＝SE で全部そろう時も1画面に収める */
+.es-ep-now { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.es-ep-now small { font-size: 12px; font-weight: 400; color: var(--text-muted); }
+html.cl-screen-fit .es-a .es-ep { min-height: clamp(44px, calc(44px + (100cqh - 480px) * 0.0769), 64px); padding-block: clamp(6px, calc(6px + (100cqh - 480px) * 0.0231), 12px); }
+html.cl-screen-fit .es-a .ch-hero { padding-top: clamp(6px, calc(6px + (100cqh - 480px) * 0.1077), 34px); }
+html.cl-screen-fit .es-a .ch-hero .ch-poster { width: clamp(72px, calc(72px + (100cqh - 480px) * 0.1462), 110px); }
+html.cl-screen-fit .es-a .es-learn .ch-btn1.es-go { min-height: clamp(46px, calc(46px + (100cqh - 480px) * 0.1154), 76px); }
+html.cl-screen-fit .es-a .es-learn .ch-small { margin-top: clamp(4px, calc(4px + (100cqh - 480px) * 0.0231), 10px); }
+html.cl-screen-fit .es-a .es-learn { padding-top: clamp(10px, calc(10px + (100cqh - 480px) * 0.0615), 26px); }
+.es-notes p { line-height: 1.3; }

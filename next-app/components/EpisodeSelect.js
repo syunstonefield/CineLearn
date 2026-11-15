@@ -51,9 +51,10 @@ export function EpisodeSelect({
       <div className="ch-learn es-learn">
         {!isMovie && (
           <>
-            <div className="ch-peek-t">学ぶ話</div>
+            {/* 「学ぶ話」は話の行の中に小さく（SE でも出典まで1画面に収めるため） */}
             <button type="button" className="es-ep" onClick={onPickEpisode} aria-haspopup="dialog">
               <span className="es-ep-now">
+                <small>学ぶ話</small>
                 シーズン{season} 第{episode}話
               </span>
               <span className="es-ep-chg">変更 ▾</span>
