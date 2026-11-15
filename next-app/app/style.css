@@ -8732,7 +8732,7 @@ html.cl-screen-fit .gen-flow-l { font-size: clamp(13px, calc(13px + (100cqh - 48
 .es-notes .vocab-avail-src { font-size: 12px; color: var(--text-soft); text-align: center; }
 html.cl-screen-fit .es-ep { min-height: clamp(48px, calc(48px + (100cqh - 480px) * 0.0615), 64px); font-size: clamp(16px, calc(16px + (100cqh - 480px) * 0.0115), 19px); }
 html.cl-screen-fit .es-learn .ch-btn1.es-go { min-height: clamp(50px, calc(50px + (100cqh - 480px) * 0.1000), 76px); font-size: clamp(16px, calc(16px + (100cqh - 480px) * 0.0154), 20px); }
-html.cl-screen-fit .es-st { font-size: clamp(12.5px, calc(12.5px + (100cqh - 480px) * 0.0058), 14px); margin: clamp(5px, calc(5px + (100cqh - 480px) * 0.0192), 10px) 0 clamp(7px, calc(7px + (100cqh - 480px) * 0.0192), 12px); }
+html.cl-screen-fit .es-st { font-size: clamp(12.5px, calc(12.5px + (100cqh - 480px) * 0.0058), 14px); margin: 5px 0 6px; }
 /* 話を選ぶ画面は中身が少ない＝残る高さは、帯と白い箱のまとまりの上と下に分ける（1か所に寄せない） */
 .es-top { display: flex; flex-direction: column; }
 html.cl-screen-fit .es-a .es-top { margin-block: auto; }
@@ -8742,10 +8742,10 @@ html.cl-screen-fit .es-a .ch-rowb { flex: none; min-height: clamp(44px, calc(44p
 /* 法務 2026-11-15: 下の3つ（配信の行・出典の文・TMDB の1行）はどの幅でも隠れない＝SE で全部そろう時も1画面に収める */
 .es-ep-now { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .es-ep-now small { font-size: 12px; font-weight: 400; color: var(--text-muted); }
-html.cl-screen-fit .es-a .es-ep { min-height: clamp(44px, calc(44px + (100cqh - 480px) * 0.0769), 64px); padding-block: clamp(6px, calc(6px + (100cqh - 480px) * 0.0231), 12px); }
-html.cl-screen-fit .es-a .ch-hero { padding-top: clamp(6px, calc(6px + (100cqh - 480px) * 0.1077), 34px); }
+html.cl-screen-fit .es-a .es-ep { min-height: clamp(44px, calc(44px + (100cqh - 480px) * 0.0769), 64px); padding-block: 8px; }
+html.cl-screen-fit .es-a .ch-hero { padding-top: 10px; padding-bottom: 24px; } /* 箱の余白はふくらませない（2026-11-15）。SE で出典まで収めるため少し詰める */
 html.cl-screen-fit .es-a .ch-hero .ch-poster { width: clamp(72px, calc(72px + (100cqh - 480px) * 0.1462), 110px); }
 html.cl-screen-fit .es-a .es-learn .ch-btn1.es-go { min-height: clamp(46px, calc(46px + (100cqh - 480px) * 0.1154), 76px); }
 html.cl-screen-fit .es-a .es-learn .ch-small { margin-top: clamp(4px, calc(4px + (100cqh - 480px) * 0.0231), 10px); }
-html.cl-screen-fit .es-a .es-learn { padding-top: clamp(10px, calc(10px + (100cqh - 480px) * 0.0615), 26px); }
+html.cl-screen-fit .es-a .es-learn { padding-top: 10px; padding-bottom: 10px; }
 .es-notes p { line-height: 1.3; }
