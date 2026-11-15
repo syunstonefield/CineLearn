@@ -40,7 +40,7 @@ function genPhaseFloorOf(status) {
 
 // ready=true でスピナーを完了表示に替え、線の場所に「リストを見る →」ボタンを出す（自動遷移しない）。
 // あらすじ/Tipsを読み終わってから本人のタップで進む＝強制の待ちを増やさずロビー滞在を本人の選択にする。
-// 案B（オーナー決定 2026-11-15）。並びは上から 進み具合 → 作品（ポスター・作品名・話数の小さなカード）→ ヒント → TMDB の1行。
+// 案B（オーナー決定 2026-11-15）。並びは上から 作品（ポスター・作品名・話数の小さなカード）→ 進み具合 → このあとの流れ → ヒント → TMDB の1行（2026-11-15 オーナー依頼で作品をいちばん上に）。
 //   あらすじは出さない（2026-11-15 オーナー決定・観る前のネタバレを避ける）＝TMDB へあらすじを聞きに行かない。
 //   1ページに収める＝ヘッダーと下のタブのあいだに固定（lib/screenFit.js・html.cl-screen-fit）。低い窓（420px 未満）では中だけスクロールし、TMDB の1行は下に貼りつく。
 //   中身の高さは最初から決まっている＝何も動かない。上から詰めて並べ、進み具合とヒントを主役にする。
@@ -108,6 +108,19 @@ export default function GenLoading({ status, drama, season, episode, ready = fal
 
   return (
     <div className="gen-loading gen-b gen-b-fit">
+      {/* 作品の小さなカード：ポスター＋作品名＋話数（2026-11-15 オーナー決定: あらすじは出さない＝観る前のネタバレを避ける）。
+          画像は作品のポスターだけ（その話の場面の写真もネタバレになり得るので使わない）。縦のまま・切り抜かない・何も重ねない・
+          スマホ56px／PC72px（上限 110／200 より小さく）。ポスターが無い作品は文字だけ。 */}
+      <div className="gen-b-work">
+        <div className="gen-b-head">
+          {posterSrc ? <img className="gen-cover-poster" src={posterSrc} alt="" /> : null}
+          <div className="gen-b-headtext">
+            <h2 className="gen-b-title">{drama?.title || ''}</h2>
+            <div className="gen-b-ep">{epLabel}</div>
+          </div>
+        </div>
+      </div>
+
       {/* 進み具合：3つの段（点と線）・今の文と経過・線（できたらボタン）・目安の文。高さは決まっていて、文が出ても動かない */}
       <div className="gen-b-prog">
         <ol className="gen-b-steps" aria-label="進み具合">
@@ -153,19 +166,6 @@ export default function GenLoading({ status, drama, season, episode, ready = fal
           ) : (
             etaText(isMovie, elapsed)
           )}
-        </div>
-      </div>
-
-      {/* 作品の小さなカード：ポスター＋作品名＋話数（2026-11-15 オーナー決定: あらすじは出さない＝観る前のネタバレを避ける）。
-          画像は作品のポスターだけ（その話の場面の写真もネタバレになり得るので使わない）。縦のまま・切り抜かない・何も重ねない・
-          スマホ56px／PC72px（上限 110／200 より小さく）。ポスターが無い作品は文字だけ。 */}
-      <div className="gen-b-work">
-        <div className="gen-b-head">
-          {posterSrc ? <img className="gen-cover-poster" src={posterSrc} alt="" /> : null}
-          <div className="gen-b-headtext">
-            <h2 className="gen-b-title">{drama?.title || ''}</h2>
-            <div className="gen-b-ep">{epLabel}</div>
-          </div>
         </div>
       </div>
 
