@@ -1071,7 +1071,7 @@ function ReviewDone({ showTomorrow = false, queue, partial = false, awardedRef, 
 
   // EXP: カード数×2＋昇格ボーナス。加算後の総EXPからレベルを出す（表示専用の状態）。
   const [expGain, setExpGain] = useState(null); // { earned, level } 記録後にセット
-  const [sheetOpen, setSheetOpen] = useState(false); // 「すべて見る」のシート
+  const [sheetOpen, setSheetOpen] = useState(false); // 「すべて見る」のシート（true＝先頭から・'fail'|'hard'|'easy'＝その答えの所から）
   // 明日の予告の数（採点は reviewWord で保存済み＝開いた時点の SRS で数える・見直しは採点しないので出さない）
   const [dueTomorrow] = useState(() => (retryMode || !showTomorrow ? 0 : countDueTomorrow(queue, loadSrs()))); // 予習の重ね表示（従来の見た目）には出さない
   const [dueTomorrowWord] = useState(() => (retryMode || !showTomorrow ? null : pickDueTomorrowWord(queue, loadSrs())));
@@ -1179,16 +1179,32 @@ function ReviewDone({ showTomorrow = false, queue, partial = false, awardedRef, 
         <TomorrowNote count={dueTomorrow} word={dueTomorrowWord} />
         <section className="rd-sum" aria-label="この回のまとめ">
           {/* 並びはカードの3択と同じ（左から 知らなかった・うろ覚え・知ってた・2026-11-12 オーナー指摘） */}
+          {/* 札を押すと、その答えの語の所でシートが開く（0語の札は押せない・2026-11-15 オーナー依頼） */}
           <div className="rd-sum-row">
-            <div className="rd-sum-n t-fail">
-              <b>{failed.length}</b>知らなかった
-            </div>
-            <div className="rd-sum-n t-hard">
-              <b>{hard.length}</b>うろ覚え
-            </div>
-            <div className="rd-sum-n t-easy">
-              <b>{easy.length}</b>知ってた
-            </div>
+            {[
+              [failed, 'fail', '知らなかった'],
+              [hard, 'hard', 'うろ覚え'],
+              [easy, 'easy', '知ってた'],
+            ].map(([ws, t, label]) => (
+              <button
+                type="button"
+                key={t}
+                className={'rd-sum-n t-' + t}
+                disabled={ws.length === 0}
+                onClick={() => setSheetOpen(t)}
+                aria-label={ws.length > 0 ? `${label}の${ws.length}語を見る` : `${label} 0語`}
+              >
+                <b>{ws.length}</b>
+                <span className="rd-sum-lbl">
+                  {label}
+                  {ws.length > 0 && (
+                    <span className="rd-sum-chev" aria-hidden="true">
+                      ›
+                    </span>
+                  )}
+                </span>
+              </button>
+            ))}
           </div>
           {expGain && <ExpLine earned={expGain.earned} lv={expGain.level} />}
           {ordered.length > 0 && (
@@ -1228,6 +1244,7 @@ function ReviewDone({ showTomorrow = false, queue, partial = false, awardedRef, 
       {sheetOpen && (
         <DoneSheet
           onClose={() => setSheetOpen(false)}
+          focus={typeof sheetOpen === 'string' ? sheetOpen : null}
           groups={[
             [failed, 'fail', '知らなかった語'],
             [hard, 'hard', 'うろ覚えの語'],
@@ -1245,7 +1262,19 @@ function ReviewDone({ showTomorrow = false, queue, partial = false, awardedRef, 
 }
 
 // 「すべて見る」のシート（下から出る・中だけスクロール・✕／外／Esc で閉じる）。--rd-* の色を使うので .rd の中に置く。
-function DoneSheet({ onClose, groups, allPerfect, gotMaster, gotLearned, lv, sessions }) {
+function DoneSheet({ onClose, focus, groups, allPerfect, gotMaster, gotLearned, lv, sessions }) {
+  const bodyRef = useRef(null);
+  // 札から開いた時は、その答えの見出しがシートの上に来るように（先頭の説明は上へ送る）
+  //   出てくる動きの途中だと位置がずれるので、描画のあと（次のフレーム）に合わせる。最後の答えは下まで送った所で止まる。
+  useEffect(() => {
+    const body = bodyRef.current;
+    const el = focus && body?.querySelector(`[data-group="${focus}"]`);
+    if (!el) return;
+    const raf = requestAnimationFrame(() => {
+      body.scrollTop += el.getBoundingClientRect().top - body.getBoundingClientRect().top - 4;
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [focus]);
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
@@ -1263,7 +1292,7 @@ function DoneSheet({ onClose, groups, allPerfect, gotMaster, gotLearned, lv, ses
             </svg>
           </button>
         </div>
-        <div className="rd-sheet-body">
+        <div className="rd-sheet-body" ref={bodyRef}>
           {allPerfect && <div className="rd-perfect">全問正解！すばらしい</div>}
           {/* 意味の説明（文は lib/learnedTerms.js）は昇格があった回だけ */}
           {(gotLearned || gotMaster) && (
@@ -1274,7 +1303,7 @@ function DoneSheet({ onClose, groups, allPerfect, gotMaster, gotLearned, lv, ses
           )}
           {groups.map(([words, t, label]) =>
             words.length > 0 ? (
-              <section className="rd-sheet-group" key={t}>
+              <section className="rd-sheet-group" key={t} data-group={t}>
                 <h4>
                   <i className={'rd-dot d-' + t} aria-hidden="true" />
                   {label}
