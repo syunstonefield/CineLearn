@@ -12,7 +12,8 @@ import { useScreenFit } from '@/lib/screenFit';
 // 決まり: ポスターは縦のまま小さく・何も重ねない（TMDB の表示は画面の下の共通の行）／残りの数や「あと○語」は出さない／
 //   観ることは止めない（「観に行く」はいつでも押せる・← で抜けられる）。
 
-function Poster({ src, title }) {
+// 話を選ぶ画面（EpisodeSelect）でも同じポスターを使う
+export function CardPoster({ src, title }) {
   if (!src) return <div className="ch-poster ch-poster-empty" aria-hidden="true">{String(title || '').slice(0, 1)}</div>;
   return <img className="ch-poster" src={src} alt="" loading="lazy" />;
 }
@@ -79,7 +80,7 @@ export function CardHome({
   return (
     <div className="ch-wrap ch-b">
       <div className="ch-hero">
-        <Poster src={drama?.posterPath} title={drama?.title} />
+        <CardPoster src={drama?.posterPath} title={drama?.title} />
         <div className="ch-hero-text">
           <div className="ch-kind">{isMovie ? '映画' : 'ドラマ'}</div>
           <h2 className="ch-work-title">{drama?.title}</h2>

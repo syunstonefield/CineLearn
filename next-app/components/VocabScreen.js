@@ -7,6 +7,8 @@ import VocabItem from './VocabItem';
 import CefrNote from './CefrNote';
 import { cefrHintOf } from '@/lib/cefrHint';
 import GenLoading from './GenLoading';
+import { EpisodeSelect } from './EpisodeSelect';
+import { useScreenFit } from '@/lib/screenFit';
 import { CardHome, CardDone } from './CardHome';
 import { cardCandidates, cardCount, takeCards, seenCount, CARDS_FIRST_DONE_KEY } from '@/lib/cardDeck';
 import { countDueTomorrow, pickDueTomorrowWord } from '@/lib/tomorrowPreview';
@@ -1676,6 +1678,16 @@ export default function VocabScreen() {
     setGenBtn({ text: '単語を学ぶ →', disabled: false, hidden: false });
   };
 
+  // 話を選ぶ画面（EpisodeSelect）の間は1ページに収める（作品の画面・待ち画面と同じ・入り切らない時は中だけスクロール）。
+  //   フックなので早い return より前で呼ぶ（selMode と同じ条件を、ここで分かる値だけで作る）
+  useScreenFit(
+    !!drama &&
+      selectorReady &&
+      phase !== 'generating' &&
+      !mediaChoice &&
+      !((phase === 'vocab' || phase === 'saved') && sortedVocab.length > 0)
+  );
+
   if (!drama) return null;
 
   const currentSeasonInfo = seasons.find((s) => s.season === season);
@@ -2000,6 +2012,68 @@ export default function VocabScreen() {
     </p>
   ) : null;
 
+  // 話を選ぶ画面（リストを作る前・2026-11-15 オーナー決定 案A・components/EpisodeSelect.js）。
+  //   生成中・リストがある時・ドラマ版と映画版の選択中は、今までどおりの画面。
+  const selMode = selectorReady && phase !== 'generating' && !hasList && !mediaChoice;
+  // 白い箱の中の小さな印（英語の「Season 2 Episode 5 字幕あり」をやめて日本語の短い文に）
+  const selStatus =
+    phase === 'loading'
+      ? { tone: 'muted', text: '字幕を確かめています…' }
+      : phase === 'ready'
+        ? { tone: 'ok', text: '英語の字幕があります' }
+        : phase === 'error'
+          ? { tone: 'warn', text: message }
+          : phase === 'nosub'
+            ? { tone: 'muted', text: message }
+          : message && message !== 'エピソードを選んでください'
+            ? { tone: 'muted', text: message }
+            : null;
+
+  // カタログ外＝リクエスト受付の箱（話を選ぶ画面 EpisodeSelect の中でも同じものを出す）
+  const soonPanel = (
+    <div className="soon-panel">
+      <div className="soon-emoji" aria-hidden="true">
+        <IconClapper />
+      </div>
+      <div className="soon-title">この作品はログインすると単語を学べます</div>
+      <div className="soon-sub">ログインなしで使えるのは対応作品のみです。ログインすれば、どの作品でも1日30話まで単語リストを作れます</div>
+      {/* カタログゲートは未ログインだけに掛かる（2026-09-21 オーナー判断）。ログインが最短の解決なので最上段に置く */}
+      <button type="button" className="soon-request-btn" onClick={loginThenGenerate}>
+        ログインしてこの作品の単語を学ぶ
+      </button>
+      <div className="soon-sub" style={{ marginTop: 14 }}>ログインしない場合は、リクエストの多い作品から毎週カタログに追加しています</div>
+      {catReq.planned && (
+        <div className="soon-planned">
+          <IconCalendar /> この作品は対応予定に入っています
+        </div>
+      )}
+      <button
+        className="soon-request-btn"
+        disabled={catReq.requested || catReq.sending}
+        onClick={sendCatalogRequest}
+      >
+        {catReq.requested
+          ? (
+              <>
+                <IconCheck /> リクエストを受け付けました
+              </>
+            )
+          : catReq.sending
+            ? '送信中...'
+            : 'この作品をリクエストする'}
+      </button>
+      {catReq.votes != null && catReq.votes > 0 && (
+        <div className="soon-votes">現在 {catReq.votes} 票のリクエスト</div>
+      )}
+      <div className="soon-note">
+        字幕の単語クリック保存・意味表示は、この作品でも今すぐ使えます
+      </div>
+      <button type="button" className="soon-browse-link" onClick={() => setScreen('search')}>
+        対応作品を探す →
+      </button>
+    </div>
+  );
+
   return (
     <div className="screen active" id="screen-4">
       {genConfirmModal}
@@ -2017,7 +2091,7 @@ export default function VocabScreen() {
                   ? '← コレクション'
                   : '← ホーム'}
           </button>
-          {settings.selectedViewingService && (
+          {settings.selectedViewingService && !selMode && (
             <span className="vocab-svc">
               観る：
               <button type="button" className="svc-change-btn" onClick={() => setSvcSheet(true)} title="観るサービスを変える">
@@ -2041,13 +2115,13 @@ export default function VocabScreen() {
         />
 
         {/* リストが無い間は作品名が画面のどこにも出ないので、選択枠の上に見出しとして出す */}
-        {!hasList && phase !== 'generating' && (
+        {!hasList && phase !== 'generating' && !selMode && (
           <WorkTitle className="vocab-work-heading" title={drama.title} />
         )}
 
         {/* タイプ確定・シーズン構築まで選択枠ごと非表示（操作の競合を防止・546da24準拠）。
             生成中は選択UIを畳んで縦スペースを空け、ローディングのあらすじを画面内に収める。 */}
-        {selectorReady && phase !== 'generating' && !hasList && (
+        {selectorReady && phase !== 'generating' && !hasList && !selMode && (
         <div className="episode-selector">
           {isMovie ? (
             <div className="episode-label">
@@ -2094,10 +2168,44 @@ export default function VocabScreen() {
         </div>
         )}
 
-        {selectorReady && phase !== 'generating' && !hasList && availBlock}
+        {selectorReady && phase !== 'generating' && !hasList && !selMode && availBlock}
 
         <div id="vocabSection">
-          {mediaChoice ? (
+          {selMode ? (
+            <EpisodeSelect
+              drama={drama}
+              isMovie={isMovie}
+              season={season}
+              episode={episode}
+              listCount={bulkListCount}
+              svcName={settings.selectedViewingService ? serviceLabel(settings.selectedViewingService) : ''}
+              onSvcChange={() => setSvcSheet(true)}
+              onPickEpisode={() => setEpSheet(true)}
+              status={selStatus}
+              genBtn={genBtn}
+              onGenerate={onGenerate}
+              onOrganize={openBulkDelete}
+              notes={
+                availOn ? (
+                  <>
+                    <p className="es-avail">
+                      拡張機能が使える配信：{avail.names.map(serviceLabel).join('・')}
+                      <span className="vocab-avail-cite">（データ：{justWatchLink}）</span>
+                    </p>
+                    {availSrc}
+                  </>
+                ) : null
+              }
+            >
+              {phase === 'soon' ? soonPanel : null}
+              {phase === 'error' && genNote?.login && (
+                <button type="button" className="btn-secondary" onClick={loginThenGenerate}>
+                  ログインする
+                </button>
+              )}
+              {renderAddedWords('この作品で保存した単語')}
+            </EpisodeSelect>
+          ) : mediaChoice ? (
             <div className="media-type-choice">
               <div className="media-type-title">
                 この作品にはドラマ版と映画版があります。どちらを学習しますか？
@@ -2420,49 +2528,7 @@ export default function VocabScreen() {
               )}
             </>
           ) : phase === 'soon' ? (
-            /* カタログ外＝リクエスト受付。突き放さず巻き込む（design-curated-catalog §2-3）。
-               クリック保存は全作品で使えることを必ず添える（D0救済・改善4）。 */
-            <div className="soon-panel">
-              <div className="soon-emoji" aria-hidden="true">
-                <IconClapper />
-              </div>
-              <div className="soon-title">この作品はログインすると単語を学べます</div>
-              <div className="soon-sub">ログインなしで使えるのは対応作品のみです。ログインすれば、どの作品でも1日30話まで単語リストを作れます</div>
-              {/* カタログゲートは未ログインだけに掛かる（2026-09-21 オーナー判断）。ログインが最短の解決なので最上段に置く */}
-              <button type="button" className="soon-request-btn" onClick={loginThenGenerate}>
-                ログインしてこの作品の単語を学ぶ
-              </button>
-              <div className="soon-sub" style={{ marginTop: 14 }}>ログインしない場合は、リクエストの多い作品から毎週カタログに追加しています</div>
-              {catReq.planned && (
-                <div className="soon-planned">
-                  <IconCalendar /> この作品は対応予定に入っています
-                </div>
-              )}
-              <button
-                className="soon-request-btn"
-                disabled={catReq.requested || catReq.sending}
-                onClick={sendCatalogRequest}
-              >
-                {catReq.requested
-                  ? (
-                      <>
-                        <IconCheck /> リクエストを受け付けました
-                      </>
-                    )
-                  : catReq.sending
-                    ? '送信中...'
-                    : 'この作品をリクエストする'}
-              </button>
-              {catReq.votes != null && catReq.votes > 0 && (
-                <div className="soon-votes">現在 {catReq.votes} 票のリクエスト</div>
-              )}
-              <div className="soon-note">
-                字幕の単語クリック保存・意味表示は、この作品でも今すぐ使えます
-              </div>
-              <button type="button" className="soon-browse-link" onClick={() => setScreen('search')}>
-                対応作品を探す →
-              </button>
-            </div>
+            soonPanel
           ) : (
             <>
               <div
@@ -2510,7 +2576,7 @@ export default function VocabScreen() {
         )}
 
         {/* リストがまだ無い話：配信状況の出典の文は、画面の一番下に（配信の1行が出る時だけ） */}
-        {!hasList && availSrc && <div className="vocab-foot-notes">{availSrc}</div>}
+        {!hasList && !selMode && availSrc && <div className="vocab-foot-notes">{availSrc}</div>}
 
         {/* 映画はエピソードが無いので、削除だけをリスト末尾の控えめなリンクに置く（2026-10-18 案1）。
             作品の画面（カード）には出さず、単語リストの画面だけに出す（2026-11-15 オーナー依頼・SE で作品の画面を1画面に収める） */}
@@ -2643,16 +2709,18 @@ export default function VocabScreen() {
             </div>
             <div className="modal-body ep-sheet-body">{epPicker}</div>
             <div className="ep-sheet-foot">
-              <button
-                type="button"
-                className="bulkdel-link"
-                onClick={() => {
-                  setEpSheet(false);
-                  onDelete();
-                }}
-              >
-                S{season}E{episode} の単語リストを削除
-              </button>
+              {hasList && (
+                <button
+                  type="button"
+                  className="bulkdel-link"
+                  onClick={() => {
+                    setEpSheet(false);
+                    onDelete();
+                  }}
+                >
+                  S{season}E{episode} の単語リストを削除
+                </button>
+              )}
               {bulkListCount >= 2 && (
                 <button
                   type="button"
