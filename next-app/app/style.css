@@ -8524,7 +8524,9 @@ html.cl-gen-lock .screen-inner { padding-bottom: 0; }
 .gen-b.gen-b-fit { min-height: 0; overflow: hidden; }
 /* 上の段：作品のカードは中身の高さだけ（空きを作らない）。足りない時だけ縮んで、あらすじが中でスクロール */
 .gen-b-top { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
-.gen-b-fit .gen-b-top { flex: 1 1 auto; }
+/* 進み具合はカードのすぐ下に寄せる（オーナー決定 2026-11-15）＝上の段は中身の高さだけ。空きは画面の下に回る。
+   画面に収まらない時（SE で長いあらすじ）だけ上の段が縮み、あらすじがカードの中でスクロールする */
+.gen-b-fit .gen-b-top { flex: 0 1 auto; }
 .gen-b-work {
   display: flex; flex-direction: column; gap: 10px; min-height: 0;
   background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
@@ -8544,7 +8546,9 @@ html.cl-gen-lock .screen-inner { padding-bottom: 0; }
   border-top: 1px solid var(--border); padding-top: 10px;
   font-size: 14px; line-height: 1.8; color: var(--text); opacity: 0.88;
 }
-.gen-b-syn.gen-skeleton { opacity: 1; flex: none; }
+/* あらすじが届く前も、ふつうのあらすじ（4行ほど）の高さを取っておく＝届いた時に下の進み具合が動く量を小さくする。
+   SE で入りきらない時は縮む（flex-shrink） */
+.gen-b-syn.gen-skeleton { opacity: 1; flex: 0 1 auto; height: calc(7.2em + 11px); overflow: hidden; }
 .gen-b .gen-tmdb-note { margin-top: 0; flex: none; }
 
 /* 下の段：進み具合（高さは決まっている） */
@@ -8581,4 +8585,5 @@ html.cl-gen-lock .screen-inner { padding-bottom: 0; }
   .gen-b .gen-cover-thumb { width: 110px; }
   .gen-b .gen-cover-poster { width: 56px; }
   .gen-b-syn { font-size: 13px; line-height: 1.75; }
+  .gen-b-syn.gen-skeleton { height: calc(7em + 11px); }
 }
