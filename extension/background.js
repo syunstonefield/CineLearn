@@ -22,6 +22,13 @@ chrome.runtime.onInstalled.addListener((details) => {
 
 // content.js からの単語保存メッセージを受け取って Supabase に同期
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  // アプリへの入口（v1.2.14）: 単語のポップアップのリンク・設定画面のボタン。印は決まった値だけ（ほかは付けない）
+  if (msg.type === 'CL_OPEN_APP') {
+    const from = ['ext_popup', 'ext_options'].includes(msg.from) ? `?from=${msg.from}` : '';
+    chrome.tabs.create({ url: `${CINELEARN_NEXT_URL}/app${from}` });
+    sendResponse({ ok: true });
+    return;
+  }
   if (msg.type === 'SAVE_WORD_TO_CLOUD') {
     syncWordToSupabase(msg.word)
       .then((ok) => sendResponse({ ok, queued: !ok }))

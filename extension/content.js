@@ -1844,6 +1844,11 @@ async function showWordPopup(word, sentence, rect) {
       <button id="cl-cancel-btn" style="background:#f0f0f0;color:#888;
         border:none;padding:9px 14px;border-radius:10px;font-size:13px;
         cursor:pointer;font-family:inherit;">✕</button>
+    </div>
+    <div style="padding:0 16px 10px;text-align:right">
+      <button id="cl-app-link" type="button" style="background:none;border:none;padding:2px 0;
+        font-size:12px;color:#6b5641;text-decoration:underline;text-underline-offset:2px;
+        cursor:pointer;font-family:inherit;">アプリで単語リストを見る</button>
     </div>`;
   let pending = 2; // 未着の後着ソース数（英英・訳）。0 になるまで「検索中」を出す
   renderBody();
@@ -1946,6 +1951,19 @@ async function showWordPopup(word, sentence, rect) {
 
   document.getElementById('cl-cancel-btn').addEventListener('click', () => {
     closePopupAndResume();
+  });
+
+  // アプリへの入口（2026-11-15 オーナー「ふつうの利用者はアプリの URL を知らない」）。
+  //   新しいタブで /app を開く。動画は止めたまま（別のタブで裏で再生が進まないように）。ログインしていない時は文だけ変える。
+  const appLink = document.getElementById('cl-app-link');
+  try {
+    chrome.storage.local.get(['cl_sb_session'], (r) => {
+      if (!chrome.runtime.lastError && !r?.cl_sb_session?.access_token && appLink.isConnected) appLink.textContent = 'アプリでログイン';
+    });
+  } catch { /* 接続切れ */ }
+  appLink.addEventListener('click', () => {
+    try { chrome.runtime.sendMessage({ type: 'CL_OPEN_APP', from: 'ext_popup' }, () => void chrome.runtime.lastError); } catch { /* 接続切れ */ }
+    popup.style.display = 'none';
   });
 }
 
@@ -2637,6 +2655,7 @@ function createStatusBadge() {
     '<div class="cl-hint-title">CineLearn 起動中</div>' +
     '<div class="cl-hint-body">英語の字幕をオンにして再生すると、字幕の単語をクリックできます。' +
     '「✓ 保存」でその話の単語リストに、「★ 覚えたい」で単語帳にも入ります。' +
+    'アプリは、ツールバーの CineLearn のアイコン（パズルの印の中）から開けます。' +
     'バッジをクリックすると ON / OFF を切り替えられます。</div>' +
     '<button type="button" class="cl-hint-ok">OK</button>';
 
