@@ -114,6 +114,30 @@ export function pickVoiceFrom(list, { chromium = true } = {}) {
   return en.find((v) => !isOdd(v) && v.localService !== false) || en.find((v) => !isOdd(v)) || null;
 }
 
+// ⑧ ★2026-11-17 オーナーの PC（Mac・Chrome・英語の既定なし）の実データ: ⑦で選ぶ「Google US English」は
+//   ネットの声で、ページで最初の1回は 0.4 秒以内に始まらないことがある（実測: 1回目は 0.4 秒で始まらず、
+//   2回目以降は 0.2〜0.3 秒）。保険2が voice 未指定で言い直す→ Chrome は en-US の先頭＝Albert（かすれた声）を選んでいた。
+//   → 言い直しの声は、未指定ではなく端末の中の自然な声（Samantha 等・おもしろ音声以外）を明示する（Chrome 系だけ）。
+//     その声も鳴らなかった（error）時だけ、今までどおり未指定でもう1回。Safari・iPhone は今までどおり未指定。
+//   あわせて、ネットの声（localService=false）は始まるまで 1.5 秒まで待つ（端末の声は今までどおり 0.4 秒）。
+const NET_WAIT_MS = 1500;
+const LOCAL_WAIT_MS = 400;
+export function startWaitMs(voice) {
+  return voice && voice.localService === false ? NET_WAIT_MS : LOCAL_WAIT_MS;
+}
+export function fallbackVoiceFrom(list, failed, { chromium = true } = {}) {
+  if (!chromium || !list || !list.length) return null;
+  const en = list.filter(
+    (v) => /^en([-_]|$)/i.test(v.lang || '') && v.localService !== false && !isOdd(v) && v.name !== failed?.name,
+  );
+  if (!en.length) return null;
+  for (const name of PREFERRED) {
+    const hit = en.find((v) => baseName(v) === name);
+    if (hit) return hit;
+  }
+  return en.find(isUS) || en[0];
+}
+
 function isChromium() {
   try {
     return !!navigator.userAgentData; // Chrome・Edge・Android Chrome（iPhone の Chrome は WebKit なので無い）
@@ -162,13 +186,13 @@ function kick(synth) {
 
 // noVoice: 明示指定した声で鳴らなかった時の言い直し用（voice 未指定＝ブラウザ任せ）。
 // 戻り値: 既定ではない声を明示指定したか（＝鳴らなかったら言い直す対象か）。
-function utter(synth, text, onStart, { noVoice = false, onFail = null } = {}) {
+function utter(synth, text, onStart, { noVoice = false, voice = undefined, onFail = null } = {}) {
   const u = new SpeechSynthesisUtterance(text);
   u.lang = 'en-US';
-  const v = noVoice ? null : pickVoice(synth);
+  const v = noVoice ? null : voice !== undefined ? voice : pickVoice(synth);
   if (v) u.voice = v;
   const explicit = !!v && !v.default;
-  debugLog(v ? `声: ${v.name}（${v.lang}${v.default ? '・既定' : ''}）` : noVoice ? '声: ブラウザ任せ（言い直し）' : '声: ブラウザ任せ', '／', text);
+  debugLog(v ? `声: ${v.name}（${v.lang}${v.default ? '・既定' : ''}）${voice ? '（言い直し）' : ''}` : noVoice ? '声: ブラウザ任せ（言い直し）' : '声: ブラウザ任せ', '／', text);
   u.onstart = onStart || null;
   const release = () => {
     if (_held === u) _held = null;
@@ -183,7 +207,7 @@ function utter(synth, text, onStart, { noVoice = false, onFail = null } = {}) {
   _held = u;
   synth.speak(u);
   kick(synth);
-  return explicit;
+  return { explicit, voice: v };
 }
 
 export function speak(text) {
@@ -197,6 +221,7 @@ export function speak(text) {
 
   let retried = false;
   let explicit = false;
+  let first = null; // 1回目に明示した声
   // ⑥明示指定した声で鳴らない時は、voice 未指定で1回だけ言い直す（onerror と保険2で共用・2回は言い直さない）
   //   ③に合わせ、まだキューに残っている時だけ cancel して少し間を空けてから言い直す。
   const retryPlain = () => {
@@ -205,6 +230,21 @@ export function speak(text) {
     const again = () => {
       if (started) return;
       kick(synth);
+      // ⑧Chrome 系は端末の中の自然な声で言い直す（未指定だと Mac で Albert になる）。その声が error の時だけ未指定でもう1回
+      const now = synth.getVoices() || [];
+      const fb = fallbackVoiceFrom(now.length ? now : _voices, first, { chromium: isChromium() });
+      if (fb) {
+        let plain = false;
+        utter(synth, text, onStart, {
+          voice: fb,
+          onFail: () => {
+            if (started || plain) return;
+            plain = true;
+            utter(synth, text, onStart, { noVoice: true });
+          },
+        });
+        return;
+      }
       utter(synth, text, onStart, { noVoice: true });
     };
     if (synth.speaking || synth.pending) {
@@ -220,7 +260,9 @@ export function speak(text) {
   };
 
   const go = () => {
-    explicit = utter(synth, text, onStart, { onFail: retryPlain });
+    const r = utter(synth, text, onStart, { onFail: retryPlain });
+    explicit = r.explicit;
+    first = r.voice;
     // 保険1: 少し待って start が来なければもう一度蹴る（paused 固着の解錠）。
     setTimeout(() => {
       if (!started) kick(synth);
@@ -242,7 +284,7 @@ export function speak(text) {
       }
       kick(synth);
       utter(synth, text, onStart);
-    }, 400);
+    }, startWaitMs(first));
   };
 
   if (synth.speaking || synth.pending) {

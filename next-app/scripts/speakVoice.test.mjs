@@ -2,7 +2,7 @@
 // Albert（おもしろ音声）が選ばれ「ホラーみたいにかすれた声」になった件の再発防止。
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { pickVoiceFrom } from '../lib/speak.js';
+import { pickVoiceFrom, fallbackVoiceFrom, startWaitMs } from '../lib/speak.js';
 
 const V = (name, lang, extra = {}) => ({ name, lang, default: false, localService: true, ...extra });
 
@@ -112,4 +112,26 @@ test('iPhone: 既定がいくつもある時は en-US の Samantha（Daniel・�
 
 test('iPhone: Samantha が無ければ、おもしろ音声以外の en-US の既定→無ければ先頭の既定', () => {
   assert.equal(pickVoiceFrom(iphone.filter((v) => v.name !== 'Samantha'), { chromium: false }).name, 'Daniel');
+});
+
+// ⑧ 2026-11-17: Google US English が 0.4 秒で始まらず、未指定で言い直して Albert になった件（復習で実測）
+test('言い直しの声: Mac Chrome・Google が鳴らない → Samantha（未指定＝Albert にしない）', () => {
+  const g = macOwner.find((v) => v.name === 'Google US English');
+  assert.equal(fallbackVoiceFrom(macOwner, g).name, 'Samantha');
+});
+
+test('言い直しの声: ネットの声・おもしろ音声・鳴らなかった声そのものは選ばない', () => {
+  const list = [V('Albert', 'en-US'), V('Google UK English Female', 'en-GB', { localService: false }), V('Moira', 'en-IE')];
+  assert.equal(fallbackVoiceFrom(list, null).name, 'Moira');
+  assert.equal(fallbackVoiceFrom([V('Samantha', 'en-US')], V('Samantha', 'en-US')), null);
+});
+
+test('言い直しの声: Safari・iPhone は今までどおり未指定', () => {
+  assert.equal(fallbackVoiceFrom(macOwner, null, { chromium: false }), null);
+});
+
+test('始まりを待つ時間: ネットの声は 1.5 秒・端末の声と未指定は 0.4 秒', () => {
+  assert.equal(startWaitMs({ localService: false }), 1500);
+  assert.equal(startWaitMs({ localService: true }), 400);
+  assert.equal(startWaitMs(null), 400);
 });
