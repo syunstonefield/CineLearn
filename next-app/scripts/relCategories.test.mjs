@@ -30,7 +30,8 @@ test('catOf: 版が違う・付いていない語は null・other はそのま�
   assert.deepEqual(catOf({ word: 'a', cat: 'other', sub: '', catv: CAT_VERSION }), { cat: 'other', sub: '' });
 });
 
-const W = (word, k, extra = {}) => ({ word, definition: `${word}の意味`, example: `I said ${word}.`, ...catFields(k), _src: { title: '作品', season: 1, episode: 2 }, ...extra });
+const W = (word, k, extra = {}) => ({ word, definition: 'いみ', // 意味の重なりを同じにして、最近の順だけを見る
+  example: `I said ${word}.`, ...catFields(k), _src: { title: '作品', season: 1, episode: 2 }, ...extra });
 
 test('関連語: 小が同じ・学んだ語・自分以外・最近復習した順に3つまで・項目は語/意味/作品だけ', () => {
   const pool = [W('furious', 'emotion.anger'), W('annoyed', 'emotion.anger'), W('livid', 'emotion.anger'), W('irate', 'emotion.anger'), W('glad', 'emotion.joy'), W('cross', 'emotion.anger'), W('Furious', 'emotion.anger')];

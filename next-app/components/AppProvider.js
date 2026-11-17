@@ -15,6 +15,7 @@ import {
   getDueReviewWords,
   fillHistoryCatsNow,
 } from '@/lib/storage';
+import { loadCatTable } from '@/lib/catTable';
 import { takePushOpenParam, notePushOpen, takePendingPushOpen, hasPendingPushOpen, pushOpenDecision } from '@/lib/pushOpen';
 import { reapplyWorkRemovals } from '@/lib/workRemovalStore';
 import { titlesToReopen, titlesReopenedBySaves, touchDramas, REOPEN_REMOVED_BY_SAVES } from '@/lib/workRemoval';
@@ -214,6 +215,7 @@ export default function AppProvider({ children }) {
   //   クラウドから取り込んだあと（cloudVersion）と、ログインしていない端末のために開いて少し後に1回。
   //   値を埋めたら単語帳まわりを描き直す。失敗しても何も出さない。
   useEffect(() => {
+    loadCatTable(); // 語→カテゴリ（と並びの番号）の表を先に取っておく（関連語の並び・拡張で保存した語の値・lib/catTable.js）
     const run = () => fillHistoryCatsNow().then((n) => n && setWordbookVersion((v) => v + 1)).catch(() => {});
     if (cloudVersion > 0) {
       run();

@@ -3,7 +3,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { catSheetData } from '../lib/relatedView.js';
 
-const W = (word, sub, extra = {}) => ({ word, definition: word + 'の意味', cat: 'action', sub, catv: 1, ...extra });
+const W = (word, sub, extra = {}) => ({ word, definition: 'いみ', // 意味の重なりを同じに（表なし＝最近の順だけを見る）
+  cat: 'action', sub, catv: 1, ...extra });
 const hist = [
   { drama: { title: 'Loki' }, words: [W('renovate', 'breakfix'), W('prune', 'breakfix'), W('delete', 'breakfix'), W('obliterate', 'breakfix'), W('rebuild', 'breakfix'), W('run', 'move'), W('quit', 'startstop'), W('happy', 'joy', { cat: 'emotion' })] },
   { drama: { title: 'Suits' }, words: [W('dash', 'move')] },
@@ -32,4 +33,17 @@ test('学んでいない語・other・値なしは null か入らない', () => 
   assert.equal(catSheetData({ word: 'x' }, hist, srs), null);
   const noSrs = { ...srs }; delete noSrs.dash;
   assert.ok(!catSheetData(W('renovate', 'breakfix'), hist, noSrs).subs[0].words.some((r) => r.word === 'dash'));
+});
+
+test('近い意味は⑦の表の番号の順・拡張で保存した語（値なし）も表で入る（2026-11-18）', async () => {
+  const { setCatTable } = await import('../lib/catTable.js');
+  setCatTable({ catv: 1, words: { renovate: 'action.breakfix.5', rebuild: 'action.breakfix.0', prune: 'action.breakfix.4', delete: 'action.breakfix.9', obliterate: 'action.breakfix.8', mend: 'action.breakfix.6' } });
+  try {
+    const mine = [{ word: 'mend', ja: '直す', dramaTitle: 'Friends' }];
+    const d = catSheetData(W('renovate', 'breakfix'), hist, { ...srs, mend: { lastReview: '2026-11-01' } }, null, mine);
+    assert.deepEqual(d.near.map((r) => r.word), ['renovate', 'prune', 'mend', 'obliterate', 'delete', 'rebuild']);
+    assert.equal(d.near.find((r) => r.word === 'mend').work, 'Friends');
+  } finally {
+    setCatTable(null);
+  }
 });
