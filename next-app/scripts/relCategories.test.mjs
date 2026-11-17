@@ -85,5 +85,6 @@ test('利用統計: 関連語の2つは固定の名前で数えられる・カ�
   assert.ok(isUsageEvent('related_shown'));
   assert.ok(isUsageEvent('related_tap'));
   assert.ok(isUsageEvent('cat_review_start'));
-  for (const k of ['related_shown_emotion', 'related_emotion_anger', 'cat_review_start_emotion']) assert.ok(!isUsageEvent(k), k);
+  assert.ok(isUsageEvent('cat_sheet_open'));
+  for (const k of ['related_shown_emotion', 'related_emotion_anger', 'cat_review_start_emotion', 'cat_sheet_open_emotion']) assert.ok(!isUsageEvent(k), k);
 });
