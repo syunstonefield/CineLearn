@@ -737,6 +737,11 @@ export default function ReviewModal({ asPage = false }) {
         {catSheet && (
           <CatSheet
             data={catSheet}
+            cardOf={(word) => {
+              const k = String(word || '').toLowerCase();
+              return (relPool?.pool || []).find((x) => String(x.word || '').toLowerCase() === k) || null;
+            }}
+            marksFor={marksFor}
             onClose={() => setCatSheet(null)}
             onStart={() => {
               const cat = catSheet.cat;
@@ -1333,24 +1338,57 @@ function ReviewDone({ showTomorrow = false, queue, partial = false, awardedRef, 
 // 「すべて見る」のシート（下から出る・中だけスクロール・✕／外／Esc で閉じる）。--rd-* の色を使うので .rd の中に置く。
 // 大の一覧のシート（終わりの画面の 知ってた などの一覧と同じ部品・同じ見た目＝rd-sheet）。
 //   1行＝語・意味・作品名（文字だけ・例文は並べない＝法務の条件）。多い時はシートの中だけスクロール。
-function CatSheet({ data, onClose, onStart }) {
+//   語を押すと、その語のカード（裏の面・見るだけ）を上に重ねる（2026-11-17 オーナー決定）。判定なし＝SRS・記録は動かない。
+//   閉じるとシートに戻る（シートは閉じないのでスクロールの位置もそのまま）。Esc と × は1段ずつ戻る。
+function CatSheet({ data, onClose, onStart, cardOf, marksFor }) {
+  const [peek, setPeek] = useState(null);
+  // 見るだけのカードを開いている間は、キーの的をカード（の箱）に移す（下の一覧の語に的が残ると ↓ などで一覧が動く・Space で開き直す）。
+  //   閉じたら押した語の行に的を戻す。
+  const peekX = useRef(null);
+  const peekFrom = useRef(null);
   useEffect(() => {
-    const onKey = (e) => e.key === 'Escape' && onClose();
+    if (peek) peekX.current?.focus({ preventScroll: true });
+    else peekFrom.current?.focus?.({ preventScroll: true });
+  }, [peek]);
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return;
+      if (peek) setPeek(null);
+      else onClose();
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [onClose, peek]);
+  const openPeek = (word, from) => {
+    const c = cardOf?.(word);
+    if (!c) return;
+    peekFrom.current = from || null;
+    setPeek(c);
+    trackUsage('cat_sheet_card_view');
+  };
   const rows = (words) => (
     <div className="rd-words">
-      {words.map((w) => (
-        <div className={'rd-w' + (w.self ? ' is-self' : '')} key={w.word}>
-          <b>{w.word}</b>
-          <span>
-            {w.definition}
-            {w.work && <em className="rd-w-work">{w.work}</em>}
-          </span>
-          {w.self && <i className="rd-w-self">この語</i>}
-        </div>
-      ))}
+      {words.map((w) =>
+        w.self ? (
+          <div className="rd-w is-self" key={w.word}>
+            <b>{w.word}</b>
+            <span>
+              {w.definition}
+              {w.work && <em className="rd-w-work">{w.work}</em>}
+            </span>
+            <i className="rd-w-self">この語</i>
+          </div>
+        ) : (
+          <button type="button" className="rd-w is-btn" key={w.word} onClick={(e) => openPeek(w.word, e.currentTarget)}>
+            <b>{w.word}</b>
+            <span>
+              {w.definition}
+              {w.work && <em className="rd-w-work">{w.work}</em>}
+            </span>
+            <i className="rd-w-go" aria-hidden="true">›</i>
+          </button>
+        )
+      )}
     </div>
   );
   return (
@@ -1395,6 +1433,22 @@ function CatSheet({ data, onClose, onStart }) {
           <p>カテゴリは自動で付けています。</p>
         </div>
       </div>
+      {peek && (
+        <>
+          <div className="rc-peek-back" onClick={() => setPeek(null)} aria-hidden="true" />
+          <div className="rc-peek" ref={peekX} tabIndex={-1} role="dialog" aria-modal="true" aria-label={`${peek.word} のカード`}>
+            <div className="rc-peek-head">
+              <span>見るだけ（答えは記録しません）</span>
+              <button type="button" className="rd-sheet-x" onClick={() => setPeek(null)} aria-label="一覧に戻る">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                  <path d="M6 6l12 12M18 6 6 18" />
+                </svg>
+              </button>
+            </div>
+            <ReviewCinemaCard word={peek} marks={marksFor?.(peek)} viewOnly />
+          </div>
+        </>
+      )}
     </div>
   );
 }

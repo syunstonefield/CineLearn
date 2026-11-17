@@ -8488,6 +8488,19 @@ html[data-theme="dark"] .rd.is-sum { --rd-sheet: #33281c; --rd-chip-fail: #d79aa
 .rd-catsheet-foot { flex: none; padding: 10px 16px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--rd-line); display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
 .rd-catsheet-foot .rd-btn1 { width: 100%; font-family: inherit; cursor: pointer; }
 .rd-catsheet-foot p { margin: 0; text-align: center; font-size: 11px; color: var(--rd-muted); }
+/* 一覧の語を押した時の「見るだけ」のカード（2026-11-17）。シートの上に重ね、閉じるとシートに戻る */
+.rd-catsheet .rd-w.is-btn { width: 100%; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.rd-catsheet .rd-w.is-btn:active { transform: scale(0.99); }
+.rd-w-go { margin-left: auto; flex: none; align-self: center; font-style: normal; font-size: 18px; line-height: 1; color: var(--rd-muted); }
+.rc-peek-back { position: fixed; inset: 0; z-index: 1310; background: rgba(42, 29, 18, 0.45); animation: rd-fade 0.18s ease-out both; }
+.rc-peek { position: fixed; z-index: 1311; inset: 0; margin: auto; width: min(560px, calc(100vw - 24px)); height: min(640px, calc(100dvh - 32px)); display: flex; flex-direction: column; gap: 8px; animation: rd-sheet-in 0.2s cubic-bezier(0.2, 0.8, 0.3, 1) both; }
+.rc-peek:focus { outline: none; }
+.rc-peek-head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #fdf0dc; font-size: 12px; font-weight: 700; padding: 0 2px; }
+.rc-peek-head > span { padding: 5px 11px; border-radius: 999px; background: rgba(42, 29, 18, 0.78); }
+.rd-catsheet .rd-w.is-btn:focus-visible { outline: 2px solid var(--rd-word); outline-offset: 1px; }
+.rc-peek-head .rd-sheet-x { background: rgba(253, 240, 220, 0.92); color: #2a1d12; }
+.rc-peek .rc-card.is-view { flex: 1; min-height: 0; }
+.rc-peek .rc-card.is-view .rc-deck { min-height: 0; }
 @media (prefers-reduced-motion: reduce) { .rd-sheet, .rd-sheet-back { animation: none; } .exp-line-bar i { transition: none; } }
 
 

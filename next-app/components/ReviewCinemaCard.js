@@ -124,7 +124,14 @@ const FilmIcon = () => (
   </svg>
 );
 
-export default function ReviewCinemaCard({ word: w, marks, related = null, onRelatedTap, onCatTap, flipped, retryMode, onFlip, onRate, onUndo }) {
+// viewOnly＝カテゴリの一覧から語を押した時の「見るだけ」のカード（2026-11-17 オーナー決定）:
+//   裏の面だけ・3つのボタン／スワイプ／関連語の札／戻る は出さない＝SRS・記録・進み具合は動かない。
+export default function ReviewCinemaCard({ word: w, marks, related = null, onRelatedTap, onCatTap, flipped: flippedProp, retryMode, onFlip, onRate, onUndo, viewOnly = false }) {
+  const flipped = viewOnly ? true : flippedProp;
+  if (viewOnly) {
+    related = null;
+    onUndo = null;
+  }
   // 近い意味の、学んだ語（復習だけ・関連語がある語だけ・2026-11-17）。札を押すと、その場に 語・意味・作品名を出す（もう一度押すと閉じる）。
   const [relOpen, setRelOpen] = useState(null);
   const [relFor, setRelFor] = useState(w.word);
@@ -140,7 +147,7 @@ export default function ReviewCinemaCard({ word: w, marks, related = null, onRel
     touch.current = { x: t.clientX, y: t.clientY };
   };
   const onTouchEnd = (e) => {
-    if (!flipped) return;
+    if (!flipped || viewOnly) return;
     const t = e.changedTouches[0];
     const dx = t.clientX - touch.current.x;
     const dy = t.clientY - touch.current.y;
@@ -215,7 +222,7 @@ export default function ReviewCinemaCard({ word: w, marks, related = null, onRel
   );
 
   return (
-    <div className="rc-card" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+    <div className={'rc-card' + (viewOnly ? ' is-view' : '')} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
       <div className="rc-deck">
         <div
           ref={ticketRef}
@@ -393,6 +400,7 @@ export default function ReviewCinemaCard({ word: w, marks, related = null, onRel
         </div>
       </div>
 
+      {!viewOnly && (
       <div className="rc-actions">
         {!flipped ? (
           <>
@@ -447,6 +455,7 @@ export default function ReviewCinemaCard({ word: w, marks, related = null, onRel
           </>
         )}
       </div>
+      )}
     </div>
   );
 }
