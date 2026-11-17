@@ -11,6 +11,7 @@ import { toeicToCefr, cefrTargetBand, personalizeWords } from './personalize';
 // 既存の import（components/VocabScreen.js など）のためにここから再エクスポートする。
 export { personalizeWords };
 import { isSubtitleSentence } from './subtitleSentence';
+import { catFields, catPromptList } from './relCategories.js';
 
 // ── TOEIC/CEFR ヘルパー（app.js から移植）──────────────────
 export function getToeicLevel(score) {
@@ -177,8 +178,8 @@ export function plusRangeFor(quotaDiv = 1) {
   return [Math.ceil(PLUS_MIN / n), Math.ceil(PLUS_MAX / n)];
 }
 export function supersetMaxTokens(genVocabCount, { tight = false, quotaDiv = 1 } = {}) {
-  if (!tight) return Math.min(13000, (genVocabCount + 25) * 140);
-  return Math.min(13000, (genVocabCount + plusRangeFor(quotaDiv)[1]) * 130);
+  if (!tight) return Math.min(13000, (genVocabCount + 25) * 148); // +8＝k（意味のカテゴリ）の分・2026-11-17
+  return Math.min(13000, (genVocabCount + plusRangeFor(quotaDiv)[1]) * 138);
 }
 
 export function buildVocabPrompt({ drama, season, episode, subtitleText, mode, cur, upper, genVocabCount, minTotal, tight = false, quotaDiv = 1 }) {
@@ -269,7 +270,10 @@ ${levelSpec}
 ${tierGuide}
 
 【重要ルール】
-- キーは短縮形を使う: w=単語, l=レベル, p=品詞, d=日本語の意味, e=例文, t=tier, c=チャンク
+- キーは短縮形を使う: w=単語, l=レベル, p=品詞, d=日本語の意味, e=例文, t=tier, c=チャンク, k=意味のカテゴリ
+- k（意味のカテゴリ）= w の「この場面での意味」に合うものを下の一覧から1つだけ選び、コード（例 emotion.anger）で書く。
+  句も句全体の意味で選ぶ。どれにもはっきり合わなければ other（無理に当てはめない）。一覧に無いコードは作らない。
+${catPromptList()}
 - drama の e（例文）は必ず字幕テキストから一字一句そのまま抜き出すこと（要約・言い換え禁止）
 - e には必ず w に指定した単語（または活用形）が含まれていること
 - e は「w を含む1文」だけにすること（前後のセリフや別の話者の発言までつなげない・目安200字以内）
@@ -311,11 +315,11 @@ ${tierGuide}
     特に次を積極的に拾うこと（字面の難易度が低くても学習者が調べたくなる）：
     句動詞・イディオム（例 pull off, get away with）、口語・スラング・比喩的な特殊用法（例 'shark'＝敏腕弁護士 のように、単語自体は平易でも文脈での意味を知らないと誤解する語を最優先）、現実に存在する分野の専門用語（法律・医療・ビジネス等。※架空世界の専門用語・造語は含めない）。
     重要：字幕の冒頭だけに偏らず、最初から最後まで全体を通して均等に選ぶこと。特に映画など長い字幕では、中盤・終盤に登場する単語も必ず含めること。
-    { "w": "英単語（原形。過去形・複数形・-ing 形は必ず原形に戻す）", "l": "A2|B1|B2|C1|C2", "p": "例文中での品詞（名詞/動詞/形容詞/副詞）", "d": "日本語の意味（簡潔に・日本語の漢字かなで書き、中国語の簡体字は使わない）。w の辞書での主な品詞が例文中の品詞と異なるとき（例 revolutionary＝主に形容詞・例文では名詞）だけ『基本の意味（この場面では名詞: 場面の意味）』の形にする（例 革命的な（この場面では名詞: 革命家））。同じ品詞ならその語義だけ", "e": "字幕からそのままコピーした文（必ずwの活用形を含む。見つからなければ空文字。ダブルクォートは使わず、シングルクォートに置換すること）", "t": "core"|"advanced"|"context", "c": "wを含む2〜4語のチャンク（無ければ空文字）" }
+    { "w": "英単語（原形。過去形・複数形・-ing 形は必ず原形に戻す）", "l": "A2|B1|B2|C1|C2", "p": "例文中での品詞（名詞/動詞/形容詞/副詞）", "d": "日本語の意味（簡潔に・日本語の漢字かなで書き、中国語の簡体字は使わない）。w の辞書での主な品詞が例文中の品詞と異なるとき（例 revolutionary＝主に形容詞・例文では名詞）だけ『基本の意味（この場面では名詞: 場面の意味）』の形にする（例 革命的な（この場面では名詞: 革命家））。同じ品詞ならその語義だけ", "e": "字幕からそのままコピーした文（必ずwの活用形を含む。見つからなければ空文字。ダブルクォートは使わず、シングルクォートに置換すること）", "t": "core"|"advanced"|"context", "c": "wを含む2〜4語のチャンク（無ければ空文字）", "k": "意味のカテゴリのコード（合わなければ other）" }
   ],
   "plus": [
     ${plusInstruction}
-    { "w": "英単語（原形）", "l": "A2|B1|B2|C1|C2", "p": "品詞（名詞/動詞/形容詞/副詞）", "d": "日本語の意味（簡潔に・日本語の漢字かなで書き、中国語の簡体字は使わない）", "e": "必ずwを含む自然な英文を作文する（空にしないこと）", "t": "core"|"advanced"|"context", "c": "wを含む2〜4語のチャンク（無ければ空文字）" }
+    { "w": "英単語（原形）", "l": "A2|B1|B2|C1|C2", "p": "品詞（名詞/動詞/形容詞/副詞）", "d": "日本語の意味（簡潔に・日本語の漢字かなで書き、中国語の簡体字は使わない）", "e": "必ずwを含む自然な英文を作文する（空にしないこと）", "t": "core"|"advanced"|"context", "c": "wを含む2〜4語のチャンク（無ければ空文字）", "k": "意味のカテゴリのコード（合わなければ other）" }
   ]
 }`;
 
@@ -355,6 +359,8 @@ function expandShortKeys(w) {
     // #19: チャンク（wを含む連語・コロケーション）。additive＝旧キャッシュには無い（表示側で
     // 単語のみへフォールバック）。VOCAB_CACHE_VERSION は上げない（既存カタログ再生成コスト回避）。
     chunk: w.c || '',
+    // 意味のカテゴリ（関連語・2026-11-17）。additive＝旧キャッシュには無い（seed/backfill-cats.mjs で後付け）。
+    ...catFields(w.k),
   };
 }
 

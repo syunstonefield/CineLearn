@@ -14,10 +14,10 @@ test('作例の語の数: 分割の回数で割る（合計は 18〜20 のまま
 });
 
 test('max_tokens: tight=false は従来の式のまま／tight は語数ベースで締める', () => {
-  assert.equal(supersetMaxTokens(70), Math.min(13000, (70 + 25) * 140));
-  assert.equal(supersetMaxTokens(60), Math.min(13000, (60 + 25) * 140));
-  assert.equal(supersetMaxTokens(70, { tight: true }), (70 + 20) * 130);
-  assert.equal(supersetMaxTokens(60, { tight: true, quotaDiv: 2 }), (60 + 10) * 130);
+  assert.equal(supersetMaxTokens(70), Math.min(13000, (70 + 25) * 148));
+  assert.equal(supersetMaxTokens(60), Math.min(13000, (60 + 25) * 148));
+  assert.equal(supersetMaxTokens(70, { tight: true }), (70 + 20) * 138);
+  assert.equal(supersetMaxTokens(60, { tight: true, quotaDiv: 2 }), (60 + 10) * 138);
   assert.ok(supersetMaxTokens(60, { tight: true, quotaDiv: 2 }) < supersetMaxTokens(60));
 });
 
@@ -38,7 +38,7 @@ test('文面: tight は上限つき（目標と下限は残す）・作例の語
   assert.match(one.prompt, /必ず 18〜20 語出す（20 語を超えない）/);
   const two = buildVocabPrompt({ ...base, genVocabCount: 60, tight: true, quotaDiv: 2 });
   assert.match(two.prompt, /必ず 9〜10 語出す（10 語を超えない）/);
-  assert.equal(two.maxTokens, 9100);
+  assert.equal(two.maxTokens, 9660); // (60+10)×138（+8＝k の分・2026-11-17）
 });
 
 test('generateSuperset: tight が各チャンクの呼び出しに届く（2分割の映画）', async () => {
