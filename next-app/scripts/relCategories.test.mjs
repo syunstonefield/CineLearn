@@ -84,5 +84,6 @@ test('生成の指示: k と一覧が載り、辞書・分類表の名前は出�
 test('利用統計: 関連語の2つは固定の名前で数えられる・カテゴリ入りの名前は数えない', () => {
   assert.ok(isUsageEvent('related_shown'));
   assert.ok(isUsageEvent('related_tap'));
-  for (const k of ['related_shown_emotion', 'related_emotion_anger', 'cat_review_start']) assert.ok(!isUsageEvent(k), k);
+  assert.ok(isUsageEvent('cat_review_start'));
+  for (const k of ['related_shown_emotion', 'related_emotion_anger', 'cat_review_start_emotion']) assert.ok(!isUsageEvent(k), k);
 });
