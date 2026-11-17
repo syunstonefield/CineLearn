@@ -13,6 +13,7 @@ import {
   loadRemovedWorksMap,
   cleanupLegacySubtitleCache,
   getDueReviewWords,
+  fillHistoryCatsNow,
 } from '@/lib/storage';
 import { takePushOpenParam, notePushOpen, takePendingPushOpen, hasPendingPushOpen, pushOpenDecision } from '@/lib/pushOpen';
 import { reapplyWorkRemovals } from '@/lib/workRemovalStore';
@@ -209,6 +210,18 @@ export default function AppProvider({ children }) {
     takePushOpenParam(); // 通知から開いた（?open=review）＝今日の復習を開きたい印（lib/pushOpen.js）
     return stop;
   }, []);
+  // 前に学んだ語に「意味のカテゴリ」を埋める（関連語・2026-11-17・⑦・lib/catFill.js）。
+  //   クラウドから取り込んだあと（cloudVersion）と、ログインしていない端末のために開いて少し後に1回。
+  //   値を埋めたら単語帳まわりを描き直す。失敗しても何も出さない。
+  useEffect(() => {
+    const run = () => fillHistoryCatsNow().then((n) => n && setWordbookVersion((v) => v + 1)).catch(() => {});
+    if (cloudVersion > 0) {
+      run();
+      return;
+    }
+    const t = setTimeout(run, 8000);
+    return () => clearTimeout(t);
+  }, [cloudVersion]);
   // 拡張で保存した語がこの端末に初めて届いたか（クラウド取込＝cloudVersion が進むたびに単語帳を見る・1回だけ数える）。
   useEffect(() => {
     if (cloudVersion > 0) noteExtWordsOnce();

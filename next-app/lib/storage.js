@@ -6,6 +6,7 @@ import { pickAgainWords } from './againWords';
 import { pushHistoryEntry, deleteHistoryRow, deleteHistoryRowsByTitle, pushSrsWords, deleteSrsWord, pushProfiles, queueStatePush } from './supabase';
 import { PROFILES_AT_KEY } from './profileMerge';
 import { getDeviceKey } from './device';
+import { fillHistoryCats, CATFILL_KEY } from './catFill';
 import { REMOVED_WORKS_KEY, RING_MET_RESET_KEY, removedTitlesOf, withRemoved } from './workRemoval';
 
 export const HISTORY_KEY = 'cl_history';
@@ -994,6 +995,30 @@ export function updateHistoryWords(id, words) {
     safeSet(HISTORY_KEY, JSON.stringify(history));
     pushHistoryEntry(history[idx]); // 完全なエントリでクラウドへ upsert
   }
+}
+
+// 前に学んだ語に「意味のカテゴリ」を後から埋める（関連語・2026-11-17・⑦・lib/catFill.js）。
+//   送るのは作品と話の番号だけ。値を埋めた語の数を返す（失敗しても投げない）。
+function tmdbIdByTitle(title) {
+  if (!title) return null;
+  const t = normWorkTitle(title);
+  for (const p of readJson(PROFILES_KEY, [])) {
+    for (const d of p?.settings?.myDramas || []) {
+      if (d?.tmdbId != null && [d.title, d.englishTitle].some((x) => x && normWorkTitle(x) === t)) return d.tmdbId;
+    }
+  }
+  return null;
+}
+export function fillHistoryCatsNow() {
+  if (typeof window === 'undefined') return Promise.resolve(0);
+  return fillHistoryCats({
+    loadHistory,
+    updateHistoryWords,
+    tmdbIdOf: tmdbIdByTitle,
+    isMovie: (title, type) => isMovieWork(title, type),
+    readTried: () => readJson(CATFILL_KEY, {}),
+    writeTried: (o) => safeSet(CATFILL_KEY, JSON.stringify(o)),
+  });
 }
 
 export function updateHistoryQuizData(id, quiz) {
