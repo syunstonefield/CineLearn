@@ -5,6 +5,7 @@ import { CATEGORIES, CAT_VERSION, parseCatKey, catFields, catOf, catLabel, subLa
 import { relatedWords, groupByCat } from '../lib/related.js';
 import { buildCatPrompt, parseCatReply, needsCat } from '../lib/server/catBackfill.js';
 import { buildVocabPrompt } from '../lib/vocab.js';
+import { isUsageEvent } from '../lib/usageEvents.js';
 
 test('一覧: 大は13個・コードは重ならない・足した小分類がある', () => {
   assert.equal(CATEGORIES.length, 13);
@@ -78,4 +79,10 @@ test('生成の指示: k と一覧が載り、辞書・分類表の名前は出�
   assert.ok(prompt.includes(catPromptList().split('\n')[0]));
   assert.ok(prompt.includes('"k": "意味のカテゴリのコード'));
   for (const bad of ['Roget', 'WordNet', 'Longman', 'Oxford', '分類語彙表', 'シソーラス']) assert.ok(!prompt.includes(bad), bad);
+});
+
+test('利用統計: 関連語の2つは固定の名前で数えられる・カテゴリ入りの名前は数えない', () => {
+  assert.ok(isUsageEvent('related_shown'));
+  assert.ok(isUsageEvent('related_tap'));
+  for (const k of ['related_shown_emotion', 'related_emotion_anger', 'cat_review_start']) assert.ok(!isUsageEvent(k), k);
 });
