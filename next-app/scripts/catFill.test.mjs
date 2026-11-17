@@ -1,16 +1,17 @@
 // 前に学んだ語にカテゴリを埋める（lib/catFill.js・2026-11-17）。
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { fillHistoryCats, pickTargets, requestFor, entryMark, RETRY_DAYS } from '../lib/catFill.js';
+import { fillHistoryCats, pickTargets, requestFor, entryMark, tableMark, RETRY_DAYS, TABLE_URL } from '../lib/catFill.js';
 import { catFields, catOf } from '../lib/relCategories.js';
 
 const ep = (id, tmdbId, s, e, words, extra = {}) => ({ id, drama: { title: `作品${tmdbId}`, ...(tmdbId ? { tmdbId } : {}), ...extra }, season: s, episode: e, words });
 
-function setup(history, replies) {
+function setup(history, replies, table = null) {
   let hist = JSON.parse(JSON.stringify(history));
   let tried = {};
   const sent = [];
   const saved = [];
+  const tableHits = [];
   const deps = {
     loadHistory: () => JSON.parse(JSON.stringify(hist)),
     updateHistoryWords: (id, words) => {
@@ -20,6 +21,10 @@ function setup(history, replies) {
     readTried: () => tried,
     writeTried: (o) => (tried = { ...o }),
     fetchImpl: async (url, opts) => {
+      if (url === TABLE_URL) {
+        tableHits.push(url);
+        return table ? { ok: true, json: async () => table } : { ok: false, json: async () => ({}) };
+      }
       const body = JSON.parse(opts.body);
       sent.push({ url, body });
       const r = replies(body);
@@ -28,7 +33,7 @@ function setup(history, replies) {
       return { ok: true, json: async () => r };
     },
   };
-  return { deps, sent, saved, hist: () => hist, tried: () => tried };
+  return { deps, sent, saved, tableHits, hist: () => hist, tried: () => tried, setTried: (o) => (tried = o) };
 }
 
 test('値のない話だけ・番号だけを送り、返った値を写して保存する', async () => {
@@ -49,7 +54,7 @@ test('値のない話だけ・番号だけを送り、返った値を写して�
 test('配信オフ・キャッシュに無い話は覚えて聞き直さない／通信の失敗は覚えない', async () => {
   const s = setup([ep('a', 10, 1, 1, [{ word: 'x' }]), ep('b', 11, 1, 1, [{ word: 'y' }])], (b) => (b.tmdbId === 10 ? { blocked: true } : { miss: true }));
   assert.equal(await fillHistoryCats(s.deps), 0);
-  assert.equal(Object.keys(s.tried()).length, 2);
+  assert.ok(Object.keys(s.tried()).includes(entryMark({ tmdbId: 10, type: 'tv', season: 1, episode: 1 })));
   s.sent.length = 0;
   await fillHistoryCats(s.deps);
   assert.equal(s.sent.length, 0);
@@ -82,4 +87,42 @@ test('1回の起動で聞く話の数に上限がある', async () => {
   const s = setup(many, () => ({ hit: true, cats: [] }));
   await fillHistoryCats({ ...s.deps, max: 2 });
   assert.equal(s.sent.length, 2);
+});
+
+const TABLE = { catv: 1, words: { furious: 'emotion.anger', odd: 'other', lawyer: 'society.law' } };
+
+test('保険の表: 作品の番号が分からない話・窓口で埋め切れなかった話の残りの語を埋める（窓口の値が先）', async () => {
+  const s = setup(
+    [ep('noid', null, 1, 1, [{ word: 'Furious' }, { word: 'nothere' }]), ep('a', 10, 1, 1, [{ word: 'lawyer' }, { word: 'furious' }])],
+    () => ({ hit: true, cats: [{ w: 'furious', cat: 'emotion', sub: 'joy' }] }),
+    TABLE
+  );
+  const n = await fillHistoryCats(s.deps);
+  assert.equal(n, 3); // noid の furious（表）・a の furious（窓口）と lawyer（表）
+  assert.equal(s.sent.length, 1); // 番号の分かる話だけ窓口に聞く
+  const noid = s.hist().find((h) => h.id === 'noid');
+  assert.deepEqual(catOf(noid.words[0]), { cat: 'emotion', sub: 'anger' });
+  assert.equal(noid.words[1].cat, undefined); // 表に無い語はそのまま
+  const a = s.hist().find((h) => h.id === 'a');
+  assert.deepEqual(catOf(a.words[1]), { cat: 'emotion', sub: 'joy' }); // 窓口の値（場面の意味）が先
+  assert.deepEqual(catOf(a.words[0]), { cat: 'society', sub: 'law' }); // 窓口に無かった語は表で
+  assert.ok(tableMark('noid') in s.tried());
+  s.tableHits.length = 0;
+  await fillHistoryCats(s.deps);
+  assert.equal(s.tableHits.length, 0); // しばらくは表を引き直さない
+});
+
+test('保険の表: 窓口をまだ聞けていない話（通信の失敗）は表で先に埋めない', async () => {
+  const s = setup([ep('a', 10, 1, 1, [{ word: 'furious' }])], () => 'throw', TABLE);
+  await fillHistoryCats(s.deps);
+  assert.equal(s.hist()[0].words[0].cat, undefined);
+  assert.equal(s.tableHits.length, 0);
+});
+
+test('前の版のしるし（配信オフで聞き直さない印）は捨てて、すぐ聞き直す', async () => {
+  const s = setup([ep('a', 10, 1, 1, [{ word: 'x' }])], () => ({ hit: true, cats: [{ w: 'x', cat: 'time', sub: 'now' }] }));
+  s.setTried({ ['1:10:tv:1:1']: Date.now() });
+  await fillHistoryCats(s.deps);
+  assert.equal(s.sent.length, 1);
+  assert.equal(s.hist()[0].words[0].cat, 'time');
 });

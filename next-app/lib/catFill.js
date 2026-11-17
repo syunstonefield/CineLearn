@@ -4,6 +4,10 @@
 //   1回に1話ずつ・1回の起動で MAX_PER_RUN 話まで。失敗しても画面は止めない（握りつぶして次の機会に回す）。
 //   埋め切れなかった話（配信オフの作品・共有キャッシュに無い話・キャッシュに無い語が残る話）は cl_catfill に
 //   覚えて、RETRY_DAYS 日は聞き直さない（あとで配信が始まった作品も、いずれ埋まる）。埋め切れた話は覚えない（クラウドから取り直して値が消えても次で埋め直す）。
+//   2026-11-17 第2版: 窓口は配信オフの作品でも値を返す（共有キャッシュに行がある時だけ）。そのうえで、
+//   作品の番号が分からない話と、窓口で埋め切れなかった話の残りの語は「語 → カテゴリ」の表（public/cat-words.json・
+//   作品に結びつかない・語ごとに1つ）で端末の中で埋める（保険）。窓口の値（その場面での意味）を先に使う。
+//   しるしの頭に FILL_V を付ける＝版を上げると前の版のしるしは捨てて、すぐ聞き直す。
 //   保存は storage.updateHistoryWords（端末に保存＋ログイン中ならクラウドの history へ upsert＝取り直しで消えない）。
 
 import { catOf, applyCats, CAT_VERSION } from './relCategories.js';
@@ -11,12 +15,14 @@ import { catOf, applyCats, CAT_VERSION } from './relCategories.js';
 export const CATFILL_KEY = 'cl_catfill';
 export const MAX_PER_RUN = 40;
 export const RETRY_DAYS = 14;
+export const FILL_V = 2; // しるしの版（2026-11-17: 配信オフも返すようにしたので 1 の blocked のしるしを捨てる）
+export const TABLE_URL = '/cat-words.json';
 
 const needs = (w) => !!(w && w.word && !catOf(w));
 
 // 話を見分けるしるし（cl_catfill に覚える）。
 export function entryMark(req) {
-  return `${CAT_VERSION}:${req.tmdbId}:${req.type}:${req.season}:${req.episode}`;
+  return `a${FILL_V}:${CAT_VERSION}:${req.tmdbId}:${req.type}:${req.season}:${req.episode}`;
 }
 
 // history の1件 → 送る中身（tmdbId が分からない話は null）。
@@ -46,6 +52,40 @@ export function pickTargets(history, tried, opts, now = Date.now()) {
   return out;
 }
 
+// 表で埋める話のしるし（話の id ごと）。
+export function tableMark(id) {
+  return `t${FILL_V}:${CAT_VERSION}:${id}`;
+}
+
+// 表で埋めてよい話: 作品の番号が分からない話と、窓口で埋め切れなかった話（しるしがある）。
+//   窓口をまだ聞いていない話は待つ（表の値で先に埋めると、場面の値で上書きできなくなる）。
+export function pickTableTargets(history, tried, opts, now = Date.now()) {
+  const fresh = (m) => now - (Number(tried[m]) || 0) < RETRY_DAYS * 864e5;
+  const out = [];
+  for (const h of history || []) {
+    if (!h?.id || !(h.words || []).some(needs) || fresh(tableMark(h.id))) continue;
+    const req = requestFor(h, opts);
+    if (req && !fresh(entryMark(req))) continue;
+    out.push(h.id);
+  }
+  return out;
+}
+
+// 表 { catv, words:{ 語: 'emotion.anger' | 'other' } } → applyCats に渡す形。
+export function tableCats(table, words) {
+  const t = table && table.catv === CAT_VERSION && table.words;
+  if (!t) return [];
+  const out = [];
+  for (const w of words || []) {
+    if (!needs(w)) continue;
+    const v = t[String(w.word).toLowerCase().trim()];
+    if (!v) continue;
+    const [cat, sub = ''] = String(v).split('.');
+    out.push({ w: w.word, cat, sub });
+  }
+  return out;
+}
+
 let running = false;
 
 // 戻り値: 値を埋めた語の数（0 なら画面を描き直さなくてよい）。
@@ -58,7 +98,8 @@ export async function fillHistoryCats(deps) {
     const { fetchImpl = fetch, loadHistory, updateHistoryWords, readTried, writeTried, max = MAX_PER_RUN } = deps;
     const now = Date.now();
     const tried = {};
-    for (const [k, v] of Object.entries(readTried() || {})) if (now - Number(v) < RETRY_DAYS * 864e5) tried[k] = Number(v); // 古いしるしは捨てる
+    const cur = new RegExp(`^[at]${FILL_V}:`);
+    for (const [k, v] of Object.entries(readTried() || {})) if (cur.test(k) && now - Number(v) < RETRY_DAYS * 864e5) tried[k] = Number(v); // 古い・前の版のしるしは捨てる
     const targets = pickTargets(loadHistory(), tried, deps, now).slice(0, max);
     for (const t of targets) {
       let j = null;
@@ -84,7 +125,32 @@ export async function fillHistoryCats(deps) {
         filled += n;
       }
       if (words.some(needs)) {
-        tried[t.mark] = now; // 埋め切れない話（blocked・miss・キャッシュに無い語）はしばらく聞き直さない
+        tried[t.mark] = now; // 埋め切れない話（キャッシュに無い話・無い語）はしばらく聞き直さない
+        writeTried(tried);
+      }
+    }
+    // 保険: 表で埋める（作品の番号が分からない話・窓口で埋め切れなかった話）
+    const ids = pickTableTargets(loadHistory(), tried, deps, now);
+    if (ids.length) {
+      let table = null;
+      try {
+        const res = await fetchImpl(TABLE_URL);
+        if (res.ok) table = await res.json();
+      } catch {
+        table = null;
+      }
+      if (table) {
+        for (const id of ids) {
+          const entry = loadHistory().find((h) => h.id === id);
+          if (!entry) continue;
+          const words = (entry.words || []).map((w) => ({ ...w }));
+          const n = applyCats(words, tableCats(table, words));
+          if (n) {
+            updateHistoryWords(id, words);
+            filled += n;
+          }
+          tried[tableMark(id)] = now; // 表に無い語が残っても、しばらくは表を引き直さない
+        }
         writeTried(tried);
       }
     }
