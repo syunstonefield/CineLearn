@@ -29,7 +29,7 @@ import { addExp, levelInfo, expForReviewSession } from '@/lib/exp';
 import { awardReviewSession } from '@/lib/reviewAward';
 import { ExpLine } from './ExpBlock';
 import ReviewCinemaCard, { CinemaProgress } from './ReviewCinemaCard';
-import { relatedPool, relatedViewFor, catReviewCards } from '@/lib/relatedView';
+import { relatedPool, relatedViewFor, catReviewCards, catSheetData } from '@/lib/relatedView';
 import WordMarks from './WordMarks';
 import { getActiveWords, starWord, unstarWord, likeWord, sameWorkTitle } from '@/lib/words';
 import { entryFromCard, sceneOf } from '@/lib/wordMarks';
@@ -324,6 +324,16 @@ export default function ReviewModal({ asPage = false }) {
       setCurrentHistoryId?.(null);
       openReview(words, { all: true });
     }, 0);
+  };
+  // カードの大の名前（○○ ›）は、復習を始めずに下から一覧のシートを出す（2026-11-17 オーナー）。
+  //   シートの下のボタンを押した時だけ goCatReview（cat_review_start もその時だけ）。閉じたら元のカードのまま。
+  const [catSheet, setCatSheet] = useState(null);
+  const openCatSheet = () => {
+    const history = loadHistory();
+    const d = catSheetData(queue[idx], history, loadSrs(), activeWordKeys(history, [], sameWorkTitle));
+    if (!d) return;
+    setCatSheet(d);
+    trackUsage('cat_sheet_open');
   };
   const relShownRef = useRef(new Set()); // related_shown は1回の復習で1語1回
   useEffect(() => {
@@ -621,6 +631,7 @@ export default function ReviewModal({ asPage = false }) {
       const tag = (t?.tagName || '').toLowerCase();
       if (tag === 'input' || tag === 'textarea' || tag === 'select' || t?.isContentEditable) return;
       if (showKeys) return; // ガイド表示中は KeysHelp 側が受ける
+      if (catSheet) return; // 大の一覧のシートを開いている間は採点しない（Esc はシート側が受ける）
       if (showDone) return;
       if (showBreak) {
         // 区切りの画面では Enter／Space で「続ける」だけ（矢印で採点が飛ばないように）
@@ -676,7 +687,7 @@ export default function ReviewModal({ asPage = false }) {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reviewWords, showKeys, showDone, showBreak, flipped, retryMode, idx, queue, promo, ratings, undoStack]);
+  }, [reviewWords, showKeys, catSheet, showDone, showBreak, flipped, retryMode, idx, queue, promo, ratings, undoStack]);
   // 進捗バー：消化済み（idx）/ 全体。完了画面では満タン表示。
   const pct = queue.length ? Math.round(((done ? queue.length : idx) / queue.length) * 100) : 0;
 
@@ -723,6 +734,17 @@ export default function ReviewModal({ asPage = false }) {
           </span>
         </div>
         {showKeys && <KeysHelp onClose={() => setShowKeys(false)} />}
+        {catSheet && (
+          <CatSheet
+            data={catSheet}
+            onClose={() => setCatSheet(null)}
+            onStart={() => {
+              const cat = catSheet.cat;
+              setCatSheet(null);
+              goCatReview(cat);
+            }}
+          />
+        )}
         {breakHiddenNote && !showDone && !showBreak && look && (
           <div className="rc-break-toast-wrap">
             <p className="rc-break-toast" role="status">
@@ -795,7 +817,7 @@ export default function ReviewModal({ asPage = false }) {
               marks={marksFor(queue[idx])}
               related={cinema ? relatedFor(queue[idx]) : null}
               onRelatedTap={() => trackUsage('related_tap')}
-              onCatTap={queue[idx]?._catReview ? null : goCatReview}
+              onCatTap={queue[idx]?._catReview ? null : openCatSheet}
               flipped={flipped}
               retryMode={retryMode}
               onFlip={() => setFlipped(true)}
@@ -1309,6 +1331,74 @@ function ReviewDone({ showTomorrow = false, queue, partial = false, awardedRef, 
 }
 
 // 「すべて見る」のシート（下から出る・中だけスクロール・✕／外／Esc で閉じる）。--rd-* の色を使うので .rd の中に置く。
+// 大の一覧のシート（終わりの画面の 知ってた などの一覧と同じ部品・同じ見た目＝rd-sheet）。
+//   1行＝語・意味・作品名（文字だけ・例文は並べない＝法務の条件）。多い時はシートの中だけスクロール。
+function CatSheet({ data, onClose, onStart }) {
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  const rows = (words) => (
+    <div className="rd-words">
+      {words.map((w) => (
+        <div className={'rd-w' + (w.self ? ' is-self' : '')} key={w.word}>
+          <b>{w.word}</b>
+          <span>
+            {w.definition}
+            {w.work && <em className="rd-w-work">{w.work}</em>}
+          </span>
+          {w.self && <i className="rd-w-self">この語</i>}
+        </div>
+      ))}
+    </div>
+  );
+  return (
+    <div className="rd is-sum rd-catsheet-wrap">
+      <div className="rd-sheet-back" onClick={onClose} aria-hidden="true" />
+      <div className="rd-sheet rd-catsheet" role="dialog" aria-modal="true" aria-label={`${data.label}の語`}>
+        <div className="rd-sheet-head">
+          <h3>
+            {data.label}
+            <span className="rd-cnt">学んだ語 {data.count}</span>
+          </h3>
+          <button type="button" className="rd-sheet-x" onClick={onClose} aria-label="閉じる">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+              <path d="M6 6l12 12M18 6 6 18" />
+            </svg>
+          </button>
+        </div>
+        <div className="rd-sheet-body">
+          {data.near.length > 0 && (
+            <section className="rd-sheet-group">
+              <h4>
+                近い意味
+                <span className="rd-cnt">{data.near.length}</span>
+              </h4>
+              {rows(data.near)}
+            </section>
+          )}
+          {data.subs.map((g) => (
+            <section className="rd-sheet-group" key={g.sub || 'rest'}>
+              <h4>
+                {g.label}
+                <span className="rd-cnt">{g.words.length}</span>
+              </h4>
+              {rows(g.words)}
+            </section>
+          ))}
+        </div>
+        <div className="rd-catsheet-foot">
+          <button type="button" className="rd-btn1" onClick={onStart}>
+            「{data.label}」の語を復習する
+          </button>
+          <p>カテゴリは自動で付けています。</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DoneSheet({ onClose, focus, groups, allPerfect, gotMaster, gotLearned, lv, sessions }) {
   const bodyRef = useRef(null);
   // 札から開いた時は、その答えの見出しがシートの上に来るように（先頭の説明は上へ送る）

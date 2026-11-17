@@ -3,7 +3,7 @@
 //   法務の条件（2026-11-17）: 出すのは 語・意味・作品名（文字だけ）だけ。ほかの語の例文・画像は出さない。本人の端末の中だけ。
 import { getAllVocabWords, loadSrs } from './storage';
 import { relatedWords, groupByCat } from './related';
-import { catOf, catLabel } from './relCategories';
+import { catOf, catLabel, subLabel, CATEGORIES } from './relCategories';
 
 export const RELATED_MAX = 3;
 
@@ -56,4 +56,35 @@ export function catReviewCards(cat, history, srs = loadSrs(), { toCard = (w) => 
     return la < lb ? 1 : la > lb ? -1 : 0;
   });
   return words.map((w) => ({ ...toCard(w), _src: w._src, _catReview: g.label }));
+}
+
+// ── カードの大の名前（○○ ›）から開く一覧のシート（2026-11-17 オーナー「復習を始めずに、下から一覧を」）──────
+//   いまの語と小が同じ学んだ語（札の3つに入らなかった語も全部）を上に、その下に同じ大のほかの語を小ごとに。
+//   1行＝語・意味・作品名（文字だけ）。例文・セリフは並べない（法務の条件）。self＝いまの語（印を付ける）。
+//   戻り値 { cat, label, count, near:[行], subs:[{ sub, label, words:[行] }] }。大が無い・other は null。
+export function catSheetData(target, history, srs = loadSrs(), activeKeys = null) {
+  const tc = catOf(target);
+  if (!tc || !tc.cat || tc.cat === 'other') return null;
+  const selfKey = String(target?.word || '').toLowerCase();
+  const at = (w) => String(srs[String(w.word || '').toLowerCase()]?.lastReview || '');
+  const row = (w) => ({
+    word: w.word,
+    definition: w.definition || w.ja || '',
+    work: w._src?.title || w.dramaTitle || '',
+    self: String(w.word || '').toLowerCase() === selfKey,
+  });
+  const inCat = learnedWords(history, srs, activeKeys).filter((w) => catOf(w)?.cat === tc.cat);
+  if (!inCat.some((w) => String(w.word || '').toLowerCase() === selfKey) && target?.word) inCat.unshift(target);
+  const recent = (a, b) => (at(a) < at(b) ? 1 : at(a) > at(b) ? -1 : 0);
+  const near = inCat.filter((w) => catOf(w)?.sub === tc.sub).sort(recent);
+  near.sort((a, b) => (row(b).self ? 1 : 0) - (row(a).self ? 1 : 0)); // いまの語をいちばん上に
+  const def = CATEGORIES.find((c) => c.code === tc.cat);
+  const subs = (def?.subs || [])
+    .filter((x) => x.code !== tc.sub)
+    .map((x) => ({ sub: x.code, label: subLabel(tc.cat, x.code), words: inCat.filter((w) => catOf(w)?.sub === x.code).sort(recent).map(row) }))
+    .filter((g) => g.words.length);
+  const known = new Set([tc.sub, ...(def?.subs || []).map((x) => x.code)]);
+  const rest = inCat.filter((w) => !known.has(catOf(w)?.sub)).sort(recent).map(row);
+  if (rest.length) subs.push({ sub: '', label: 'そのほか', words: rest });
+  return { cat: tc.cat, label: catLabel(tc.cat), count: inCat.length, near: near.map(row), subs };
 }

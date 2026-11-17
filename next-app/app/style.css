@@ -8475,6 +8475,19 @@ html[data-theme="dark"] .rd.is-sum { --rd-sheet: #33281c; --rd-chip-fail: #d79aa
 .rd-sheet-total { margin: 0; text-align: center; font-size: 12px; color: var(--rd-muted); }
 @keyframes rd-fade { from { opacity: 0; } }
 @keyframes rd-sheet-in { from { transform: translateY(40px); opacity: 0; } }
+/* 復習カードの大の名前（○○ ›）から開く一覧（2026-11-17 オーナー「完了画面の 知ってた みたいに下から」）。
+   rd-sheet をそのまま使い、色の変数だけ .rd から受け取る（包みの箱は表示に出さない＝display: contents） */
+.rd.rd-catsheet-wrap { display: contents; }
+.rd-catsheet .rd-sheet-head h3 { display: flex; align-items: baseline; gap: 8px; }
+.rd-catsheet .rd-sheet-body { padding-bottom: 12px; }
+.rd-catsheet .rd-w { position: relative; }
+.rd-catsheet .rd-w span { min-width: 0; }
+.rd-w-work { display: block; margin-top: 2px; font-style: normal; font-size: 12px; color: var(--rd-muted); opacity: 0.85; }
+.rd-catsheet .rd-w.is-self { border-color: var(--rd-word); box-shadow: inset 3px 0 0 var(--rd-word); }
+.rd-w-self { margin-left: auto; flex: none; align-self: center; font-style: normal; font-size: 11px; font-weight: 700; color: var(--rd-word); white-space: nowrap; }
+.rd-catsheet-foot { flex: none; padding: 10px 16px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--rd-line); display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
+.rd-catsheet-foot .rd-btn1 { width: 100%; font-family: inherit; cursor: pointer; }
+.rd-catsheet-foot p { margin: 0; text-align: center; font-size: 11px; color: var(--rd-muted); }
 @media (prefers-reduced-motion: reduce) { .rd-sheet, .rd-sheet-back { animation: none; } .exp-line-bar i { transition: none; } }
 
 
