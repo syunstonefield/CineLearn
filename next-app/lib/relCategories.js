@@ -10,7 +10,7 @@ export const CAT_OTHER = 'other';
 
 export const CATEGORIES = [
   { code: 'emotion', label: '感情', subs: [['anger', '怒り・いらだち'], ['joy', '喜び・満足'], ['sadness', '悲しみ・落胆'], ['fear', '不安・恐れ'], ['surprise', '驚き・とまどい'], ['disgust', '嫌悪・うんざり'], ['shame', '恥・後ろめたさ'], ['calm', '安心・落ち着き']] },
-  { code: 'character', label: '性格・人がら', subs: [['tough', '強気・頑固'], ['kind', 'やさしさ・誠実'], ['sly', 'ずるさ・不誠実'], ['shy', '内気・慎重'], ['proud', '自信・うぬぼれ'], ['skill', '有能・不器用']] },
+  { code: 'character', label: '性格・人がら', subs: [['tough', '強気・頑固'], ['kind', 'やさしさ・誠実'], ['sly', 'ずるさ・不誠実'], ['shy', '内気・慎重'], ['proud', '自信・うぬぼれ'], ['skill', '有能・不器用'], ['cold', '冷たさ・残酷']] },
   { code: 'relation', label: '人との関係', subs: [['trust', '信頼・味方'], ['conflict', '対立・けんか'], ['love', '恋愛・親しさ'], ['rank', '上下・立場'], ['help', '助ける・頼る'], ['betray', '裏切り・距離']] },
   { code: 'thinking', label: '考え・判断', subs: [['guess', '思う・推測'], ['decide', '決める・選ぶ'], ['doubt', '疑う・確かめる'], ['realize', '理解・気づき'], ['plan', '計画・ねらい'], ['opinion', '評価・意見'], ['cause', '原因・結果'], ['belief', '信じる・運命']] },
   { code: 'speech', label: '話す・伝える', subs: [['ask', '頼む・誘う'], ['refuse', '断る・反対'], ['explain', '説明・報告'], ['promise', '約束・同意'], ['joke', '冗談・皮肉'], ['praise', 'ほめる・責める'], ['lie', '隠す・うそ']] },

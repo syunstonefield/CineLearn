@@ -11,7 +11,7 @@ test('一覧: 大は13個・コードは重ならない・足した小分類が�
   assert.equal(CATEGORIES.length, 13);
   const keys = CATEGORIES.flatMap((c) => c.subs.map((s) => `${c.code}.${s.code}`));
   assert.equal(new Set(keys).size, keys.length);
-  for (const k of ['society.fight', 'society.military', 'science.machine', 'science.research', 'science.data', 'thinking.cause', 'state.real', 'action.split', 'emotion.calm', 'thinking.belief']) assert.ok(keys.includes(k), k);
+  for (const k of ['society.fight', 'society.military', 'science.machine', 'science.research', 'science.data', 'thinking.cause', 'state.real', 'action.split', 'emotion.calm', 'thinking.belief', 'character.cold']) assert.ok(keys.includes(k), k);
   assert.equal(catLabel('emotion'), '感情');
   assert.equal(subLabel('emotion', 'anger'), '怒り・いらだち');
 });
