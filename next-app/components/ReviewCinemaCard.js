@@ -9,7 +9,7 @@
 //   2026-11-07 オーナー実機: 例文の黒い字幕の帯は浮いて見えるのでやめ、カードの紙の上に置く。
 //   見た目は CSS だけ（画像ゼロ・app/style.css「復習カード（夕焼けシネマ）」）。動き・10枚の区切りの演出は後の段。
 
-import { useLayoutEffect, useRef } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { aiExampleOf, isOtherSceneExample } from '@/lib/exampleBackfill';
 import { surfaceFormInExample, wordMatchRegex, normApostrophes } from '@/lib/subtitles';
 import { speak } from '@/lib/speak';
@@ -124,7 +124,15 @@ const FilmIcon = () => (
   </svg>
 );
 
-export default function ReviewCinemaCard({ word: w, marks, flipped, retryMode, onFlip, onRate, onUndo }) {
+export default function ReviewCinemaCard({ word: w, marks, related = null, onRelatedTap, flipped, retryMode, onFlip, onRate, onUndo }) {
+  // 近い意味の、学んだ語（復習だけ・関連語がある語だけ・2026-11-17）。札を押すと、その場に 語・意味・作品名を出す（もう一度押すと閉じる）。
+  const [relOpen, setRelOpen] = useState(null);
+  const [relFor, setRelFor] = useState(w.word);
+  if (relFor !== w.word) {
+    setRelFor(w.word);
+    setRelOpen(null);
+  }
+  const rel = flipped && related && related.words?.length ? related : null;
   // スワイプ採点：右=知ってた(5) / 左=知らなかった(0)。意味を開いてから有効（従来の ReviewCard と同じ）。
   const touch = useRef({ x: 0, y: 0 });
   const onTouchStart = (e) => {
@@ -174,9 +182,9 @@ export default function ReviewCinemaCard({ word: w, marks, flipped, retryMode, o
       alive = false;
       ro?.disconnect();
     };
-  }, [flipped, w.word]);
+  }, [flipped, w.word, !!rel]);
   // 裏も表と同じ大きさ・同じ規則（オーナー 2026-11-07「回答画面の英単語を大きく」）
-  useFitWord(wordRef, PHRASE_MIN_PX.front, [w.word, w.chunk, flipped]);
+  useFitWord(wordRef, PHRASE_MIN_PX.front, [w.word, w.chunk, flipped, !!rel]);
 
   const wordEl = (
     <span ref={wordRef} className="rc-word">
@@ -211,7 +219,7 @@ export default function ReviewCinemaCard({ word: w, marks, flipped, retryMode, o
       <div className="rc-deck">
         <div
           ref={ticketRef}
-          className={'rc-ticket' + (flipped ? ' is-back' : ' is-front')}
+          className={'rc-ticket' + (flipped ? ' is-back' : ' is-front') + (rel ? ' has-rel' : '')}
           onClick={(e) => {
             if (flipped || e.target.closest('button')) return;
             onFlip();
@@ -328,6 +336,45 @@ export default function ReviewCinemaCard({ word: w, marks, flipped, retryMode, o
                   {ex && isOtherSceneExample(w) && <span className="rc-src-note">この回の別の場面のセリフです</span>}
                   {/* AI 作例（2026-10-31）: 字幕の引用ではないので “…” と出所を付けず、注記で明示する */}
                   {ai && <span className="rc-src-note">AI 作例（ドラマのセリフではありません）</span>}
+                </div>
+              )}
+              {rel && (
+                <div className="rc-rel">
+                  <div className="rc-rel-head">
+                    <span>近い意味の、学んだ語</span>
+                    {rel.catName && <span className="rc-rel-cat">{rel.catName}</span>}
+                  </div>
+                  <div className="rc-rel-chips">
+                    {rel.words.map((r) => (
+                      <button
+                        type="button"
+                        key={r.word}
+                        className={'rc-rel-chip' + (relOpen === r.word ? ' is-open' : '')}
+                        aria-expanded={relOpen === r.word}
+                        onClick={(ev) => {
+                          ev.stopPropagation();
+                          const next = relOpen === r.word ? null : r.word;
+                          setRelOpen(next);
+                          if (next) onRelatedTap?.();
+                        }}
+                      >
+                        {r.word}
+                      </button>
+                    ))}
+                  </div>
+                  {relOpen &&
+                    (() => {
+                      const r = rel.words.find((x) => x.word === relOpen);
+                      return r ? (
+                        <div className="rc-rel-detail">
+                          <div className="rc-rel-line">
+                            <b>{r.word}</b>
+                            <span>{r.definition}</span>
+                          </div>
+                          {r.work && <div className="rc-rel-work">{r.work} で学んだ語</div>}
+                        </div>
+                      ) : null;
+                    })()}
                 </div>
               )}
             </>

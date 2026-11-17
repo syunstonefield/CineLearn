@@ -29,6 +29,7 @@ import { addExp, levelInfo, expForReviewSession } from '@/lib/exp';
 import { awardReviewSession } from '@/lib/reviewAward';
 import { ExpLine } from './ExpBlock';
 import ReviewCinemaCard, { CinemaProgress } from './ReviewCinemaCard';
+import { relatedPool, relatedViewFor } from '@/lib/relatedView';
 import WordMarks from './WordMarks';
 import { getActiveWords, starWord, unstarWord, likeWord, sameWorkTitle } from '@/lib/words';
 import { entryFromCard, sceneOf } from '@/lib/wordMarks';
@@ -301,6 +302,30 @@ export default function ReviewModal({ asPage = false }) {
   const [queue, setQueue] = useState([]);
   const [idx, setIdx] = useState(0);
   const [flipped, setFlipped] = useState(false);
+  // 近い意味の、学んだ語（復習のカードの裏だけ・「単語を学ぶ」には出さない・2026-11-17 オーナー決定）。
+  //   候補（学んだ語の一覧）は復習を開いた時に1回だけ作る。法務の条件で出すのは 語・意味・作品名だけ（lib/relatedView.js）。
+  const relPool = useMemo(() => (cinema && reviewWords ? relatedPool() : null), [cinema, reviewWords]);
+  const relCache = useRef(new Map());
+  const relatedFor = (w) => {
+    if (!relPool || !w) return null;
+    const k = String(w.word || '').toLowerCase();
+    if (!relCache.current.has(k)) relCache.current.set(k, relatedViewFor(w, relPool.pool, relPool.srs));
+    return relCache.current.get(k);
+  };
+  const relShownRef = useRef(new Set()); // related_shown は1回の復習で1語1回
+  useEffect(() => {
+    relCache.current = new Map();
+    relShownRef.current = new Set();
+  }, [relPool]);
+  useEffect(() => {
+    const w = queue[idx];
+    if (!flipped || !w || !relatedFor(w)) return;
+    const k = String(w.word || '').toLowerCase();
+    if (relShownRef.current.has(k)) return;
+    relShownRef.current.add(k);
+    trackUsage('related_shown');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flipped, idx, queue, relPool]);
   const [ratings, setRatings] = useState({}); // word -> quality
   const [promo, setPromo] = useState({ learned: [], mastered: [] });
   const [sessionInfo, setSessionInfo] = useState(null); // 完了時に記録
@@ -620,6 +645,8 @@ export default function ReviewModal({ asPage = false }) {
         }
         return;
       }
+      // 近い意味の語の札に印がある時の Space/Enter は、その札を開く（採点しない）
+      if (isOpen && e.target?.closest?.('.rc-rel-chip')) return;
       const map = { ArrowRight: 5, 3: 5, ArrowLeft: 0, 1: 0, ArrowDown: 3, 2: 3 };
       if (k in map) {
         e.preventDefault();
@@ -753,6 +780,8 @@ export default function ReviewModal({ asPage = false }) {
             <ReviewCinemaCard
               word={queue[idx]}
               marks={marksFor(queue[idx])}
+              related={cinema ? relatedFor(queue[idx]) : null}
+              onRelatedTap={() => trackUsage('related_tap')}
               flipped={flipped}
               retryMode={retryMode}
               onFlip={() => setFlipped(true)}
