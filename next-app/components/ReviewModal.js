@@ -742,6 +742,7 @@ export default function ReviewModal({ asPage = false }) {
               return (relPool?.pool || []).find((x) => String(x.word || '').toLowerCase() === k) || null;
             }}
             marksFor={marksFor}
+            canStart={!cardDeck}
             onClose={() => setCatSheet(null)}
             onStart={() => {
               const cat = catSheet.cat;
@@ -1340,7 +1341,7 @@ function ReviewDone({ showTomorrow = false, queue, partial = false, awardedRef, 
 //   1行＝語・意味・作品名（文字だけ・例文は並べない＝法務の条件）。多い時はシートの中だけスクロール。
 //   語を押すと、その語のカード（裏の面・見るだけ）を上に重ねる（2026-11-17 オーナー決定）。判定なし＝SRS・記録は動かない。
 //   閉じるとシートに戻る（シートは閉じないのでスクロールの位置もそのまま）。Esc と × は1段ずつ戻る。
-function CatSheet({ data, onClose, onStart, cardOf, marksFor }) {
+function CatSheet({ data, onClose, onStart, cardOf, marksFor, canStart = true }) {
   const [peek, setPeek] = useState(null);
   // 見るだけのカードを開いている間は、キーの的をカード（の箱）に移す（下の一覧の語に的が残ると ↓ などで一覧が動く・Space で開き直す）。
   //   閉じたら押した語の行に的を戻す。
@@ -1427,9 +1428,12 @@ function CatSheet({ data, onClose, onStart, cardOf, marksFor }) {
           ))}
         </div>
         <div className="rd-catsheet-foot">
-          <button type="button" className="rd-btn1" onClick={onStart}>
-            「{data.label}」の語を復習する
-          </button>
+          {/* 「単語を学ぶ」のカード（cardDeck）から開いた時は出さない＝学ぶの途中で抜けない（受付の決まり 2026-11-17） */}
+          {canStart && (
+            <button type="button" className="rd-btn1" onClick={onStart}>
+              「{data.label}」の語を復習する
+            </button>
+          )}
           <p>カテゴリは自動で付けています。</p>
         </div>
       </div>
