@@ -124,7 +124,7 @@ const FilmIcon = () => (
   </svg>
 );
 
-export default function ReviewCinemaCard({ word: w, marks, related = null, onRelatedTap, flipped, retryMode, onFlip, onRate, onUndo }) {
+export default function ReviewCinemaCard({ word: w, marks, related = null, onRelatedTap, onCatTap, flipped, retryMode, onFlip, onRate, onUndo }) {
   // 近い意味の、学んだ語（復習だけ・関連語がある語だけ・2026-11-17）。札を押すと、その場に 語・意味・作品名を出す（もう一度押すと閉じる）。
   const [relOpen, setRelOpen] = useState(null);
   const [relFor, setRelFor] = useState(w.word);
@@ -182,9 +182,9 @@ export default function ReviewCinemaCard({ word: w, marks, related = null, onRel
       alive = false;
       ro?.disconnect();
     };
-  }, [flipped, w.word, !!rel]);
+  }, [flipped, w.word, !!rel, !!relOpen]);
   // 裏も表と同じ大きさ・同じ規則（オーナー 2026-11-07「回答画面の英単語を大きく」）
-  useFitWord(wordRef, PHRASE_MIN_PX.front, [w.word, w.chunk, flipped, !!rel]);
+  useFitWord(wordRef, PHRASE_MIN_PX.front, [w.word, w.chunk, flipped, !!rel, !!relOpen]);
 
   const wordEl = (
     <span ref={wordRef} className="rc-word">
@@ -219,7 +219,7 @@ export default function ReviewCinemaCard({ word: w, marks, related = null, onRel
       <div className="rc-deck">
         <div
           ref={ticketRef}
-          className={'rc-ticket' + (flipped ? ' is-back' : ' is-front') + (rel ? ' has-rel' : '')}
+          className={'rc-ticket' + (flipped ? ' is-back' : ' is-front') + (rel ? ' has-rel' : '') + (rel && relOpen ? ' rel-open' : '')}
           onClick={(e) => {
             if (flipped || e.target.closest('button')) return;
             onFlip();
@@ -342,7 +342,21 @@ export default function ReviewCinemaCard({ word: w, marks, related = null, onRel
                 <div className="rc-rel">
                   <div className="rc-rel-head">
                     <span>近い意味の、学んだ語</span>
-                    {rel.catName && <span className="rc-rel-cat">{rel.catName}</span>}
+                    {rel.catName &&
+                      (onCatTap ? (
+                        <button
+                          type="button"
+                          className="rc-rel-cat"
+                          onClick={(ev) => {
+                            ev.stopPropagation();
+                            onCatTap(rel.cat);
+                          }}
+                        >
+                          {rel.catName} ›
+                        </button>
+                      ) : (
+                        <span className="rc-rel-cat">{rel.catName}</span>
+                      ))}
                   </div>
                   <div className="rc-rel-chips">
                     {rel.words.map((r) => (
@@ -367,11 +381,8 @@ export default function ReviewCinemaCard({ word: w, marks, related = null, onRel
                       const r = rel.words.find((x) => x.word === relOpen);
                       return r ? (
                         <div className="rc-rel-detail">
-                          <div className="rc-rel-line">
-                            <b>{r.word}</b>
-                            <span>{r.definition}</span>
-                          </div>
-                          {r.work && <div className="rc-rel-work">{r.work} で学んだ語</div>}
+                          <b>{r.word}</b> <span className="rc-rel-def">{r.definition}</span>
+                          {r.work && <span className="rc-rel-work">{r.work} で学んだ語</span>}
                         </div>
                       ) : null;
                     })()}

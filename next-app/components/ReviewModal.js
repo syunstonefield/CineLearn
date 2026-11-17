@@ -29,7 +29,7 @@ import { addExp, levelInfo, expForReviewSession } from '@/lib/exp';
 import { awardReviewSession } from '@/lib/reviewAward';
 import { ExpLine } from './ExpBlock';
 import ReviewCinemaCard, { CinemaProgress } from './ReviewCinemaCard';
-import { relatedPool, relatedViewFor } from '@/lib/relatedView';
+import { relatedPool, relatedViewFor, catReviewCards } from '@/lib/relatedView';
 import WordMarks from './WordMarks';
 import { getActiveWords, starWord, unstarWord, likeWord, sameWorkTitle } from '@/lib/words';
 import { entryFromCard, sceneOf } from '@/lib/wordMarks';
@@ -202,7 +202,7 @@ function KeysHelp({ onClose }) {
 
 // 既存 startReview / renderReviewCard（SRSフラッシュカード）の再現。
 export default function ReviewModal({ asPage = false }) {
-  const { reviewWords, reviewAll, reviewAgain, closeReview, currentHistoryId, profile, openWordbook, openReview, settings, updateSettings, cardDeck } = useApp();
+  const { reviewWords, reviewAll, reviewAgain, closeReview, currentHistoryId, setCurrentHistoryId, profile, openWordbook, openReview, settings, updateSettings, cardDeck } = useApp();
   // 作品を選んだあとのカード（2026-11-12 カード中心・AppProvider openCardDeck）: 渡された並びのまま出し、終わり／✕ で
   //   cardDeck.onFinish(答えた語) を呼んで閉じる（終わりの画面は単語リストの画面が出す＝ここの完了画面・途中の成果画面は出さない）。
   // 10枚でひと区切り（オーナー決定 2026-11-12・案5）: 採点した枚数が 10・20…になった所で区切りの画面を出す（最後の1枚の後は出さず完了へ）。
@@ -311,6 +311,19 @@ export default function ReviewModal({ asPage = false }) {
     const k = String(w.word || '').toLowerCase();
     if (!relCache.current.has(k)) relCache.current.set(k, relatedViewFor(w, relPool.pool, relPool.srs));
     return relCache.current.get(k);
+  };
+  // カードの大の名前（感情 ›）から、その大の「カテゴリで復習」へ（今の復習は閉じる＝ここまでの答えは今までどおり記録）。
+  //   カテゴリで復習の最中（カードに _catReview がある）は出さない。
+  const goCatReview = (cat) => {
+    const history = loadHistory();
+    const words = catReviewCards(cat, history, loadSrs(), { activeKeys: activeWordKeys(history, [], sameWorkTitle) });
+    if (!words.length) return;
+    trackUsage('cat_review_start');
+    closeReview();
+    setTimeout(() => {
+      setCurrentHistoryId?.(null);
+      openReview(words, { all: true });
+    }, 0);
   };
   const relShownRef = useRef(new Set()); // related_shown は1回の復習で1語1回
   useEffect(() => {
@@ -721,7 +734,7 @@ export default function ReviewModal({ asPage = false }) {
           <CinemaProgress
             idx={idx}
             total={queue.length}
-            label={cardDeck ? 'この話の単語' : again === 'unknown' ? '知らなかった語' : again === 'shaky' ? 'うろ覚えの語' : undefined}
+            label={cardDeck ? 'この話の単語' : queue[0]?._catReview ? `「${queue[0]._catReview}」の語` : again === 'unknown' ? '知らなかった語' : again === 'shaky' ? 'うろ覚えの語' : undefined}
             hideTotal={!!cardDeck?.breaks}
           />
         )}
@@ -782,6 +795,7 @@ export default function ReviewModal({ asPage = false }) {
               marks={marksFor(queue[idx])}
               related={cinema ? relatedFor(queue[idx]) : null}
               onRelatedTap={() => trackUsage('related_tap')}
+              onCatTap={queue[idx]?._catReview ? null : goCatReview}
               flipped={flipped}
               retryMode={retryMode}
               onFlip={() => setFlipped(true)}

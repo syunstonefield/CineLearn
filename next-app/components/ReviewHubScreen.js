@@ -27,6 +27,7 @@ import { usePlan, featureAccess } from '@/lib/plan';
 import { dailyReviewCap } from '@/lib/reviewCount';
 import PlusNote from './PlusNote';
 import { trackUsage } from '@/lib/usage';
+import { catReviewGroups, catReviewCards } from '@/lib/relatedView';
 import { rememberHubScroll, takeHubScroll } from '@/lib/hubScroll';
 import { workRecency, byRecency } from '@/lib/workRecency';
 import { IconRepeat, IconOpenBook, IconCheck, IconStar } from './icons/LineIcons';
@@ -208,6 +209,18 @@ export default function ReviewHubScreen() {
     () => (mounted ? activeWordKeys(history, myWords, sameWorkTitle) : null),
     [mounted, history, myWords]
   );
+  // カテゴリで復習（2026-11-17 オーナー決定・案A②）: 学んだ語を大ごとに 名前・数 だけで並べる（0語の大・その他は出さない）。
+  const catGroups = useMemo(() => (mounted ? catReviewGroups(history, srs, activeKeys) : []), [mounted, history, srs, activeKeys]);
+  const [catView, setCatView] = useState(false);
+  const startCatReview = (cat) => {
+    const words = catReviewCards(cat, history, srs, { toCard, activeKeys });
+    if (!words.length) return;
+    rememberHubScroll();
+    trackUsage('cat_review_start');
+    setCurrentHistoryId(null); // 複数の作品にまたがる
+    openReview(words, { all: true }); // 作品別の復習の「もう一度見る」と同じ扱い（期日に関係なく出す・答えは記録に入る）
+  };
+
   const todayCount = useMemo(
     () => (mounted ? Math.min(getDueReviewWords(history, srs, myWords, activeKeys).length, todayCap) : 0),
     [mounted, history, srs, myWords, activeKeys, todayCap]
@@ -376,6 +389,34 @@ export default function ReviewHubScreen() {
     [mounted, history, myWords, srs, activeKeys]
   );
 
+  if (catView) {
+    return (
+      <div className="screen active" id="screen-review-hub">
+        <div className="rh-screen rh-cat-screen">
+          <button type="button" className="rh-cat-back" onClick={() => setCatView(false)}>
+            ← 復習
+          </button>
+          <h1 className="rh-h1">カテゴリで復習</h1>
+          <p className="rh-sub">学んだ語を、意味のまとまりで復習できます</p>
+          {catGroups.length > 0 ? (
+            <div className="rh-cat-list">
+              {catGroups.map((g) => (
+                <button key={g.cat} type="button" className="rh-cat-row" onClick={() => startCatReview(g.cat)}>
+                  <span className="rh-cat-name">{g.label}</span>
+                  <span className="rh-cat-count">{g.count}語</span>
+                  <span className="rh-cat-chev" aria-hidden="true">›</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state" style={{ padding: '24px 8px' }}>まだ分類のある学んだ語がありません。</div>
+          )}
+          <p className="rh-cat-note">カテゴリは自動で付けています。</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="screen active" id="screen-review-hub">
       <div className="rh-screen">
@@ -464,6 +505,17 @@ export default function ReviewHubScreen() {
               </button>
             )}
           </div>
+        )}
+
+        {/* ①''' カテゴリで復習（学んだ語に分類のある大が1つでもある時だけ・今の並びは変えず、エピソードの前に1行） */}
+        {catGroups.length > 0 && (
+          <button type="button" className="rh-cat-entry" onClick={() => { setCatView(true); window.scrollTo(0, 0); }}>
+            <span className="rh-cat-entry-main">
+              <span className="rh-cat-entry-title">カテゴリで復習</span>
+              <span className="rh-cat-entry-sub">学んだ語を、意味のまとまりで復習できます</span>
+            </span>
+            <span className="rh-cat-entry-chev" aria-hidden="true">›</span>
+          </button>
         )}
 
         {/* ② エピソードを選ぶ */}
