@@ -304,7 +304,7 @@ export default function ReviewModal({ asPage = false }) {
   const [flipped, setFlipped] = useState(false);
   // 近い意味の、学んだ語（復習のカードの裏だけ・「単語を学ぶ」には出さない・2026-11-17 オーナー決定）。
   //   候補（学んだ語の一覧）は復習を開いた時に1回だけ作る。法務の条件で出すのは 語・意味・作品名だけ（lib/relatedView.js）。
-  const relPool = useMemo(() => (cinema && reviewWords ? relatedPool() : null), [cinema, reviewWords]);
+  const relPool = useMemo(() => ((cinema || !!cardDeck) && reviewWords ? relatedPool() : null), [cinema, cardDeck, reviewWords]); // 単語を学ぶのカード（cardDeck）にも出す（作品・予習部門の依頼・オーナー決定 2026-11-17）
   const relCache = useRef(new Map());
   const relatedFor = (w) => {
     if (!relPool || !w) return null;
@@ -820,7 +820,7 @@ export default function ReviewModal({ asPage = false }) {
             <ReviewCinemaCard
               word={queue[idx]}
               marks={marksFor(queue[idx])}
-              related={cinema ? relatedFor(queue[idx]) : null}
+              related={cinema || cardDeck ? relatedFor(queue[idx]) : null}
               onRelatedTap={() => trackUsage('related_tap')}
               onCatTap={queue[idx]?._catReview ? null : openCatSheet}
               flipped={flipped}
