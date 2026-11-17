@@ -7381,7 +7381,10 @@ html.cl-review-lock .app-tmdb-footer { display: none; }
 /* 近い意味の、学んだ語（復習のカードの裏・関連語がある語だけ・2026-11-17 オーナー決定）。
    カードの大きさ・点線の描き方・3つのボタンの位置は変えない。語の場所は伸ばさず（字も少し小さく）、出所の行の下・カードの下に置く。
    出すのは 語・意味・作品名だけ（法務の条件）。中身が長い時は今までどおり点線より下（rc-back-body）だけがスクロール */
-.rc-ticket.has-rel .rc-back-word { flex: 0 0 auto; min-height: 0; padding: 6px 16px 12px; }
+.rc-ticket.has-rel .rc-back-word { flex: 1 0 auto; min-height: 0; padding: 6px 16px 12px; }
+/* ★2026-11-17 オーナー「例文と関連語は下詰め、英単語は余った範囲で」: 語と 聞く は残りの高さの真ん中（伸びるだけで、中身より小さくは縮まない＝
+   小さい画面は今までどおり語の高さぴったり・点線より下がスクロール）。意味〜出所〜関連語はひとかたまりでカードの下に詰める */
+.rc-ticket.has-rel .rc-rel { margin-top: 0; }
 .rc-ticket.has-rel .rc-word { font-size: 40px; }
 .rc-ticket.has-rel .rc-back-body { padding-bottom: 16px; -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent); } /* 札を開いて点線より下が短くなった時、切れ目を薄くぼかして「続きがある」と分かるように */
 .rc-rel { flex: none; margin: auto 18px 0; padding: 10px 0 14px; border-top: 1px solid var(--rc-line); display: flex; flex-direction: column; gap: 8px; }
