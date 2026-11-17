@@ -304,19 +304,25 @@ export default function ReviewModal({ asPage = false }) {
   const [flipped, setFlipped] = useState(false);
   // 近い意味の、学んだ語（復習のカードの裏だけ・「単語を学ぶ」には出さない・2026-11-17 オーナー決定）。
   //   候補（学んだ語の一覧）は復習を開いた時に1回だけ作る。法務の条件で出すのは 語・意味・作品名だけ（lib/relatedView.js）。
-  const relPool = useMemo(() => ((cinema || !!cardDeck) && reviewWords ? relatedPool() : null), [cinema, cardDeck, reviewWords]); // 単語を学ぶのカード（cardDeck）にも出す（作品・予習部門の依頼・オーナー決定 2026-11-17）
-  const relCache = useRef(new Map());
+  //   拡張で保存した語（my_words＝marks の行・あとから届く）も候補に入れる（2026-11-18 オーナー決定・⑦の withMyWords）。
+  //   ★/♡ を押すたびに作り直さないよう、語の顔ぶれ（キーの並び）が変わった時だけ作り直す。
+  const myWordsSig = [...marks.values()].filter((r) => r.inWordbook !== false).map((r) => String(r.word).toLowerCase()).sort().join('|');
+  const myWords = useMemo(() => [...marks.values()].filter((r) => r.inWordbook !== false), [myWordsSig]); // eslint-disable-line react-hooks/exhaustive-deps
+  const relPool = useMemo(() => ((cinema || !!cardDeck) && reviewWords ? relatedPool(myWords) : null), [cinema, cardDeck, reviewWords, myWords]); // 単語を学ぶのカード（cardDeck）にも出す（作品・予習部門の依頼・オーナー決定 2026-11-17）
+  const relCache = useRef({ pool: null, map: new Map() });
   const relatedFor = (w) => {
     if (!relPool || !w) return null;
+    if (relCache.current.pool !== relPool) relCache.current = { pool: relPool, map: new Map() }; // 候補が変わったら（my_words が届いた等）その場で作り直す
+    const cache = relCache.current.map;
     const k = String(w.word || '').toLowerCase();
-    if (!relCache.current.has(k)) relCache.current.set(k, relatedViewFor(w, relPool.pool, relPool.srs));
-    return relCache.current.get(k);
+    if (!cache.has(k)) cache.set(k, relatedViewFor(w, relPool.pool, relPool.srs));
+    return cache.get(k);
   };
   // カードの大の名前（感情 ›）から、その大の「カテゴリで復習」へ（今の復習は閉じる＝ここまでの答えは今までどおり記録）。
   //   カテゴリで復習の最中（カードに _catReview がある）は出さない。
   const goCatReview = (cat) => {
     const history = loadHistory();
-    const words = catReviewCards(cat, history, loadSrs(), { activeKeys: activeWordKeys(history, [], sameWorkTitle) });
+    const words = catReviewCards(cat, history, loadSrs(), { activeKeys: activeWordKeys(history, myWords, sameWorkTitle), myWords });
     if (!words.length) return;
     trackUsage('cat_review_start');
     closeReview();
@@ -330,16 +336,15 @@ export default function ReviewModal({ asPage = false }) {
   const [catSheet, setCatSheet] = useState(null);
   const openCatSheet = () => {
     const history = loadHistory();
-    const d = catSheetData(queue[idx], history, loadSrs(), activeWordKeys(history, [], sameWorkTitle));
+    const d = catSheetData(queue[idx], history, loadSrs(), activeWordKeys(history, myWords, sameWorkTitle), myWords);
     if (!d) return;
     setCatSheet(d);
     trackUsage('cat_sheet_open');
   };
   const relShownRef = useRef(new Set()); // related_shown は1回の復習で1語1回
   useEffect(() => {
-    relCache.current = new Map();
     relShownRef.current = new Set();
-  }, [relPool]);
+  }, [reviewWords]); // 新しい復習を開いた時だけ（my_words が届いて候補を作り直しても数え直さない）
   useEffect(() => {
     const w = queue[idx];
     if (!flipped || !w || !relatedFor(w)) return;

@@ -210,10 +210,10 @@ export default function ReviewHubScreen() {
     [mounted, history, myWords]
   );
   // カテゴリで復習（2026-11-17 オーナー決定・案A②）: 学んだ語を大ごとに 名前・数 だけで並べる（0語の大・その他は出さない）。
-  const catGroups = useMemo(() => (mounted ? catReviewGroups(history, srs, activeKeys) : []), [mounted, history, srs, activeKeys]);
+  const catGroups = useMemo(() => (mounted ? catReviewGroups(history, srs, activeKeys, myWords) : []), [mounted, history, srs, activeKeys, myWords]);
   const [catView, setCatView] = useState(false);
   const startCatReview = (cat) => {
-    const words = catReviewCards(cat, history, srs, { toCard, activeKeys });
+    const words = catReviewCards(cat, history, srs, { toCard, activeKeys, myWords });
     if (!words.length) return;
     rememberHubScroll();
     trackUsage('cat_review_start');
