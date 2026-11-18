@@ -34,7 +34,7 @@ import { fetchJa } from '@/lib/jatranslate';
 import { getActiveWords, normTitleForMatch, prewarmTitleAliases, sameWorkTitle } from '@/lib/words';
 import { pickTodayWord } from '@/lib/liked';
 import { AGAIN_BATCH } from '@/lib/againWords';
-import { latestEpisode, canLearn, canQuiz } from '@/lib/continueRow';
+import { rowEpisode, canLearn, canQuiz } from '@/lib/continueRow';
 import {
   toIsoDate,
   loadStatsDaily,
@@ -902,8 +902,10 @@ export default function Dashboard() {
                   {/* 行＝単語リスト（作品の画面をはさまない）／「学ぶ」＝行の話の単語のカードを直接／「クイズ」＝その話のクイズ（誰でも・戻るは「← ホーム」）。
                       札は出せる時だけ（lib/continueRow.js）。✕はやめ、単語リストのいちばん下の「ホームの続きから外す」へ（オーナー決定 2026-11-12）。 */}
                   {(showAllContinue ? continueEntries : continueEntries.slice(0, 2)).map((entry) => {
-                    const ep = latestEpisode(entry.episodes);
-                    const h = ep
+                    // 行の話＝この作品で最後に開いた話（行を押した時に開く話と同じ・2026-11-18 不具合の直し・lib/continueRow.js rowEpisode）
+                    const last = (settings.myDramas || []).find((x) => x.title === entry.drama.title);
+                    const ep = rowEpisode(entry.episodes, last);
+                    const h = ep && ep.listed
                       ? (data.history || []).find(
                           (x) =>
                             x.drama?.title === entry.drama.title &&
@@ -918,6 +920,7 @@ export default function Dashboard() {
                       <ContinueCard
                         key={entry.drama.title}
                         entry={entry}
+                        current={ep}
                         stats={data.learnStats.get(entry.drama.title)}
                         onSelect={(drama) => openDrama(drama, false, { startView: 'list' })}
                         onLearn={

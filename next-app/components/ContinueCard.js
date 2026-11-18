@@ -10,14 +10,17 @@ import { trackUsage } from '@/lib/usage';
 //   学ぶ＝行に出ている話の単語のカードを直接／クイズ＝その話のクイズ。出す条件は Dashboard（lib/continueRow.js）が決め、
 //   出さない札は onLearn / onQuiz を渡さない。✕（棚から外す）はやめ、単語リストのいちばん下の「ホームの続きから外す」へ移した。
 //   進捗％＝覚えた率（覚えた語 / 全保存語）。視聴は検知できないので“学習の進み”で正直に示す。
-export default function ContinueCard({ entry, stats, onSelect, onLearn, onQuiz }) {
+export default function ContinueCard({ entry, current = null, stats, onSelect, onLearn, onQuiz }) {
   const { drama, episodes } = entry;
   const [imgFailed, setImgFailed] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
   const showPoster = drama.posterPath && !imgFailed;
 
-  // 現在地＝学習した最大シーズン→その中の最大エピソード（「続き」の起点）。
-  const latest = episodes.length
+  // 現在地＝この作品で最後に開いた話（Dashboard が lib/continueRow.js rowEpisode で決めて current で渡す・2026-11-18）。
+  //   渡されない時だけ、今までどおり学習した最大シーズン→その中の最大エピソード。
+  const latest = current
+    ? current
+    : episodes.length
     ? episodes.reduce((a, b) =>
         (b.season || 1) > (a.season || 1) ||
         ((b.season || 1) === (a.season || 1) && (b.episode || 1) > (a.episode || 1))

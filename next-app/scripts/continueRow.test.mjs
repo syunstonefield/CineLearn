@@ -1,7 +1,7 @@
 // ホームの「続きから学習」の行の札（lib/continueRow.js）の単体テスト。
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { latestEpisode, canLearn, canQuiz } from '../lib/continueRow.js';
+import { latestEpisode, rowEpisode, canLearn, canQuiz } from '../lib/continueRow.js';
 
 const W = ['borrow', 'honest', 'deserve', 'afford', 'admit', 'avoid'].map((w) => ({
   word: w,
@@ -36,4 +36,22 @@ test('クイズ: 問題が作れる時だけ・単語リストが無い話やマ
   assert.equal(canQuiz({ words: W.map((w) => ({ ...w, source: 'ai' })) }, {}), false);
   const allMastered = Object.fromEntries(W.map((w) => [w.word, { repetitions: 4, interval: 30, easeFactor: 2.5 }]));
   assert.equal(canQuiz(entry, allMastered), false);
+});
+
+// 2026-11-18 不具合「続きから学ぶで話を変えてもホームに反映されない」: 行の話＝最後に開いた話
+test('行の話: 最後に開いた話（下の話へ戻った時も・リストのある話）', () => {
+  const eps = [{ season: 1, episode: 1 }, { season: 2, episode: 5 }];
+  assert.deepEqual(rowEpisode(eps, { lastSeason: 1, lastEpisode: 1 }), { season: 1, episode: 1, listed: true });
+});
+
+test('行の話: 最後に開いた話にまだリストが無い時も、その話を出す（札は出さない＝listed:false）', () => {
+  const eps = [{ season: 2, episode: 5 }];
+  assert.deepEqual(rowEpisode(eps, { lastSeason: 2, lastEpisode: 6 }), { season: 2, episode: 6, listed: false });
+});
+
+test('行の話: 記憶が無い時は今までどおりいちばん新しい話', () => {
+  const eps = [{ season: 1, episode: 3 }, { season: 2, episode: 1 }];
+  assert.deepEqual(rowEpisode(eps, null), { season: 2, episode: 1, listed: true });
+  assert.deepEqual(rowEpisode(eps, {}), { season: 2, episode: 1, listed: true });
+  assert.equal(rowEpisode([], null), null);
 });

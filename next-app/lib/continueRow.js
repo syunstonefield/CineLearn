@@ -14,6 +14,22 @@ export function latestEpisode(episodes) {
   );
 }
 
+// 行に出す話（2026-11-18 オーナーの不具合の報告「続きから学ぶで話を変えてもホームに反映されない」）。
+//   この作品で最後に開いた話（myDramas の lastSeason/lastEpisode・行を押した時に openDrama が開く話）を出す。
+//   その話にまだ単語リストが無くても、その話を出す（listed=false＝学ぶ・クイズの札は出さない）。
+//   最後に開いた話の記憶が無い時だけ、今までどおりいちばん新しい話。
+//   episodes … 単語リストのある話の一覧（[{ season, episode }]）／last … { lastSeason, lastEpisode }（myDramas の記録）
+export function rowEpisode(episodes, last) {
+  const s = Number(last?.lastSeason) || 0;
+  const e = Number(last?.lastEpisode) || 0;
+  if (s > 0 && e > 0) {
+    const listed = (Array.isArray(episodes) ? episodes : []).some((x) => (x.season || 1) === s && (x.episode || 1) === e);
+    return { season: s, episode: e, listed };
+  }
+  const l = latestEpisode(episodes);
+  return l ? { season: l.season || 1, episode: l.episode || 1, listed: true } : null;
+}
+
 export function canLearn(entry, srs = {}, today = '') {
   const words = entry?.words;
   if (!Array.isArray(words) || !words.length) return false;
