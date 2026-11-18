@@ -236,18 +236,18 @@ export default function TicketCollectionScreen() {
       }
       // 偽IDを持つ作品: myDramas から tmdbId/posterPath を剥がして再解決に回す。
       if (!cancelled && badTitles.length) {
-        const md = [...(settings.myDramas || [])];
-        let changed = false;
-        md.forEach((d) => {
-          if (badTitles.includes(d.title)) {
-            delete d.tmdbId;
-            delete d.posterPath;
-            delete d.type; // 偽マッチ由来のtv/movie判定も捨てて再解決に委ねる
-            changed = true;
-          }
-        });
+        const changed = (settings.myDramas || []).some((d) => badTitles.includes(d.title));
         badTitles.forEach((t) => attemptedPosters.current.delete(t)); // 解決器の再走を許可
-        if (changed) updateSettings({ myDramas: md });
+        // 最新の myDramas に重ねて、その作品の tmdbId/posterPath/type だけを外す（待つ前に写した一覧を丸ごと書き戻さない＝
+        //   最後に開いた話などを古い値に戻さない・2026-11-18 続きから学習の不具合の直し）。偽マッチ由来の tv/movie 判定も捨てて再解決に委ねる
+        if (changed)
+          updateSettings((prev) => ({
+            myDramas: (prev.myDramas || []).map((d) => {
+              if (!badTitles.includes(d.title)) return d;
+              const { tmdbId: _i, posterPath: _p, type: _t, ...rest } = d;
+              return rest;
+            }),
+          }));
       }
     })();
     return () => {
@@ -273,7 +273,9 @@ export default function TicketCollectionScreen() {
     missing.forEach((m) => attemptedPosters.current.add(m.title));
     (async () => {
       const found = {};
-      const md = [...(settings.myDramas || [])];
+      const md = [...(settings.myDramas || [])]; // 読むだけ（どの作品が一覧にあるか）。書き戻しは最後に最新の一覧へ重ねる
+      const fixes = {}; // title → 直す中身
+      const adds = []; // 一覧に無い作品の最小エントリ
       let mdChanged = false;
       const CONC = 4; // 同時4件のプール（検索往復の直列N連を解消）
       for (let i = 0; i < missing.length; i += CONC) {
@@ -306,9 +308,8 @@ export default function TicketCollectionScreen() {
               found[e.title] = p;
               const m = md.find((d) => d.title === e.title);
               if (m) {
-                m.posterPath = p;
-                if (hit.id) m.tmdbId = hit.id;
-                m.type = isMovieHit ? 'movie' : 'tv'; // タイトル照合済みのmedia_typeが正
+                // 直す中身だけを覚えておき、最後に最新の myDramas へ重ねる（2026-11-18）
+                fixes[e.title] = { posterPath: p, ...(hit.id ? { tmdbId: hit.id } : {}), type: isMovieHit ? 'movie' : 'tv' }; // タイトル照合済みのmedia_typeが正
                 mdChanged = true;
               } else if (hit.id) {
                 // 履歴にだけ存在する作品（マイリスト外）にも tmdbId を持たせる受け皿を作る。
@@ -316,7 +317,7 @@ export default function TicketCollectionScreen() {
                 // どこからも引けず総話数が「—」のままだった（解決器が id を見つけても
                 // md.find が外れて捨てていた）。最小エントリを追加すれば entries が
                 // tmdbId を得て seasons 取得が走り、saveProfiles でクラウドにも治癒が伝搬する。
-                md.push({
+                adds.push({
                   title: e.title,
                   englishTitle: e.drama?.englishTitle || e.enTitle || e.title,
                   tmdbId: hit.id,
@@ -333,7 +334,16 @@ export default function TicketCollectionScreen() {
         );
       }
       if (Object.keys(found).length) setPosterOverrides((prev) => ({ ...prev, ...found }));
-      if (mdChanged) updateSettings({ myDramas: md });
+      // ★待つ前に写した一覧を丸ごと書き戻さない＝取得を待つあいだに変わった最後に開いた話などを古い値に戻さない（2026-11-18）。
+      if (mdChanged)
+        updateSettings((prev) => {
+          const cur = prev.myDramas || [];
+          const next = cur.map((d) => (fixes[d.title] ? { ...d, ...fixes[d.title] } : d));
+          adds.forEach((a) => {
+            if (!next.some((d) => d.title === a.title)) next.push(a);
+          });
+          return { myDramas: next };
+        });
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entries]);

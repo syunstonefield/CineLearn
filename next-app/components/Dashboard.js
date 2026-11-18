@@ -409,18 +409,19 @@ export default function Dashboard() {
             p = `https://image.tmdb.org/t/p/w342${hit.poster_path}`;
           }
           found[drama.title] = p;
-
-          const m = md.find((d) => d.title === drama.title);
-          if (m) {
-            m.posterPath = p;
-            mdChanged = true;
-          }
+          if (md.some((d) => d.title === drama.title)) mdChanged = true;
         } catch {
           /* 取得失敗は無視 */
         }
       }
       if (Object.keys(found).length) setPosterOverrides((prev) => ({ ...prev, ...found }));
-      if (mdChanged) updateSettings({ myDramas: md }); // 永続化は myDramas のみ（既存 saveSettings と同じ）
+      // ★書き戻すのはポスターだけ・その時点の最新の myDramas に重ねる（2026-11-18 不具合の直し）。
+      //   以前は待つ前に写した md を丸ごと書き戻していた＝取得を待つあいだに話を変えると、最後に開いた話
+      //   （lastSeason/lastEpisode）が古い値に戻り、ホームの「続きから学習」の行と 学ぶ が前の話のままになった。
+      if (mdChanged)
+        updateSettings((prev) => ({
+          myDramas: (prev.myDramas || []).map((d) => (found[d.title] ? { ...d, posterPath: found[d.title] } : d)),
+        }));
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
@@ -455,18 +456,18 @@ export default function Dashboard() {
           });
           if (Object.keys(counts).length) {
             found[drama.title] = counts;
-            const m = md.find((x) => x.title === drama.title);
-            if (m) {
-              m.seasonCounts = counts;
-              mdChanged = true;
-            }
+            if (md.some((x) => x.title === drama.title)) mdChanged = true;
           }
         } catch {
           /* 取得失敗は無視（バー非表示のまま） */
         }
       }
       if (Object.keys(found).length) setEpisodeOverrides((prev) => ({ ...prev, ...found }));
-      if (mdChanged) updateSettings({ myDramas: md });
+      // 書き戻すのは話数だけ・最新の myDramas に重ねる（待つあいだに変わった最後に開いた話を古い値に戻さない・2026-11-18）
+      if (mdChanged)
+        updateSettings((prev) => ({
+          myDramas: (prev.myDramas || []).map((d) => (found[d.title] ? { ...d, seasonCounts: found[d.title] } : d)),
+        }));
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
